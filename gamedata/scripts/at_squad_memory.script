@@ -78,12 +78,14 @@ local function _decay_tick()
     end
 end
 
--- Server entity unregister fires for every server entity. Unconditional hash
--- delete is a safe no-op when the id isn't a squad we've recorded. Same pattern
--- as ap_core_broker.script:837-848.
+-- Server entity unregister fires for every server entity. The hash lookup gates
+-- the delete and the log, so untracked ids cost one hash miss and nothing else.
 local function _on_entity_unregister(se_obj)
     if not se_obj then return end
-    _records[se_obj.id] = nil
+    local id = se_obj.id
+    if not _records[id] then return end
+    _records[id] = nil
+    if _dbg then log.debug("[CLEAR] squad=%d removed from substrate", id) end
 end
 
 local function _refresh_log()

@@ -132,7 +132,10 @@ end
 
 local function _on_entity_unregister(se_obj)
     if not se_obj then return end
-    _counters[se_obj.id] = nil
+    local id = se_obj.id
+    if not _counters[id] then return end
+    _counters[id] = nil
+    if _dbg then log.debug("[CLEAR] squad=%d counter removed", id) end
 end
 
 local function _refresh_log()
@@ -157,6 +160,7 @@ end
 
 --- Record a combat event for a squad and evaluate state transition
 function record_event(squad_id, event_type)
+    local tmr = xprofiler.new_if(_dbg):start()
     local record = at_squad_memory.get(squad_id)
     local now    = xtime.game_sec()
     record.state.last_event_time = now
@@ -167,26 +171,43 @@ function record_event(squad_id, event_type)
 
     local new_state = _eval_transition(record, count, _events_to_engage())
     if new_state then _enter(record, new_state, now) end
+    tmr:stop()
 
     if _dbg then
-        log.debug("[EVENT] squad=%d type=%s count=%d state=%s",
-            squad_id, event_type, count, record.state.current_state)
+        log.debug("[EVENT] squad=%d type=%s count=%d state=%s [%.2fms]",
+            squad_id, event_type, count, record.state.current_state, tmr:get_ms())
     end
 end
 
 --- Force a state directly (used by flee logic)
 function set_state(squad_id, new_state)
+    local tmr = xprofiler.new_if(_dbg):start()
     local record = at_squad_memory.get(squad_id)
     _enter(record, new_state, xtime.game_sec())
+    tmr:stop()
+    if _dbg then
+        log.debug("[SET_STATE] squad=%d state=%s [%.2fms]", squad_id, new_state, tmr:get_ms())
+    end
 end
 
 --- Promote squad to ENGAGED unless already ENGAGED or FLEEING. Used by hit
 --- disclosure to skip the counter and short-circuit straight to active fire.
 function escalate_to_engaged(squad_id)
+    local tmr = xprofiler.new_if(_dbg):start()
     local record = at_squad_memory.get(squad_id)
     local state = record.state.current_state
-    if state == STATE.ENGAGED or state == STATE.FLEEING then return end
+    if state == STATE.ENGAGED or state == STATE.FLEEING then
+        tmr:stop()
+        if _dbg then
+            log.debug("[ESCALATE] squad=%d from=%s skipped [%.2fms]", squad_id, state, tmr:get_ms())
+        end
+        return
+    end
     _enter(record, STATE.ENGAGED, xtime.game_sec())
+    tmr:stop()
+    if _dbg then
+        log.debug("[ESCALATE] squad=%d from=%s to=ENGAGED [%.2fms]", squad_id, state, tmr:get_ms())
+    end
 end
 
 --- Read the current state name

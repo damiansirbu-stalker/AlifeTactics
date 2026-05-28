@@ -95,11 +95,22 @@ end
 -- only cleanup path for that map.
 local function _on_entity_unregister(se_obj)
     if not se_obj then return end
+    local tmr = xprofiler.new_if(_dbg):start()
     local id = se_obj.id
+    local scanned, cleared = 0, 0
     at_squad_memory.iterate(function(_squad_id, record)
-        record.per_shooter[id] = nil
-        record.disclosed_shooters[id] = nil
+        scanned = scanned + 1
+        if record.per_shooter[id] or record.disclosed_shooters[id] then
+            record.per_shooter[id] = nil
+            record.disclosed_shooters[id] = nil
+            cleared = cleared + 1
+        end
     end)
+    tmr:stop()
+    if _dbg and cleared > 0 then
+        log.debug("[UNREGISTER] entity=%d scanned=%d cleared=%d [%.2fms]",
+            id, scanned, cleared, tmr:get_ms())
+    end
 end
 
 -- ==================== HIT HANDLER ====================
@@ -109,12 +120,31 @@ local function _on_hit(npc, amount, _local_direction, who, _bone_index)
     if not amount or amount <= 0 then return end
     if not who or not npc then return end
     if who:id() == npc:id() then return end
+
+    local tmr_total = xprofiler.new_if(_dbg):start()
+
     -- Faction-relation gate. Skips friendly fire, neutrals, and same-community hits.
     -- Accidental shots on friendly NPCs never accumulate or disclose.
-    if not _shooter_is_combat_enemy(npc, who) then return end
+    local tmr_gate = xprofiler.new_if(_dbg):start()
+    local is_enemy = _shooter_is_combat_enemy(npc, who)
+    tmr_gate:stop()
+    if not is_enemy then
+        tmr_total:stop()
+        if _dbg then
+            log.debug("[HIT] rejected reason=friendly_fire [gate=%.2fms total=%.2fms]",
+                tmr_gate:get_ms(), tmr_total:get_ms())
+        end
+        return
+    end
 
     local squad = get_object_squad(npc)
-    if not squad then return end
+    if not squad then
+        tmr_total:stop()
+        if _dbg then
+            log.debug("[HIT] rejected reason=no_squad [total=%.2fms]", tmr_total:get_ms())
+        end
+        return
+    end
 
     local record = at_squad_memory.get(squad.id)
     local who_id = who:id()
@@ -139,20 +169,26 @@ local function _on_hit(npc, amount, _local_direction, who, _bone_index)
     -- is sticky; calling it again is harmless but log-spammy. disclosed_shooters
     -- clears only when the squad or shooter despawns (server_entity_on_unregister).
     if record.disclosed_shooters[who_id] then
+        tmr_total:stop()
         if _dbg then
-            log.debug("[HIT] squad=%d victim=%d shooter=%d count=%d damage=%.1f (already disclosed)",
-                squad.id, npc:id(), who_id, entry.count, amount)
+            log.debug("[HIT] squad=%d shooter=%d count=%d damage=%.1f (already disclosed) [gate=%.2fms total=%.2fms]",
+                squad.id, who_id, entry.count, amount, tmr_gate:get_ms(), tmr_total:get_ms())
         end
         return
     end
 
     record.disclosed_shooters[who_id] = true
     record.state.last_disclosure_time = now
+    local tmr_disclose = xprofiler.new_if(_dbg):start()
     local disclosed_to = _disclose(squad, who)
+    tmr_disclose:stop()
     at_state_machine.escalate_to_engaged(squad.id)
+    tmr_total:stop()
 
-    log.info("[DISCLOSURE] squad=%d shooter=%d disclosed_to=%d members",
-        squad.id, who_id, disclosed_to)
+    if _dbg then
+        log.debug("[DISCLOSURE] squad=%d shooter=%d disclosed_to=%d members [gate=%.2fms disclose=%.2fms total=%.2fms]",
+            squad.id, who_id, disclosed_to, tmr_gate:get_ms(), tmr_disclose:get_ms(), tmr_total:get_ms())
+    end
 end
 
 -- ==================== LIFECYCLE ====================

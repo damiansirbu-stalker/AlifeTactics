@@ -121,11 +121,13 @@ end
 local function _on_net_spawn(npc, _se_obj)
     if not _heal_active then return end
     if not npc or not IsStalker(npc) or not npc:alive() then return end
+    local tmr = xprofiler.new_if(_dbg):start()
     local id = npc:id()
     local name = npc:name()
     if se_load_var(id, name, "at_charge_processed") then
+        tmr:stop()
         if _dbg then
-            log.debug("[CHARGE] already_processed id=%d name=%s", id, name)
+            log.debug("[CHARGE] already_processed id=%d name=%s [%.2fms]", id, name, tmr:get_ms())
         end
         return
     end
@@ -136,9 +138,10 @@ local function _on_net_spawn(npc, _se_obj)
     local rolled = math_random()
     local granted = rolled < chance
     se_save_var(id, name, "healing_charge", granted)
+    tmr:stop()
     if _dbg then
-        log.debug("[CHARGE] id=%d tier=%s chance=%.2f rolled=%.3f granted=%s",
-            id, tier, chance, rolled, granted and "true" or "false")
+        log.debug("[CHARGE] id=%d tier=%s chance=%.2f rolled=%.3f granted=%s [%.2fms]",
+            id, tier, chance, rolled, granted and "true" or "false", tmr:get_ms())
     end
 end
 
