@@ -1,111 +1,74 @@
-AlifeTactics: Combat AI replacement for STALKER Anomaly, by Damian
-Version: 1.0.0
+AlifeTactics: NPC combat behavior for STALKER Anomaly, by Damian
+Version: 1.0.0 (xlibs 1.5.2)
 GitHub: https://github.com/damiansirbu-stalker/AlifeTactics
 Changelog: https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/changelog
 Bugs, suggestions: https://github.com/damiansirbu-stalker/AlifeTactics/issues
 
-Vanilla NPCs in Anomaly are not threatening. They miss most of their shots. They walk
-to cover with the weapon raised, looking silly. Each NPC discovers threats on its own
-so squadmates remain oblivious to attacks on their teammates. They never retreat
-tactically. They cannot deal with a player sitting behind a rock at 80 meters.
+! Reset MCM settings to defaults after updating !
 
-AlifeTactics rebuilds combat AI from the ground up around a single shared data
-structure: a per-squad memory table. Every behavior reads and writes that table
-instead of each one carrying its own scratch state. Hits get logged once at the
-squad level. Disclosure thresholds accumulate across the whole squad. Combat state
-escalates from idle through alerted to engaged based on event volume. Retreat
-decisions read squad power against enemy power. Danger memory retention scales with
-combat state. One source of truth, many small behaviors.
+AlifeTactics is a mod composed of several systems, that gives NPC squads coordinated combat behavior.
 
-Hit disclosure:
-  When N hits from a single shooter accumulate against a squad (across any members),
-  the shooter is added to every squadmate's engine memory as a known hostile. The
-  engine combat planner takes over from there: cover selection, return fire, flank
-  decisions all work because the engine now knows who the enemy is. No scripted
-  movement, no forced destinations. Threshold scales with rank: a master figures
-  out the shot direction after one hit, a novice after four or five. Cross-NPC
-  accumulation means three different snipers each hitting one squadmate trips
-  disclosure for the whole squad.
+Squad memory:
+  In vanilla each NPC tracks his own threats. The squad has no shared brain. A hit on one stalker stays a problem for one stalker, and the rest of the squad keeps walking.
+  Squad memory is one shared table per squad. Every other combat system writes its observations there and reads them back. Hits, shooters, current state, all in one place.
+  This is the backbone of the mod. Squads stop acting like four lone wolves wearing the same patches and start acting like a unit with shared awareness. Realistic squad combat is collaborative, and without a shared memory there is nothing to collaborate on.
 
-Squad combat state:
-  Tracks per-squad state through IDLE, ALERTED, ENGAGED, FLEEING based on event
-  volume. State drives retention scaling, scheme selection, flee gating. Per-squad
-  scope: squadmates share situational awareness without depending on smart-terrain
-  proximity.
+Squad alarm on hit:
+  Vanilla shares hit memory across squadmates within earshot. A suppressor breaks the share. A patrol member thirty meters off the line falls outside its range. The hit stays a private problem of whoever took it.
+  On the first faction-enemy hit, AlifeTactics writes the shooter into every squadmate's memory as hostile, audio range or not. The engine combat planner then handles target selection, cover, and return fire on the new information.
+  Shooting one stalker from cover or with a suppressor no longer leaves his squad standing around. They turn and engage on the first hit, including the ones who did not see or hear it.
 
-Tactical flee:
-  Outnumbered squads retreat to the nearest friendly smart terrain further from
-  the enemy than the squad's current position. The strongest member stays as rear
-  guard, others sprint to the destination. Smoke grenade masks the retreat. Per-rank
-  cowardice multiplier on the trigger threshold. Monolith and zombied never flee
-  by faction character. Squads at engaged smart terrains stay to defend.
-
-Memory persistence:
-  Danger memory windows extend during sustained engagement. Substrate-side: hit
-  records stay disclosed for five minutes instead of one when squad is in ENGAGED
-  state. Engine-side: provides an xr_danger.ltx with smart-state-keyed condlists
-  extending danger_inertion. Effect: snipe a guard, retreat, wait five minutes,
-  return. Guard still alert with weapons drawn instead of patrol idle.
-
-Scheme selection:
-  Provides a default_custom_data.ltx override switching NPCs between cover, camper, and
-  default combat schemes based on recent hit window, squad combat state, distance to
-  enemy, and rank. NPC-vs-NPC works by default.
-
-Global combat tuning:
-  Pushes about 16 engine combat cvars to tuned defaults at boot. Aim inertia, burst
-  delay, hold position time, grenade throw delay, search inertia, target-switching
-  delays, dispersion endpoints. MCM picks between Vanilla, Tactical, Hardcore, or
-  Custom (per-cvar sliders) presets. No state coupling - the cvars stay set for the
-  session because they are global engine state, not per-squad concerns.
-
-Grenade flush:
-  Vanilla NPCs in cover often cannot fire on hidden enemies because the engine
-  raycast hits their own cover. The engine has full grenade-throwing AI built to
-  flush such targets, but most loadouts have no grenades so the AI never triggers.
-  AlifeTactics guarantees 1-2 grenades on enemy NPCs of rank experienced or higher
-  and enables their grenade-throwing flag. Effect: cover-camping at the same
-  position stops working after the first thirty seconds.
-
-Stance and weapon bias:
-  Crouched with a scoped weapon is 12-15 times more accurate than walking with iron
-  sights. Engine auto-selection picks weapons reasonably but inconsistently. NPCs
-  crouch sometimes but often stand exposed in cover. AlifeTactics overrides the
-  weapon-choice callback to force scoped weapons at distance for higher-rank NPCs
-  and the body-state callback to force crouch when cover supports a kneeling
-  firing position.
+Squad combat phase:
+  Combat behaviors gate differently in calm, alert, and engaged squads. Without a shared phase per squad, every behavior duplicates the bookkeeping or runs in the wrong context.
+  AlifeTactics tracks one phase per squad. Hits and squad-wide alerts bump it up, quiet time drops it back down. The other systems read from it.
+  In 1.0.0 the phase has no direct visible effect. The consumers that read it (tactical flee, danger memory persistence, combat scheme selection) come in later versions. The phase runs now so they can be added cleanly.
 
 NPC self-healing:
-  Vanilla xr_eat_medkit contains a working code path for NPCs to consume medkits
-  and bandages from their inventory when wounded, but vanilla provides the [plugin]
-  section without the medkit/bandage item lists. parse_list returns empty, the
-  for-loop never iterates, and NPCs never consume real items -- only a one-shot
-  healing_charge fallback fires for half of stalkers. AlifeTactics adds the
-  missing item lists via a DLTX overlay (medkit, medkit_army, medkit_scientic,
-  the three medkit_ai variants, and bandage), restoring the intended behavior
-  without changing vanilla script. Two runtime tuning layers on top: heal rate
-  multiplier (scales the per-tick HP recovery, 0.5x-3.0x), and per-rank
-  healing-charge probability (replaces vanilla's flat 50% roll with four
-  per-tier sliders for novice/experienced/veteran/master). Defaults match
-  vanilla behavior exactly; sliders are opt-in tuning.
+  Vanilla has a working code path for NPCs to consume medkits and bandages from their inventory, but ships the underlying configuration with an empty item list. The consumption loop never iterates, and only a once-per-life fallback ever heals. NPCs carry full medkits and die clutching them.
+  AlifeTactics restores the missing item list through a configuration overlay covering the vanilla medkits and the bandage. Two MCM sliders tune on top: one scales how fast NPCs heal, one sets a per-rank chance for the lifetime fallback. Defaults match vanilla behavior, so out of the box you only get the fix.
+  Wounded stalkers actually heal themselves now. Stalkers carrying medkits use them. Stalkers without one fall back to the charge if their rank rolls allow.
+
+MCM:
+  Four tabs: General (master toggle), Squad (squad memory retention, combat phase timings, squad alarm toggle), Individual (NPC self-healing sliders), Development (log level).
+
+Backlog (not in 1.0.0):
+  Tactical flee, danger memory persistence, combat scheme selection, global combat tuning, stance and weapon bias, per-NPC rank-aware dispersion. The backlog file on GitHub tracks each.
 
 Performance:
-  All squad-aware behaviors are O(squads online) at worst, not O(NPCs online).
-  Per-frame work is bounded by the substrate decay tick (every 5 seconds) and the
-  flee evaluation (every 2 seconds per squad). The hit callback fires only when
-  someone gets shot. The vision rewrite is deferred precisely because get_visible_value
-  runs every frame for every NPC-actor pair; the other subsystems land first.
+  Squad-aware behaviors scale with squad count. NPC count does not enter the cost. Two periodic cleanup ticks run every few seconds. Nothing runs on every frame and nothing polls.
+
+Compatibility:
+  Tested with vanilla Anomaly 1.5.3 and GAMMA.
+  No base script edits. No engine patches.
+  Mid-save install works. Mid-save uninstall is safe.
+  Story NPCs, companions, and traders go through the same faction-relation gate as every other stalker, so they do not get caught by the squad alarm.
 
 Companion mods:
 
-AlifePlus (reactive A-Life framework) -- https://www.moddb.com/mods/stalker-anomaly/addons/alifeplus-v1-0-01
-AlifeGuard (population control) -- https://www.moddb.com/mods/stalker-anomaly/addons/alifeguard-1001
-AlifeBalance (respawn pacing) -- https://www.moddb.com/mods/stalker-anomaly/addons/alifebalance
-
-AlifePlus is a soft dependency. Smart-state predicates that hook AlifePlus's n118
-smart combat state degrade gracefully (return false) if AlifePlus is absent.
+AlifePlus (reactive A-Life framework): https://www.moddb.com/mods/stalker-anomaly/addons/alifeplus-v1-0-01
+AlifeGuard (population control): https://www.moddb.com/mods/stalker-anomaly/addons/alifeguard-1001
+AlifeBalance (respawn pacing): https://www.moddb.com/mods/stalker-anomaly/addons/alifebalance
 
 Requirements:
-- Anomaly 1.5.3 with Modded exes (themrdemonized fork)
-- xlibs (https://www.moddb.com/mods/stalker-anomaly/addons/xlibs-1001)
-- MCM
+Anomaly 1.5.3
+Demonized modded exes (latest), main or MT
+xlibs (https://www.moddb.com/mods/stalker-anomaly/addons/xlibs-1001)
+MCM
+
+Install (MO2):
+1. Install xlibs
+2. Install AlifeTactics
+3. Load order does not matter
+4. Configure via MCM
+
+Uninstall (MO2):
+Disable or remove in MO2.
+
+Credits:
+Altogolik - support, ideas, source materials
+
+Usage and License:
+Modpacks: allowed and encouraged. Keep the readme and license files.
+Addons, patches, integrations: allowed. Credit "AlifeTactics by Damian Sirbu" visibly on your mod page.
+Reproducing the implementation in other software: not allowed, even with credit.
+Full license in LICENSE file and on GitHub.
