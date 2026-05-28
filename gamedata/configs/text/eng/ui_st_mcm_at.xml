@@ -107,7 +107,7 @@
         <text>Heal rate multiplier</text>
     </string>
     <string id="ui_mcm_at_individual_heal_rate_multiplier_desc">
-        <text>Multiplies the per-tick HP recovery in xr_eat_medkit's heal_hp loop. Vanilla restores ~70% HP over ~56 seconds (14 ticks of 0.05 HP each). At 2.0x NPCs heal twice as fast (~28 seconds effective). At 0.5x they heal half as fast. Default: 1.0.</text>
+        <text>Multiplies the per-tick HP recovery in xr_eat_medkit's heal_hp loop. Vanilla restores 0.05 HP per tick for 13 ticks (0.65 HP total) before the heal cycle exits. At 2.0x each tick restores 0.10 HP, so the heal completes in fewer ticks. At 0.5x each tick restores 0.025 HP. Default: 1.0.</text>
     </string>
     <string id="ui_mcm_at_individual_charge_chance_novice">
         <text>Novice charge chance (%)</text>

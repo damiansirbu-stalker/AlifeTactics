@@ -5,8 +5,6 @@
 -- our script extends that to distant patrol members on hit #1. No rank-tiered
 -- threshold - any single hit triggers full-squad disclosure.
 
-local tostring, RegisterScriptCallback = tostring, RegisterScriptCallback
-
 local log = xlog.get_logger("AT.HIT", { outfile = "alifetactics.log" })
 local _dbg = false
 
@@ -77,7 +75,6 @@ end
 -- force_set_goodwill (relation_registry_inline.h:25-44); set_enemy is a bloodsucker-
 -- only API that logs an error for stalkers (script_game_object_use2.cpp:231-243).
 local function _disclose(squad, who)
-    if not squad.squad_members or not squad.npc_count then return 0 end
     if squad:npc_count() == 0 then return 0 end
     local count = 0
     for member in squad:squad_members() do
@@ -152,7 +149,7 @@ local function _on_hit(npc, amount, _local_direction, who, _bone_index)
     record.disclosed_shooters[who_id] = true
     record.state.last_disclosure_time = now
     local disclosed_to = _disclose(squad, who)
-    at_state_machine.record_event(squad.id, at_state_machine.EVENT.DISCLOSURE)
+    at_state_machine.escalate_to_engaged(squad.id)
 
     log.info("[DISCLOSURE] squad=%d shooter=%d disclosed_to=%d members",
         squad.id, who_id, disclosed_to)
@@ -171,7 +168,7 @@ end
 local function _on_first_update()
     _refresh_log()
     log.info("Hit disclosure initialized (enabled=%s, dbg=%s)",
-        tostring(_is_enabled()), tostring(_dbg))
+        _is_enabled() and "true" or "false", _dbg and "true" or "false")
 end
 
 function on_game_start()

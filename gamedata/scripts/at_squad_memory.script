@@ -2,7 +2,7 @@
 -- Owns the per-squad record table. Behaviors (hit disclosure, state machine,
 -- tactical flee) read and write here instead of duplicating per-NPC state.
 
-local pairs, tostring, RegisterScriptCallback = pairs, tostring, RegisterScriptCallback
+local pairs = pairs
 -- DO NOT cache CreateTimeEvent / ResetTimeEvent / RemoveTimeEvent as locals.
 -- demonized_time_events.script replaces them; cached locals capture the dead
 -- originals and timers never fire. See doc/library/xray/internals/globals.md:208-219.
@@ -17,11 +17,6 @@ local TIMER_DECAY           = "decay"
 local DECAY_INTERVAL_SEC    = 5
 local DEFAULT_RETENTION_SEC = 60
 local STATE_IDLE            = "IDLE"
-
--- t14 will flip this multiplier based on state.current_state to extend retention
--- 5x when squad is ALERTED/ENGAGED. Substrate reads its own state field on each
--- decay tick so no cross-module callback chain is needed.
-local STATE_EXTENSION_MULT  = 1.0
 
 -- ==================== STATE ====================
 
@@ -39,7 +34,6 @@ local function _new_record()
             last_event_time      = 0,
             last_disclosure_time = 0,
         },
-        members = {},
     }
 end
 
@@ -63,7 +57,7 @@ local function _decay_tick()
     ResetTimeEvent(TIMER_EV, TIMER_DECAY, DECAY_INTERVAL_SEC)
     local now = xtime.game_sec()
     if now == 0 then return end
-    local threshold = _retention_sec() * STATE_EXTENSION_MULT
+    local threshold = _retention_sec()
     local tmr = xprofiler.new_if(_dbg):start()
     local record_count, pruned = 0, 0
     for _, record in pairs(_records) do
@@ -108,7 +102,7 @@ local function _on_first_update()
     RemoveTimeEvent(TIMER_EV, TIMER_DECAY)
     CreateTimeEvent(TIMER_EV, TIMER_DECAY, DECAY_INTERVAL_SEC, _decay_tick)
     log.info("Substrate initialized (retention=%ds, decay=%ds, dbg=%s)",
-        _retention_sec(), DECAY_INTERVAL_SEC, tostring(_dbg))
+        _retention_sec(), DECAY_INTERVAL_SEC, _dbg and "true" or "false")
 end
 
 -- ==================== PUBLIC ====================

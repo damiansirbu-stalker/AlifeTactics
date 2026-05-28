@@ -229,7 +229,7 @@ Predicates use `best_enemy()` so NPC-vs-NPC scheme selection works without chang
 
 ## NPC health
 
-Per-NPC self-healing. Vanilla `xr_eat_medkit.script` contains a working stage machine for "find a medkit in inventory, advance to consume_medkit, schedule heal_hp time event with 14 ticks of `change_health(0.05)`". The bug is the data layer: `ai_tweaks/xr_eat_medkit.ltx [plugin]` is provided without `medkits=` / `bandages=` fields, so `parse_list` returns `{}` and the for-loop at `xr_eat_medkit.script:124` never iterates. Only the once-per-life `healing_charge` fallback fires for ~50% of stalkers.
+Per-NPC self-healing. Vanilla `xr_eat_medkit.script` contains a working stage machine for "find a medkit in inventory, advance to consume_medkit, schedule heal_hp time event for 13 ticks of `change_health(0.05)`" (heal_hp recurses while `left - 1 > 1`, so left=15 produces 13 active ticks before the left=2 call exits). The bug is the data layer: `ai_tweaks/xr_eat_medkit.ltx [plugin]` is provided without `medkits=` / `bandages=` fields, so `parse_list` returns `{}` and the for-loop at `xr_eat_medkit.script:124` never iterates. Only the once-per-life `healing_charge` fallback fires for ~50% of stalkers.
 
 ### Data layer fix (t25)
 
@@ -241,8 +241,8 @@ Per-NPC self-healing. Vanilla `xr_eat_medkit.script` contains a working stage ma
 
 | Hook | Mechanism | What it changes |
 |---|---|---|
-| Heal rate multiplier | Direct assignment `xr_eat_medkit.heal_hp = _patched_heal_hp` | Per-tick `change_health(0.05 * mult)` reads MCM each tick; reschedule via `xr_eat_medkit.heal_hp` lookup propagates the patch through all 14 ticks |
-| Per-rank healing-charge | `RegisterScriptCallback("npc_on_net_spawn", _on_net_spawn)` | Reads `npc:character_rank()`, maps to tier via `_rank_tier` thresholds (novice <2200, experienced <5500, veteran <12000, master >=12000), rolls MCM-configured chance, overrides vanilla's flat 50% roll. Per-NPC `at_charge_processed` se_var prevents re-roll across save/load and offline/online transitions. |
+| Heal rate multiplier | Direct assignment `xr_eat_medkit.heal_hp = _patched_heal_hp` | Per-tick `change_health(0.05 * mult)` reads MCM each tick; reschedule via `xr_eat_medkit.heal_hp` lookup propagates the patch through all 13 ticks |
+| Per-rank healing-charge | `RegisterScriptCallback("npc_on_net_spawn", _on_net_spawn)` | Reads `ranks.get_obj_rank_name(npc)` and folds the 8 vanilla rank names (novice / trainee / experienced / professional / veteran / expert / master / legend) into the 4 MCM tiers (novice / experienced / veteran / master). Rolls the MCM-configured chance, overrides vanilla's flat 50% roll. Per-NPC `at_charge_processed` se_var prevents re-roll across save/load and offline/online transitions. |
 
 Why direct assignment on `heal_hp` and not `xevent.hook`: we substitute the body entirely rather than wrap. Vanilla's recursive scheduling does name lookup on `heal_hp` at each call, so reassigning the module-table entry propagates through the recursion. No chain stacking needed.
 

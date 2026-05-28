@@ -3,7 +3,6 @@
 -- promotions (IDLE -> ALERTED -> ENGAGED), timer-driven demotions, and explicit
 -- set_state for FLEEING (t13 flee will call this).
 
-local tostring, RegisterScriptCallback = tostring, RegisterScriptCallback
 -- DO NOT cache CreateTimeEvent / ResetTimeEvent / RemoveTimeEvent as locals.
 -- See doc/library/xray/internals/globals.md:208-219.
 
@@ -20,9 +19,7 @@ STATE = {
 }
 
 EVENT = {
-    HIT        = "hit",
-    DISCLOSURE = "disclosure",
-    SEE_ENEMY  = "see_enemy",
+    HIT = "hit",
 }
 
 local TIMER_EV                       = "at_state_machine"
@@ -97,16 +94,8 @@ local function _enter(record, state, now)
 end
 
 -- Returns the new state to enter, or nil if no transition.
-local function _eval_transition(record, event_type, count, threshold)
+local function _eval_transition(record, count, threshold)
     local state = record.state.current_state
-
-    -- Disclosure short-circuits to ENGAGED from anywhere except FLEEING.
-    if event_type == EVENT.DISCLOSURE then
-        if state == STATE.FLEEING then return nil end
-        if state ~= STATE.ENGAGED then return STATE.ENGAGED end
-        return nil
-    end
-
     if state == STATE.IDLE then return STATE.ALERTED end
     if state == STATE.ALERTED and count >= threshold then return STATE.ENGAGED end
     return nil
@@ -161,7 +150,7 @@ local function _on_first_update()
     CreateTimeEvent(TIMER_EV, TIMER_DECAY, DECAY_INTERVAL_SEC, _de_escalate_tick)
     log.info("State machine initialized (events_to_engage=%d, window=%ds, engaged->alerted=%ds, alerted->idle=%ds, dbg=%s)",
         _events_to_engage(), _event_window_sec(),
-        _engaged_to_alerted_sec(), _alerted_to_idle_sec(), tostring(_dbg))
+        _engaged_to_alerted_sec(), _alerted_to_idle_sec(), _dbg and "true" or "false")
 end
 
 -- ==================== PUBLIC ====================
@@ -176,7 +165,7 @@ function record_event(squad_id, event_type)
     counter:add(COUNTER_KEY)
     local count = counter:count(COUNTER_KEY)
 
-    local new_state = _eval_transition(record, event_type, count, _events_to_engage())
+    local new_state = _eval_transition(record, count, _events_to_engage())
     if new_state then _enter(record, new_state, now) end
 
     if _dbg then
@@ -185,10 +174,19 @@ function record_event(squad_id, event_type)
     end
 end
 
---- Force a state directly (used by disclosure trigger and flee logic)
+--- Force a state directly (used by flee logic)
 function set_state(squad_id, new_state)
     local record = at_squad_memory.get(squad_id)
     _enter(record, new_state, xtime.game_sec())
+end
+
+--- Promote squad to ENGAGED unless already ENGAGED or FLEEING. Used by hit
+--- disclosure to skip the counter and short-circuit straight to active fire.
+function escalate_to_engaged(squad_id)
+    local record = at_squad_memory.get(squad_id)
+    local state = record.state.current_state
+    if state == STATE.ENGAGED or state == STATE.FLEEING then return end
+    _enter(record, STATE.ENGAGED, xtime.game_sec())
 end
 
 --- Read the current state name

@@ -4,9 +4,11 @@
 --  1. Heal rate multiplier. Replaces xr_eat_medkit.heal_hp with a version
 --     that scales the per-tick change_health by an MCM multiplier. Vanilla
 --     does change_health(0.05) every level.get_time_factor() seconds for
---     14 ticks (~70% HP over ~56s). Multiplier scales the per-tick amount.
---     The replacement reschedules itself via xr_eat_medkit.heal_hp (which
---     resolves to our patched function at call time, so recursion is stable).
+--     13 ticks (left=15..3, exits at left=2 because nextl=1 fails nextl>1).
+--     Multiplier scales the per-tick amount; total recovery from vanilla
+--     is 13 * 0.05 = 0.65 HP. The replacement reschedules itself via
+--     xr_eat_medkit.heal_hp (which resolves to our patched function at call
+--     time, so recursion is stable).
 --
 --  2. Per-rank healing-charge probability. Vanilla rolls a single 50% chance
 --     at server-entity register and grants healing_charge=true on success.
@@ -20,27 +22,30 @@
 -- entirely rather than wrap. xevent.hook is for stacking wrappers around
 -- existing behavior; here we substitute the per-tick math, no chain needed.
 
-local tostring, RegisterScriptCallback = tostring, RegisterScriptCallback
 local math_random = math.random
 local se_save_var, se_load_var = se_save_var, se_load_var
 local CreateTimeEvent = CreateTimeEvent
 
 local log = xlog.get_logger("AT.HEALTH", { outfile = "alifetactics.log" })
 local _dbg = false
+local _heal_active = false
 
--- Engine character_rank tier thresholds. Ranges: novice [0, 2200),
--- experienced [2200, 5500), veteran [5500, 12000), master [12000, inf).
--- These match the rank bands xr_eat_medkit.ltx [novice]/[experienced]/
--- [veteran]/[master] sections use. RANK_VETERAN=12000 from ap_core_const.
-local TIER_TRAINEE     = 2200
-local TIER_EXPERIENCED = 5500
-local TIER_VETERAN     = 12000
+-- Vanilla rank names from game_relations.ltx [game_relations] rating folded into
+-- the four MCM tiers. ranks.get_obj_rank_name resolves the numeric rank against
+-- the same source so any mod that reshapes the rating intervals keeps working.
+local _RANK_TO_TIER = {
+    novice       = "novice",
+    trainee      = "novice",
+    experienced  = "experienced",
+    professional = "experienced",
+    veteran      = "veteran",
+    expert       = "veteran",
+    master       = "master",
+    legend       = "master",
+}
 
-local function _rank_tier(rank)
-    if rank < TIER_TRAINEE         then return "novice"
-    elseif rank < TIER_EXPERIENCED then return "experienced"
-    elseif rank < TIER_VETERAN     then return "veteran"
-    else return "master" end
+local function _rank_tier(npc)
+    return _RANK_TO_TIER[ranks.get_obj_rank_name(npc)] or "novice"
 end
 
 -- ==================== MCM READERS ====================
@@ -64,7 +69,7 @@ end
 -- Mirrors vanilla xr_eat_medkit.heal_hp (script:188-201) logic but scales
 -- the per-tick heal by the current MCM multiplier. Recursive scheduling
 -- captures xr_eat_medkit.heal_hp (our function after install) so the chain
--- propagates the multiplier through all 14 ticks. xprofiler.new_if(_dbg)
+-- propagates the multiplier through all 13 ticks. xprofiler.new_if(_dbg)
 -- is a no-op singleton when debug logging is off, real profile_timer when
 -- on -- timing appears in the [HEAL] debug line at zero cost otherwise.
 local function _patched_heal_hp(id, left)
@@ -80,8 +85,8 @@ local function _patched_heal_hp(id, left)
             log.debug("[HEAL] hp_tick id=%d mult=%.2f health=%.2f left=%d [%.2fms]",
                 id, mult, npc.health, nextl, tmr:get_ms())
         end
-        CreateTimeEvent(npc:id(), npc:name() .. "_self_healing_event_hp_" .. nextl,
-            level.get_time_factor(), xr_eat_medkit.heal_hp, npc:id(), nextl)
+        CreateTimeEvent(id, npc:name() .. "_self_healing_event_hp_" .. nextl,
+            level.get_time_factor(), xr_eat_medkit.heal_hp, id, nextl)
     else
         tmr:stop()
         if _dbg then
@@ -96,12 +101,13 @@ local function _patched_heal_hp(id, left)
 end
 
 local function _install_heal_patch()
-    if xr_eat_medkit and xr_eat_medkit.heal_hp then
-        xr_eat_medkit.heal_hp = _patched_heal_hp
-        log.info("[PATCH] xr_eat_medkit.heal_hp replaced with multiplier-aware version")
-    else
-        log.warn("[PATCH] xr_eat_medkit.heal_hp unavailable; multiplier disabled")
+    if not (xr_eat_medkit and xr_eat_medkit.heal_hp) then
+        log.warn("[PATCH] xr_eat_medkit.heal_hp unavailable; module disabled")
+        return
     end
+    xr_eat_medkit.heal_hp = _patched_heal_hp
+    _heal_active = true
+    log.info("[PATCH] xr_eat_medkit.heal_hp replaced with multiplier-aware version")
 end
 
 -- ==================== CALLBACK: PER-RANK HEALING CHARGE ====================
@@ -113,6 +119,7 @@ end
 -- at_charge_processed flag is persisted via se_save_var so subsequent
 -- offline/online transitions (or save/load cycles) skip the re-roll.
 local function _on_net_spawn(npc, _se_obj)
+    if not _heal_active then return end
     if not npc or not IsStalker(npc) or not npc:alive() then return end
     local id = npc:id()
     local name = npc:name()
@@ -124,15 +131,14 @@ local function _on_net_spawn(npc, _se_obj)
     end
     se_save_var(id, name, "at_charge_processed", true)
 
-    local rank = npc:character_rank() or 0
-    local tier = _rank_tier(rank)
+    local tier = _rank_tier(npc)
     local chance = _charge_chance_pct(tier) / 100
     local rolled = math_random()
     local granted = rolled < chance
     se_save_var(id, name, "healing_charge", granted)
     if _dbg then
-        log.debug("[CHARGE] id=%d rank=%d tier=%s chance=%.2f rolled=%.3f granted=%s",
-            id, rank, tier, chance, rolled, tostring(granted))
+        log.debug("[CHARGE] id=%d tier=%s chance=%.2f rolled=%.3f granted=%s",
+            id, tier, chance, rolled, granted and "true" or "false")
     end
 end
 

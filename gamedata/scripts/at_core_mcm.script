@@ -4,7 +4,7 @@ local log = xlog.get_logger("AT.MCM", { outfile = "alifetactics.log" })
 
 -- ==================== DEFAULTS ====================
 
-defaults = {
+local defaults = {
     enabled = true,
     -- Squad
     substrate_retention_sec = 60,
@@ -150,7 +150,7 @@ end
 local function _on_first_update()
     log.set_level(get_config("log_level") or "WARN")
     log.info("AlifeTactics MCM loaded (enabled=%s, log_level=%s)",
-        tostring(get_config("enabled")), tostring(get_config("log_level")))
+        get_config("enabled") and "true" or "false", get_config("log_level") or "WARN")
 end
 
 local function _on_option_change()
