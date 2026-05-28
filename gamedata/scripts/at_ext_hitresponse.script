@@ -1,0 +1,183 @@
+--- at_ext_hitresponse: Squad-aware hit disclosure
+-- Hooks npc_on_hit_callback. On the first hit from a given shooter against a
+-- squad, disclose the shooter to every online squad member regardless of
+-- distance. Engine handles audio-range squadmates natively via sound channel;
+-- our script extends that to distant patrol members on hit #1. No rank-tiered
+-- threshold - any single hit triggers full-squad disclosure.
+
+local tostring, RegisterScriptCallback = tostring, RegisterScriptCallback
+
+local log = xlog.get_logger("AT.HIT", { outfile = "alifetactics.log" })
+local _dbg = false
+
+-- ==================== CONSTANTS ====================
+
+local GOODWILL_HOSTILE = -2000
+
+-- ==================== PRIVATE: HELPERS ====================
+
+local function _is_enabled()
+    if at_core_mcm and at_core_mcm.get_config then
+        local v = at_core_mcm.get_config("hit_disclosure_enabled")
+        if v ~= nil then return v end
+    end
+    return true
+end
+
+-- Returns true only when shooter's faction is community-level enemy of victim's.
+-- This is the disclosure gate: accidental hits on friendly/neutral NPCs do not
+-- accumulate, do not disclose, do not write goodwill. Same-community hits are
+-- rejected as friendly fire.
+--
+-- character_community(obj) is the anomaly global wrapper that handles actor +
+-- stalker + safe nil paths. Returns nil for mutants and bad inputs.
+local function _shooter_is_combat_enemy(npc, who)
+    local npc_comm = character_community(npc)
+    if not npc_comm or npc_comm == "" or npc_comm == "none" then return false end
+    local who_comm = character_community(who)
+    if not who_comm or who_comm == "" or who_comm == "none" then return false end
+    if who_comm == npc_comm then return false end
+    return game_relations.is_factions_enemies(npc_comm, who_comm)
+end
+
+-- Walk squad members, force-disclose the shooter to every online one. Offline
+-- members are skipped (no game_object). Three writes per member, all independent
+-- mechanisms verified against engine source:
+--
+--   1. force_set_goodwill(-2000, who)
+--      RELATION_REGISTRY personal goodwill override; subtracts community baseline
+--      so final relation = exactly -2000 (relation_registry.cpp:161-179).
+--      CAI_Stalker::tfGetRelationType (ai_stalker_misc.cpp:92-105) routes through
+--      RELATION_REGISTRY.GetRelationType -> GetAttitude (relation_registry_inline.h:69-93),
+--      which sums personal + reputation + rank + community_to_obj + community_to_community.
+--      Net: final attitude = -2000 + reputation + rank, well below enemy threshold.
+--      The squadmate treats the shooter as hostile in every is_relation_enemy() check.
+--
+--   2. enable_memory_object(who, true)
+--      Toggles m_enabled on existing visual/sound/hit memory entries
+--      (visual_memory_manager.cpp:245-251, sound_memory_manager.cpp:115-121,
+--       hit_memory_manager.cpp:240-247). No-op when no prior entry. Cheap
+--      insurance for squadmates that already heard/saw/got-hit-by the shooter.
+--
+--   3. register_in_combat()
+--      Sets squad_mask bit on CAgentMemberManager::m_combat_mask
+--      (agent_member_manager.cpp:114-132). This bit is the GATE for engine-native
+--      squad memory propagation at agent_memory_manager.cpp:33-34: memory entries
+--      with m_squad_mask intersecting combat_mask get spread across all combat-active
+--      members each tick. Calling this on patrolling squadmates flips them combat-
+--      active, and the next agent_manager update propagates the victim's hit-memory
+--      of the shooter across the whole engaged squad. This is the engine's own
+--      squad-memory-sharing mechanism; we just unlock it.
+--
+-- Safety: this function is only reached after _shooter_is_combat_enemy passed
+-- (faction-relation already enemy). force_set_goodwill cannot flip a friendly
+-- squad hostile because the gate at hit handler entry rejects friendly-fire
+-- scenarios. set_relation(enemy) and set_enemy() are intentionally NOT called:
+-- set_relation == SetGoodwill(goodwill_enemy_config) so it is redundant with
+-- force_set_goodwill (relation_registry_inline.h:25-44); set_enemy is a bloodsucker-
+-- only API that logs an error for stalkers (script_game_object_use2.cpp:231-243).
+local function _disclose(squad, who)
+    if not squad.squad_members or not squad.npc_count then return 0 end
+    if squad:npc_count() == 0 then return 0 end
+    local count = 0
+    for member in squad:squad_members() do
+        local mem_npc = level.object_by_id(member.id)
+        if mem_npc then
+            mem_npc:force_set_goodwill(GOODWILL_HOSTILE, who)
+            mem_npc:enable_memory_object(who, true)
+            mem_npc:register_in_combat()
+            count = count + 1
+        end
+    end
+    return count
+end
+
+-- Sweep per_shooter[id] and disclosed_shooters[id] from all substrate records
+-- when an entity unregisters. The decay tick eventually prunes per_shooter via
+-- TTL, but disclosed_shooters never decays (session-long), so this hook is the
+-- only cleanup path for that map.
+local function _on_entity_unregister(se_obj)
+    if not se_obj then return end
+    local id = se_obj.id
+    at_squad_memory.iterate(function(_squad_id, record)
+        record.per_shooter[id] = nil
+        record.disclosed_shooters[id] = nil
+    end)
+end
+
+-- ==================== HIT HANDLER ====================
+
+local function _on_hit(npc, amount, _local_direction, who, _bone_index)
+    if not _is_enabled() then return end
+    if not amount or amount <= 0 then return end
+    if not who or not npc then return end
+    if who:id() == npc:id() then return end
+    -- Faction-relation gate. Skips friendly fire, neutrals, and same-community hits.
+    -- Accidental shots on friendly NPCs never accumulate or disclose.
+    if not _shooter_is_combat_enemy(npc, who) then return end
+
+    local squad = get_object_squad(npc)
+    if not squad then return end
+
+    local record = at_squad_memory.get(squad.id)
+    local who_id = who:id()
+    local now    = xtime.game_sec()
+
+    -- Substrate writes: kept for future consumers (t13 flee reads per_shooter for
+    -- enemy power; t14 persistence reads disclosed_shooters retention; t03 scheme
+    -- select reads recent-hit count). Disclosure itself does NOT gate on count.
+    local entry = record.per_shooter[who_id]
+    if not entry then
+        entry = { count = 0, last_hit_time = 0, total_damage = 0 }
+        record.per_shooter[who_id] = entry
+    end
+    entry.count         = entry.count + 1
+    entry.last_hit_time = now
+    entry.total_damage  = entry.total_damage + amount
+
+    at_state_machine.record_event(squad.id, at_state_machine.EVENT.HIT)
+
+    -- Idempotency guard: once we have disclosed this shooter to this squad, do
+    -- not re-write goodwill / re-register every subsequent hit. The 3-API combo
+    -- is sticky; calling it again is harmless but log-spammy. disclosed_shooters
+    -- clears only when the squad or shooter despawns (server_entity_on_unregister).
+    if record.disclosed_shooters[who_id] then
+        if _dbg then
+            log.debug("[HIT] squad=%d victim=%d shooter=%d count=%d damage=%.1f (already disclosed)",
+                squad.id, npc:id(), who_id, entry.count, amount)
+        end
+        return
+    end
+
+    record.disclosed_shooters[who_id] = true
+    record.state.last_disclosure_time = now
+    local disclosed_to = _disclose(squad, who)
+    at_state_machine.record_event(squad.id, at_state_machine.EVENT.DISCLOSURE)
+
+    log.info("[DISCLOSURE] squad=%d shooter=%d disclosed_to=%d members",
+        squad.id, who_id, disclosed_to)
+end
+
+-- ==================== LIFECYCLE ====================
+
+local function _refresh_log()
+    if at_core_mcm and at_core_mcm.get_config then
+        local level_str = at_core_mcm.get_config("log_level") or "WARN"
+        log.set_level(level_str)
+        _dbg = log.get_level() >= 5
+    end
+end
+
+local function _on_first_update()
+    _refresh_log()
+    log.info("Hit disclosure initialized (enabled=%s, dbg=%s)",
+        tostring(_is_enabled()), tostring(_dbg))
+end
+
+function on_game_start()
+    RegisterScriptCallback("npc_on_hit_callback", _on_hit)
+    RegisterScriptCallback("server_entity_on_unregister", _on_entity_unregister)
+    RegisterScriptCallback("actor_on_first_update", _on_first_update)
+    RegisterScriptCallback("on_option_change", _refresh_log)
+    RegisterScriptCallback("mcm_option_restore_default", _refresh_log)
+end

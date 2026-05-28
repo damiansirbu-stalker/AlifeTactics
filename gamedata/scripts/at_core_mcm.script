@@ -1,0 +1,166 @@
+--- at_core_mcm: MCM configuration for AlifeTactics combat AI
+
+local log = xlog.get_logger("AT.MCM", { outfile = "alifetactics.log" })
+
+-- ==================== DEFAULTS ====================
+
+defaults = {
+    enabled = true,
+    -- Squad
+    substrate_retention_sec = 60,
+    events_to_engage = 3,
+    event_window_sec = 60,
+    engaged_to_alerted_sec = 60,
+    alerted_to_idle_sec = 120,
+    hit_disclosure_enabled = true,
+    -- Individual
+    heal_rate_multiplier      = 1.0,
+    charge_chance_novice      = 50,
+    charge_chance_experienced = 50,
+    charge_chance_veteran     = 50,
+    charge_chance_master      = 50,
+    -- Development
+    log_level = "WARN",
+}
+
+-- ==================== CONFIG ====================
+
+local RegisterScriptCallback = RegisterScriptCallback
+
+local _key_to_tab = {
+    -- Squad
+    substrate_retention_sec  = "squad",
+    events_to_engage         = "squad",
+    event_window_sec         = "squad",
+    engaged_to_alerted_sec   = "squad",
+    alerted_to_idle_sec      = "squad",
+    hit_disclosure_enabled   = "squad",
+    -- Individual
+    heal_rate_multiplier      = "individual",
+    charge_chance_novice      = "individual",
+    charge_chance_experienced = "individual",
+    charge_chance_veteran     = "individual",
+    charge_chance_master      = "individual",
+    -- Development
+    log_level = "development",
+    -- enabled defaults to "general" (master toggle)
+}
+
+local function path_builder(key)
+    local tab = _key_to_tab[key] or "general"
+    return "at/" .. tab .. "/" .. key
+end
+
+cfg, get_config, load_config = xmcm.create_config("at", defaults, path_builder)
+
+-- ==================== MCM DEFINITION ====================
+
+function on_mcm_load()
+    return {
+        id = "at",
+        gr = {
+            -- ============ GENERAL TAB ============
+            {
+                id = "general",
+                sh = true,
+                gr = {
+                    { id = "title", type = "slide", link = "at_mcm_banner",
+                        text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
+                    { id = "desc", type = "desc", text = "ui_mcm_at_general_info" },
+
+                    -- Master toggle
+                    { id = "div_master", type = "line" },
+                    { id = "hdr_master", type = "desc", text = "ui_mcm_at_hdr_master", clr = {255, 200, 200, 200} },
+                    { id = "enabled", type = "check", val = 1, def = true },
+                },
+            },
+            -- ============ SQUAD TAB ============
+            {
+                id = "squad",
+                sh = true,
+                gr = {
+                    { id = "title", type = "slide", link = "at_mcm_banner",
+                        text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
+                    { id = "desc", type = "desc", text = "ui_mcm_at_squad_desc" },
+
+                    -- Squad memory substrate
+                    { id = "div_substrate", type = "line" },
+                    { id = "hdr_substrate", type = "desc", text = "ui_mcm_at_hdr_substrate", clr = {255, 200, 200, 200} },
+                    { id = "substrate_retention_sec", type = "track", val = 2, min = 10, max = 600, step = 5, def = 60 },
+
+                    -- Combat state machine
+                    { id = "div_state_machine", type = "line" },
+                    { id = "hdr_state_machine", type = "desc", text = "ui_mcm_at_hdr_state_machine", clr = {255, 200, 200, 200} },
+                    { id = "events_to_engage", type = "track", val = 2, min = 1, max = 10, step = 1, def = 3 },
+                    { id = "event_window_sec", type = "track", val = 2, min = 15, max = 180, step = 5, def = 60 },
+                    { id = "engaged_to_alerted_sec", type = "track", val = 2, min = 30, max = 300, step = 10, def = 60 },
+                    { id = "alerted_to_idle_sec", type = "track", val = 2, min = 30, max = 600, step = 10, def = 120 },
+
+                    -- Hit disclosure
+                    { id = "div_hit_disclosure", type = "line" },
+                    { id = "hdr_hit_disclosure", type = "desc", text = "ui_mcm_at_hdr_hit_disclosure", clr = {255, 200, 200, 200} },
+                    { id = "hit_disclosure_enabled", type = "check", val = 1, def = true },
+                },
+            },
+            -- ============ INDIVIDUAL TAB ============
+            {
+                id = "individual",
+                sh = true,
+                gr = {
+                    { id = "title", type = "slide", link = "at_mcm_banner",
+                        text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
+                    { id = "desc", type = "desc", text = "ui_mcm_at_individual_desc" },
+
+                    -- NPC Health
+                    { id = "div_health", type = "line" },
+                    { id = "hdr_health", type = "desc", text = "ui_mcm_at_hdr_health", clr = {255, 200, 200, 200} },
+                    { id = "heal_rate_multiplier",      type = "track", val = 2, min = 0.5, max = 3.0, step = 0.1, def = 1.0 },
+                    { id = "charge_chance_novice",      type = "track", val = 2, min = 0,   max = 100, step = 5,   def = 50 },
+                    { id = "charge_chance_experienced", type = "track", val = 2, min = 0,   max = 100, step = 5,   def = 50 },
+                    { id = "charge_chance_veteran",     type = "track", val = 2, min = 0,   max = 100, step = 5,   def = 50 },
+                    { id = "charge_chance_master",      type = "track", val = 2, min = 0,   max = 100, step = 5,   def = 50 },
+                },
+            },
+            -- ============ DEVELOPMENT TAB ============
+            {
+                id = "development",
+                sh = true,
+                gr = {
+                    { id = "title", type = "slide", link = "at_mcm_banner",
+                        text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
+                    { id = "desc", type = "desc", text = "ui_mcm_at_development_desc" },
+
+                    -- Logging
+                    { id = "div_logging", type = "line" },
+                    { id = "hdr_logging", type = "desc", text = "ui_mcm_at_hdr_logging", clr = {255, 200, 200, 200} },
+                    { id = "log_level", type = "list", val = 0, def = "WARN",
+                        content = {
+                            {"ERROR", "error"},
+                            {"WARN", "warn"},
+                            {"INFO", "info"},
+                            {"DEBUG", "debug"},
+                        },
+                    },
+                },
+            },
+        },
+    }
+end
+
+local function _on_first_update()
+    log.set_level(get_config("log_level") or "WARN")
+    log.info("AlifeTactics MCM loaded (enabled=%s, log_level=%s)",
+        tostring(get_config("enabled")), tostring(get_config("log_level")))
+end
+
+local function _on_option_change()
+    load_config()
+    log.set_level(get_config("log_level") or "WARN")
+end
+
+function on_game_start()
+    load_config()
+    RegisterScriptCallback("actor_on_first_update", _on_first_update)
+    RegisterScriptCallback("on_option_change", _on_option_change)
+    RegisterScriptCallback("mcm_option_restore_default", _on_option_change)
+end

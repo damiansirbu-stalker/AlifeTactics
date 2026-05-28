@@ -1,0 +1,7 @@
+1.0.0
+  Summary: substrate-based combat AI release. Hit disclosure, squad combat state machine, MCM, NPC self-healing.
+  Architecture: substrate-based combat AI. One shared per-squad memory table fed by hit callback, read by hit disclosure, tactical flee, danger persistence, combat state, scheme selection. Per-NPC tuning layer (health, future: precision, damage, fx) sits alongside the squad-scope behaviors.
+  MCM split into four sub-menus: General (master toggle), Squad (substrate, state machine, hit disclosure), Individual (NPC health), Development (logging).
+  NPC self-healing restored: vanilla xr_eat_medkit contains the consumption code path but with an empty inventory item list, so NPCs never consume medkits or bandages. AlifeTactics adds the missing item list via a DLTX overlay on ai_tweaks/xr_eat_medkit.ltx. Five MCM sliders under Individual > NPC Health tune heal rate (per-tick HP multiplier) and per-rank healing-charge probability.
+  Backlog: tactical flee, memory persistence, scheme select, global combat tuning, stance and weapon bias, per-NPC accuracy hook. Per-NPC accuracy moved from an engine cvar PR to a script-side Lua hook on `_g.CAI_Stalker__GetWeaponAccuracy`, because the engine rank curve degenerates on modded gamedata (modded ranks clamp to constant 0.8 dispersion multiplier; cvar would be a dead knob).
+  See doc/architecture.md for the substrate model and behavior pipeline. See stalker-dev/doc/todo/todo-alifetactics-backlog.md for the task backlog (t11 substrate is the foundation).

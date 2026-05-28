@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="windows-1251"?>
+<string_table>
+  <!-- ==================== MAIN MENU ==================== -->
+  <string id="ui_mcm_menu_at">
+    <text>AlifeTactics</text>
+  </string>
+  <!-- ==================== TAB NAMES ==================== -->
+  <string id="ui_mcm_menu_general">
+    <text>Общее</text>
+  </string>
+  <string id="ui_mcm_menu_development">
+    <text>Разработка</text>
+  </string>
+  <!-- ==================== GENERAL TAB ==================== -->
+  <string id="ui_mcm_at_title">
+    <text>AlifeTactics</text>
+  </string>
+  <string id="ui_mcm_at_general_info">
+    <text>Боевой ИИ для STALKER Anomaly. Память отряда управляет раскрытием попаданий, тактическим отступлением, сохранением угрозы и боевым состоянием. Индивидуальная настройка NPC охватывает точность, здоровье и урон.</text>
+  </string>
+  <!-- General - Master toggle -->
+  <string id="ui_mcm_at_hdr_master">
+    <text>Главный переключатель</text>
+  </string>
+  <string id="ui_mcm_at_general_enabled">
+    <text>Включить AlifeTactics</text>
+  </string>
+  <string id="ui_mcm_at_general_enabled_desc">
+    <text>Главный переключатель. Отключите, чтобы обойти все механики AlifeTactics без удаления мода. Боевой ИИ движка вернётся к ванильному. По умолчанию: вкл.</text>
+  </string>
+  <!-- General - Squad memory substrate -->
+  <string id="ui_mcm_at_hdr_substrate">
+    <text>Память отряда</text>
+  </string>
+  <string id="ui_mcm_at_squad_substrate_retention_sec">
+    <text>Удержание записи стрелка (с)</text>
+  </string>
+  <string id="ui_mcm_at_squad_substrate_retention_sec_desc">
+    <text>Сколько времени запись о стрелке остаётся в памяти отряда после последнего попадания. Меньше — отряды быстро забывают снайперов. Больше — устойчивое давление удерживает раскрытых стрелков в памяти. Автоматически умножается на 5, пока отряд в состоянии ALERTED или ENGAGED (слой удержания памяти). По умолчанию: 60.</text>
+  </string>
+  <!-- General - Combat state machine -->
+  <string id="ui_mcm_at_hdr_state_machine">
+    <text>Машина состояний боя</text>
+  </string>
+  <string id="ui_mcm_at_squad_events_to_engage">
+    <text>Событий до ENGAGED</text>
+  </string>
+  <string id="ui_mcm_at_squad_events_to_engage_desc">
+    <text>Сколько боевых событий (попадания, обнаружения) должно произойти в окне событий, чтобы отряд в ALERTED перешёл в ENGAGED. Одно событие раскрытия всегда переводит сразу в ENGAGED независимо от счёта. По умолчанию: 3.</text>
+  </string>
+  <string id="ui_mcm_at_squad_event_window_sec">
+    <text>Окно событий (с)</text>
+  </string>
+  <string id="ui_mcm_at_squad_event_window_sec_desc">
+    <text>Скользящее окно, в котором подсчитываются боевые события для порога ENGAGED. Старые события выпадают. По умолчанию: 60.</text>
+  </string>
+  <string id="ui_mcm_at_squad_engaged_to_alerted_sec">
+    <text>Таймаут ENGAGED -&gt; ALERTED (с)</text>
+  </string>
+  <string id="ui_mcm_at_squad_engaged_to_alerted_sec_desc">
+    <text>Сколько ENGAGED-отряд остаётся в этом состоянии без новых событий перед понижением до ALERTED. Тик деэскалации работает каждые 5 секунд, фактическое понижение может задержаться на этот интервал. По умолчанию: 60.</text>
+  </string>
+  <string id="ui_mcm_at_squad_alerted_to_idle_sec">
+    <text>Таймаут ALERTED -&gt; IDLE (с)</text>
+  </string>
+  <string id="ui_mcm_at_squad_alerted_to_idle_sec_desc">
+    <text>Сколько ALERTED-отряд остаётся в этом состоянии без новых событий перед понижением до IDLE. По умолчанию: 120.</text>
+  </string>
+  <!-- General - Hit disclosure -->
+  <string id="ui_mcm_at_hdr_hit_disclosure">
+    <text>Раскрытие стрелка</text>
+  </string>
+  <string id="ui_mcm_at_squad_hit_disclosure_enabled">
+    <text>Включить раскрытие стрелка</text>
+  </string>
+  <string id="ui_mcm_at_squad_hit_disclosure_enabled_desc">
+    <text>Когда N попаданий от одного стрелка накапливается у отряда (N зависит от ранга командира), стрелок раскрывается всем членам отряда через систему памяти движка. Бойцы поворачиваются и вступают в бой, даже если сами не видели попадание. Порог по рангу: мастер — 1 попадание, ветеран/эксперт — 2, опытный/профи — 3, новичок/стажёр — 5. По умолчанию: вкл.</text>
+  </string>
+  <!-- ==================== DEVELOPMENT TAB ==================== -->
+  <string id="ui_mcm_at_development_desc">
+    <text>Отладка и инструменты разработчика. DEBUG включает структурную трассировку записей в подложку, переходов состояний и событий раскрытия. Пишется в alifetactics.log. Имеет цену производительности.</text>
+  </string>
+  <!-- Development - Logging -->
+  <string id="ui_mcm_at_hdr_logging">
+    <text>Журналирование</text>
+  </string>
+  <string id="ui_mcm_at_development_log_level">
+    <text>Уровень логирования</text>
+  </string>
+  <string id="ui_mcm_at_development_log_level_desc">
+    <text>Управляет подробностью логов. ERROR: только крэши. WARN: аномалии. INFO: жизненный цикл подложки и переходы состояний. DEBUG: полная трассировка по каждому событию отряда.</text>
+  </string>
+  <string id="at_development_log_level_lst_error">
+    <text>Ошибка</text>
+  </string>
+  <string id="at_development_log_level_lst_warn">
+    <text>Предупреждение</text>
+  </string>
+  <string id="at_development_log_level_lst_info">
+    <text>Информация</text>
+  </string>
+  <string id="at_development_log_level_lst_debug">
+    <text>Отладка</text>
+  </string>
+  <string id="ui_mcm_menu_squad">
+    <text>Отряд</text>
+  </string>
+  <string id="ui_mcm_menu_individual">
+    <text>NPC</text>
+  </string>
+  <string id="ui_mcm_at_squad_desc">
+    <text>Боевые поведения уровня отряда, питаемые памятью отряда. Каждая секция настраивает одно поведение или его параметры.</text>
+  </string>
+  <string id="ui_mcm_at_individual_desc">
+    <text>Тактические поведения уровня NPC. Каждая секция настраивает одно поведение.</text>
+  </string>
+  <string id="ui_mcm_at_hdr_health">
+    <text>Здоровье NPC</text>
+  </string>
+  <string id="ui_mcm_at_individual_heal_rate_multiplier">
+    <text>Множитель скорости лечения</text>
+  </string>
+  <string id="ui_mcm_at_individual_heal_rate_multiplier_desc">
+    <text>Множит восстановление HP за такт в цикле heal_hp ванильного xr_eat_medkit. Ваниль восстанавливает ~70% HP за ~56 секунд (14 тактов по 0.05). При 2.0x NPC лечатся вдвое быстрее (~28 секунд). При 0.5x — вдвое медленнее. По умолчанию: 1.0.</text>
+  </string>
+  <string id="ui_mcm_at_individual_charge_chance_novice">
+    <text>Шанс заряда у новичка (%)</text>
+  </string>
+  <string id="ui_mcm_at_individual_charge_chance_novice_desc">
+    <text>Вероятность, что сталкеру ранга «новичок» при первом спавне будет назначен одноразовый «заряд исцеления». Заряд срабатывает один раз, если у сталкера здоровье ниже 80% и нет аптечки в инвентаре. Ваниль выдаёт 50% всем рангам. По умолчанию: 50.</text>
+  </string>
+  <string id="ui_mcm_at_individual_charge_chance_experienced">
+    <text>Шанс заряда у опытного (%)</text>
+  </string>
+  <string id="ui_mcm_at_individual_charge_chance_experienced_desc">
+    <text>Вероятность для сталкеров ранга «опытный». По умолчанию: 50.</text>
+  </string>
+  <string id="ui_mcm_at_individual_charge_chance_veteran">
+    <text>Шанс заряда у ветерана (%)</text>
+  </string>
+  <string id="ui_mcm_at_individual_charge_chance_veteran_desc">
+    <text>Вероятность для сталкеров ранга «ветеран». По умолчанию: 50.</text>
+  </string>
+  <string id="ui_mcm_at_individual_charge_chance_master">
+    <text>Шанс заряда у мастера (%)</text>
+  </string>
+  <string id="ui_mcm_at_individual_charge_chance_master_desc">
+    <text>Вероятность для сталкеров ранга «мастер». По умолчанию: 50.</text>
+  </string>
+</string_table>

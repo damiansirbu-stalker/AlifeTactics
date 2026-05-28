@@ -1,0 +1,20 @@
+; AlifeTactics overlay restoring vanilla xr_eat_medkit's inventory-consumption path.
+;
+; Vanilla xr_eat_medkit.script:63-64 reads `medkits` and `bandages` from `[plugin]`
+; via parse_list, but vanilla ai_tweaks\xr_eat_medkit.ltx writes [plugin] without
+; those keys. parse_list returns {} so xr_eat_medkit.script:124 for-loop iterates
+; zero times -- NPCs never consume real medkits or bandages despite the script
+; being enabled. Only the once-per-life healing_charge fallback at :136-143 fires
+; (50% of stalkers, one consume_medkit call per lifetime, medkit=nil, no
+; alife_release_id call on a real item).
+;
+; Adding the two lists here makes the for-loop find items in NPC inventory, set
+; self.item, advance to stage 1, and call consume_medkit(npc, real_item, kind)
+; with alife_release_id firing on the real game_object.
+;
+; Vanilla items only. medkit_ai1/2/3 are vanilla NPC-only medkits that AlifePlus
+; already restocks via [ap_buy_sell_keep]; without this overlay they sat unused.
+
+![plugin]
+medkits  = medkit, medkit_army, medkit_scientic, medkit_ai1, medkit_ai2, medkit_ai3
+bandages = bandage

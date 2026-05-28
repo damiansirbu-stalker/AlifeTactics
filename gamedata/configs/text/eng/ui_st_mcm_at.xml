@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="windows-1251"?>
+<string_table>
+    <!-- ==================== MAIN MENU ==================== -->
+    <string id="ui_mcm_menu_at">
+        <text>AlifeTactics</text>
+    </string>
+
+    <!-- ==================== TAB NAMES ==================== -->
+    <string id="ui_mcm_menu_general">
+        <text>General</text>
+    </string>
+    <string id="ui_mcm_menu_squad">
+        <text>Squad</text>
+    </string>
+    <string id="ui_mcm_menu_individual">
+        <text>Individual</text>
+    </string>
+    <string id="ui_mcm_menu_development">
+        <text>Development</text>
+    </string>
+
+    <!-- ==================== GENERAL TAB ==================== -->
+    <string id="ui_mcm_at_title">
+        <text>AlifeTactics</text>
+    </string>
+    <string id="ui_mcm_at_general_info">
+        <text>Combat AI for STALKER Anomaly. Per-squad memory drives hit disclosure, tactical flee, danger persistence, and combat state. Per-NPC tuning covers precision, health, and damage.</text>
+    </string>
+
+    <!-- General - Master toggle -->
+    <string id="ui_mcm_at_hdr_master">
+        <text>Master Control</text>
+    </string>
+    <string id="ui_mcm_at_general_enabled">
+        <text>Enable AlifeTactics</text>
+    </string>
+    <string id="ui_mcm_at_general_enabled_desc">
+        <text>Master kill switch. Disable to bypass all AlifeTactics behaviors without uninstalling the mod. Engine combat AI returns to vanilla. Default: on.</text>
+    </string>
+
+    <!-- ==================== SQUAD TAB ==================== -->
+    <string id="ui_mcm_at_squad_desc">
+        <text>Squad-scope combat behaviors driven by the per-squad memory substrate. Each section below tunes one behavior or its parameters.</text>
+    </string>
+
+    <!-- Squad - Squad memory substrate -->
+    <string id="ui_mcm_at_hdr_substrate">
+        <text>Squad Memory Substrate</text>
+    </string>
+    <string id="ui_mcm_at_squad_substrate_retention_sec">
+        <text>Per-shooter retention (s)</text>
+    </string>
+    <string id="ui_mcm_at_squad_substrate_retention_sec_desc">
+        <text>How long a per-shooter entry stays in the squad's combat memory after the last hit from that shooter. Lower = squads forget snipers quickly. Higher = sustained pressure keeps disclosed shooters in memory. Multiplied 5x automatically while the squad is ALERTED or ENGAGED (memory persistence layer). Default: 60.</text>
+    </string>
+
+    <!-- Squad - Combat state machine -->
+    <string id="ui_mcm_at_hdr_state_machine">
+        <text>Combat State Machine</text>
+    </string>
+    <string id="ui_mcm_at_squad_events_to_engage">
+        <text>Events to engage</text>
+    </string>
+    <string id="ui_mcm_at_squad_events_to_engage_desc">
+        <text>How many combat events (hits, sightings) within the event window before an ALERTED squad escalates to ENGAGED. A single disclosure event always short-circuits straight to ENGAGED regardless of count. Default: 3.</text>
+    </string>
+    <string id="ui_mcm_at_squad_event_window_sec">
+        <text>Event window (s)</text>
+    </string>
+    <string id="ui_mcm_at_squad_event_window_sec_desc">
+        <text>Rolling window over which combat events are counted toward the ENGAGED threshold. Older events drop off. Default: 60.</text>
+    </string>
+    <string id="ui_mcm_at_squad_engaged_to_alerted_sec">
+        <text>Engaged -> Alerted timeout (s)</text>
+    </string>
+    <string id="ui_mcm_at_squad_engaged_to_alerted_sec_desc">
+        <text>How long an ENGAGED squad stays engaged without new events before demoting to ALERTED. The de-escalation tick runs every 5 seconds so actual demotion may lag by up to that interval. Default: 60.</text>
+    </string>
+    <string id="ui_mcm_at_squad_alerted_to_idle_sec">
+        <text>Alerted -> Idle timeout (s)</text>
+    </string>
+    <string id="ui_mcm_at_squad_alerted_to_idle_sec_desc">
+        <text>How long an ALERTED squad stays alerted without new events before demoting to IDLE. Default: 120.</text>
+    </string>
+
+    <!-- Squad - Hit disclosure -->
+    <string id="ui_mcm_at_hdr_hit_disclosure">
+        <text>Hit Disclosure</text>
+    </string>
+    <string id="ui_mcm_at_squad_hit_disclosure_enabled">
+        <text>Enable hit disclosure</text>
+    </string>
+    <string id="ui_mcm_at_squad_hit_disclosure_enabled_desc">
+        <text>When any faction-enemy hits any squad member, the entire squad is force-disclosed to the shooter via engine memory + combat_mask propagation. Squad members orient and engage even if they did not see the hit themselves. First-hit trigger (no rank-tiered threshold). Default: on.</text>
+    </string>
+
+    <!-- ==================== INDIVIDUAL TAB ==================== -->
+    <string id="ui_mcm_at_individual_desc">
+        <text>Per-NPC tactical behaviors. Each section below tunes one behavior.</text>
+    </string>
+
+    <!-- Individual - NPC Health -->
+    <string id="ui_mcm_at_hdr_health">
+        <text>NPC Health</text>
+    </string>
+    <string id="ui_mcm_at_individual_heal_rate_multiplier">
+        <text>Heal rate multiplier</text>
+    </string>
+    <string id="ui_mcm_at_individual_heal_rate_multiplier_desc">
+        <text>Multiplies the per-tick HP recovery in xr_eat_medkit's heal_hp loop. Vanilla restores ~70% HP over ~56 seconds (14 ticks of 0.05 HP each). At 2.0x NPCs heal twice as fast (~28 seconds effective). At 0.5x they heal half as fast. Default: 1.0.</text>
+    </string>
+    <string id="ui_mcm_at_individual_charge_chance_novice">
+        <text>Novice charge chance (%)</text>
+    </string>
+    <string id="ui_mcm_at_individual_charge_chance_novice_desc">
+        <text>Probability that a novice-rank stalker is granted the lifetime healing_charge token at first spawn. The charge fires once if the stalker drops below 80% HP without a medkit in inventory. Vanilla rolls 50% for every rank. Default: 50.</text>
+    </string>
+    <string id="ui_mcm_at_individual_charge_chance_experienced">
+        <text>Experienced charge chance (%)</text>
+    </string>
+    <string id="ui_mcm_at_individual_charge_chance_experienced_desc">
+        <text>Probability for experienced-rank stalkers. Default: 50.</text>
+    </string>
+    <string id="ui_mcm_at_individual_charge_chance_veteran">
+        <text>Veteran charge chance (%)</text>
+    </string>
+    <string id="ui_mcm_at_individual_charge_chance_veteran_desc">
+        <text>Probability for veteran-rank stalkers. Default: 50.</text>
+    </string>
+    <string id="ui_mcm_at_individual_charge_chance_master">
+        <text>Master charge chance (%)</text>
+    </string>
+    <string id="ui_mcm_at_individual_charge_chance_master_desc">
+        <text>Probability for master-rank stalkers. Default: 50.</text>
+    </string>
+
+    <!-- ==================== DEVELOPMENT TAB ==================== -->
+    <string id="ui_mcm_at_development_desc">
+        <text>Debug and development tools. DEBUG enables structured tracing of substrate writes, state transitions, and disclosure events. Written to alifetactics.log. Has performance cost.</text>
+    </string>
+
+    <!-- Development - Logging -->
+    <string id="ui_mcm_at_hdr_logging">
+        <text>Logging</text>
+    </string>
+    <string id="ui_mcm_at_development_log_level">
+        <text>Log level</text>
+    </string>
+    <string id="ui_mcm_at_development_log_level_desc">
+        <text>Controls log verbosity. ERROR: crashes only. WARN: anomalies. INFO: substrate lifecycle and state transitions. DEBUG: full tracing per squad event.</text>
+    </string>
+    <string id="at_development_log_level_lst_error">
+        <text>Error</text>
+    </string>
+    <string id="at_development_log_level_lst_warn">
+        <text>Warn</text>
+    </string>
+    <string id="at_development_log_level_lst_info">
+        <text>Info</text>
+    </string>
+    <string id="at_development_log_level_lst_debug">
+        <text>Debug</text>
+    </string>
+</string_table>

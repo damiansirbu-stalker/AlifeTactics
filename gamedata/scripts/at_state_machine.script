@@ -1,0 +1,204 @@
+--- at_state_machine: Squad combat state machine (IDLE / ALERTED / ENGAGED / FLEEING)
+-- Operates on record.state in the at_squad_memory substrate. Counter-driven
+-- promotions (IDLE -> ALERTED -> ENGAGED), timer-driven demotions, and explicit
+-- set_state for FLEEING (t13 flee will call this).
+
+local tostring, RegisterScriptCallback = tostring, RegisterScriptCallback
+-- DO NOT cache CreateTimeEvent / ResetTimeEvent / RemoveTimeEvent as locals.
+-- See doc/library/xray/internals/globals.md:208-219.
+
+local log = xlog.get_logger("AT.STATE", { outfile = "alifetactics.log" })
+local _dbg = false
+
+-- ==================== CONSTANTS ====================
+
+STATE = {
+    IDLE    = "IDLE",
+    ALERTED = "ALERTED",
+    ENGAGED = "ENGAGED",
+    FLEEING = "FLEEING",
+}
+
+EVENT = {
+    HIT        = "hit",
+    DISCLOSURE = "disclosure",
+    SEE_ENEMY  = "see_enemy",
+}
+
+local TIMER_EV                       = "at_state_machine"
+local TIMER_DECAY                    = "decay"
+local DECAY_INTERVAL_SEC             = 5
+local DEFAULT_EVENTS_TO_ENGAGE       = 3
+local DEFAULT_EVENT_WINDOW_SEC       = 60
+local DEFAULT_ENGAGED_TO_ALERTED_SEC = 60
+local DEFAULT_ALERTED_TO_IDLE_SEC    = 120
+local COUNTER_KEY                    = "all"
+
+-- ==================== STATE ====================
+
+local _counters = {}
+
+-- ==================== PRIVATE: MCM ACCESSORS ====================
+
+local function _events_to_engage()
+    if at_core_mcm and at_core_mcm.get_config then
+        local v = at_core_mcm.get_config("events_to_engage")
+        if v then return v end
+    end
+    return DEFAULT_EVENTS_TO_ENGAGE
+end
+
+local function _event_window_sec()
+    if at_core_mcm and at_core_mcm.get_config then
+        local v = at_core_mcm.get_config("event_window_sec")
+        if v then return v end
+    end
+    return DEFAULT_EVENT_WINDOW_SEC
+end
+
+local function _engaged_to_alerted_sec()
+    if at_core_mcm and at_core_mcm.get_config then
+        local v = at_core_mcm.get_config("engaged_to_alerted_sec")
+        if v then return v end
+    end
+    return DEFAULT_ENGAGED_TO_ALERTED_SEC
+end
+
+local function _alerted_to_idle_sec()
+    if at_core_mcm and at_core_mcm.get_config then
+        local v = at_core_mcm.get_config("alerted_to_idle_sec")
+        if v then return v end
+    end
+    return DEFAULT_ALERTED_TO_IDLE_SEC
+end
+
+-- ==================== PRIVATE: STATE OPS ====================
+
+local function _counter(squad_id)
+    local entry = _counters[squad_id]
+    if not entry then
+        entry = xttltable.create_ttl_counter({
+            ttl   = _event_window_sec(),
+            clock = xtime.game_sec,
+        })
+        _counters[squad_id] = entry
+    end
+    return entry
+end
+
+local function _enter(record, state, now)
+    if _dbg then
+        log.debug("[TRANSITION] %s -> %s",
+            record.state.current_state, state)
+    end
+    record.state.current_state      = state
+    record.state.state_entered_time = now
+    record.state.last_event_time    = now
+end
+
+-- Returns the new state to enter, or nil if no transition.
+local function _eval_transition(record, event_type, count, threshold)
+    local state = record.state.current_state
+
+    -- Disclosure short-circuits to ENGAGED from anywhere except FLEEING.
+    if event_type == EVENT.DISCLOSURE then
+        if state == STATE.FLEEING then return nil end
+        if state ~= STATE.ENGAGED then return STATE.ENGAGED end
+        return nil
+    end
+
+    if state == STATE.IDLE then return STATE.ALERTED end
+    if state == STATE.ALERTED and count >= threshold then return STATE.ENGAGED end
+    return nil
+end
+
+local function _de_escalate_one(_squad_id, record, now, engaged_sec, alerted_sec)
+    local state = record.state.current_state
+    if state == STATE.IDLE or state == STATE.FLEEING then return end
+    local since_last = now - record.state.last_event_time
+    if state == STATE.ENGAGED and since_last > engaged_sec then
+        _enter(record, STATE.ALERTED, now)
+    elseif state == STATE.ALERTED and since_last > alerted_sec then
+        _enter(record, STATE.IDLE, now)
+    end
+end
+
+local function _de_escalate_tick()
+    ResetTimeEvent(TIMER_EV, TIMER_DECAY, DECAY_INTERVAL_SEC)
+    local now = xtime.game_sec()
+    if now == 0 then return end
+    local engaged_sec = _engaged_to_alerted_sec()
+    local alerted_sec = _alerted_to_idle_sec()
+    local tmr = xprofiler.new_if(_dbg):start()
+    local scanned = 0
+    at_squad_memory.iterate(function(squad_id, record)
+        scanned = scanned + 1
+        _de_escalate_one(squad_id, record, now, engaged_sec, alerted_sec)
+    end)
+    tmr:stop()
+    if _dbg then
+        log.debug("[DEESCALATE] scanned=%d [%.2fms]", scanned, tmr:get_ms())
+    end
+end
+
+local function _on_entity_unregister(se_obj)
+    if not se_obj then return end
+    _counters[se_obj.id] = nil
+end
+
+local function _refresh_log()
+    if at_core_mcm and at_core_mcm.get_config then
+        local level = at_core_mcm.get_config("log_level") or "WARN"
+        log.set_level(level)
+        _dbg = log.get_level() >= 5
+    end
+end
+
+local function _on_first_update()
+    _counters = {}
+    _refresh_log()
+    RemoveTimeEvent(TIMER_EV, TIMER_DECAY)
+    CreateTimeEvent(TIMER_EV, TIMER_DECAY, DECAY_INTERVAL_SEC, _de_escalate_tick)
+    log.info("State machine initialized (events_to_engage=%d, window=%ds, engaged->alerted=%ds, alerted->idle=%ds, dbg=%s)",
+        _events_to_engage(), _event_window_sec(),
+        _engaged_to_alerted_sec(), _alerted_to_idle_sec(), tostring(_dbg))
+end
+
+-- ==================== PUBLIC ====================
+
+--- Record a combat event for a squad and evaluate state transition
+function record_event(squad_id, event_type)
+    local record = at_squad_memory.get(squad_id)
+    local now    = xtime.game_sec()
+    record.state.last_event_time = now
+
+    local counter = _counter(squad_id)
+    counter:add(COUNTER_KEY)
+    local count = counter:count(COUNTER_KEY)
+
+    local new_state = _eval_transition(record, event_type, count, _events_to_engage())
+    if new_state then _enter(record, new_state, now) end
+
+    if _dbg then
+        log.debug("[EVENT] squad=%d type=%s count=%d state=%s",
+            squad_id, event_type, count, record.state.current_state)
+    end
+end
+
+--- Force a state directly (used by disclosure trigger and flee logic)
+function set_state(squad_id, new_state)
+    local record = at_squad_memory.get(squad_id)
+    _enter(record, new_state, xtime.game_sec())
+end
+
+--- Read the current state name
+function get_state(squad_id)
+    return at_squad_memory.get(squad_id).state.current_state
+end
+
+function on_game_start()
+    RegisterScriptCallback("server_entity_on_unregister", _on_entity_unregister)
+    RegisterScriptCallback("actor_on_first_update", _on_first_update)
+    RegisterScriptCallback("on_option_change", _refresh_log)
+    RegisterScriptCallback("mcm_option_restore_default", _refresh_log)
+end

@@ -1,0 +1,106 @@
+--- at_test: Console commands for AlifeTactics development
+-- Spawns enemy squads in front of the actor to exercise hit disclosure / state
+-- machine behavior without finding a real spawn point in-world. Mirrors the
+-- pattern of ap_ext_test.script (@export console annotations -> console commands).
+
+local pairs, tostring, string_format = pairs, tostring, string.format
+
+local log = xlog.get_logger("AT.TEST", { outfile = "alifetactics.log" })
+
+local DEFAULT_SECTION  = "bandit_sim_squad_novice"
+local DEFAULT_DISTANCE = 50
+local INVALID_VERTEX   = 4294967295
+
+local function _tip(msg)
+    if db.actor then news_manager.send_tip(db.actor, msg, nil, nil, 5000) end
+end
+
+-- Spawn a squad at the actor's vertex, then teleport it to `distance` meters
+-- in front of the actor's facing direction. If the target vertex is off-map,
+-- the squad stays at the actor (still spawned, just not relocated).
+local function _spawn(section, distance)
+    section  = section or DEFAULT_SECTION
+    distance = distance or DEFAULT_DISTANCE
+    if not db.actor then
+        _tip("AT.TEST: not in game")
+        return
+    end
+    if not ini_sys:section_exist(section) then
+        local msg = string_format("AT.TEST: squad section '%s' not in squad_descr", section)
+        log.warn(msg)
+        _tip(msg)
+        return
+    end
+
+    local actor      = db.actor
+    local actor_pos  = actor:position()
+    local actor_lvid = actor:level_vertex_id()
+    local actor_gvid = actor:game_vertex_id()
+
+    local squad = alife():create(section, actor_pos, actor_lvid, actor_gvid)
+    if not squad then
+        _tip("AT.TEST: alife:create failed for " .. section)
+        return
+    end
+    squad:create_npc(nil, actor_pos, actor_lvid, actor_gvid)
+    if squad.npc_count and squad:npc_count() > 0 then
+        for member in squad:squad_members() do
+            local se = member.object or alife_object(member.id)
+            if se then SIMBOARD:setup_squad_and_group(se) end
+        end
+    end
+
+    local dir         = actor:direction()
+    local target_pos  = vector():set(
+        actor_pos.x + dir.x * distance,
+        actor_pos.y,
+        actor_pos.z + dir.z * distance
+    )
+    local target_lvid = level.vertex_id(target_pos)
+    local on_map      = target_lvid ~= INVALID_VERTEX
+    if on_map then
+        TeleportSquad(squad, target_pos, target_lvid, actor_gvid)
+    end
+
+    log.info("[SPAWN] section=%s squad_id=%d distance=%dm on_map=%s",
+        section, squad.id, distance, tostring(on_map))
+    _tip(string_format("AT.TEST: spawned %s id=%d %s",
+        section, squad.id,
+        on_map and (distance .. "m ahead") or "at actor (off-map)"))
+end
+
+-- ==================== CONSOLE COMMANDS ====================
+
+--- @export console
+function at_spawn()
+    _spawn(DEFAULT_SECTION, DEFAULT_DISTANCE)
+end
+
+--- @export console
+function at_spawn_master()
+    _spawn("bandit_sim_squad_alpha", DEFAULT_DISTANCE)
+end
+
+--- @export console
+function at_spawn_veteran()
+    _spawn("bandit_sim_squad_veteran", DEFAULT_DISTANCE)
+end
+
+--- @export console
+function at_spawn_far()
+    _spawn(DEFAULT_SECTION, 100)
+end
+
+--- @export console
+function at_dump()
+    if not db.actor then return end
+    local count = 0
+    at_squad_memory.iterate(function(squad_id, record)
+        count = count + 1
+        local per_shooter_n = 0
+        for _ in pairs(record.per_shooter) do per_shooter_n = per_shooter_n + 1 end
+        log.info("[DUMP] squad=%d state=%s per_shooter=%d last_event=%.1f",
+            squad_id, record.state.current_state, per_shooter_n, record.state.last_event_time)
+    end)
+    _tip(string_format("AT.TEST: %d substrate records (see alifetactics.log)", count))
+end

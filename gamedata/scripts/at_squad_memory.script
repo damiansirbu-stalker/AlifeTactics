@@ -1,0 +1,143 @@
+--- at_squad_memory: Shared per-squad combat memory substrate
+-- Owns the per-squad record table. Behaviors (hit disclosure, state machine,
+-- tactical flee) read and write here instead of duplicating per-NPC state.
+
+local pairs, tostring, RegisterScriptCallback = pairs, tostring, RegisterScriptCallback
+-- DO NOT cache CreateTimeEvent / ResetTimeEvent / RemoveTimeEvent as locals.
+-- demonized_time_events.script replaces them; cached locals capture the dead
+-- originals and timers never fire. See doc/library/xray/internals/globals.md:208-219.
+
+local log = xlog.get_logger("AT.MEM", { outfile = "alifetactics.log" })
+local _dbg = false
+
+-- ==================== CONSTANTS ====================
+
+local TIMER_EV              = "at_squad_memory"
+local TIMER_DECAY           = "decay"
+local DECAY_INTERVAL_SEC    = 5
+local DEFAULT_RETENTION_SEC = 60
+local STATE_IDLE            = "IDLE"
+
+-- t14 will flip this multiplier based on state.current_state to extend retention
+-- 5x when squad is ALERTED/ENGAGED. Substrate reads its own state field on each
+-- decay tick so no cross-module callback chain is needed.
+local STATE_EXTENSION_MULT  = 1.0
+
+-- ==================== STATE ====================
+
+local _records = {}
+
+-- ==================== PRIVATE ====================
+
+local function _new_record()
+    return {
+        per_shooter        = {},
+        disclosed_shooters = {},
+        state = {
+            current_state        = STATE_IDLE,
+            state_entered_time   = 0,
+            last_event_time      = 0,
+            last_disclosure_time = 0,
+        },
+        members = {},
+    }
+end
+
+local function _retention_sec()
+    if at_core_mcm and at_core_mcm.get_config then
+        local cfg = at_core_mcm.get_config("substrate_retention_sec")
+        if cfg then return cfg end
+    end
+    return DEFAULT_RETENTION_SEC
+end
+
+local function _decay_one(record, now, threshold)
+    for shooter_id, entry in pairs(record.per_shooter) do
+        if now - entry.last_hit_time > threshold then
+            record.per_shooter[shooter_id] = nil
+        end
+    end
+end
+
+local function _decay_tick()
+    ResetTimeEvent(TIMER_EV, TIMER_DECAY, DECAY_INTERVAL_SEC)
+    local now = xtime.game_sec()
+    if now == 0 then return end
+    local threshold = _retention_sec() * STATE_EXTENSION_MULT
+    local tmr = xprofiler.new_if(_dbg):start()
+    local record_count, pruned = 0, 0
+    for _, record in pairs(_records) do
+        record_count = record_count + 1
+        local before = 0
+        if _dbg then for _ in pairs(record.per_shooter) do before = before + 1 end end
+        _decay_one(record, now, threshold)
+        if _dbg then
+            local after = 0
+            for _ in pairs(record.per_shooter) do after = after + 1 end
+            pruned = pruned + (before - after)
+        end
+    end
+    tmr:stop()
+    if _dbg then
+        log.debug("[DECAY] records=%d pruned=%d threshold=%.0f [%.2fms]",
+            record_count, pruned, threshold, tmr:get_ms())
+    end
+end
+
+-- Server entity unregister fires for every server entity. Unconditional hash
+-- delete is a safe no-op when the id isn't a squad we've recorded. Same pattern
+-- as ap_core_broker.script:837-848.
+local function _on_entity_unregister(se_obj)
+    if not se_obj then return end
+    _records[se_obj.id] = nil
+end
+
+local function _refresh_log()
+    if at_core_mcm and at_core_mcm.get_config then
+        local level = at_core_mcm.get_config("log_level") or "WARN"
+        log.set_level(level)
+        _dbg = log.get_level() >= 5
+    end
+end
+
+-- actor_on_first_update fires on new game AND every save load. Wipe state and
+-- (re)create the decay timer. Substrate is transient, no save persistence.
+local function _on_first_update()
+    _records = {}
+    _refresh_log()
+    RemoveTimeEvent(TIMER_EV, TIMER_DECAY)
+    CreateTimeEvent(TIMER_EV, TIMER_DECAY, DECAY_INTERVAL_SEC, _decay_tick)
+    log.info("Substrate initialized (retention=%ds, decay=%ds, dbg=%s)",
+        _retention_sec(), DECAY_INTERVAL_SEC, tostring(_dbg))
+end
+
+-- ==================== PUBLIC ====================
+
+--- Get the squad record, lazy-initializing if absent
+function get(squad_id)
+    local record = _records[squad_id]
+    if not record then
+        record = _new_record()
+        _records[squad_id] = record
+    end
+    return record
+end
+
+--- Drop the squad record (idempotent)
+function clear(squad_id)
+    _records[squad_id] = nil
+end
+
+--- Walk every record, calling fn(squad_id, record)
+function iterate(fn)
+    for squad_id, record in pairs(_records) do
+        fn(squad_id, record)
+    end
+end
+
+function on_game_start()
+    RegisterScriptCallback("server_entity_on_unregister", _on_entity_unregister)
+    RegisterScriptCallback("actor_on_first_update", _on_first_update)
+    RegisterScriptCallback("on_option_change", _refresh_log)
+    RegisterScriptCallback("mcm_option_restore_default", _refresh_log)
+end
