@@ -114,7 +114,7 @@ Before we hook anything, the engine already does most of the work:
 5. Idempotency check: if `record.disclosed_shooters[shooter_id]` is already set, return.
 6. Otherwise, set the flag and call `_disclose(squad, who)` — three engine APIs per online squadmate:
 
-   - `force_set_goodwill(-2000, who)` writes RELATION_REGISTRY personal goodwill minus community baseline so the final attitude is pinned at -2000 (`relation_registry.cpp:161-179`). `CAI_Stalker::tfGetRelationType` (`ai_stalker_misc.cpp:92-105`) routes through RELATION_REGISTRY for stalkers, so this drives every downstream `is_relation_enemy` check.
+   - `force_set_goodwill(-2000, who)` writes RELATION_REGISTRY personal goodwill minus community baselines, so when `GetAttitude` sums personal + reputation + rank + community + community_to_community the community terms cancel and the final attitude is `-2000 + reputation + rank` — well below enemy threshold (`relation_registry.cpp:161-179`, `relation_registry_inline.h:69-93`). `CAI_Stalker::tfGetRelationType` (`ai_stalker_misc.cpp:92-105`) routes through RELATION_REGISTRY for stalkers, so this drives every downstream `is_relation_enemy` check.
    - `enable_memory_object(who, true)` toggles `m_enabled` on existing visual/sound/hit memory entries (`memory_manager.cpp:151-156`). No-op when the squadmate has no prior entry; cheap insurance otherwise.
    - `register_in_combat()` sets the member's squad_mask bit in `CAgentMemberManager::m_combat_mask` (`agent_member_manager.cpp:114-132`). This is the **unlock for engine-native squad memory propagation**: with the whole squad's bits set, the next `agent_memory_manager` tick OR's the full combat_mask into the victim's hit-memory entry's `m_squad_mask`, propagating the memory of the shooter across every member including distant patrols.
 
@@ -277,7 +277,7 @@ xprofiler timing is a no-op singleton when `_dbg` is false (zero luabind crossin
 ### What's intentionally not changed
 
 - The `eat_medkit:update` stage machine and its gates (alive, not trader/zombied, not `IsWounded(npc)`, combat-filter from LTX `in_combat`/`out_combat`).
-- LTX threshold values (`medkit_health = 80`, `bandage_bleeding = 0.15`). Threshold tuning would require monkey-patching `_eating.max_h` / `_eating.min_b` which are module-locals not exposed externally. Output-level tuning (heal rate multiplier) covers most of the player intent.
+- LTX threshold values (`medkit_health = 65`, `bandage_bleeding = 0.15`). Threshold tuning would require monkey-patching `_eating.max_h` / `_eating.min_b` which are module-locals not exposed externally. Output-level tuning (heal rate multiplier) covers most of the player intent.
 - `heal_bleed` flow (the `npc.bleeding = 0.07` per-tick logic). Vanilla semantics opaque, no demonstrated need to change.
 
 ---

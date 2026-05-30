@@ -18,11 +18,6 @@ Squad alarm on hit:
   On the first faction-enemy hit, AlifeTactics writes the shooter into every squadmate's memory as hostile, audio range or not. The engine combat planner then handles target selection, cover, and return fire on the new information.
   Shooting one stalker from cover or with a suppressor no longer leaves his squad standing around. They turn and engage on the first hit, including the ones who did not see or hear it.
 
-Squad combat phase:
-  Combat behaviors gate differently in calm, alert, and engaged squads. Without a shared phase per squad, every behavior duplicates the bookkeeping or runs in the wrong context.
-  AlifeTactics tracks one phase per squad. Hits and squad-wide alerts bump it up, quiet time drops it back down. The other systems read from it.
-  In 1.0.0 the phase has no direct visible effect. The consumers that read it (tactical flee, danger memory persistence, combat scheme selection) come in later versions. The phase runs now so they can be added cleanly.
-
 NPC self-healing:
   Vanilla has a working code path for NPCs to consume medkits and bandages from their inventory, but ships the underlying configuration with an empty item list. The consumption loop never iterates, and only a once-per-life fallback ever heals. NPCs carry full medkits and die clutching them.
   AlifeTactics restores the missing item list through a configuration overlay covering the vanilla medkits and the bandage. Two MCM sliders tune on top: one scales how fast NPCs heal, one sets a per-rank chance for the lifetime fallback. Defaults match vanilla behavior, so out of the box you only get the fix.

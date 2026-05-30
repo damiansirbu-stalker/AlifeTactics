@@ -1,8 +1,8 @@
 # AlifeTactics: Combat AI for STALKER Anomaly
 
-Vanilla NPCs are not threatening. They miss most of their shots. They walk to cover with the weapon raised. Each one discovers threats on their own. They never retreat tactically. They cannot deal with a player sitting behind a rock at 80 meters.
+Vanilla squads do not share hit awareness past audio range. A suppressed shot or a hit on a distant patrolman stays a private problem of one stalker while the rest keep walking. Vanilla stalkers also carry medkits they never use, because the engine ships the consumption config with an empty item list.
 
-AlifeTactics is a from-scratch combat AI replacement built on a shared per-squad memory table. Hit disclosure, tactical flee, danger persistence, and combat state all read and write that one table. Per-NPC tuning layers cover precision, health, and damage.
+AlifeTactics is a combat AI mod built on a shared per-squad memory table. On the first faction-enemy hit, the entire squad is force-disclosed to the shooter and engages, regardless of audio range. A separate per-stalker layer restores the broken medkit consumption path and adds MCM tuning for heal rate and per-rank healing-charge probability.
 
 [Bugs, suggestions](https://github.com/damiansirbu-stalker/AlifeTactics/issues)
 
