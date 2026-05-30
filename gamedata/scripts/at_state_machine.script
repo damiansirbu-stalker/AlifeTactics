@@ -146,6 +146,9 @@ local function _refresh_log()
         log.set_level(level)
         _dbg = log.get_level() >= 5
     end
+    -- Counters bake event_window_sec at construction; wipe so the next
+    -- record_event picks up the current MCM value.
+    _counters = {}
 end
 
 local function _on_first_update()
