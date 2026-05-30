@@ -2,7 +2,7 @@
 -- Owns the per-squad record table. Behaviors (hit disclosure, state machine,
 -- tactical flee) read and write here instead of duplicating per-NPC state.
 
-local pairs = pairs
+local pairs, RegisterScriptCallback = pairs, RegisterScriptCallback
 -- DO NOT cache CreateTimeEvent / ResetTimeEvent / RemoveTimeEvent as locals.
 -- demonized_time_events.script replaces them; cached locals capture the dead
 -- originals and timers never fire. See doc/library/xray/internals/globals.md:208-219.

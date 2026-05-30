@@ -5,6 +5,8 @@
 -- our script extends that to distant patrol members on hit #1. No rank-tiered
 -- threshold - any single hit triggers full-squad disclosure.
 
+local RegisterScriptCallback = RegisterScriptCallback
+
 local log = xlog.get_logger("AT.HIT", { outfile = "alifetactics.log" })
 local _dbg = false
 

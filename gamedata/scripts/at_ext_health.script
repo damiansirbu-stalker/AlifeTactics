@@ -22,9 +22,23 @@
 -- entirely rather than wrap. xevent.hook is for stacking wrappers around
 -- existing behavior; here we substitute the per-tick math, no chain needed.
 
-local math_random = math.random
+local math_random, tonumber = math.random, tonumber
 local se_save_var, se_load_var = se_save_var, se_load_var
-local CreateTimeEvent = CreateTimeEvent
+local RegisterScriptCallback = RegisterScriptCallback
+
+-- pstor wrappers with nil-key guard. Both functions accept (id, name, key[, val]); if
+-- name is nil, vanilla pstor silently writes to a wrong key (and reads back nil), so
+-- guard explicitly. Callers can pass npc:name() without their own pre-check.
+local function _safe_save(id, name, key, val)
+    if not name then return end
+    se_save_var(id, name, key, val)
+end
+local function _safe_load(id, name, key)
+    if not name then return nil end
+    return se_load_var(id, name, key)
+end
+-- CreateTimeEvent is NOT cached at module load: demonized_time_events replaces this
+-- global at runtime, so capturing the upvalue would pin the original (vanilla) impl.
 
 local log = xlog.get_logger("AT.HEALTH", { outfile = "alifetactics.log" })
 local _dbg = false
@@ -124,20 +138,20 @@ local function _on_net_spawn(npc, _se_obj)
     local tmr = xprofiler.new_if(_dbg):start()
     local id = npc:id()
     local name = npc:name()
-    if se_load_var(id, name, "at_charge_processed") then
+    if _safe_load(id, name, "at_charge_processed") then
         tmr:stop()
         if _dbg then
             log.debug("[CHARGE] already_processed id=%d name=%s [%.2fms]", id, name, tmr:get_ms())
         end
         return
     end
-    se_save_var(id, name, "at_charge_processed", true)
+    _safe_save(id, name, "at_charge_processed", true)
 
     local tier = _rank_tier(npc)
     local chance = _charge_chance_pct(tier) / 100
     local rolled = math_random()
     local granted = rolled < chance
-    se_save_var(id, name, "healing_charge", granted)
+    _safe_save(id, name, "healing_charge", granted)
     tmr:stop()
     if _dbg then
         log.debug("[CHARGE] id=%d tier=%s chance=%.2f rolled=%.3f granted=%s [%.2fms]",

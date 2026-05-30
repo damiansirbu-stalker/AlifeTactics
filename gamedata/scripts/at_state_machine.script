@@ -6,6 +6,8 @@
 -- DO NOT cache CreateTimeEvent / ResetTimeEvent / RemoveTimeEvent as locals.
 -- See doc/library/xray/internals/globals.md:208-219.
 
+local RegisterScriptCallback = RegisterScriptCallback
+
 local log = xlog.get_logger("AT.STATE", { outfile = "alifetactics.log" })
 local _dbg = false
 
@@ -179,17 +181,6 @@ function record_event(squad_id, event_type)
     end
 end
 
---- Force a state directly (used by flee logic)
-function set_state(squad_id, new_state)
-    local tmr = xprofiler.new_if(_dbg):start()
-    local record = at_squad_memory.get(squad_id)
-    _enter(record, new_state, xtime.game_sec())
-    tmr:stop()
-    if _dbg then
-        log.debug("[SET_STATE] squad=%d state=%s [%.2fms]", squad_id, new_state, tmr:get_ms())
-    end
-end
-
 --- Promote squad to ENGAGED unless already ENGAGED or FLEEING. Used by hit
 --- disclosure to skip the counter and short-circuit straight to active fire.
 function escalate_to_engaged(squad_id)
@@ -208,11 +199,6 @@ function escalate_to_engaged(squad_id)
     if _dbg then
         log.debug("[ESCALATE] squad=%d from=%s to=ENGAGED [%.2fms]", squad_id, state, tmr:get_ms())
     end
-end
-
---- Read the current state name
-function get_state(squad_id)
-    return at_squad_memory.get(squad_id).state.current_state
 end
 
 function on_game_start()

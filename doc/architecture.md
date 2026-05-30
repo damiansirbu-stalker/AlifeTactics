@@ -233,7 +233,7 @@ Per-NPC self-healing. Vanilla `xr_eat_medkit.script` contains a working stage ma
 
 ### Data layer fix (t25)
 
-`AlifeTactics/gamedata/configs/ai_tweaks/mod_xr_eat_medkit_at.ltx` is a DLTX overlay on `![plugin]` adding `medkits = medkit, medkit_army, medkit_scientic, medkit_ai1, medkit_ai2, medkit_ai3` and `bandages = bandage`. After the engine's base+mod merge, `parse_list` returns the actual list. No script change to vanilla. AlifePlus already restocks these item sections via `[ap_buy_sell_keep]` so NPCs carry the items they now actually use.
+`AlifeTactics/gamedata/configs/ai_tweaks/mod_xr_eat_medkit_at.ltx` is a DLTX overlay on `![plugin]` adding `medkits = medkit, medkit_army, medkit_scientic, medkit_ai1, medkit_ai2, medkit_ai3` and `bandages = bandage`. After the engine's base+mod merge, `parse_list` returns the actual list. No script change to vanilla. AlifePlus restocks these item sections via `ap_trade_policy.ltx` (medkit category) so NPCs carry the items they now actually use.
 
 ### Runtime tuning (t27)
 
