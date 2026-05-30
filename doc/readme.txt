@@ -24,7 +24,7 @@ NPC self-healing:
   Wounded stalkers actually heal themselves now. Stalkers carrying medkits use them. Stalkers without one fall back to the charge if their rank rolls allow.
 
 MCM:
-  Four tabs: General (master toggle), Squad (squad memory retention, combat phase timings, squad alarm toggle), Individual (NPC self-healing sliders), Development (log level).
+  Three tabs. Squad Tactics: substrate retention, state machine timings, hit disclosure toggle. Stalker Healing: medkit restoration (info-only, boot-time data layer), heal rate multiplier, per-rank healing-charge probability. Development: log level.
 
 Backlog (not in 1.0.0):
   Tactical flee, danger memory persistence, combat scheme selection, global combat tuning, stance and weapon bias, per-NPC rank-aware dispersion. The backlog file on GitHub tracks each.

@@ -5,7 +5,6 @@ local log = xlog.get_logger("AT.MCM", { outfile = "alifetactics.log" })
 -- ==================== DEFAULTS ====================
 
 local defaults = {
-    enabled = true,
     -- Squad
     substrate_retention_sec = 60,
     events_to_engage = 3,
@@ -13,7 +12,7 @@ local defaults = {
     engaged_to_alerted_sec = 60,
     alerted_to_idle_sec = 120,
     hit_disclosure_enabled = true,
-    -- Individual
+    -- Health
     heal_rate_multiplier      = 1.0,
     charge_chance_novice      = 50,
     charge_chance_experienced = 50,
@@ -35,20 +34,18 @@ local _key_to_tab = {
     engaged_to_alerted_sec   = "squad",
     alerted_to_idle_sec      = "squad",
     hit_disclosure_enabled   = "squad",
-    -- Individual
-    heal_rate_multiplier      = "individual",
-    charge_chance_novice      = "individual",
-    charge_chance_experienced = "individual",
-    charge_chance_veteran     = "individual",
-    charge_chance_master      = "individual",
+    -- Health
+    heal_rate_multiplier      = "health",
+    charge_chance_novice      = "health",
+    charge_chance_experienced = "health",
+    charge_chance_veteran     = "health",
+    charge_chance_master      = "health",
     -- Development
     log_level = "development",
-    -- enabled defaults to "general" (master toggle)
 }
 
 local function path_builder(key)
-    local tab = _key_to_tab[key] or "general"
-    return "at/" .. tab .. "/" .. key
+    return "at/" .. (_key_to_tab[key] or "squad") .. "/" .. key
 end
 
 cfg, get_config, load_config = xmcm.create_config("at", defaults, path_builder)
@@ -59,22 +56,7 @@ function on_mcm_load()
     return {
         id = "at",
         gr = {
-            -- ============ GENERAL TAB ============
-            {
-                id = "general",
-                sh = true,
-                gr = {
-                    { id = "title", type = "slide", link = "at_mcm_banner",
-                        text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
-                    { id = "desc", type = "desc", text = "ui_mcm_at_general_info" },
-
-                    -- Master toggle
-                    { id = "div_master", type = "line" },
-                    { id = "hdr_master", type = "desc", text = "ui_mcm_at_hdr_master", clr = {255, 200, 200, 200} },
-                    { id = "enabled", type = "check", val = 1, def = true },
-                },
-            },
-            -- ============ SQUAD TAB ============
+            -- ============ SQUAD TACTICS TAB ============
             {
                 id = "squad",
                 sh = true,
@@ -102,23 +84,32 @@ function on_mcm_load()
                     { id = "hit_disclosure_enabled", type = "check", val = 1, def = true },
                 },
             },
-            -- ============ INDIVIDUAL TAB ============
+            -- ============ STALKER HEALING TAB ============
             {
-                id = "individual",
+                id = "health",
                 sh = true,
                 gr = {
                     { id = "title", type = "slide", link = "at_mcm_banner",
                         text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
-                    { id = "desc", type = "desc", text = "ui_mcm_at_individual_desc" },
+                    { id = "desc", type = "desc", text = "ui_mcm_at_health_desc" },
 
-                    -- NPC Health
-                    { id = "div_health", type = "line" },
-                    { id = "hdr_health", type = "desc", text = "ui_mcm_at_hdr_health", clr = {255, 200, 200, 200} },
-                    { id = "heal_rate_multiplier",      type = "track", val = 2, min = 0.5, max = 3.0, step = 0.1, def = 1.0 },
-                    { id = "charge_chance_novice",      type = "track", val = 2, min = 0,   max = 100, step = 5,   def = 50 },
-                    { id = "charge_chance_experienced", type = "track", val = 2, min = 0,   max = 100, step = 5,   def = 50 },
-                    { id = "charge_chance_veteran",     type = "track", val = 2, min = 0,   max = 100, step = 5,   def = 50 },
-                    { id = "charge_chance_master",      type = "track", val = 2, min = 0,   max = 100, step = 5,   def = 50 },
+                    -- Medkit Restoration (info-only: DLTX overlay, boot-time, no runtime toggle)
+                    { id = "div_medkit_restoration", type = "line" },
+                    { id = "hdr_medkit_restoration", type = "desc", text = "ui_mcm_at_hdr_medkit_restoration", clr = {255, 200, 200, 200} },
+                    { id = "info_medkit_restoration", type = "desc", text = "ui_mcm_at_health_medkit_restoration_info" },
+
+                    -- Heal Rate
+                    { id = "div_heal_rate", type = "line" },
+                    { id = "hdr_heal_rate", type = "desc", text = "ui_mcm_at_hdr_heal_rate", clr = {255, 200, 200, 200} },
+                    { id = "heal_rate_multiplier", type = "track", val = 2, min = 0.5, max = 3.0, step = 0.1, def = 1.0 },
+
+                    -- Healing Charge
+                    { id = "div_healing_charge", type = "line" },
+                    { id = "hdr_healing_charge", type = "desc", text = "ui_mcm_at_hdr_healing_charge", clr = {255, 200, 200, 200} },
+                    { id = "charge_chance_novice",      type = "track", val = 2, min = 0, max = 100, step = 5, def = 50 },
+                    { id = "charge_chance_experienced", type = "track", val = 2, min = 0, max = 100, step = 5, def = 50 },
+                    { id = "charge_chance_veteran",     type = "track", val = 2, min = 0, max = 100, step = 5, def = 50 },
+                    { id = "charge_chance_master",      type = "track", val = 2, min = 0, max = 100, step = 5, def = 50 },
                 },
             },
             -- ============ DEVELOPMENT TAB ============
@@ -149,8 +140,7 @@ end
 
 local function _on_first_update()
     log.set_level(get_config("log_level") or "WARN")
-    log.info("AlifeTactics MCM loaded (enabled=%s, log_level=%s)",
-        get_config("enabled") and "true" or "false", get_config("log_level") or "WARN")
+    log.info("AlifeTactics MCM loaded (log_level=%s)", get_config("log_level") or "WARN")
 end
 
 local function _on_option_change()

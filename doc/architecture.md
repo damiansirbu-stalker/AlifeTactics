@@ -250,11 +250,20 @@ Why `npc_on_net_spawn` and not `server_entity_on_register`: `character_rank()` r
 
 ### MCM surface
 
-Five sliders under `Individual > NPC Health`:
+Under `Stalker Healing` tab — three sections.
+
+`Medkit Restoration` (info-only): describes the DLTX overlay restoring vanilla item lists. Boot-time data layer, no runtime toggle.
+
+`Heal Rate`:
 
 | Key | Range | Default | Effect |
 |---|---|---|---|
 | `heal_rate_multiplier` | 0.5 - 3.0 (step 0.1) | 1.0 | Multiplies per-tick `change_health` |
+
+`Healing Charge`:
+
+| Key | Range | Default | Effect |
+|---|---|---|---|
 | `charge_chance_novice` | 0 - 100 (step 5) | 50 | Roll target for novice tier |
 | `charge_chance_experienced` | 0 - 100 (step 5) | 50 | Roll target for experienced tier |
 | `charge_chance_veteran` | 0 - 100 (step 5) | 50 | Roll target for veteran tier |

@@ -6,44 +6,27 @@
     </string>
 
     <!-- ==================== TAB NAMES ==================== -->
-    <string id="ui_mcm_menu_general">
-        <text>General</text>
-    </string>
     <string id="ui_mcm_menu_squad">
-        <text>Squad</text>
+        <text>Squad Tactics</text>
     </string>
-    <string id="ui_mcm_menu_individual">
-        <text>Individual</text>
+    <string id="ui_mcm_menu_health">
+        <text>Stalker Healing</text>
     </string>
     <string id="ui_mcm_menu_development">
         <text>Development</text>
     </string>
 
-    <!-- ==================== GENERAL TAB ==================== -->
+    <!-- ==================== SHARED ==================== -->
     <string id="ui_mcm_at_title">
         <text>AlifeTactics</text>
     </string>
-    <string id="ui_mcm_at_general_info">
-        <text>Combat AI for STALKER Anomaly. Per-squad memory drives hit disclosure, tactical flee, danger persistence, and combat state. Per-NPC tuning covers precision, health, and damage.</text>
-    </string>
 
-    <!-- General - Master toggle -->
-    <string id="ui_mcm_at_hdr_master">
-        <text>Master Control</text>
-    </string>
-    <string id="ui_mcm_at_general_enabled">
-        <text>Enable AlifeTactics</text>
-    </string>
-    <string id="ui_mcm_at_general_enabled_desc">
-        <text>Master kill switch. Disable to bypass all AlifeTactics behaviors without uninstalling the mod. Engine combat AI returns to vanilla. Default: on.</text>
-    </string>
-
-    <!-- ==================== SQUAD TAB ==================== -->
+    <!-- ==================== SQUAD TACTICS TAB ==================== -->
     <string id="ui_mcm_at_squad_desc">
         <text>Squad-scope combat behaviors driven by the per-squad memory substrate. Each section below tunes one behavior or its parameters.</text>
     </string>
 
-    <!-- Squad - Squad memory substrate -->
+    <!-- Squad Tactics - Squad memory substrate -->
     <string id="ui_mcm_at_hdr_substrate">
         <text>Squad Memory Substrate</text>
     </string>
@@ -54,7 +37,7 @@
         <text>How long a per-shooter entry stays in the squad's combat memory after the last hit from that shooter. Lower = squads forget snipers quickly. Higher = sustained pressure keeps disclosed shooters in memory. Multiplied 5x automatically while the squad is ALERTED or ENGAGED (memory persistence layer). Default: 60.</text>
     </string>
 
-    <!-- Squad - Combat state machine -->
+    <!-- Squad Tactics - Combat state machine -->
     <string id="ui_mcm_at_hdr_state_machine">
         <text>Combat State Machine</text>
     </string>
@@ -83,7 +66,7 @@
         <text>How long an ALERTED squad stays alerted without new events before demoting to IDLE. Default: 120.</text>
     </string>
 
-    <!-- Squad - Hit disclosure -->
+    <!-- Squad Tactics - Hit disclosure -->
     <string id="ui_mcm_at_hdr_hit_disclosure">
         <text>Hit Disclosure</text>
     </string>
@@ -94,43 +77,56 @@
         <text>When any faction-enemy hits any squad member, the entire squad is force-disclosed to the shooter via engine memory + combat_mask propagation. Squad members orient and engage even if they did not see the hit themselves. First-hit trigger (no rank-tiered threshold). Default: on.</text>
     </string>
 
-    <!-- ==================== INDIVIDUAL TAB ==================== -->
-    <string id="ui_mcm_at_individual_desc">
-        <text>Per-NPC tactical behaviors. Each section below tunes one behavior.</text>
+    <!-- ==================== STALKER HEALING TAB ==================== -->
+    <string id="ui_mcm_at_health_desc">
+        <text>Per-stalker healing behaviors. Each section below tunes one subsystem.</text>
     </string>
 
-    <!-- Individual - NPC Health -->
-    <string id="ui_mcm_at_hdr_health">
-        <text>NPC Health</text>
+    <!-- Stalker Healing - Medkit Restoration (info-only) -->
+    <string id="ui_mcm_at_hdr_medkit_restoration">
+        <text>Medkit Restoration</text>
     </string>
-    <string id="ui_mcm_at_individual_heal_rate_multiplier">
+    <string id="ui_mcm_at_health_medkit_restoration_info">
+        <text>Vanilla xr_eat_medkit's [plugin] section ships without the medkits / bandages item lists, so the consumption loop iterates over nothing and stalkers never use the kits in their inventory. AlifeTactics restores the missing lists through a DLTX overlay on ai_tweaks/xr_eat_medkit.ltx covering the vanilla medkits and the bandage. Data-layer fix loaded at boot; no runtime toggle.</text>
+    </string>
+
+    <!-- Stalker Healing - Heal Rate -->
+    <string id="ui_mcm_at_hdr_heal_rate">
+        <text>Heal Rate</text>
+    </string>
+    <string id="ui_mcm_at_health_heal_rate_multiplier">
         <text>Heal rate multiplier</text>
     </string>
-    <string id="ui_mcm_at_individual_heal_rate_multiplier_desc">
+    <string id="ui_mcm_at_health_heal_rate_multiplier_desc">
         <text>Multiplies the per-tick HP recovery in xr_eat_medkit's heal_hp loop. Vanilla restores 0.05 HP per tick for 13 ticks (0.65 HP total) before the heal cycle exits. At 2.0x each tick restores 0.10 HP, so the heal completes in fewer ticks. At 0.5x each tick restores 0.025 HP. Default: 1.0.</text>
     </string>
-    <string id="ui_mcm_at_individual_charge_chance_novice">
+
+    <!-- Stalker Healing - Healing Charge -->
+    <string id="ui_mcm_at_hdr_healing_charge">
+        <text>Healing Charge</text>
+    </string>
+    <string id="ui_mcm_at_health_charge_chance_novice">
         <text>Novice charge chance (%)</text>
     </string>
-    <string id="ui_mcm_at_individual_charge_chance_novice_desc">
-        <text>Probability that a novice-rank stalker is granted the lifetime healing_charge token at first spawn. The charge fires once if the stalker drops below 80% HP without a medkit in inventory. Vanilla rolls 50% for every rank. Default: 50.</text>
+    <string id="ui_mcm_at_health_charge_chance_novice_desc">
+        <text>Probability that a novice-rank stalker is granted the lifetime healing_charge token at first spawn. The charge fires once if the stalker drops below the medkit_health threshold without a medkit in inventory. Vanilla rolls 50% for every rank. Default: 50.</text>
     </string>
-    <string id="ui_mcm_at_individual_charge_chance_experienced">
+    <string id="ui_mcm_at_health_charge_chance_experienced">
         <text>Experienced charge chance (%)</text>
     </string>
-    <string id="ui_mcm_at_individual_charge_chance_experienced_desc">
+    <string id="ui_mcm_at_health_charge_chance_experienced_desc">
         <text>Probability for experienced-rank stalkers. Default: 50.</text>
     </string>
-    <string id="ui_mcm_at_individual_charge_chance_veteran">
+    <string id="ui_mcm_at_health_charge_chance_veteran">
         <text>Veteran charge chance (%)</text>
     </string>
-    <string id="ui_mcm_at_individual_charge_chance_veteran_desc">
+    <string id="ui_mcm_at_health_charge_chance_veteran_desc">
         <text>Probability for veteran-rank stalkers. Default: 50.</text>
     </string>
-    <string id="ui_mcm_at_individual_charge_chance_master">
+    <string id="ui_mcm_at_health_charge_chance_master">
         <text>Master charge chance (%)</text>
     </string>
-    <string id="ui_mcm_at_individual_charge_chance_master_desc">
+    <string id="ui_mcm_at_health_charge_chance_master_desc">
         <text>Probability for master-rank stalkers. Default: 50.</text>
     </string>
 

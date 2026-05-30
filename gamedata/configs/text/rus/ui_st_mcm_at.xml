@@ -5,9 +5,6 @@
     <text>AlifeTactics</text>
   </string>
   <!-- ==================== TAB NAMES ==================== -->
-  <string id="ui_mcm_menu_general">
-    <text>Общее</text>
-  </string>
   <string id="ui_mcm_menu_development">
     <text>Разработка</text>
   </string>
@@ -15,19 +12,7 @@
   <string id="ui_mcm_at_title">
     <text>AlifeTactics</text>
   </string>
-  <string id="ui_mcm_at_general_info">
-    <text>Боевой ИИ для STALKER Anomaly. Память отряда управляет раскрытием попаданий, тактическим отступлением, сохранением угрозы и боевым состоянием. Индивидуальная настройка NPC охватывает точность, здоровье и урон.</text>
-  </string>
   <!-- General - Master toggle -->
-  <string id="ui_mcm_at_hdr_master">
-    <text>Главный переключатель</text>
-  </string>
-  <string id="ui_mcm_at_general_enabled">
-    <text>Включить AlifeTactics</text>
-  </string>
-  <string id="ui_mcm_at_general_enabled_desc">
-    <text>Главный переключатель. Отключите, чтобы обойти все механики AlifeTactics без удаления мода. Боевой ИИ движка вернётся к ванильному. По умолчанию: вкл.</text>
-  </string>
   <!-- General - Squad memory substrate -->
   <string id="ui_mcm_at_hdr_substrate">
     <text>Память отряда</text>
@@ -103,48 +88,57 @@
     <text>Отладка</text>
   </string>
   <string id="ui_mcm_menu_squad">
-    <text>Отряд</text>
-  </string>
-  <string id="ui_mcm_menu_individual">
-    <text>NPC</text>
+    <text>Тактика отряда</text>
   </string>
   <string id="ui_mcm_at_squad_desc">
     <text>Боевые поведения уровня отряда, питаемые памятью отряда. Каждая секция настраивает одно поведение или его параметры.</text>
   </string>
-  <string id="ui_mcm_at_individual_desc">
-    <text>Тактические поведения уровня NPC. Каждая секция настраивает одно поведение.</text>
-  </string>
-  <string id="ui_mcm_at_hdr_health">
-    <text>Здоровье NPC</text>
-  </string>
-  <string id="ui_mcm_at_individual_heal_rate_multiplier">
+  <string id="ui_mcm_at_health_heal_rate_multiplier">
     <text>Множитель скорости лечения</text>
   </string>
-  <string id="ui_mcm_at_individual_heal_rate_multiplier_desc">
+  <string id="ui_mcm_at_health_heal_rate_multiplier_desc">
     <text>Умножает восстановление HP за тик в цикле heal_hp ванильного xr_eat_medkit. Ваниль восстанавливает 0.05 HP за тик в течение 13 тиков (всего 0.65 HP) до выхода из цикла. При 2.0x каждый тик восстанавливает 0.10 HP, поэтому лечение завершается за меньше тиков. При 0.5x каждый тик восстанавливает 0.025 HP. По умолчанию: 1.0.</text>
   </string>
-  <string id="ui_mcm_at_individual_charge_chance_novice">
+  <string id="ui_mcm_at_health_charge_chance_novice">
     <text>Шанс заряда у новичка (%)</text>
   </string>
-  <string id="ui_mcm_at_individual_charge_chance_novice_desc">
+  <string id="ui_mcm_at_health_charge_chance_novice_desc">
     <text>Вероятность, что сталкеру ранга «новичок» при первом спавне будет назначен одноразовый «заряд исцеления». Заряд срабатывает один раз, если у сталкера здоровье ниже 80% и нет аптечки в инвентаре. Ваниль выдаёт 50% всем рангам. По умолчанию: 50.</text>
   </string>
-  <string id="ui_mcm_at_individual_charge_chance_experienced">
+  <string id="ui_mcm_at_health_charge_chance_experienced">
     <text>Шанс заряда у опытного (%)</text>
   </string>
-  <string id="ui_mcm_at_individual_charge_chance_experienced_desc">
+  <string id="ui_mcm_at_health_charge_chance_experienced_desc">
     <text>Вероятность для сталкеров ранга «опытный». По умолчанию: 50.</text>
   </string>
-  <string id="ui_mcm_at_individual_charge_chance_veteran">
+  <string id="ui_mcm_at_health_charge_chance_veteran">
     <text>Шанс заряда у ветерана (%)</text>
   </string>
-  <string id="ui_mcm_at_individual_charge_chance_veteran_desc">
+  <string id="ui_mcm_at_health_charge_chance_veteran_desc">
     <text>Вероятность для сталкеров ранга «ветеран». По умолчанию: 50.</text>
   </string>
-  <string id="ui_mcm_at_individual_charge_chance_master">
+  <string id="ui_mcm_at_health_charge_chance_master">
     <text>Шанс заряда у мастера (%)</text>
   </string>
-  <string id="ui_mcm_at_individual_charge_chance_master_desc">
+  <string id="ui_mcm_at_health_charge_chance_master_desc">
     <text>Вероятность для сталкеров ранга «мастер». По умолчанию: 50.</text>
+  </string>
+  <string id="ui_mcm_menu_health">
+    <text>Лечение сталкеров</text>
+  </string>
+  <string id="ui_mcm_at_health_desc">
+    <text>Поведение лечения отдельных сталкеров. Каждый раздел ниже настраивает одну подсистему.</text>
+  </string>
+  <string id="ui_mcm_at_hdr_medkit_restoration">
+    <text>Восстановление потребления аптечек</text>
+  </string>
+  <string id="ui_mcm_at_health_medkit_restoration_info">
+    <text>Ванильная секция [plugin] из xr_eat_medkit поставляется без списков medkits и bandages, поэтому цикл потребления не итерируется и сталкеры не используют аптечки из инвентаря. AlifeTactics восстанавливает недостающие списки через DLTX-оверлей на ai_tweaks/xr_eat_medkit.ltx, охватывая ванильные аптечки и бинт. Слой данных, загружается на старте; рантайм-переключателя нет.</text>
+  </string>
+  <string id="ui_mcm_at_hdr_heal_rate">
+    <text>Скорость лечения</text>
+  </string>
+  <string id="ui_mcm_at_hdr_healing_charge">
+    <text>Лечебный заряд</text>
   </string>
 </string_table>
