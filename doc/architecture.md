@@ -114,9 +114,9 @@ Before we hook anything, the engine already does most of the work:
 5. Idempotency check: if `record.disclosed_shooters[shooter_id]` is already set, return.
 6. Otherwise, set the flag and call `_disclose(squad, who)` — three engine APIs per online squadmate:
 
-   - `force_set_goodwill(-2000, who)` writes RELATION_REGISTRY personal goodwill minus community baselines, so when `GetAttitude` sums personal + reputation + rank + community + community_to_community the community terms cancel and the final attitude is `-2000 + reputation + rank` — well below enemy threshold (`relation_registry.cpp:161-179`, `relation_registry_inline.h:69-93`). `CAI_Stalker::tfGetRelationType` (`ai_stalker_misc.cpp:92-105`) routes through RELATION_REGISTRY for stalkers, so this drives every downstream `is_relation_enemy` check.
-   - `enable_memory_object(who, true)` toggles `m_enabled` on existing visual/sound/hit memory entries (`memory_manager.cpp:151-156`). No-op when the squadmate has no prior entry; cheap insurance otherwise.
-   - `register_in_combat()` sets the member's squad_mask bit in `CAgentMemberManager::m_combat_mask` (`agent_member_manager.cpp:114-132`). This is the **unlock for engine-native squad memory propagation**: with the whole squad's bits set, the next `agent_memory_manager` tick OR's the full combat_mask into the victim's hit-memory entry's `m_squad_mask`, propagating the memory of the shooter across every member including distant patrols.
+   - `force_set_goodwill(-2000, who)` writes RELATION_REGISTRY personal goodwill minus community baselines, so when `GetAttitude` sums personal + reputation + rank + community + community_to_community the community terms cancel and the final attitude is `-2000 + reputation + rank` — well below enemy threshold (`relation_registry.cpp:161-179`, `relation_registry_inline.h:69-93`). `CAI_Stalker::tfGetRelationType` (`ai_stalker_misc.cpp:92-105`) routes through RELATION_REGISTRY for stalkers, so this drives every downstream `is_relation_enemy` check. **Gated on `IsStalker(who)`**: `RELATION_REGISTRY::ForceSetGoodwill` (`relation_registry.cpp:165-172`) smart_casts both ids to `CSE_ALifeTraderAbstract` and bails with the "cannot convert obj" engine error when either fails; mutants are `CSE_ALifeMonsterAbstract`. For mutant / helicopter / anomaly shooters the goodwill write is skipped — they have no faction relation to write anyway. Substrate updates and the other two engine calls still run.
+   - `enable_memory_object(who, true)` toggles `m_enabled` on existing visual/sound/hit memory entries (`memory_manager.cpp:151-156`). No-op when the squadmate has no prior entry; cheap insurance otherwise. Runs for any `who` (mutants included) — the engine call accepts any game_object target.
+   - `register_in_combat()` sets the member's squad_mask bit in `CAgentMemberManager::m_combat_mask` (`agent_member_manager.cpp:114-132`). This is the **unlock for engine-native squad memory propagation**: with the whole squad's bits set, the next `agent_memory_manager` tick OR's the full combat_mask into the victim's hit-memory entry's `m_squad_mask`, propagating the memory of the shooter across every member including distant patrols. Runs for any shooter — no `who` argument, just flips the calling stalker's bit.
 
 7. `at_state_machine.record_event(squad.id, EVENT.DISCLOSURE)` — short-circuits the state machine to ENGAGED.
 
@@ -242,6 +242,7 @@ Per-NPC self-healing. Vanilla `xr_eat_medkit.script` contains a working stage ma
 | Hook | Mechanism | What it changes |
 |---|---|---|
 | Heal rate multiplier | Direct assignment `xr_eat_medkit.heal_hp = _patched_heal_hp` | Per-tick `change_health(0.05 * mult)` reads MCM each tick; reschedule via `xr_eat_medkit.heal_hp` lookup propagates the patch through all 13 ticks |
+| Bandage tick logging | Direct assignment `xr_eat_medkit.heal_bleed = _patched_heal_bleed` | Same logic as vanilla (`npc.bleeding = 0.07` per tick for 13 ticks), wrapped to emit `[HEAL] bleed_tick` / `bleed_complete` log lines + xprofiler timing so bandage consumption is observable end-to-end. No behavior change. |
 | Per-rank healing-charge | `RegisterScriptCallback("npc_on_net_spawn", _on_net_spawn)` | Reads `ranks.get_obj_rank_name(npc)` and folds the 8 vanilla rank names (novice / trainee / experienced / professional / veteran / expert / master / legend) into the 4 MCM tiers (novice / experienced / veteran / master). Rolls the MCM-configured chance, overrides vanilla's flat 50% roll. Per-NPC `at_charge_processed` se_var prevents re-roll across save/load and offline/online transitions. |
 
 Why direct assignment on `heal_hp` and not `xevent.hook`: we substitute the body entirely rather than wrap. Vanilla's recursive scheduling does name lookup on `heal_hp` at each call, so reassigning the module-table entry propagates through the recursion. No chain stacking needed.
@@ -275,9 +276,11 @@ All defaults match vanilla behavior. Sliders are tuning surface, not feature tog
 
 Following the convention from `at_squad_memory._decay_tick` and `at_state_machine._deescalate_tick`:
 
-- `[PATCH]` install — info on success, warn if `xr_eat_medkit.heal_hp` unavailable
-- `[HEAL] hp_tick id=X mult=Y health=Z left=N [Tms]` — debug-gated, with `xprofiler.new_if(_dbg):get_ms()` timing
-- `[HEAL] complete id=X reason=R left=N [Tms]` — debug-gated, reason in {`no_obj`, `dead`, `ticks_exhausted`}
+- `[PATCH]` install — info on success per patched function, warn if `xr_eat_medkit.heal_hp` or `heal_bleed` unavailable
+- `[HEAL] hp_tick id=X mult=Y health=Z left=N [Tms]` — medkit heal tick, debug-gated, with `xprofiler.new_if(_dbg):get_ms()` timing
+- `[HEAL] complete id=X reason=R left=N [Tms]` — medkit heal end, debug-gated, reason in {`no_obj`, `dead`, `ticks_exhausted`}
+- `[HEAL] bleed_tick id=X bleeding=Z left=N [Tms]` — bandage bleed tick, debug-gated
+- `[HEAL] bleed_complete id=X reason=R left=N [Tms]` — bandage bleed end, debug-gated, same reasons
 - `[CHARGE] id=X rank=R tier=T chance=C rolled=V granted=B` — debug-gated, per roll
 - `[CHARGE] already_processed id=X name=N` — debug-gated, per save-load skip
 
@@ -287,7 +290,7 @@ xprofiler timing is a no-op singleton when `_dbg` is false (zero luabind crossin
 
 - The `eat_medkit:update` stage machine and its gates (alive, not trader/zombied, not `IsWounded(npc)`, combat-filter from LTX `in_combat`/`out_combat`).
 - LTX threshold values (`medkit_health = 65`, `bandage_bleeding = 0.15`). Threshold tuning would require monkey-patching `_eating.max_h` / `_eating.min_b` which are module-locals not exposed externally. Output-level tuning (heal rate multiplier) covers most of the player intent.
-- `heal_bleed` flow (the `npc.bleeding = 0.07` per-tick logic). Vanilla semantics opaque, no demonstrated need to change.
+- `heal_bleed` behavior (vanilla `npc.bleeding = 0.07` per tick). We patch it for logging only; the bleeding value and tick count are unchanged. The engine field is a hard set, not a delta, so an MCM multiplier would be unintuitive.
 
 ---
 

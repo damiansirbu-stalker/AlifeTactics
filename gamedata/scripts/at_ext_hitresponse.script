@@ -5,7 +5,7 @@
 -- our script extends that to distant patrol members on hit #1. No rank-tiered
 -- threshold - any single hit triggers full-squad disclosure.
 
-local RegisterScriptCallback = RegisterScriptCallback
+local RegisterScriptCallback, IsStalker = RegisterScriptCallback, IsStalker
 
 local log = xlog.get_logger("AT.HIT", { outfile = "alifetactics.log" })
 local _dbg = false
@@ -25,12 +25,16 @@ local function _is_enabled()
 end
 
 -- Returns true only when shooter's faction is community-level enemy of victim's.
--- This is the disclosure gate: accidental hits on friendly/neutral NPCs do not
--- accumulate, do not disclose, do not write goodwill. Same-community hits are
--- rejected as friendly fire.
+-- This is the substrate-update gate: accidental hits on friendly/neutral NPCs do not
+-- accumulate. Same-community hits are rejected as friendly fire.
 --
--- character_community(obj) is the anomaly global wrapper that handles actor +
--- stalker + safe nil paths. Returns nil for mutants and bad inputs.
+-- character_community(obj) is the anomaly global wrapper (_g.script:2407-2415). For
+-- stalkers and the actor it returns obj:character_community(). For anything else
+-- (mutants, helicopters, anomalies) it returns the literal string "monster". Mutant
+-- shooters therefore PASS this gate because is_factions_enemies(<stalker>, "monster")
+-- is true, which is correct: mutant attacks are real combat events worth tracking in
+-- substrate and the state machine. The mutant-specific restriction (goodwill writes
+-- only for human shooters) lives in _disclose.
 local function _shooter_is_combat_enemy(npc, who)
     local npc_comm = character_community(npc)
     if not npc_comm or npc_comm == "" or npc_comm == "none" then return false end
@@ -76,13 +80,26 @@ end
 -- set_relation == SetGoodwill(goodwill_enemy_config) so it is redundant with
 -- force_set_goodwill (relation_registry_inline.h:25-44); set_enemy is a bloodsucker-
 -- only API that logs an error for stalkers (script_game_object_use2.cpp:231-243).
+--
+-- Mutant / helicopter / anomaly shooters: force_set_goodwill is gated on IsStalker(who).
+-- RELATION_REGISTRY::ForceSetGoodwill (relation_registry.cpp:165-172) smart_casts both
+-- ids to CSE_ALifeTraderAbstract and bails with "cannot convert obj to CSE_ALifeTrader
+-- Abstract!" when either fails; mutants are CSE_ALifeMonsterAbstract so the to-side
+-- cast returns nil. enable_memory_object (script_game_object2.cpp:260-268) and
+-- register_in_combat (agent_member_manager.cpp:114-132) work for any shooter type so
+-- they always run — distant patrol squadmates still learn the squad is engaged with
+-- the mutant via combat_mask propagation, matching vanilla xr_danger.script:132 which
+-- escalates alertness regardless of shooter community.
 local function _disclose(squad, who)
     if squad:npc_count() == 0 then return 0 end
     local count = 0
+    local who_is_human = IsStalker(who)
     for member in squad:squad_members() do
         local mem_npc = level.object_by_id(member.id)
         if mem_npc then
-            mem_npc:force_set_goodwill(GOODWILL_HOSTILE, who)
+            if who_is_human then
+                mem_npc:force_set_goodwill(GOODWILL_HOSTILE, who)
+            end
             mem_npc:enable_memory_object(who, true)
             mem_npc:register_in_combat()
             count = count + 1

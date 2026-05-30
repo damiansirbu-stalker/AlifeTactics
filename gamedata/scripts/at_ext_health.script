@@ -114,14 +114,53 @@ local function _patched_heal_hp(id, left)
     return true
 end
 
+-- ==================== PATCH: HEAL_BLEED LOG ====================
+
+-- Mirrors vanilla xr_eat_medkit.heal_bleed (script:203-215). No behavior
+-- change: vanilla sets npc.bleeding = 0.07 per tick for 13 ticks (left=15..3,
+-- exits at left=2). The replacement only adds [HEAL] bleed_tick / bleed_complete
+-- log lines and xprofiler timing so bandage consumption is observable end-to-end,
+-- matching the heal_hp pattern. Recursive scheduling captures xr_eat_medkit
+-- .heal_bleed (our function after install) so the chain stays on the patched
+-- function through all 13 ticks. No MCM-tunable multiplier because the engine
+-- field is a hard set, not a delta -- a multiplier on a target value would be
+-- unintuitive.
+local function _patched_heal_bleed(id, left)
+    local tmr = xprofiler.new_if(_dbg):start()
+    local nextl = left - 1
+    local npc = level.object_by_id(id)
+    if npc and npc:alive() and nextl > 1 then
+        npc.bleeding = 0.07
+        tmr:stop()
+        if _dbg then
+            log.debug("[HEAL] bleed_tick id=%d bleeding=%.3f left=%d [%.2fms]",
+                id, npc.bleeding, nextl, tmr:get_ms())
+        end
+        CreateTimeEvent(id, npc:name() .. "_self_healing_event_bleed_" .. nextl,
+            level.get_time_factor(), xr_eat_medkit.heal_bleed, id, nextl)
+    else
+        tmr:stop()
+        if _dbg then
+            local reason = (not npc) and "no_obj"
+                or (not npc:alive()) and "dead"
+                or "ticks_exhausted"
+            log.debug("[HEAL] bleed_complete id=%d reason=%s left=%d [%.2fms]",
+                id, reason, left, tmr:get_ms())
+        end
+    end
+    return true
+end
+
 local function _install_heal_patch()
-    if not (xr_eat_medkit and xr_eat_medkit.heal_hp) then
-        log.warn("[PATCH] xr_eat_medkit.heal_hp unavailable; module disabled")
+    if not (xr_eat_medkit and xr_eat_medkit.heal_hp and xr_eat_medkit.heal_bleed) then
+        log.warn("[PATCH] xr_eat_medkit.heal_hp or heal_bleed unavailable; module disabled")
         return
     end
     xr_eat_medkit.heal_hp = _patched_heal_hp
+    xr_eat_medkit.heal_bleed = _patched_heal_bleed
     _heal_active = true
     log.info("[PATCH] xr_eat_medkit.heal_hp replaced with multiplier-aware version")
+    log.info("[PATCH] xr_eat_medkit.heal_bleed replaced with logged version")
 end
 
 -- ==================== CALLBACK: PER-RANK HEALING CHARGE ====================
