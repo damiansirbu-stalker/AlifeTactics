@@ -1,0 +1,86 @@
+Version: 1.0.0 (xlibs 1.5.2)
+
+[url=https://github.com/damiansirbu-stalker/AlifeTactics]GitHub[/url] | [url=https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/changelog]Changelog[/url] | [url=https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/readme_ru.txt]Na russkom[/url] | [url=https://github.com/damiansirbu-stalker/AlifeTactics/issues]Bugs, suggestions[/url]
+
+[b]! Reset MCM settings to defaults after updating ![/b]
+
+AlifeTactics is a mod composed of several systems, that gives NPC squads coordinated combat behavior.
+
+[size=3][b]Squad memory[/b][/size]
+In vanilla each NPC tracks his own threats. The squad has no shared brain. A hit on one stalker stays a problem for one stalker, and the rest of the squad keeps walking.
+Squad memory is one shared table per squad. Every other combat system writes its observations there and reads them back. Hits, shooters, current state, all in one place.
+This is the backbone of the mod. Squads stop acting like four lone wolves wearing the same patches and start acting like a unit with shared awareness. Realistic squad combat is collaborative, and without a shared memory there is nothing to collaborate on.
+
+[size=3][b]Squad alarm on hit[/b][/size]
+Vanilla shares hit memory across squadmates within earshot. A suppressor breaks the share. A patrol member thirty meters off the line falls outside its range. The hit stays a private problem of whoever took it.
+On the first faction-enemy hit, AlifeTactics writes the shooter into every squadmate's memory as hostile, audio range or not. The engine combat planner then handles target selection, cover, and return fire on the new information.
+Shooting one stalker from cover or with a suppressor no longer leaves his squad standing around. They turn and engage on the first hit, including the ones who did not see or hear it.
+
+[size=3][b]NPC self-healing (medkits AND bandages)[/b][/size]
+Vanilla has a working code path for NPCs to consume medkits and bandages from their inventory, but ships the underlying configuration with an empty item list. The consumption loop never iterates, and only a once-per-life fallback ever heals. NPCs carry full medkits and bandages and die clutching them.
+AlifeTactics restores BOTH item lists through a configuration overlay covering the six vanilla medkit sections (medkit, medkit_army, medkit_scientic, medkit_ai1/2/3) and the vanilla bandage. Two MCM sliders tune on top: one scales how fast NPCs heal, one sets a per-rank chance for the lifetime fallback. Defaults match vanilla behavior, so out of the box you only get the fix.
+What actually happens now:
+[list]
+[*]Wounded stalkers below 50% HP use medkits to heal up.
+[*]Bleeding stalkers above the wound threshold use bandages to stop the bleed.
+[*]Stalkers without either fall back to the lifetime healing charge if their rank rolls allow.
+[/list]
+
+[size=3][b]NPC weapon accuracy[/b][/size]
+In vanilla every stalker fires with the same dispersion regardless of rank. The engine has a rank-based accuracy curve but it is broken on Anomaly's data: every non-novice stalker clamps to the same value, so a master shoots no tighter than a trainee. The rank dispersion knob in the engine is a dead knob.
+AlifeTactics replaces that curve script-side. On every NPC shot the rank is read and a per-tier multiplier is applied to the engine's computed cone. Defaults run from novice at the vanilla baseline down to legend at roughly a third the cone width. Eight tier sliders in MCM tune each rank independently.
+Master stalkers shoot noticeably tighter than novices. The spread between ranks is configurable per tier, so you can flatten the curve, exaggerate it, or set extremes (laser masters, hopeless rookies).
+
+[size=3][b]MCM[/b][/size]
+Four tabs, each with a master toggle. Squad Memory: master toggle, substrate retention, state machine timings. Stalker Healing: master toggle, medkit restoration (info-only, boot-time data layer), heal rate multiplier, per-rank healing-charge probability. Weapon Accuracy: master toggle, per-tier dispersion sliders for the eight rank tiers. Development: log level.
+
+[size=3][b]Backlog (not in 1.0.0)[/b][/size]
+Tactical flee, danger memory persistence, combat scheme selection, global combat tuning, stance and weapon bias. The backlog file on GitHub tracks each.
+
+[size=3][b]Performance[/b][/size]
+Squad-aware behaviors scale with squad count. NPC count does not enter the cost. Two periodic cleanup ticks run every few seconds. Nothing runs on every frame and nothing polls.
+
+[size=3][b]Compatibility[/b][/size]
+Tested with vanilla Anomaly 1.5.3 and GAMMA.
+No base script edits. No engine patches.
+Mid-save install works. Mid-save uninstall is safe.
+Story NPCs, companions, and traders go through the same faction-relation gate as every other stalker, so they do not get caught by the squad alarm.
+
+[size=3][b]Companion mods[/b][/size]
+[list]
+[*][b]AlifePlus[/b] (reactive A-Life framework) -- [url=https://www.moddb.com/mods/stalker-anomaly/addons/alifeplus-v1-0-01]ModDB[/url]
+[*][b]AlifeGuard[/b] (population control) -- [url=https://www.moddb.com/mods/stalker-anomaly/addons/alifeguard-1001]ModDB[/url]
+[*][b]AlifeBalance[/b] (respawn pacing) -- [url=https://www.moddb.com/mods/stalker-anomaly/addons/alifebalance]ModDB[/url]
+[/list]
+
+[line]
+
+[size=3][b]Requirements[/b][/size]
+[list]
+[*]Anomaly 1.5.3
+[*]Demonized modded exes (latest), main or MT
+[*][url=https://www.moddb.com/mods/stalker-anomaly/addons/xlibs-1001]xlibs[/url]
+[*]MCM
+[/list]
+
+[size=3][b]Install (MO2)[/b][/size]
+[list=1]
+[*]Install xlibs
+[*]Install AlifeTactics
+[*]Load order does not matter
+[*]Configure via MCM
+[/list]
+
+[size=3][b]Uninstall (MO2)[/b][/size]
+Disable or remove in MO2.
+
+[size=3][b]Credits[/b][/size]
+Altogolik - support, ideas, source materials
+
+[size=3][b]Usage and License[/b][/size]
+Modpacks: allowed and encouraged. Keep the readme and license files.
+Addons, patches, integrations: allowed. Credit "AlifeTactics by Damian Sirbu" visibly on your mod page.
+Reproducing the implementation in other software: not allowed, even with credit.
+Full license in LICENSE file and on GitHub.
+
+[line]

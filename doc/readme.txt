@@ -2,6 +2,7 @@ AlifeTactics: NPC combat behavior for STALKER Anomaly, by Damian
 Version: 1.0.0 (xlibs 1.5.2)
 GitHub: https://github.com/damiansirbu-stalker/AlifeTactics
 Changelog: https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/changelog
+Russian / Na russkom: https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/readme_ru.txt
 Bugs, suggestions: https://github.com/damiansirbu-stalker/AlifeTactics/issues
 
 ! Reset MCM settings to defaults after updating !
