@@ -2,7 +2,7 @@
 
 Vanilla squads do not share hit awareness past audio range. A suppressed shot or a hit on a distant patrolman stays a private problem of one stalker while the rest keep walking. Vanilla stalkers also carry medkits they never use, because the engine ships the consumption config with an empty item list.
 
-AlifeTactics is a combat AI mod built on a shared per-squad memory table. On the first faction-enemy hit, the entire squad is force-disclosed to the shooter and engages, regardless of audio range. A separate per-stalker layer restores the broken medkit consumption path and adds MCM tuning for heal rate and per-rank healing-charge probability.
+AlifeTactics is a combat AI mod with squad-scope and per-stalker behaviors. The squad-scope layer shares hit awareness: on the first faction-enemy hit, the entire squad is force-disclosed to the shooter and engages, regardless of audio range. Two per-stalker layers sit alongside. One restores the broken medkit consumption path and tunes heal rate plus per-rank healing-charge probability. The other applies a per-rank weapon accuracy curve so master stalkers shoot noticeably tighter than novices (the vanilla engine rank knob is dead on Anomaly's rank values).
 
 [Bugs, suggestions](https://github.com/damiansirbu-stalker/AlifeTactics/issues)
 

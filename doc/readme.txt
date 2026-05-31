@@ -18,16 +18,24 @@ Squad alarm on hit:
   On the first faction-enemy hit, AlifeTactics writes the shooter into every squadmate's memory as hostile, audio range or not. The engine combat planner then handles target selection, cover, and return fire on the new information.
   Shooting one stalker from cover or with a suppressor no longer leaves his squad standing around. They turn and engage on the first hit, including the ones who did not see or hear it.
 
-NPC self-healing:
-  Vanilla has a working code path for NPCs to consume medkits and bandages from their inventory, but ships the underlying configuration with an empty item list. The consumption loop never iterates, and only a once-per-life fallback ever heals. NPCs carry full medkits and die clutching them.
-  AlifeTactics restores the missing item list through a configuration overlay covering the vanilla medkits and the bandage. Two MCM sliders tune on top: one scales how fast NPCs heal, one sets a per-rank chance for the lifetime fallback. Defaults match vanilla behavior, so out of the box you only get the fix.
-  Wounded stalkers actually heal themselves now. Stalkers carrying medkits use them. Stalkers without one fall back to the charge if their rank rolls allow.
+NPC self-healing (medkits AND bandages):
+  Vanilla has a working code path for NPCs to consume medkits and bandages from their inventory, but ships the underlying configuration with an empty item list. The consumption loop never iterates, and only a once-per-life fallback ever heals. NPCs carry full medkits and bandages and die clutching them.
+  AlifeTactics restores BOTH item lists through a configuration overlay covering the six vanilla medkit sections (medkit, medkit_army, medkit_scientic, medkit_ai1/2/3) and the vanilla bandage. Two MCM sliders tune on top: one scales how fast NPCs heal, one sets a per-rank chance for the lifetime fallback. Defaults match vanilla behavior, so out of the box you only get the fix.
+  What actually happens now:
+    - Wounded stalkers below 50% HP use medkits to heal up.
+    - Bleeding stalkers above the wound threshold use bandages to stop the bleed.
+    - Stalkers without either fall back to the lifetime healing charge if their rank rolls allow.
+
+NPC weapon accuracy:
+  In vanilla every stalker fires with the same dispersion regardless of rank. The engine has a rank-based accuracy curve but it is broken on Anomaly's data: every non-novice stalker clamps to the same value, so a master shoots no tighter than a trainee. The rank dispersion knob in the engine is a dead knob.
+  AlifeTactics replaces that curve script-side. On every NPC shot the rank is read and a per-tier multiplier is applied to the engine's computed cone. Defaults run from novice at the vanilla baseline down to legend at roughly a third the cone width. Eight tier sliders in MCM tune each rank independently.
+  Master stalkers shoot noticeably tighter than novices. The spread between ranks is configurable per tier, so you can flatten the curve, exaggerate it, or set extremes (laser masters, hopeless rookies).
 
 MCM:
-  Three tabs. Squad Tactics: substrate retention, state machine timings, hit disclosure toggle. Stalker Healing: medkit restoration (info-only, boot-time data layer), heal rate multiplier, per-rank healing-charge probability. Development: log level.
+  Four tabs, each with a master toggle. Squad Memory: master toggle, substrate retention, state machine timings. Stalker Healing: master toggle, medkit restoration (info-only, boot-time data layer), heal rate multiplier, per-rank healing-charge probability. Weapon Accuracy: master toggle, per-tier dispersion sliders for the eight rank tiers. Development: log level.
 
 Backlog (not in 1.0.0):
-  Tactical flee, danger memory persistence, combat scheme selection, global combat tuning, stance and weapon bias, per-NPC rank-aware dispersion. The backlog file on GitHub tracks each.
+  Tactical flee, danger memory persistence, combat scheme selection, global combat tuning, stance and weapon bias. The backlog file on GitHub tracks each.
 
 Performance:
   Squad-aware behaviors scale with squad count. NPC count does not enter the cost. Two periodic cleanup ticks run every few seconds. Nothing runs on every frame and nothing polls.

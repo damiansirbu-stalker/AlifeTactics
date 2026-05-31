@@ -1,3 +1,17 @@
+next
+  Summary: Weapon accuracy hook (per-rank NPC dispersion curve, restores rank-aware shooting that the engine knob loses to its [0,100] rank clamp). Per-feature MCM master toggles replace the per-sub-behavior hit disclosure toggle.
+
+  Weapon Accuracy:
+    Added: NPC weapon dispersion now scales with rank. Master stalkers shoot noticeably tighter than novices. The engine rank curve is broken on Anomaly's rank intervals (every non-novice clamps to the same value); this restores rank-aware accuracy script-side.
+    Added: New MCM tab with master toggle and 8 per-tier dispersion multiplier sliders (novice through legend). Default curve runs novice 1.00 to legend 0.38. Lower multiplier means tighter shot cone.
+
+  MCM:
+    Changed: Squad Tactics tab renamed Squad Memory.
+    Added: Squad Memory master toggle (gates substrate, state machine, and hit disclosure together).
+    Added: Stalker Healing master toggle (boot-time; runtime toggle requires game restart).
+    Added: Weapon Accuracy master toggle (runtime-toggleable).
+    Removed: Hit Disclosure sub-toggle (replaced by the Squad Memory master toggle).
+
 1.0.0
   Summary: substrate-based combat AI release. Hit disclosure, squad combat state machine, MCM, NPC self-healing.
   Architecture: substrate-based combat AI. One shared per-squad memory table fed by hit callback, read by hit disclosure, tactical flee, danger persistence, combat state, scheme selection. Per-NPC tuning layer (health, future: precision, damage, fx) sits alongside the squad-scope behaviors.
