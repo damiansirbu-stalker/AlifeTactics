@@ -27,9 +27,19 @@ Version 1.0.0. The substrate, state machine, hit disclosure, MCM, logging, and a
 | `at_ext_scheme.script` (combat scheme select, t03) | backlog |
 | `at_ext_cvars.script` (global combat cvars, t16) | backlog |
 | `at_ext_stance.script` (stance/weapon bias, t18) | backlog |
-| `at_ext_accuracy.script` (per-NPC accuracy hook, t20) | backlog |
+| `at_ext_accuracy.script` (per-NPC accuracy hook, t20) | done |
 
 Validate grade S+. Groomed task entries in `stalker-dev/doc/todo/todo-alifetactics-next.md`; brainstorm pool in `todo-alifetactics-backlog.md`.
+
+### Feature toggles
+
+Each feature has one MCM master toggle at the top of its tab. When off, no callbacks register / no ticks fire / no state writes happen. Sub-behavior toggles are not exposed; the master gates everything in the feature.
+
+| Feature (MCM tab) | Master toggle | What it gates |
+|---|---|---|
+| Squad Memory | `squad_memory_enabled` | `at_ext_hitresponse._on_hit` callback, `at_squad_memory._decay_tick`, `at_state_machine._de_escalate_tick` |
+| Stalker Healing | `stalker_healing_enabled` | `xr_eat_medkit.heal_hp`/`heal_bleed` patch install + `npc_on_net_spawn` healing-charge handler. Boot-time only; runtime toggle requires restart. The DLTX overlay `mod_xr_eat_medkit_at.ltx` is boot-time and always active. |
+| Weapon Accuracy | `weapon_accuracy_enabled` | `CAI_Stalker__GetWeaponAccuracy` hot path early-returns `base` when off (engine flat dispersion). Runtime-toggleable. |
 
 ---
 
@@ -82,7 +92,7 @@ Behaviors operating at game-global scope or one-shot per NPC.
 |---|---|---|---|
 | GLOBAL_COMBAT_TUNING (t16) | backlog | `exec_console_cmd` for PR #523 ai_* cvars | `actor_on_first_update`, MCM change |
 | STANCE_WEAPON_BIAS (t18) | backlog | `npc_on_choose_weapon` + `npc_on_combat_set_body_state` overrides | per-NPC callback |
-| ACCURACY_HOOK (t20) | backlog | `_g.CAI_Stalker__GetWeaponAccuracy` per-shot Lua hook | per-shot during combat |
+| ACCURACY_HOOK | done | `_g.CAI_Stalker__GetWeaponAccuracy` per-shot Lua hook | per-shot during combat |
 
 ---
 
@@ -320,11 +330,21 @@ When a concern straddles scopes (e.g. "should this NPC have tighter aim because 
 
 ---
 
-## Accuracy hook (backlog, t20)
+## Accuracy hook
 
-Rank-aware NPC dispersion lives in script, not in engine cvars. Engine path: `CAI_Stalker::GetWeaponAccuracy()` at `xray-monolith/src/xrGame/ai/stalker/ai_stalker_fire.cpp:77` computes per-shot dispersion (radians; lower = tighter) and dispatches to `_g.CAI_Stalker__GetWeaponAccuracy(npc, wpn, base, body_state, movement_type)` at lines 135-139. Called from `CWeapon::GetFireDispersion()` at `WeaponDispersion.cpp:45` per shot, not per frame; luabind crossing cost is microseconds at typical combat firing rates.
+Rank-aware NPC dispersion in script, not in engine cvars. `at_ext_accuracy.script` subscribes to the vanilla `npc_shot_dispersion` callback (declared in `axr_main.script:126`, dispatched from the vanilla forwarder `_g.CAI_Stalker__GetWeaponAccuracy` at `_g.script:1213-1217`). The forwarder is the engine seam: `CAI_Stalker::GetWeaponAccuracy()` at `xray-monolith/src/xrGame/ai/stalker/ai_stalker_fire.cpp:77` computes per-shot dispersion (radians; lower = tighter), dispatches to the Lua functor at lines 135-139, vanilla forwarder writes engine value into `temp_disp.dispersion` and fires the callback, returns the (possibly modified) value to the engine. We subscribe rather than overriding `_g.CAI_Stalker__GetWeaponAccuracy` directly so we compose with any other dispersion-touching mod.
 
-Why script and not cvars: the engine rank curve degenerates on modded gamedata. `Rank()` clamps to [0,100] but modded `<rank>` values are in the thousands, so `rank_k = 1.0` for every NPC and `m_fRankDisperison` collapses to the constant `expirienced_rank_dispersion = 0.8`. A cvar scaling the novice endpoint would be a dead knob. The Lua hook receives the full pre-baked `base` per shot and can replace it with any curve. See `todo-demonized-exes.md` n014 (DROPPED, PR #544 closed unmerged) for the rejected engine-cvar approach.
+Called from `CWeapon::GetFireDispersion()` at `WeaponDispersion.cpp:45` per bullet fired (not per frame; not per shotgun pellet — `WeaponFire.cpp:124-126` reuses the same value across pellets).
+
+Why script and not cvars: the engine rank curve degenerates on Anomaly gamedata. `Rank()` clamps to [0,100] at `ai_stalker.cpp:761` but vanilla `<rank>` intervals in `creatures/game_relations.ltx:8` run to 26999 (GAMMA overrides to 49999), so `rank_k = 1.0` for every non-novice NPC and `m_fRankDisperison` collapses to the constant `expirienced_rank_dispersion = 0.8`. A cvar scaling the novice endpoint would be a dead knob. The callback receives the full pre-baked `base` per shot via `temp_disp.dispersion` and can replace it with any curve. See `todo-demonized-exes.md` n014 (DROPPED, PR #544 closed unmerged) for the rejected engine-cvar approach.
+
+Curve: 8 tiers from `ranks.get_obj_rank_name` (novice / trainee / experienced / professional / veteran / expert / master / legend). MCM defaults novice 1.00 → master 0.45 → legend 0.38, range 0.20-1.50 step 0.05. Math: `out = (base / 0.8) * mult` — the divide undoes the engine's baked-in `m_fRankDisperison` step so the multiplier composes cleanly with per-state dispersion (walk/zoom/crouch still scale `base` engine-side before our hook).
+
+Unknown tier (when `ranks.get_obj_rank_name` returns `""` because `obj_rank` is nil — see `ranks.script:62-64`): handler early-returns without writing `temp_disp.dispersion`. Vanilla pass-through. Avoids the 1.25x widening bug that would happen if we treated unknown as mult=1.0.
+
+Player path is fully separate: `CActor::GetWeaponAccuracy` at `Actor_Weapon.cpp:33-101` has its own implementation, no functor lookup. Our hook never affects the actor. Stationary MGs operated by stalkers DO go through our hook (`WeaponStatMgunFire.cpp:399`).
+
+Hot path is ~1.5μs per call when DEBUG off (2 luabind crossings via `ranks.get_obj_rank_name`, the rest pure Lua). `xprofiler.new_if(_dbg)` returns `_NULL` singleton (zero luabind) when DEBUG off; `log.debug` calls are gated by `if _dbg then` so format strings are never built. At 20 NPCs firing AKs full-auto (~200 shots/sec worst case) total CPU is ~0.3ms/sec, ~0.005ms per 60fps frame.
 
 ---
 
@@ -352,6 +372,7 @@ AlifeTactics/
 │   │   ├── at_state_machine.script        # state machine (t23)
 │   │   ├── at_ext_hitresponse.script      # hit disclosure (t24)
 │   │   ├── at_ext_health.script           # NPC health controls (t27)
+│   │   ├── at_ext_accuracy.script         # per-NPC rank-aware dispersion hook (t20)
 │   │   └── at_test.script                 # console test commands
 │   └── textures/
 │       └── at_mcm_banner.dds              # MCM banner (512x50 DXT5)
@@ -367,7 +388,6 @@ Backlog scripts (not yet present):
 ├── at_ext_scheme.script              # combat scheme select (t03)
 ├── at_ext_cvars.script               # global combat tuning (t16)
 ├── at_ext_stance.script              # stance/weapon bias (t18)
-├── at_ext_accuracy.script            # rank-aware dispersion hook (t20)
 └── at_cond.script                    # condlist condition functions (t03, t14)
 ```
 

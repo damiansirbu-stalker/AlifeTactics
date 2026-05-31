@@ -18,7 +18,7 @@ local GOODWILL_HOSTILE = -2000
 
 local function _is_enabled()
     if at_core_mcm and at_core_mcm.get_config then
-        local v = at_core_mcm.get_config("hit_disclosure_enabled")
+        local v = at_core_mcm.get_config("squad_memory_enabled")
         if v ~= nil then return v end
     end
     return true
@@ -222,7 +222,7 @@ end
 
 local function _on_first_update()
     _refresh_log()
-    log.info("Hit disclosure initialized (enabled=%s, dbg=%s)",
+    log.info("Squad Memory: hit disclosure initialized (enabled=%s, dbg=%s)",
         _is_enabled() and "true" or "false", _dbg and "true" or "false")
 end
 

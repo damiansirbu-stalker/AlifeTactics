@@ -64,6 +64,14 @@ end
 
 -- ==================== MCM READERS ====================
 
+local function _is_enabled()
+    if at_core_mcm and at_core_mcm.get_config then
+        local v = at_core_mcm.get_config("stalker_healing_enabled")
+        if v ~= nil then return v end
+    end
+    return true
+end
+
 local function _heal_rate_mult()
     if at_core_mcm and at_core_mcm.get_config then
         return tonumber(at_core_mcm.get_config("heal_rate_multiplier")) or 1.0
@@ -219,6 +227,15 @@ local function _on_actor_first_update()
 end
 
 function on_game_start()
+    -- Master toggle. Disabled = no heal_hp/heal_bleed patch, no per-rank charge override.
+    -- Vanilla xr_eat_medkit behavior runs unmodified. Runtime toggle requires game restart.
+    if not _is_enabled() then
+        log.info("Stalker Healing disabled at boot; vanilla xr_eat_medkit behavior in effect")
+        RegisterScriptCallback("actor_on_first_update",     _on_actor_first_update)
+        RegisterScriptCallback("on_option_change",          _refresh_log)
+        RegisterScriptCallback("mcm_option_restore_default", _refresh_log)
+        return
+    end
     _install_heal_patch()
     RegisterScriptCallback("npc_on_net_spawn",          _on_net_spawn)
     RegisterScriptCallback("actor_on_first_update",     _on_actor_first_update)

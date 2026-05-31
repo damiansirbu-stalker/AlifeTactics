@@ -5,19 +5,30 @@ local log = xlog.get_logger("AT.MCM", { outfile = "alifetactics.log" })
 -- ==================== DEFAULTS ====================
 
 local defaults = {
-    -- Squad
+    -- Squad Memory
+    squad_memory_enabled = true,
     substrate_retention_sec = 60,
     events_to_engage = 3,
     event_window_sec = 60,
     engaged_to_alerted_sec = 60,
     alerted_to_idle_sec = 120,
-    hit_disclosure_enabled = true,
-    -- Health
+    -- Stalker Healing
+    stalker_healing_enabled   = true,
     heal_rate_multiplier      = 1.0,
     charge_chance_novice      = 50,
     charge_chance_experienced = 50,
     charge_chance_veteran     = 50,
     charge_chance_master      = 50,
+    -- Weapon Accuracy
+    weapon_accuracy_enabled = true,
+    acc_mult_novice        = 1.00,
+    acc_mult_trainee       = 0.90,
+    acc_mult_experienced   = 0.80,
+    acc_mult_professional  = 0.70,
+    acc_mult_veteran       = 0.60,
+    acc_mult_expert        = 0.52,
+    acc_mult_master        = 0.45,
+    acc_mult_legend        = 0.38,
     -- Development
     log_level = "WARN",
 }
@@ -27,19 +38,30 @@ local defaults = {
 local RegisterScriptCallback = RegisterScriptCallback
 
 local _key_to_tab = {
-    -- Squad
+    -- Squad Memory
+    squad_memory_enabled     = "squad",
     substrate_retention_sec  = "squad",
     events_to_engage         = "squad",
     event_window_sec         = "squad",
     engaged_to_alerted_sec   = "squad",
     alerted_to_idle_sec      = "squad",
-    hit_disclosure_enabled   = "squad",
-    -- Health
+    -- Stalker Healing
+    stalker_healing_enabled   = "health",
     heal_rate_multiplier      = "health",
     charge_chance_novice      = "health",
     charge_chance_experienced = "health",
     charge_chance_veteran     = "health",
     charge_chance_master      = "health",
+    -- Weapon Accuracy
+    weapon_accuracy_enabled = "accuracy",
+    acc_mult_novice        = "accuracy",
+    acc_mult_trainee       = "accuracy",
+    acc_mult_experienced   = "accuracy",
+    acc_mult_professional  = "accuracy",
+    acc_mult_veteran       = "accuracy",
+    acc_mult_expert        = "accuracy",
+    acc_mult_master        = "accuracy",
+    acc_mult_legend        = "accuracy",
     -- Development
     log_level = "development",
 }
@@ -64,6 +86,7 @@ function on_mcm_load()
                     { id = "title", type = "slide", link = "at_mcm_banner",
                         text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
                     { id = "desc", type = "desc", text = "ui_mcm_at_squad_desc" },
+                    { id = "squad_memory_enabled", type = "check", val = 1, def = true },
 
                     -- Squad memory substrate
                     { id = "div_substrate", type = "line" },
@@ -77,11 +100,6 @@ function on_mcm_load()
                     { id = "event_window_sec", type = "track", val = 2, min = 15, max = 180, step = 5, def = 60 },
                     { id = "engaged_to_alerted_sec", type = "track", val = 2, min = 30, max = 300, step = 10, def = 60 },
                     { id = "alerted_to_idle_sec", type = "track", val = 2, min = 30, max = 600, step = 10, def = 120 },
-
-                    -- Hit disclosure
-                    { id = "div_hit_disclosure", type = "line" },
-                    { id = "hdr_hit_disclosure", type = "desc", text = "ui_mcm_at_hdr_hit_disclosure", clr = {255, 200, 200, 200} },
-                    { id = "hit_disclosure_enabled", type = "check", val = 1, def = true },
                 },
             },
             -- ============ STALKER HEALING TAB ============
@@ -92,6 +110,7 @@ function on_mcm_load()
                     { id = "title", type = "slide", link = "at_mcm_banner",
                         text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
                     { id = "desc", type = "desc", text = "ui_mcm_at_health_desc" },
+                    { id = "stalker_healing_enabled", type = "check", val = 1, def = true },
 
                     -- Medkit Restoration (info-only: DLTX overlay, boot-time, no runtime toggle)
                     { id = "div_medkit_restoration", type = "line" },
@@ -110,6 +129,29 @@ function on_mcm_load()
                     { id = "charge_chance_experienced", type = "track", val = 2, min = 0, max = 100, step = 5, def = 50 },
                     { id = "charge_chance_veteran",     type = "track", val = 2, min = 0, max = 100, step = 5, def = 50 },
                     { id = "charge_chance_master",      type = "track", val = 2, min = 0, max = 100, step = 5, def = 50 },
+                },
+            },
+            -- ============ WEAPON ACCURACY TAB ============
+            {
+                id = "accuracy",
+                sh = true,
+                gr = {
+                    { id = "title", type = "slide", link = "at_mcm_banner",
+                        text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
+                    { id = "desc", type = "desc", text = "ui_mcm_at_accuracy_desc" },
+                    { id = "weapon_accuracy_enabled", type = "check", val = 1, def = true },
+
+                    -- Rank Curve
+                    { id = "div_accuracy_curve", type = "line" },
+                    { id = "hdr_accuracy_curve", type = "desc", text = "ui_mcm_at_hdr_accuracy_curve", clr = {255, 200, 200, 200} },
+                    { id = "acc_mult_novice",       type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 1.00 },
+                    { id = "acc_mult_trainee",      type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 0.90 },
+                    { id = "acc_mult_experienced",  type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 0.80 },
+                    { id = "acc_mult_professional", type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 0.70 },
+                    { id = "acc_mult_veteran",      type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 0.60 },
+                    { id = "acc_mult_expert",       type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 0.52 },
+                    { id = "acc_mult_master",       type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 0.45 },
+                    { id = "acc_mult_legend",       type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 0.38 },
                 },
             },
             -- ============ DEVELOPMENT TAB ============

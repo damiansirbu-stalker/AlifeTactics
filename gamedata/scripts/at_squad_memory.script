@@ -37,6 +37,14 @@ local function _new_record()
     }
 end
 
+local function _is_enabled()
+    if at_core_mcm and at_core_mcm.get_config then
+        local v = at_core_mcm.get_config("squad_memory_enabled")
+        if v ~= nil then return v end
+    end
+    return true
+end
+
 local function _retention_sec()
     if at_core_mcm and at_core_mcm.get_config then
         local cfg = at_core_mcm.get_config("substrate_retention_sec")
@@ -55,6 +63,7 @@ end
 
 local function _decay_tick()
     ResetTimeEvent(TIMER_EV, TIMER_DECAY, DECAY_INTERVAL_SEC)
+    if not _is_enabled() then return end
     local now = xtime.game_sec()
     if now == 0 then return end
     local threshold = _retention_sec()

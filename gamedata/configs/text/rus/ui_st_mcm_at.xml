@@ -52,15 +52,6 @@
     <text>Сколько ALERTED-отряд остаётся в этом состоянии без новых событий перед понижением до IDLE. По умолчанию: 120.</text>
   </string>
   <!-- General - Hit disclosure -->
-  <string id="ui_mcm_at_hdr_hit_disclosure">
-    <text>Раскрытие стрелка</text>
-  </string>
-  <string id="ui_mcm_at_squad_hit_disclosure_enabled">
-    <text>Включить раскрытие стрелка</text>
-  </string>
-  <string id="ui_mcm_at_squad_hit_disclosure_enabled_desc">
-    <text>Когда N попаданий от одного стрелка накапливается у отряда (N зависит от ранга командира), стрелок раскрывается всем членам отряда через систему памяти движка. Бойцы поворачиваются и вступают в бой, даже если сами не видели попадание. Порог по рангу: мастер — 1 попадание, ветеран/эксперт — 2, опытный/профи — 3, новичок/стажёр — 5. По умолчанию: вкл.</text>
-  </string>
   <!-- ==================== DEVELOPMENT TAB ==================== -->
   <string id="ui_mcm_at_development_desc">
     <text>Отладка и инструменты разработчика. DEBUG включает структурную трассировку записей в подложку, переходов состояний и событий раскрытия. Пишется в alifetactics.log. Имеет цену производительности.</text>
@@ -88,10 +79,10 @@
     <text>Отладка</text>
   </string>
   <string id="ui_mcm_menu_squad">
-    <text>Тактика отряда</text>
+    <text>Память отряда</text>
   </string>
   <string id="ui_mcm_at_squad_desc">
-    <text>Боевые поведения уровня отряда, питаемые памятью отряда. Каждая секция настраивает одно поведение или его параметры.</text>
+    <text>Боевая память на уровне отряда и связанные поведения. Субстрат накапливает попадания и хранит состояние отряда; раскрытие стрелка заставляет весь отряд реагировать на попадание, даже тех, кто вне зоны слышимости. Главный переключатель ниже отключает всю функцию (без хуков, без тиков).</text>
   </string>
   <string id="ui_mcm_at_health_heal_rate_multiplier">
     <text>Множитель скорости лечения</text>
@@ -140,5 +131,80 @@
   </string>
   <string id="ui_mcm_at_hdr_healing_charge">
     <text>Лечебный заряд</text>
+  </string>
+  <string id="ui_mcm_menu_accuracy">
+    <text>Точность оружия</text>
+  </string>
+  <string id="ui_mcm_at_accuracy_desc">
+    <text>В ваниле все сталкеры стреляют с одинаковым разбросом - встроенная система рангов движка не работает с модовыми значениями. AlifeTactics возвращает зависимость от ранга: мастера стреляют точнее новичков. Настройте каждый ранг ниже.</text>
+  </string>
+  <string id="ui_mcm_at_hdr_accuracy_curve">
+    <text>Кривая по рангам</text>
+  </string>
+  <string id="ui_mcm_at_accuracy_acc_mult_novice">
+    <text>Множитель: новичок</text>
+  </string>
+  <string id="ui_mcm_at_accuracy_acc_mult_novice_desc">
+    <text>Разброс для сталкеров ранга «новичок». Меньше = плотнее = смертоноснее. 1.00 соответствует ванильному уровню движка. По умолчанию: 1.00.</text>
+  </string>
+  <string id="ui_mcm_at_accuracy_acc_mult_trainee">
+    <text>Множитель: ученик</text>
+  </string>
+  <string id="ui_mcm_at_accuracy_acc_mult_trainee_desc">
+    <text>Разброс для сталкеров ранга «ученик». По умолчанию: 0.90.</text>
+  </string>
+  <string id="ui_mcm_at_accuracy_acc_mult_experienced">
+    <text>Множитель: опытный</text>
+  </string>
+  <string id="ui_mcm_at_accuracy_acc_mult_experienced_desc">
+    <text>Разброс для сталкеров ранга «опытный». По умолчанию: 0.80.</text>
+  </string>
+  <string id="ui_mcm_at_accuracy_acc_mult_professional">
+    <text>Множитель: профессионал</text>
+  </string>
+  <string id="ui_mcm_at_accuracy_acc_mult_professional_desc">
+    <text>Разброс для сталкеров ранга «профессионал». По умолчанию: 0.70.</text>
+  </string>
+  <string id="ui_mcm_at_accuracy_acc_mult_veteran">
+    <text>Множитель: ветеран</text>
+  </string>
+  <string id="ui_mcm_at_accuracy_acc_mult_veteran_desc">
+    <text>Разброс для сталкеров ранга «ветеран». По умолчанию: 0.60.</text>
+  </string>
+  <string id="ui_mcm_at_accuracy_acc_mult_expert">
+    <text>Множитель: эксперт</text>
+  </string>
+  <string id="ui_mcm_at_accuracy_acc_mult_expert_desc">
+    <text>Разброс для сталкеров ранга «эксперт». По умолчанию: 0.52.</text>
+  </string>
+  <string id="ui_mcm_at_accuracy_acc_mult_master">
+    <text>Множитель: мастер</text>
+  </string>
+  <string id="ui_mcm_at_accuracy_acc_mult_master_desc">
+    <text>Разброс для сталкеров ранга «мастер». По умолчанию: 0.45.</text>
+  </string>
+  <string id="ui_mcm_at_accuracy_acc_mult_legend">
+    <text>Множитель: легенда</text>
+  </string>
+  <string id="ui_mcm_at_accuracy_acc_mult_legend_desc">
+    <text>Разброс для сталкеров ранга «легенда» (максимальный). По умолчанию: 0.38.</text>
+  </string>
+  <string id="ui_mcm_at_squad_squad_memory_enabled">
+    <text>Включить «Память отряда»</text>
+  </string>
+  <string id="ui_mcm_at_squad_squad_memory_enabled_desc">
+    <text>Главный переключатель всей функции «Память отряда»: субстрат, машина состояний и раскрытие стрелка. Когда выключено - никакие колбэки не срабатывают, никакие тики не запускаются, записи на отряд не создаются. По умолчанию: вкл.</text>
+  </string>
+  <string id="ui_mcm_at_health_stalker_healing_enabled">
+    <text>Включить «Лечение сталкеров»</text>
+  </string>
+  <string id="ui_mcm_at_health_stalker_healing_enabled_desc">
+    <text>Главный переключатель всей функции «Лечение сталкеров»: патч скорости лечения и переопределение лечебного заряда по рангу. Когда выключено - ванильное поведение xr_eat_medkit работает без изменений. Переключение требует перезапуска игры. DLTX-оверлей медкита загружается на старте и активен всегда. По умолчанию: вкл.</text>
+  </string>
+  <string id="ui_mcm_at_accuracy_weapon_accuracy_enabled">
+    <text>Включить «Точность оружия»</text>
+  </string>
+  <string id="ui_mcm_at_accuracy_weapon_accuracy_enabled_desc">
+    <text>Главный переключатель хука точности на каждый выстрел. Когда выключено - применяется стандартный (одинаковый) разброс движка ко всем сталкерам независимо от ранга. По умолчанию: вкл.</text>
   </string>
 </string_table>
