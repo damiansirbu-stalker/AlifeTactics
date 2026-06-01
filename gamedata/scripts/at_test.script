@@ -95,12 +95,14 @@ end
 function at_dump()
     if not db.actor then return end
     local count = 0
+    local now = xtime.game_sec()
     at_squad_memory.iterate(function(squad_id, record)
         count = count + 1
         local per_shooter_n = 0
         for _ in pairs(record.per_shooter) do per_shooter_n = per_shooter_n + 1 end
-        log.info("[DUMP] squad=%d state=%s per_shooter=%d last_event=%.1f",
-            squad_id, record.state.current_state, per_shooter_n, record.state.last_event_time)
+        local engaged = now < (record.engaged_until or 0)
+        log.info("[DUMP] squad=%d engaged=%s per_shooter=%d engaged_until=%.1f",
+            squad_id, tostring(engaged), per_shooter_n, record.engaged_until or 0)
     end)
     _tip(string_format("AT.TEST: %d substrate records (see alifetactics.log)", count))
 end

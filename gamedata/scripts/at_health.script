@@ -1,4 +1,4 @@
---- at_ext_health: per-NPC health behavior controls.
+--- at_health: per-NPC health behavior controls.
 -- Two layers of runtime tuning on top of vanilla xr_eat_medkit:
 --
 --  1. Heal rate multiplier. Replaces xr_eat_medkit.heal_hp with a version
@@ -65,23 +65,23 @@ end
 -- ==================== MCM READERS ====================
 
 local function _is_enabled()
-    if at_core_mcm and at_core_mcm.get_config then
-        local v = at_core_mcm.get_config("stalker_healing_enabled")
+    if at_mcm and at_mcm.get_config then
+        local v = at_mcm.get_config("healing_enabled")
         if v ~= nil then return v end
     end
     return true
 end
 
 local function _heal_rate_mult()
-    if at_core_mcm and at_core_mcm.get_config then
-        return tonumber(at_core_mcm.get_config("heal_rate_multiplier")) or 1.0
+    if at_mcm and at_mcm.get_config then
+        return tonumber(at_mcm.get_config("heal_rate_multiplier")) or 1.0
     end
     return 1.0
 end
 
 local function _charge_chance_pct(tier)
-    if at_core_mcm and at_core_mcm.get_config then
-        return tonumber(at_core_mcm.get_config("charge_chance_" .. tier)) or 50
+    if at_mcm and at_mcm.get_config then
+        return tonumber(at_mcm.get_config("charge_chance_" .. tier)) or 50
     end
     return 50
 end
@@ -209,8 +209,8 @@ end
 -- ==================== LIFECYCLE ====================
 
 local function _refresh_log()
-    if at_core_mcm and at_core_mcm.get_config then
-        local level_str = at_core_mcm.get_config("log_level") or "WARN"
+    if at_mcm and at_mcm.get_config then
+        local level_str = at_mcm.get_config("log_level") or "WARN"
         log.set_level(level_str)
         _dbg = log.get_level() >= 5
     end

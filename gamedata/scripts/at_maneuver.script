@@ -1,8 +1,8 @@
---- at_ext_flank: Squad-coordinated angular spread around target during ENGAGED state
+--- at_maneuver: Squad-coordinated angular spread around target during ENGAGED state
 --
 -- GOAP injection per Mugging Squads pattern (demonized_mugging_squads.script:1066-1089).
 -- Per-NPC bind via npc_on_net_spawn. Evaluator returns true when:
---   1. Squad is ENGAGED (read from at_state_machine via substrate)
+--   1. Squad is in active combat (engaged_until > now, set by hit_share on each hit)
 --   2. Squad has 2+ alive members
 --   3. NPC is not the commander
 --   4. Throttle window (2s) elapsed for this squad
@@ -24,20 +24,20 @@ local get_object_squad = get_object_squad
 local RegisterScriptCallback = RegisterScriptCallback
 local xcreature, xslice = xcreature, xslice
 
-local log = xlog.get_logger("AT.FLANK", { outfile = "alifetactics.log" })
+local log = xlog.get_logger("AT.MANEUVER", { outfile = "alifetactics.log" })
 local _dbg = false
 
 -- ==================== CONSTANTS ====================
 
 -- Unique high ID, out of vanilla reserved range (mirrors Mugging Squads' 18811100
 -- and wuut_ai's 18811400; we own 18811700).
-local FLANK_EVAID = 18811700
-local FLANK_ACTID = 18811700
+local MANEUVER_EVAID = 18811700
+local MANEUVER_ACTID = 18811700
 
-local BIND_SWEEP_QUEUE         = "at_flank_bind_sweep"
+local BIND_SWEEP_QUEUE         = "at_maneuver_bind_sweep"
 local BIND_SWEEP_STEP          = 5      -- NPCs to bind per frame during the sweep
 local THROTTLE_MS              = 2000   -- per-squad re-evaluation gate
-local MIN_FLANK_DISTANCE       = 6      -- below this enemy distance, skip (close quarters)
+local MIN_MANEUVER_DISTANCE       = 6      -- below this enemy distance, skip (close quarters)
 local MAX_RAY_RADIUS           = 30     -- cap on level.vertex_in_direction radius
 local OUTER_HALF_ANGLE_LO      = 60     -- non-commander ranks 1+2: outer flankers
 local OUTER_HALF_ANGLE_HI      = 90
@@ -72,8 +72,8 @@ local _first_update_fired = false
 -- ==================== MCM ACCESSORS ====================
 
 local function _is_enabled()
-    if at_core_mcm and at_core_mcm.get_config then
-        local v = at_core_mcm.get_config("squad_flanking_enabled")
+    if at_mcm and at_mcm.get_config then
+        local v = at_mcm.get_config("maneuver_enabled")
         if v ~= nil then return v end
     end
     return true
@@ -81,12 +81,14 @@ end
 
 -- ==================== SUBSTRATE ACCESS ====================
 
--- Read squad state from at_squad_memory + at_state_machine. get() is lazy-init so we
--- do not pollute the substrate with empty records on misses.
+-- Read squad combat state from at_squad_memory. The substrate's engaged_until
+-- field is set by hit_share on every kept hit; this returns true while we are
+-- still inside that window.
 local function _squad_is_engaged(squad_id)
-    if not at_squad_memory or not at_state_machine then return false end
+    if not at_squad_memory then return false end
     local record = at_squad_memory.get(squad_id)
-    return record and record.state.current_state == at_state_machine.STATE.ENGAGED or false
+    if not record then return false end
+    return xtime.game_sec() < (record.engaged_until or 0)
 end
 
 -- Resolve primary enemy by highest per_shooter.count. Online check is implicit:
@@ -147,10 +149,10 @@ end
 
 -- ==================== EVALUATOR ====================
 
-class "evaluator_flank" (property_evaluator)
-function evaluator_flank:__init(name) super (nil, name) end
+class "evaluator_maneuver" (property_evaluator)
+function evaluator_maneuver:__init(name) super (nil, name) end
 
-function evaluator_flank:evaluate()
+function evaluator_maneuver:evaluate()
     if not _enabled then return false end
     local npc = self.object
     if not npc or not npc:alive() then return false end
@@ -158,7 +160,7 @@ function evaluator_flank:evaluate()
 
     -- Engine-side enemy gate: if the engine sees no enemy, our action will fail its
     -- stalker_ids.property_enemy precondition anyway. Returning false here keeps
-    -- FLANK_EVAID = false so state_mgr / alife (which we condition on FLANK_EVAID=false
+    -- MANEUVER_EVAID = false so state_mgr / alife (which we condition on MANEUVER_EVAID=false
     -- in configure-actions) stay unblocked when this NPC has no enemy memory.
     if not npc:best_enemy() then return false end
 
@@ -184,24 +186,33 @@ function evaluator_flank:evaluate()
 
     if not _primary_enemy_pos(squad.id) then return false end
 
+    if _dbg then
+        log.debug("[MANEUVER] eval_true squad=%d npc=%d role=%s",
+            squad.id, npc:id(), role)
+    end
     return true
 end
 
 -- ==================== ACTION ====================
 
-class "action_flank" (action_base)
-function action_flank:__init(name) super (nil, name) end
+class "action_maneuver" (action_base)
+function action_maneuver:__init(name) super (nil, name) end
 
-function action_flank:initialize()
+function action_maneuver:initialize()
     action_base.initialize(self)
     local npc = self.object
     if not npc then return end
+    if _dbg then
+        local squad = get_object_squad(npc)
+        log.debug("[MANEUVER] init squad=%d npc=%d",
+            squad and squad.id or -1, npc:id())
+    end
     if npc:path_type() ~= game_object.level_path then
         npc:set_path_type(game_object.level_path)
     end
 end
 
-function action_flank:execute()
+function action_maneuver:execute()
     action_base.execute(self)
     local npc = self.object
     if not npc then return end
@@ -236,10 +247,10 @@ function action_flank:execute()
     local raw_dir = vector():set(enemy_pos):sub(npc_pos)
     raw_dir.y = 0
     local dist = raw_dir:magnitude()
-    if dist < MIN_FLANK_DISTANCE then
+    if dist < MIN_MANEUVER_DISTANCE then
         tmr:stop()
         if _dbg then
-            log.debug("[FLANK] skip squad=%d npc=%d role=%s dist=%.1f reason=close_quarters [%.2fms]",
+            log.debug("[MANEUVER] skip squad=%d npc=%d role=%s dist=%.1f reason=close_quarters [%.2fms]",
                 squad.id, npc_id, tostring(role), dist, tmr:get_ms())
         end
         return
@@ -249,10 +260,13 @@ function action_flank:execute()
     rot_dir:normalize()
 
     -- Pick a vertex at distance (dist / 1.5) in rotated direction; walk back if invalid.
+    -- math.max keeps the loop start at >= MIN_MANEUVER_DISTANCE so the negative-step
+    -- range always iterates. Without it, dist in [6, 9) produced radius < 6, which
+    -- made "for r = radius, 6, -1" never execute (start < stop with negative step).
     local base_vid = npc:level_vertex_id()
-    local radius   = math_min(dist / 1.5, MAX_RAY_RADIUS)
+    local radius   = math.max(math_min(dist / 1.5, MAX_RAY_RADIUS), MIN_MANEUVER_DISTANCE)
     local vid      = nil
-    for r = radius, MIN_FLANK_DISTANCE, -1 do
+    for r = radius, MIN_MANEUVER_DISTANCE, -1 do
         local candidate = level.vertex_in_direction(base_vid, rot_dir, r)
         if candidate and candidate < MAX_U32 and npc:accessible(candidate) then
             vid = candidate
@@ -263,7 +277,7 @@ function action_flank:execute()
 
     if not vid then
         if _dbg then
-            log.debug("[FLANK] no_vid squad=%d npc=%d role=%s angle=%.0f side=%d dist=%.1f [%.2fms]",
+            log.debug("[MANEUVER] no_vid squad=%d npc=%d role=%s angle=%.0f side=%d dist=%.1f [%.2fms]",
                 squad.id, npc_id, tostring(role), angle, sign, dist, tmr:get_ms())
         end
         return
@@ -271,13 +285,31 @@ function action_flank:execute()
 
     npc:set_dest_level_vertex_id(vid)
 
+    -- Engine combat planner is blocked while our evaluator returns true, so the
+    -- vanilla KillEnemy/etc. sub-actions never fire. We have to drive the firing
+    -- animation ourselves via state_mgr; assault_fire is run + weapon-fire + stand.
+    -- Pattern from axr_fight_from_cover.script (ReDone Combat AI / Wuut). Use the
+    -- engine's own best_enemy so the look_object matches what the NPC sees.
+    local enemy_obj = npc:best_enemy()
+    if enemy_obj then
+        state_mgr.set_state(npc, "assault_fire", nil, nil,
+            { look_object = enemy_obj }, { fast_set = true })
+        if _dbg then
+            log.debug("[MANEUVER] set_state squad=%d npc=%d state=assault_fire look_id=%d",
+                squad.id, npc_id, enemy_obj:id())
+        end
+    elseif _dbg then
+        log.debug("[MANEUVER] set_state_skip squad=%d npc=%d reason=no_best_enemy",
+            squad.id, npc_id)
+    end
+
     if _dbg then
-        log.debug("[FLANK] dispatch squad=%d npc=%d role=%s angle=%.0f side=%d dist=%.1f vid=%d [%.2fms]",
+        log.debug("[MANEUVER] dispatch squad=%d npc=%d role=%s angle=%.0f side=%d dist=%.1f vid=%d [%.2fms]",
             squad.id, npc_id, tostring(role), angle, sign, dist, vid, tmr:get_ms())
     end
 end
 
-function action_flank:finalize()
+function action_maneuver:finalize()
     action_base.finalize(self)
 end
 
@@ -297,28 +329,36 @@ local function _add_to_binder(npc)
     local manager = npc:motivation_action_manager()
     if not manager then return end
 
-    local evaluator = evaluator_flank("eva_at_flank")
-    local action    = action_flank("act_at_flank")
+    local evaluator = evaluator_maneuver("eva_at_flank")
+    local action    = action_maneuver("act_at_flank")
     if not evaluator or not action then return end
 
-    manager:add_evaluator(FLANK_EVAID, evaluator)
+    manager:add_evaluator(MANEUVER_EVAID, evaluator)
     action:add_precondition(world_property(stalker_ids.property_alive,  true))
     action:add_precondition(world_property(stalker_ids.property_enemy,  true))
     action:add_precondition(world_property(stalker_ids.property_danger, true))
-    action:add_precondition(world_property(FLANK_EVAID, true))
-    action:add_effect(world_property(FLANK_EVAID, false))
-    manager:add_action(FLANK_ACTID, action)
+    action:add_precondition(world_property(MANEUVER_EVAID, true))
+    action:add_effect(world_property(MANEUVER_EVAID, false))
+    manager:add_action(MANEUVER_ACTID, action)
 
-    -- Tell vanilla state_mgr and alife planners to wait on our flag (mirrors
-    -- wuut_ai.script:1206-1230 configure_actions). Without this, the vanilla
-    -- alife planner can grab the NPC and our action never gets to run.
-    local action_state = manager:action(xr_actions_id.state_mgr + 2)
-    if action_state then
-        action_state:add_precondition(world_property(FLANK_EVAID, false))
-    end
-    local action_alife = manager:action(xr_actions_id.alife)
-    if action_alife then
-        action_alife:add_precondition(world_property(FLANK_EVAID, false))
+    -- Block the engine combat/danger planners + state_mgr + alife on our flag.
+    -- Pattern from axr_fight_from_cover.script:408-426 (ReDone Combat AI / Wuut).
+    -- Without the combat_planner graft, the engine's goal-directed planner picks
+    -- combat_planner over our action because combat_planner's effect (Enemy=false)
+    -- satisfies the parent goal direction. With the graft, combat_planner requires
+    -- MANEUVER_EVAID=false to run, and our action's effect provides that, so the
+    -- planner picks our action first.
+    local p = {
+        stalker_ids.action_combat_planner,
+        stalker_ids.action_danger_planner,
+        xr_actions_id.state_mgr + 2,
+        xr_actions_id.alife,
+    }
+    for i = 1, #p do
+        local action_block = manager:action(p[i])
+        if action_block then
+            action_block:add_precondition(world_property(MANEUVER_EVAID, false))
+        end
     end
 
     _bound[id] = true
@@ -388,13 +428,13 @@ local function _on_entity_unregister(se_obj)
 end
 
 local function _refresh_config()
-    if not (at_core_mcm and at_core_mcm.get_config) then return end
+    if not (at_mcm and at_mcm.get_config) then return end
 
-    local level_str = at_core_mcm.get_config("log_level") or "WARN"
+    local level_str = at_mcm.get_config("log_level") or "WARN"
     log.set_level(level_str)
     _dbg = log.get_level() >= 5
 
-    local v = at_core_mcm.get_config("squad_flanking_enabled")
+    local v = at_mcm.get_config("maneuver_enabled")
     if v ~= nil then _enabled = v end
 end
 

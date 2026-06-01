@@ -1,4 +1,4 @@
---- at_ext_hitresponse: Squad-aware hit disclosure
+--- at_hitresponse: Squad-aware hit disclosure
 -- Hooks npc_on_hit_callback. On the first hit from a given shooter against a
 -- squad, disclose the shooter to every online squad member regardless of
 -- distance. Engine handles audio-range squadmates natively via sound channel;
@@ -17,8 +17,8 @@ local GOODWILL_HOSTILE = -2000
 -- ==================== PRIVATE: HELPERS ====================
 
 local function _is_enabled()
-    if at_core_mcm and at_core_mcm.get_config then
-        local v = at_core_mcm.get_config("squad_memory_enabled")
+    if at_mcm and at_mcm.get_config then
+        local v = at_mcm.get_config("hit_share_enabled")
         if v ~= nil then return v end
     end
     return true
@@ -181,7 +181,9 @@ local function _on_hit(npc, amount, _local_direction, who, _bone_index)
     entry.last_hit_time = now
     entry.total_damage  = entry.total_damage + amount
 
-    at_state_machine.record_event(squad.id, at_state_machine.EVENT.HIT)
+    -- Squad is in active combat for the next ENGAGED_WINDOW_SEC seconds.
+    -- Maneuver reads this to gate its dispatch.
+    record.engaged_until = now + at_squad_memory.ENGAGED_WINDOW_SEC
 
     -- Idempotency guard: once we have disclosed this shooter to this squad, do
     -- not re-write goodwill / re-register every subsequent hit. The 3-API combo
@@ -190,34 +192,32 @@ local function _on_hit(npc, amount, _local_direction, who, _bone_index)
     if record.disclosed_shooters[who_id] then
         tmr_total:stop()
         if _dbg then
-            log.debug("[HIT] squad=%d shooter=%d count=%d damage=%.1f (already disclosed) [gate=%.2fms total=%.2fms]",
-                squad.id, who_id, entry.count, amount, tmr_gate:get_ms(), tmr_total:get_ms())
+            log.debug("[HIT] squad=%d shooter=%d count=%d damage=%.1f engaged_until=%.1f (already disclosed) [gate=%.2fms total=%.2fms]",
+                squad.id, who_id, entry.count, amount, record.engaged_until, tmr_gate:get_ms(), tmr_total:get_ms())
         end
         return
     end
 
     record.disclosed_shooters[who_id] = true
-    record.state.last_disclosure_time = now
     local tmr_disclose = xprofiler.new_if(_dbg):start()
     local disclosed_to = _disclose(squad, who)
     tmr_disclose:stop()
-    at_state_machine.escalate_to_engaged(squad.id)
     -- Assign tactical roles on first disclosure so STANCE/FLANK can branch on role.
     -- Idempotent: no-op if already assigned for this squad.
     at_squad_memory.assign_roles(squad)
     tmr_total:stop()
 
     if _dbg then
-        log.debug("[DISCLOSURE] squad=%d shooter=%d disclosed_to=%d members [gate=%.2fms disclose=%.2fms total=%.2fms]",
-            squad.id, who_id, disclosed_to, tmr_gate:get_ms(), tmr_disclose:get_ms(), tmr_total:get_ms())
+        log.debug("[DISCLOSURE] squad=%d shooter=%d disclosed_to=%d members engaged_until=%.1f [gate=%.2fms disclose=%.2fms total=%.2fms]",
+            squad.id, who_id, disclosed_to, record.engaged_until, tmr_gate:get_ms(), tmr_disclose:get_ms(), tmr_total:get_ms())
     end
 end
 
 -- ==================== LIFECYCLE ====================
 
 local function _refresh_log()
-    if at_core_mcm and at_core_mcm.get_config then
-        local level_str = at_core_mcm.get_config("log_level") or "WARN"
+    if at_mcm and at_mcm.get_config then
+        local level_str = at_mcm.get_config("log_level") or "WARN"
         log.set_level(level_str)
         _dbg = log.get_level() >= 5
     end

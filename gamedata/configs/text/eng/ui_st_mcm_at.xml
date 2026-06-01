@@ -5,11 +5,20 @@
     <text>AlifeTactics</text>
   </string>
   <!-- ==================== TAB NAMES ==================== -->
-  <string id="ui_mcm_menu_squad">
-    <text>Squad Memory</text>
+  <string id="ui_mcm_menu_hit_share">
+    <text>Hit Sharing</text>
   </string>
   <string id="ui_mcm_menu_health">
-    <text>Stalker Healing</text>
+    <text>Healing</text>
+  </string>
+  <string id="ui_mcm_menu_accuracy">
+    <text>Accuracy</text>
+  </string>
+  <string id="ui_mcm_menu_maneuver">
+    <text>Maneuver</text>
+  </string>
+  <string id="ui_mcm_menu_stance">
+    <text>Stance Switch</text>
   </string>
   <string id="ui_mcm_menu_development">
     <text>Development</text>
@@ -18,61 +27,43 @@
   <string id="ui_mcm_at_title">
     <text>AlifeTactics</text>
   </string>
-  <!-- ==================== SQUAD TACTICS TAB ==================== -->
-  <string id="ui_mcm_at_squad_desc">
-    <text>Per-squad combat memory and behaviors. The substrate accumulates hits and exposes squad state; hit disclosure forces the entire squad to react when any member is hit, even those out of audio range. Master toggle below disables the whole feature (no hooks, no ticks).</text>
+  <!-- ==================== HIT SHARING TAB ==================== -->
+  <string id="ui_mcm_at_hit_share_desc">
+    <text>When a faction-enemy hits any member of a squad, the entire squad is force-disclosed to the shooter on hit #1: each online squadmate gets the shooter pinned as hostile in their relation registry, has their memory of the shooter enabled, and is flagged as combat-active so the engine propagates the shooter into their visual/sound/hit memory. Extends the engine's audio-range squad disclosure to distant patrol members and suppressed-weapon victims.</text>
   </string>
-  <!-- Squad Tactics - Squad memory substrate -->
-  <string id="ui_mcm_at_hdr_substrate">
-    <text>Squad Memory Substrate</text>
+  <string id="ui_mcm_at_hit_share_hit_share_enabled">
+    <text>Enable Hit Sharing</text>
   </string>
-  <string id="ui_mcm_at_squad_substrate_retention_sec">
+  <string id="ui_mcm_at_hit_share_hit_share_enabled_desc">
+    <text>Master toggle. When off, the npc_on_hit_callback handler skips; no force_set_goodwill, no enable_memory_object, no register_in_combat calls. The squad-memory substrate stays available for other systems to read but is not populated by hits. Default: on.</text>
+  </string>
+  <string id="ui_mcm_at_hdr_retention">
+    <text>Memory Retention</text>
+  </string>
+  <string id="ui_mcm_at_hit_share_substrate_retention_sec">
     <text>Per-shooter retention (s)</text>
   </string>
-  <string id="ui_mcm_at_squad_substrate_retention_sec_desc">
-    <text>How long a per-shooter entry stays in the squad's combat memory after the last hit from that shooter. Lower = squads forget snipers quickly. Higher = sustained pressure keeps disclosed shooters in memory. Multiplied 5x automatically while the squad is ALERTED or ENGAGED (memory persistence layer). Default: 60.</text>
+  <string id="ui_mcm_at_hit_share_substrate_retention_sec_desc">
+    <text>How long a per-shooter entry stays in the squad's combat memory after the last hit from that shooter. Lower = squads forget snipers quickly. Higher = sustained pressure keeps disclosed shooters in memory. Default: 60.</text>
   </string>
-  <!-- Squad Tactics - Combat state machine -->
-  <string id="ui_mcm_at_hdr_state_machine">
-    <text>Combat State Machine</text>
-  </string>
-  <string id="ui_mcm_at_squad_events_to_engage">
-    <text>Events to engage</text>
-  </string>
-  <string id="ui_mcm_at_squad_events_to_engage_desc">
-    <text>How many combat events (hits, sightings) within the event window before an ALERTED squad escalates to ENGAGED. A single disclosure event always short-circuits straight to ENGAGED regardless of count. Default: 3.</text>
-  </string>
-  <string id="ui_mcm_at_squad_event_window_sec">
-    <text>Event window (s)</text>
-  </string>
-  <string id="ui_mcm_at_squad_event_window_sec_desc">
-    <text>Rolling window over which combat events are counted toward the ENGAGED threshold. Older events drop off. Default: 60.</text>
-  </string>
-  <string id="ui_mcm_at_squad_engaged_to_alerted_sec">
-    <text>Engaged -&gt; Alerted timeout (s)</text>
-  </string>
-  <string id="ui_mcm_at_squad_engaged_to_alerted_sec_desc">
-    <text>How long an ENGAGED squad stays engaged without new events before demoting to ALERTED. The de-escalation tick runs every 5 seconds so actual demotion may lag by up to that interval. Default: 60.</text>
-  </string>
-  <string id="ui_mcm_at_squad_alerted_to_idle_sec">
-    <text>Alerted -&gt; Idle timeout (s)</text>
-  </string>
-  <string id="ui_mcm_at_squad_alerted_to_idle_sec_desc">
-    <text>How long an ALERTED squad stays alerted without new events before demoting to IDLE. Default: 120.</text>
-  </string>
-  <!-- Squad Tactics - Hit disclosure -->
-  <!-- ==================== STALKER HEALING TAB ==================== -->
+  <!-- ==================== HEALING TAB ==================== -->
   <string id="ui_mcm_at_health_desc">
     <text>Per-stalker healing behaviors. Each section below tunes one subsystem.</text>
   </string>
-  <!-- Stalker Healing - Medkit Restoration (info-only) -->
+  <string id="ui_mcm_at_health_healing_enabled">
+    <text>Enable Healing</text>
+  </string>
+  <string id="ui_mcm_at_health_healing_enabled_desc">
+    <text>Master toggle for the whole Healing feature: heal rate patch and per-rank healing-charge override. When off, vanilla xr_eat_medkit behavior runs unmodified. Toggle requires game restart. The medkit DLTX overlay is boot-time and always active. Default: on.</text>
+  </string>
+  <!-- Healing - Medkit Restoration (info-only) -->
   <string id="ui_mcm_at_hdr_medkit_restoration">
     <text>Medkit Restoration</text>
   </string>
   <string id="ui_mcm_at_health_medkit_restoration_info">
     <text>Vanilla xr_eat_medkit's [plugin] section ships without the medkits / bandages item lists, so the consumption loop iterates over nothing and stalkers never use the kits in their inventory. AlifeTactics restores the missing lists through a DLTX overlay on ai_tweaks/xr_eat_medkit.ltx covering the vanilla medkits and the bandage. Data-layer fix loaded at boot; no runtime toggle.</text>
   </string>
-  <!-- Stalker Healing - Heal Rate -->
+  <!-- Healing - Heal Rate -->
   <string id="ui_mcm_at_hdr_heal_rate">
     <text>Heal Rate</text>
   </string>
@@ -82,7 +73,7 @@
   <string id="ui_mcm_at_health_heal_rate_multiplier_desc">
     <text>Multiplies the per-tick HP recovery in xr_eat_medkit's heal_hp loop. Vanilla restores 0.05 HP per tick for 13 ticks (0.65 HP total) before the heal cycle exits. At 2.0x each tick restores 0.10 HP, so the heal completes in fewer ticks. At 0.5x each tick restores 0.025 HP. Default: 1.0.</text>
   </string>
-  <!-- Stalker Healing - Healing Charge -->
+  <!-- Healing - Healing Charge -->
   <string id="ui_mcm_at_hdr_healing_charge">
     <text>Healing Charge</text>
   </string>
@@ -110,37 +101,15 @@
   <string id="ui_mcm_at_health_charge_chance_master_desc">
     <text>Probability for master-rank stalkers. Default: 50.</text>
   </string>
-  <!-- ==================== DEVELOPMENT TAB ==================== -->
-  <string id="ui_mcm_at_development_desc">
-    <text>Debug and development tools. DEBUG enables structured tracing of substrate writes, state transitions, and disclosure events. Written to alifetactics.log. Has performance cost.</text>
-  </string>
-  <!-- Development - Logging -->
-  <string id="ui_mcm_at_hdr_logging">
-    <text>Logging</text>
-  </string>
-  <string id="ui_mcm_at_development_log_level">
-    <text>Log level</text>
-  </string>
-  <string id="ui_mcm_at_development_log_level_desc">
-    <text>Controls log verbosity. ERROR: crashes only. WARN: anomalies. INFO: substrate lifecycle and state transitions. DEBUG: full tracing per squad event.</text>
-  </string>
-  <string id="at_development_log_level_lst_error">
-    <text>Error</text>
-  </string>
-  <string id="at_development_log_level_lst_warn">
-    <text>Warn</text>
-  </string>
-  <string id="at_development_log_level_lst_info">
-    <text>Info</text>
-  </string>
-  <string id="at_development_log_level_lst_debug">
-    <text>Debug</text>
-  </string>
-  <string id="ui_mcm_menu_accuracy">
-    <text>Weapon Accuracy</text>
-  </string>
+  <!-- ==================== ACCURACY TAB ==================== -->
   <string id="ui_mcm_at_accuracy_desc">
     <text>Stalkers in vanilla fire with one shared dispersion - the engine's rank curve is dead at Anomaly's rank values. AlifeTactics restores per-rank scaling so masters shoot tighter than novices. Tune each tier below.</text>
+  </string>
+  <string id="ui_mcm_at_accuracy_accuracy_enabled">
+    <text>Enable Accuracy</text>
+  </string>
+  <string id="ui_mcm_at_accuracy_accuracy_enabled_desc">
+    <text>Master toggle for the per-shot accuracy hook. When off, the engine's default (flat) dispersion applies to every stalker regardless of rank. Default: on.</text>
   </string>
   <string id="ui_mcm_at_hdr_accuracy_curve">
     <text>Rank Curve</text>
@@ -193,46 +162,50 @@
   <string id="ui_mcm_at_accuracy_acc_mult_legend_desc">
     <text>Dispersion for legend-rank stalkers (max tier). Default: 0.38.</text>
   </string>
-  <string id="ui_mcm_at_squad_squad_memory_enabled">
-    <text>Enable Squad Memory</text>
+  <!-- ==================== MANEUVER TAB ==================== -->
+  <string id="ui_mcm_at_maneuver_desc">
+    <text>Squad-coordinated combat positioning. While the squad is in active combat (a faction-enemy hit landed within the last 60s), non-commander members move to angular positions around the target: Assaulters close directly toward the enemy, Flankers arc to the side. Drives the engine's planner via a custom GOAP action that blocks the vanilla combat planner; firing animations are driven via state_mgr.set_state(assault_fire). Members iterate per-squad every 2 seconds.</text>
   </string>
-  <string id="ui_mcm_at_squad_squad_memory_enabled_desc">
-    <text>Master toggle for the whole Squad Memory feature: substrate, state machine, and hit disclosure. When off, no callbacks fire, no decay ticks run, no per-squad records exist. Default: on.</text>
+  <string id="ui_mcm_at_maneuver_maneuver_enabled">
+    <text>Enable Maneuver</text>
   </string>
-  <string id="ui_mcm_at_health_stalker_healing_enabled">
-    <text>Enable Stalker Healing</text>
+  <string id="ui_mcm_at_maneuver_maneuver_enabled_desc">
+    <text>Master toggle. When off, no NPC-side GOAP binding happens; the engine's vanilla combat planner runs unmodified. Default: on.</text>
   </string>
-  <string id="ui_mcm_at_health_stalker_healing_enabled_desc">
-    <text>Master toggle for the whole Stalker Healing feature: heal rate patch and per-rank healing-charge override. When off, vanilla xr_eat_medkit behavior runs unmodified. Toggle requires game restart. The medkit DLTX overlay is boot-time and always active. Default: on.</text>
+  <!-- ==================== STANCE SWITCH TAB ==================== -->
+  <string id="ui_mcm_at_stance_desc">
+    <text>Forces Suppressor-role NPCs into crouch when the engine selects a static-cover action (LookOut or HoldPosition). Crouching gives a lower silhouette, tighter dispersion, and a stable firing position from cover. Hooks the engine's CombatSetBodyState functor; passes through unchanged for non-Suppressor roles. Suppressor role is assigned by hit_share at first disclosure based on weapon kind (sniper/launcher always Suppressor).</text>
   </string>
-  <string id="ui_mcm_at_accuracy_weapon_accuracy_enabled">
-    <text>Enable Weapon Accuracy</text>
+  <string id="ui_mcm_at_stance_stance_enabled">
+    <text>Enable Stance Switch</text>
   </string>
-  <string id="ui_mcm_at_accuracy_weapon_accuracy_enabled_desc">
-    <text>Master toggle for the per-shot accuracy hook. When off, the engine's default (flat) dispersion applies to every stalker regardless of rank. Default: on.</text>
+  <string id="ui_mcm_at_stance_stance_enabled_desc">
+    <text>Master toggle. When off, the engine's chosen body state passes through unchanged. Default: on.</text>
   </string>
-  <string id="ui_mcm_menu_combat">
-    <text>Combat Tactics</text>
+  <!-- ==================== DEVELOPMENT TAB ==================== -->
+  <string id="ui_mcm_at_development_desc">
+    <text>Debug and development tools. DEBUG enables structured tracing of every system: hit disclosure events, engaged_until updates, maneuver evaluator/dispatch, stance overrides, healing ticks, accuracy per-shot. Written to alifetactics.log. Has performance cost.</text>
   </string>
-  <string id="ui_mcm_at_combat_desc">
-    <text>Squad-aware combat behaviors. Squad Flanking dispatches non-commander members to angular slots around the target during ENGAGED state (commander holds front; member 2 arcs left; member 3 arcs right; rest spread inner angles). Combat Crouch forces a kneeling stance whenever the engine selects a static-cover action and the NPC would otherwise stand. Both compose with Squad Memory for state input and Weapon Accuracy for dispersion scaling.</text>
+  <!-- Development - Logging -->
+  <string id="ui_mcm_at_hdr_logging">
+    <text>Logging</text>
   </string>
-  <string id="ui_mcm_at_hdr_flank">
-    <text>Squad Flanking</text>
+  <string id="ui_mcm_at_development_log_level">
+    <text>Log level</text>
   </string>
-  <string id="ui_mcm_at_combat_squad_flanking_enabled">
-    <text>Enable Squad Flanking</text>
+  <string id="ui_mcm_at_development_log_level_desc">
+    <text>Controls log verbosity. ERROR: crashes only. WARN: anomalies. INFO: module init and patch installs. DEBUG: full per-event tracing.</text>
   </string>
-  <string id="ui_mcm_at_combat_squad_flanking_enabled_desc">
-    <text>Squad-coordinated angular spread around the target during ENGAGED combat state. Commander holds front; member 2 arcs to the enemy's left flank; member 3 arcs to the right; additional members spread inner angles. Re-evaluated per squad every 2 seconds. Requires Squad Memory to surface the ENGAGED state. Default: on.</text>
+  <string id="at_development_log_level_lst_error">
+    <text>Error</text>
   </string>
-  <string id="ui_mcm_at_hdr_stance">
-    <text>Combat Crouch</text>
+  <string id="at_development_log_level_lst_warn">
+    <text>Warn</text>
   </string>
-  <string id="ui_mcm_at_combat_combat_stance_enabled">
-    <text>Enable Combat Crouch</text>
+  <string id="at_development_log_level_lst_info">
+    <text>Info</text>
   </string>
-  <string id="ui_mcm_at_combat_combat_stance_enabled_desc">
-    <text>Force crouch when the engine's combat planner selects a static cover action (TakeCover, HoldPosition, LookOut, KillEnemy, WaitInCover, SuddenAttack, HoldAmbushLocation) AND the NPC is currently standing. Applies to every stalker, no rank gate. Crouching tightens the dispersion cone roughly 12x compared to walking-stand and reduces silhouette height. Default: on.</text>
+  <string id="at_development_log_level_lst_debug">
+    <text>Debug</text>
   </string>
 </string_table>

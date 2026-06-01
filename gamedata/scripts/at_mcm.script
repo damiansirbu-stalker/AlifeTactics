@@ -1,26 +1,24 @@
---- at_core_mcm: MCM configuration for AlifeTactics combat AI
+--- at_mcm: MCM configuration for AlifeTactics combat AI
 
 local log = xlog.get_logger("AT.MCM", { outfile = "alifetactics.log" })
 
 -- ==================== DEFAULTS ====================
+-- Squad Memory is internal core (substrate + role assignment), no MCM toggle.
+-- Each user-facing system has its own tab and its own master toggle.
 
 local defaults = {
-    -- Squad Memory
-    squad_memory_enabled = true,
-    substrate_retention_sec = 60,
-    events_to_engage = 3,
-    event_window_sec = 60,
-    engaged_to_alerted_sec = 60,
-    alerted_to_idle_sec = 120,
-    -- Stalker Healing
-    stalker_healing_enabled   = true,
+    -- Hit Sharing
+    hit_share_enabled        = true,
+    substrate_retention_sec  = 60,
+    -- Healing
+    healing_enabled           = true,
     heal_rate_multiplier      = 1.0,
     charge_chance_novice      = 50,
     charge_chance_experienced = 50,
     charge_chance_veteran     = 50,
     charge_chance_master      = 50,
-    -- Weapon Accuracy
-    weapon_accuracy_enabled = true,
+    -- Accuracy
+    accuracy_enabled       = true,
     acc_mult_novice        = 1.00,
     acc_mult_trainee       = 0.90,
     acc_mult_experienced   = 0.80,
@@ -29,9 +27,10 @@ local defaults = {
     acc_mult_expert        = 0.52,
     acc_mult_master        = 0.45,
     acc_mult_legend        = 0.38,
-    -- Combat Tactics
-    squad_flanking_enabled = true,
-    combat_stance_enabled  = true,
+    -- Maneuver
+    maneuver_enabled = true,
+    -- Stance Switch
+    stance_enabled = true,
     -- Development
     log_level = "WARN",
 }
@@ -41,22 +40,18 @@ local defaults = {
 local RegisterScriptCallback = RegisterScriptCallback
 
 local _key_to_tab = {
-    -- Squad Memory
-    squad_memory_enabled     = "squad",
-    substrate_retention_sec  = "squad",
-    events_to_engage         = "squad",
-    event_window_sec         = "squad",
-    engaged_to_alerted_sec   = "squad",
-    alerted_to_idle_sec      = "squad",
-    -- Stalker Healing
-    stalker_healing_enabled   = "health",
+    -- Hit Sharing
+    hit_share_enabled         = "hit_share",
+    substrate_retention_sec   = "hit_share",
+    -- Healing
+    healing_enabled           = "health",
     heal_rate_multiplier      = "health",
     charge_chance_novice      = "health",
     charge_chance_experienced = "health",
     charge_chance_veteran     = "health",
     charge_chance_master      = "health",
-    -- Weapon Accuracy
-    weapon_accuracy_enabled = "accuracy",
+    -- Accuracy
+    accuracy_enabled       = "accuracy",
     acc_mult_novice        = "accuracy",
     acc_mult_trainee       = "accuracy",
     acc_mult_experienced   = "accuracy",
@@ -65,15 +60,16 @@ local _key_to_tab = {
     acc_mult_expert        = "accuracy",
     acc_mult_master        = "accuracy",
     acc_mult_legend        = "accuracy",
-    -- Combat Tactics
-    squad_flanking_enabled = "combat",
-    combat_stance_enabled  = "combat",
+    -- Maneuver
+    maneuver_enabled = "maneuver",
+    -- Stance Switch
+    stance_enabled = "stance",
     -- Development
     log_level = "development",
 }
 
 local function path_builder(key)
-    return "at/" .. (_key_to_tab[key] or "squad") .. "/" .. key
+    return "at/" .. (_key_to_tab[key] or "development") .. "/" .. key
 end
 
 cfg, get_config, load_config = xmcm.create_config("at", defaults, path_builder)
@@ -84,31 +80,23 @@ function on_mcm_load()
     return {
         id = "at",
         gr = {
-            -- ============ SQUAD TACTICS TAB ============
+            -- ============ HIT SHARING TAB ============
             {
-                id = "squad",
+                id = "hit_share",
                 sh = true,
                 gr = {
                     { id = "title", type = "slide", link = "at_mcm_banner",
                         text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
-                    { id = "desc", type = "desc", text = "ui_mcm_at_squad_desc" },
-                    { id = "squad_memory_enabled", type = "check", val = 1, def = true },
+                    { id = "desc", type = "desc", text = "ui_mcm_at_hit_share_desc" },
+                    { id = "hit_share_enabled", type = "check", val = 1, def = true },
 
-                    -- Squad memory substrate
-                    { id = "div_substrate", type = "line" },
-                    { id = "hdr_substrate", type = "desc", text = "ui_mcm_at_hdr_substrate", clr = {255, 200, 200, 200} },
+                    -- Substrate retention
+                    { id = "div_retention", type = "line" },
+                    { id = "hdr_retention", type = "desc", text = "ui_mcm_at_hdr_retention", clr = {255, 200, 200, 200} },
                     { id = "substrate_retention_sec", type = "track", val = 2, min = 10, max = 600, step = 5, def = 60 },
-
-                    -- Combat state machine
-                    { id = "div_state_machine", type = "line" },
-                    { id = "hdr_state_machine", type = "desc", text = "ui_mcm_at_hdr_state_machine", clr = {255, 200, 200, 200} },
-                    { id = "events_to_engage", type = "track", val = 2, min = 1, max = 10, step = 1, def = 3 },
-                    { id = "event_window_sec", type = "track", val = 2, min = 15, max = 180, step = 5, def = 60 },
-                    { id = "engaged_to_alerted_sec", type = "track", val = 2, min = 30, max = 300, step = 10, def = 60 },
-                    { id = "alerted_to_idle_sec", type = "track", val = 2, min = 30, max = 600, step = 10, def = 120 },
                 },
             },
-            -- ============ STALKER HEALING TAB ============
+            -- ============ HEALING TAB ============
             {
                 id = "health",
                 sh = true,
@@ -116,7 +104,7 @@ function on_mcm_load()
                     { id = "title", type = "slide", link = "at_mcm_banner",
                         text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
                     { id = "desc", type = "desc", text = "ui_mcm_at_health_desc" },
-                    { id = "stalker_healing_enabled", type = "check", val = 1, def = true },
+                    { id = "healing_enabled", type = "check", val = 1, def = true },
 
                     -- Medkit Restoration (info-only: DLTX overlay, boot-time, no runtime toggle)
                     { id = "div_medkit_restoration", type = "line" },
@@ -137,7 +125,7 @@ function on_mcm_load()
                     { id = "charge_chance_master",      type = "track", val = 2, min = 0, max = 100, step = 5, def = 50 },
                 },
             },
-            -- ============ WEAPON ACCURACY TAB ============
+            -- ============ ACCURACY TAB ============
             {
                 id = "accuracy",
                 sh = true,
@@ -145,7 +133,7 @@ function on_mcm_load()
                     { id = "title", type = "slide", link = "at_mcm_banner",
                         text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
                     { id = "desc", type = "desc", text = "ui_mcm_at_accuracy_desc" },
-                    { id = "weapon_accuracy_enabled", type = "check", val = 1, def = true },
+                    { id = "accuracy_enabled", type = "check", val = 1, def = true },
 
                     -- Rank Curve
                     { id = "div_accuracy_curve", type = "line" },
@@ -160,24 +148,26 @@ function on_mcm_load()
                     { id = "acc_mult_legend",       type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 0.38 },
                 },
             },
-            -- ============ COMBAT TACTICS TAB ============
+            -- ============ MANEUVER TAB ============
             {
-                id = "combat",
+                id = "maneuver",
                 sh = true,
                 gr = {
                     { id = "title", type = "slide", link = "at_mcm_banner",
                         text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
-                    { id = "desc", type = "desc", text = "ui_mcm_at_combat_desc" },
-
-                    -- Squad Flanking
-                    { id = "div_flank", type = "line" },
-                    { id = "hdr_flank", type = "desc", text = "ui_mcm_at_hdr_flank", clr = {255, 200, 200, 200} },
-                    { id = "squad_flanking_enabled", type = "check", val = 1, def = true },
-
-                    -- Combat Crouch
-                    { id = "div_stance", type = "line" },
-                    { id = "hdr_stance", type = "desc", text = "ui_mcm_at_hdr_stance", clr = {255, 200, 200, 200} },
-                    { id = "combat_stance_enabled", type = "check", val = 1, def = true },
+                    { id = "desc", type = "desc", text = "ui_mcm_at_maneuver_desc" },
+                    { id = "maneuver_enabled", type = "check", val = 1, def = true },
+                },
+            },
+            -- ============ STANCE SWITCH TAB ============
+            {
+                id = "stance",
+                sh = true,
+                gr = {
+                    { id = "title", type = "slide", link = "at_mcm_banner",
+                        text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
+                    { id = "desc", type = "desc", text = "ui_mcm_at_stance_desc" },
+                    { id = "stance_enabled", type = "check", val = 1, def = true },
                 },
             },
             -- ============ DEVELOPMENT TAB ============

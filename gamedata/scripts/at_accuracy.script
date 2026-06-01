@@ -1,4 +1,4 @@
---- at_ext_accuracy: Per-NPC rank-aware weapon dispersion
+--- at_accuracy: Per-NPC rank-aware weapon dispersion
 -- Subscribes to the vanilla npc_shot_dispersion callback (_g.script:1213-1217 forwarder,
 -- dispatched from CAI_Stalker::GetWeaponAccuracy at ai_stalker_fire.cpp:135-139). Vanilla
 -- writes the engine's computed dispersion into temp_disp.dispersion, fires the callback,
@@ -88,23 +88,23 @@ end
 -- ==================== LIFECYCLE ====================
 
 local function _refresh_config()
-    if not (at_core_mcm and at_core_mcm.get_config) then return end
+    if not (at_mcm and at_mcm.get_config) then return end
 
-    local level_str = at_core_mcm.get_config("log_level") or "WARN"
+    local level_str = at_mcm.get_config("log_level") or "WARN"
     log.set_level(level_str)
     _dbg = log.get_level() >= 5
 
-    local v = at_core_mcm.get_config("weapon_accuracy_enabled")
+    local v = at_mcm.get_config("accuracy_enabled")
     if v ~= nil then _enabled = v end
 
-    _mults.novice       = at_core_mcm.get_config("acc_mult_novice")       or _mults.novice
-    _mults.trainee      = at_core_mcm.get_config("acc_mult_trainee")      or _mults.trainee
-    _mults.experienced  = at_core_mcm.get_config("acc_mult_experienced")  or _mults.experienced
-    _mults.professional = at_core_mcm.get_config("acc_mult_professional") or _mults.professional
-    _mults.veteran      = at_core_mcm.get_config("acc_mult_veteran")      or _mults.veteran
-    _mults.expert       = at_core_mcm.get_config("acc_mult_expert")       or _mults.expert
-    _mults.master       = at_core_mcm.get_config("acc_mult_master")       or _mults.master
-    _mults.legend       = at_core_mcm.get_config("acc_mult_legend")       or _mults.legend
+    _mults.novice       = at_mcm.get_config("acc_mult_novice")       or _mults.novice
+    _mults.trainee      = at_mcm.get_config("acc_mult_trainee")      or _mults.trainee
+    _mults.experienced  = at_mcm.get_config("acc_mult_experienced")  or _mults.experienced
+    _mults.professional = at_mcm.get_config("acc_mult_professional") or _mults.professional
+    _mults.veteran      = at_mcm.get_config("acc_mult_veteran")      or _mults.veteran
+    _mults.expert       = at_mcm.get_config("acc_mult_expert")       or _mults.expert
+    _mults.master       = at_mcm.get_config("acc_mult_master")       or _mults.master
+    _mults.legend       = at_mcm.get_config("acc_mult_legend")       or _mults.legend
 end
 
 local function _on_first_update()

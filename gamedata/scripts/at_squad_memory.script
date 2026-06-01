@@ -1,5 +1,5 @@
 --- at_squad_memory: Shared per-squad combat memory substrate
--- Owns the per-squad record table. Behaviors (hit disclosure, state machine,
+-- Owns the per-squad record table. Behaviors (hit disclosure, maneuver,
 -- tactical flee) read and write here instead of duplicating per-NPC state.
 
 local pairs, ipairs, math_random, RegisterScriptCallback =
@@ -17,7 +17,7 @@ local TIMER_EV              = "at_squad_memory"
 local TIMER_DECAY           = "decay"
 local DECAY_INTERVAL_SEC    = 5
 local DEFAULT_RETENTION_SEC = 60
-local STATE_IDLE            = "IDLE"
+ENGAGED_WINDOW_SEC          = 60
 
 -- Tactical roles per Lead / Suppressor / Assaulter / Flanker doctrine
 -- (US Army FM 3-21.8 small-unit infantry). Distribution is scaled by squad size:
@@ -66,12 +66,9 @@ local function _new_record()
     return {
         per_shooter        = {},
         disclosed_shooters = {},
-        state = {
-            current_state        = STATE_IDLE,
-            state_entered_time   = 0,
-            last_event_time      = 0,
-            last_disclosure_time = 0,
-        },
+        -- Set by hit_share on every kept hit: now + ENGAGED_WINDOW_SEC.
+        -- Read by maneuver to decide if the squad is currently in active combat.
+        engaged_until      = 0,
         -- Lazy-init on first assign_roles call. Shape: { [npc_id] = ROLE.X, ... }
         roles = nil,
     }
@@ -187,17 +184,9 @@ local function _assign_roles_table(squad)
     return roles
 end
 
-local function _is_enabled()
-    if at_core_mcm and at_core_mcm.get_config then
-        local v = at_core_mcm.get_config("squad_memory_enabled")
-        if v ~= nil then return v end
-    end
-    return true
-end
-
 local function _retention_sec()
-    if at_core_mcm and at_core_mcm.get_config then
-        local cfg = at_core_mcm.get_config("substrate_retention_sec")
+    if at_mcm and at_mcm.get_config then
+        local cfg = at_mcm.get_config("substrate_retention_sec")
         if cfg then return cfg end
     end
     return DEFAULT_RETENTION_SEC
@@ -213,7 +202,6 @@ end
 
 local function _decay_tick()
     ResetTimeEvent(TIMER_EV, TIMER_DECAY, DECAY_INTERVAL_SEC)
-    if not _is_enabled() then return end
     local now = xtime.game_sec()
     if now == 0 then return end
     local threshold = _retention_sec()
@@ -248,8 +236,8 @@ local function _on_entity_unregister(se_obj)
 end
 
 local function _refresh_log()
-    if at_core_mcm and at_core_mcm.get_config then
-        local level = at_core_mcm.get_config("log_level") or "WARN"
+    if at_mcm and at_mcm.get_config then
+        local level = at_mcm.get_config("log_level") or "WARN"
         log.set_level(level)
         _dbg = log.get_level() >= 5
     end
@@ -270,7 +258,7 @@ end
 
 --- Assign tactical roles for the squad's members. Idempotent: if roles are already set,
 --- only fills in any new members (e.g. squad members spawned after the first assignment).
---- Called from at_ext_hitresponse after the first disclosure event for a squad.
+--- Called from at_hitresponse after the first disclosure event for a squad.
 --- @param squad cse_alife_squad
 function assign_roles(squad)
     if not squad then return end

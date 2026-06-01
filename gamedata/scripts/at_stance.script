@@ -1,4 +1,4 @@
---- at_ext_stance: Force crouch when engine combat planner selects static-cover actions
+--- at_stance: Force crouch when engine combat planner selects static-cover actions
 -- Hooks the modded-exe `_G.CAI_Stalker__CombatSetBodyState(npc, wo, body_state)` functor at
 -- stalker_movement_manager_base_inline.h:54, called from every combat action in
 -- stalker_combat_actions.cpp that sets body_state (gated by COMBAT_BODY_STATE_OVERRIDE,
@@ -85,13 +85,13 @@ end
 -- ==================== LIFECYCLE ====================
 
 local function _refresh_config()
-    if not (at_core_mcm and at_core_mcm.get_config) then return end
+    if not (at_mcm and at_mcm.get_config) then return end
 
-    local level_str = at_core_mcm.get_config("log_level") or "WARN"
+    local level_str = at_mcm.get_config("log_level") or "WARN"
     log.set_level(level_str)
     _dbg = log.get_level() >= 5
 
-    local v = at_core_mcm.get_config("combat_stance_enabled")
+    local v = at_mcm.get_config("stance_enabled")
     if v ~= nil then _enabled = v end
 end
 
