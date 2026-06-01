@@ -1,0 +1,115 @@
+--- at_ext_stance: Force crouch when engine combat planner selects static-cover actions
+-- Hooks the modded-exe `_G.CAI_Stalker__CombatSetBodyState(npc, wo, body_state)` functor at
+-- stalker_movement_manager_base_inline.h:54, called from every combat action in
+-- stalker_combat_actions.cpp that sets body_state (gated by COMBAT_BODY_STATE_OVERRIDE,
+-- unconditionally defined at stalker_movement_manager_base.h:23-24 in monolith builds).
+--
+-- Engine gap: TakeCover, HoldPosition, LookOut, KillEnemy etc. inherit body_state from the
+-- current state. An NPC that walked to cover Standing stays Standing and gets headshot.
+-- This module returns eBodyStateCrouch for a curated set of static-cover operators when
+-- the engine selected eBodyStateStand. Applies to every stalker regardless of rank.
+--
+-- This is NOT a multi-subscriber callback (no vanilla forwarder dispatch). The engine reads
+-- a single global functor by name. Compose with any prior installer via _prev_functor chain
+-- so other mods touching this seam are not silently overridden.
+
+local RegisterScriptCallback = RegisterScriptCallback
+local get_object_squad = get_object_squad
+
+local log = xlog.get_logger("AT.STANCE", { outfile = "alifetactics.log" })
+local _dbg = false
+
+-- ==================== CONSTANTS ====================
+
+-- EBodyState (ai_monster_space.h)
+local BS_CROUCH = 0
+local BS_STAND  = 1
+
+-- EWorldOperators values per stalker_decision_space.h:104+ enum order
+-- (eWorldOperatorDead=0; values listed below counted from there). Only STATIC fire
+-- operators are overridden - the NPC is in cover and firing, not moving. Doctrine
+-- says movers stand and run for speed under fire; static fire bases crouch for low
+-- silhouette and stable aim. So TakeCover (moving to cover) and SuddenAttack
+-- (distance-driven, engine knows better) are intentionally left vanilla.
+local OP_KILL_ENEMY    = 19
+local OP_LOOKOUT       = 22
+local OP_HOLD_POSITION = 23
+local OP_WAIT_IN_COVER = 41
+local OP_HOLD_AMBUSH   = 44
+
+local OVERRIDE_OPS = {
+    [OP_KILL_ENEMY]    = true,
+    [OP_LOOKOUT]       = true,
+    [OP_HOLD_POSITION] = true,
+    [OP_WAIT_IN_COVER] = true,
+    [OP_HOLD_AMBUSH]   = true,
+}
+
+-- ==================== STATE ====================
+
+local _enabled = true
+
+-- Composition chain: if another mod installed a functor before us, call it and use its
+-- return as the input to our decision.
+local _prev_functor = nil
+
+-- ==================== HOT PATH ====================
+
+-- Engine calls this with (npc, wo, body_state) per stalker_movement_manager_base_inline.h:56.
+-- Returns the EBodyState to apply.
+local function _on_combat_set_body_state(npc, wo, body_state)
+    if _prev_functor then
+        local r = _prev_functor(npc, wo, body_state)
+        if r ~= nil then body_state = r end
+    end
+
+    if not _enabled then return body_state end
+    if not OVERRIDE_OPS[wo] then return body_state end
+    if body_state ~= BS_STAND then return body_state end
+    if not npc then return body_state end
+
+    -- Role gate: only Suppressors crouch (base of fire, sustained-fire doctrine).
+    -- Lead/Assaulter/Flanker keep standing (movers + suppressor commander). Pre-disclosure
+    -- and squadless NPCs have no role - leave vanilla body_state.
+    local squad = get_object_squad(npc)
+    if not squad then return body_state end
+    local role = at_squad_memory and at_squad_memory.get_role(squad.id, npc:id())
+    if role ~= at_squad_memory.ROLE.SUPPRESSOR then return body_state end
+
+    if _dbg then
+        log.debug("[STANCE] id=%d op=%d role=%s stand->crouch", npc:id(), wo, role)
+    end
+    return BS_CROUCH
+end
+
+-- ==================== LIFECYCLE ====================
+
+local function _refresh_config()
+    if not (at_core_mcm and at_core_mcm.get_config) then return end
+
+    local level_str = at_core_mcm.get_config("log_level") or "WARN"
+    log.set_level(level_str)
+    _dbg = log.get_level() >= 5
+
+    local v = at_core_mcm.get_config("combat_stance_enabled")
+    if v ~= nil then _enabled = v end
+end
+
+local function _on_first_update()
+    _refresh_config()
+    log.info("Combat Crouch initialized (enabled=%s, dbg=%s)",
+        _enabled and "true" or "false", _dbg and "true" or "false")
+end
+
+function on_game_start()
+    -- Capture any prior installer so we compose instead of silently overriding.
+    if _G.CAI_Stalker__CombatSetBodyState
+        and _G.CAI_Stalker__CombatSetBodyState ~= _on_combat_set_body_state then
+        _prev_functor = _G.CAI_Stalker__CombatSetBodyState
+    end
+    _G.CAI_Stalker__CombatSetBodyState = _on_combat_set_body_state
+
+    RegisterScriptCallback("actor_on_first_update",     _on_first_update)
+    RegisterScriptCallback("on_option_change",          _refresh_config)
+    RegisterScriptCallback("mcm_option_restore_default", _refresh_config)
+end

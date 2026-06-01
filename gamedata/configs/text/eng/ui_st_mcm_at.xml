@@ -211,4 +211,28 @@
   <string id="ui_mcm_at_accuracy_weapon_accuracy_enabled_desc">
     <text>Master toggle for the per-shot accuracy hook. When off, the engine's default (flat) dispersion applies to every stalker regardless of rank. Default: on.</text>
   </string>
+  <string id="ui_mcm_menu_combat">
+    <text>Combat Tactics</text>
+  </string>
+  <string id="ui_mcm_at_combat_desc">
+    <text>Squad-aware combat behaviors. Squad Flanking dispatches non-commander members to angular slots around the target during ENGAGED state (commander holds front; member 2 arcs left; member 3 arcs right; rest spread inner angles). Combat Crouch forces a kneeling stance whenever the engine selects a static-cover action and the NPC would otherwise stand. Both compose with Squad Memory for state input and Weapon Accuracy for dispersion scaling.</text>
+  </string>
+  <string id="ui_mcm_at_hdr_flank">
+    <text>Squad Flanking</text>
+  </string>
+  <string id="ui_mcm_at_combat_squad_flanking_enabled">
+    <text>Enable Squad Flanking</text>
+  </string>
+  <string id="ui_mcm_at_combat_squad_flanking_enabled_desc">
+    <text>Squad-coordinated angular spread around the target during ENGAGED combat state. Commander holds front; member 2 arcs to the enemy's left flank; member 3 arcs to the right; additional members spread inner angles. Re-evaluated per squad every 2 seconds. Requires Squad Memory to surface the ENGAGED state. Default: on.</text>
+  </string>
+  <string id="ui_mcm_at_hdr_stance">
+    <text>Combat Crouch</text>
+  </string>
+  <string id="ui_mcm_at_combat_combat_stance_enabled">
+    <text>Enable Combat Crouch</text>
+  </string>
+  <string id="ui_mcm_at_combat_combat_stance_enabled_desc">
+    <text>Force crouch when the engine's combat planner selects a static cover action (TakeCover, HoldPosition, LookOut, KillEnemy, WaitInCover, SuddenAttack, HoldAmbushLocation) AND the NPC is currently standing. Applies to every stalker, no rank gate. Crouching tightens the dispersion cone roughly 12x compared to walking-stand and reduces silhouette height. Default: on.</text>
+  </string>
 </string_table>

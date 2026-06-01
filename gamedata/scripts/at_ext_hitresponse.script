@@ -202,6 +202,9 @@ local function _on_hit(npc, amount, _local_direction, who, _bone_index)
     local disclosed_to = _disclose(squad, who)
     tmr_disclose:stop()
     at_state_machine.escalate_to_engaged(squad.id)
+    -- Assign tactical roles on first disclosure so STANCE/FLANK can branch on role.
+    -- Idempotent: no-op if already assigned for this squad.
+    at_squad_memory.assign_roles(squad)
     tmr_total:stop()
 
     if _dbg then

@@ -25,9 +25,9 @@ Version 1.0.0. The substrate, state machine, hit disclosure, MCM, logging, and a
 | `at_ext_flee.script` (tactical flee, t13) | backlog |
 | `at_ext_persistence.script` (memory persistence, t14) | backlog |
 | `at_ext_scheme.script` (combat scheme select, t03) | backlog |
-| `at_ext_cvars.script` (global combat cvars, t16) | backlog |
-| `at_ext_stance.script` (stance/weapon bias, t18) | backlog |
 | `at_ext_accuracy.script` (per-NPC accuracy hook, t20) | done |
+| `at_ext_flank.script` (squad-coordinated flanking via GOAP, t21) | done |
+| `at_ext_stance.script` (force crouch in static cover via modded-exe hook, t22) | done |
 
 Validate grade S+. Groomed task entries in `stalker-dev/doc/todo/todo-alifetactics-next.md`; brainstorm pool in `todo-alifetactics-backlog.md`.
 
@@ -40,6 +40,7 @@ Each feature has one MCM master toggle at the top of its tab. When off, no callb
 | Squad Memory | `squad_memory_enabled` | `at_ext_hitresponse._on_hit` callback, `at_squad_memory._decay_tick`, `at_state_machine._de_escalate_tick` |
 | Stalker Healing | `stalker_healing_enabled` | `xr_eat_medkit.heal_hp`/`heal_bleed` patch install + `npc_on_net_spawn` healing-charge handler. Boot-time only; runtime toggle requires restart. The DLTX overlay `mod_xr_eat_medkit_at.ltx` is boot-time and always active. |
 | Weapon Accuracy | `weapon_accuracy_enabled` | `CAI_Stalker__GetWeaponAccuracy` hot path early-returns `base` when off (engine flat dispersion). Runtime-toggleable. |
+| Combat Tactics | `squad_flanking_enabled` + `combat_stance_enabled` | Two independent toggles under one MCM tab. Flanking: per-NPC GOAP injection at `actor_on_first_update` (xslice sweep) + `npc_on_net_spawn` (FLANK_EVAID=18811700); evaluator early-returns when off. Crouch: `_G.CAI_Stalker__CombatSetBodyState` functor passes through engine choice when off. Both runtime-toggleable. Crouch applies to every stalker regardless of rank. |
 
 ---
 
@@ -60,6 +61,7 @@ Schema (as implemented in `at_squad_memory.script`):
 | `state.last_event_time` | number | xtime.game_sec when the latest event was recorded. Drives de-escalation. |
 | `state.last_disclosure_time` | number | Set by hit disclosure when a new shooter is disclosed. |
 | `members[member_id]` | record | `{ last_health_snapshot, last_hit_time }` — reserved for tactical flee power evaluation. |
+| `roles[member_id]` | string | Tactical role per member: `lead` / `suppressor` / `assaulter` / `flanker`. Assigned once on first hit disclosure by `assign_roles`. |
 
 Lifecycle:
 
@@ -80,6 +82,8 @@ Behaviors that hook engine callbacks and read or write the substrate. No behavio
 |---|---|---|---|---|
 | HIT_DISCLOSURE | done | disclosed_shooters | per_shooter, disclosed_shooters, state | `npc_on_hit_callback` |
 | SQUAD_COMBAT_STATE | done | state (counter), members | state.current_state, state.state_entered_time, state.last_event_time | called from HIT_DISCLOSURE on hit and disclosure events |
+| SQUAD_FLANKING (t21) | done | state.current_state, per_shooter, roles | none (writes engine destination vertex per Flanker/Assaulter) | GOAP evaluator per planner tick, 2s throttle per squad |
+| ROLE_ASSIGNMENT | done | members iteration | roles per member | called from HIT_DISCLOSURE on first disclosure event |
 | MEMORY_PERSISTENCE | backlog (t14) | state | per_shooter retention multiplier | substrate decay tick |
 | TACTICAL_FLEE | backlog (t13) | per_shooter, members, state | state.current_state = FLEEING | throttled 2s tick |
 | COMBAT_SCHEME_SELECT | backlog (t03) | state, per_shooter | none | condlist evaluation on danger ticks |
@@ -90,9 +94,8 @@ Behaviors operating at game-global scope or one-shot per NPC.
 
 | Behavior | State | Mechanism | Trigger |
 |---|---|---|---|
-| GLOBAL_COMBAT_TUNING (t16) | backlog | `exec_console_cmd` for PR #523 ai_* cvars | `actor_on_first_update`, MCM change |
-| STANCE_WEAPON_BIAS (t18) | backlog | `npc_on_choose_weapon` + `npc_on_combat_set_body_state` overrides | per-NPC callback |
-| ACCURACY_HOOK | done | `_g.CAI_Stalker__GetWeaponAccuracy` per-shot Lua hook | per-shot during combat |
+| ACCURACY_HOOK (t20) | done | `_g.CAI_Stalker__GetWeaponAccuracy` per-shot Lua hook | per-shot during combat |
+| COMBAT_CROUCH (t22) | done | `_G.CAI_Stalker__CombatSetBodyState` functor returns `eBodyStateCrouch` when engine selected Stand for a static-cover operator AND the NPC's role is Suppressor | per combat-action body-state evaluation |
 
 ---
 
@@ -146,6 +149,59 @@ The engine's sound channel already alerts NEARBY non-squad NPCs and squads via `
 - `set_relation(enemy, who)` — equivalent to `SetGoodwill(goodwill_enemy_config, who)` (`relation_registry_inline.h:25-44`). Strictly weaker and redundant with `force_set_goodwill`.
 - `set_enemy(who)` — `CAI_Bloodsucker`-specific; logs an error for stalkers (`script_game_object_use2.cpp:231-243`).
 - Scripted NPC movement — feeds engine memory + combat-mask, lets the engine handle navigation and target selection. The architecture principle is to feed the engine information, not fight it.
+
+---
+
+## Squad roles
+
+Tactical role assigned per member on first hit disclosure. Roles drive STANCE and FLANK
+behavior: Suppressors crouch (sustained fire from cover); Assaulters close the distance
+toward the enemy; Flankers arc to angular positions; Lead holds the front. Doctrine
+reference: US Army FM 3-21.8 small-unit infantry tactics — fire and movement, base of
+fire + maneuver element split.
+
+| Role | Function | Body state | FLANK dispatch |
+|---|---|---|---|
+| Lead | commander, holds front | stand (vanilla) | none |
+| Suppressor | base of fire, sustained fire from cover | crouch (STANCE override) | none |
+| Assaulter | closes distance, runs toward enemy | stand (vanilla) | dest = enemy bearing direct (angle=0) |
+| Flanker | maneuver element, takes angular position | stand (vanilla) | dest = enemy bearing rotated by slot angle |
+
+Distribution scaled by squad size:
+
+| Squad size | Lead | Suppressor | Assaulter | Flanker |
+|---|---|---|---|---|
+| 1 (solo) | 50% | 50% | 0 | 0 |
+| 2 | 1 | 1 | 0 | 0 |
+| 3 | 1 | 1 | 0 | 1 |
+| 4 | 1 | 1 | 1 | 1 |
+| 5 | 1 | 2 | 1 | 1 |
+| 6 | 1 | 2 | 1 | 2 |
+| 7 | 1 | 2 | 1 | 3 |
+| 8+ | 1 | 3 | 1 | (rest) |
+
+Solo NPCs (size 1) roll by weapon: sniper/launcher always Suppressor, pistol/shotgun/SMG
+always Lead (Assaulter requires squad), rifle and other 50/50 Lead-or-Suppressor.
+
+Non-commander role assignment is weapon-driven via the `kind` field on the NPC's active
+item (system.ltx). Preferences:
+
+| Weapon kind | Preferred role | Rationale |
+|---|---|---|
+| `w_sniper`, `w_launcher` | Suppressor | long-range, base of fire |
+| `w_pistol`, `w_shotgun`, `w_smg`, `w_knife` | Assaulter | CQB-only, must close distance |
+| `w_rifle` | Flanker | versatile mid-range, maneuver element |
+
+Assignment is greedy: each member tries their preferred role first; cap overflow falls
+through to Flanker (universal fallback). The size mix still caps each role count, so
+a sniper-heavy squad still produces flankers when the Suppressor slot fills up.
+
+Roles persist across ENGAGED -> ALERTED -> IDLE transitions and clear only on squad
+despawn (`server_entity_on_unregister`). New members joining mid-session default to
+Flanker without disturbing existing role assignments.
+
+Implementation: `at_squad_memory.script` exports `ROLE` constants, `assign_roles(squad)`
+(idempotent), and `get_role(squad_id, npc_id)` (returns nil pre-disclosure).
 
 ---
 
@@ -373,6 +429,8 @@ AlifeTactics/
 │   │   ├── at_ext_hitresponse.script      # hit disclosure (t24)
 │   │   ├── at_ext_health.script           # NPC health controls (t27)
 │   │   ├── at_ext_accuracy.script         # per-NPC rank-aware dispersion hook (t20)
+│   │   ├── at_ext_flank.script            # squad-coordinated flanking via GOAP (t21)
+│   │   ├── at_ext_stance.script           # force crouch in static cover (t22)
 │   │   └── at_test.script                 # console test commands
 │   └── textures/
 │       └── at_mcm_banner.dds              # MCM banner (512x50 DXT5)
@@ -386,8 +444,6 @@ Backlog scripts (not yet present):
 ├── at_ext_flee.script                # tactical flee (t13)
 ├── at_ext_persistence.script         # memory persistence (t14)
 ├── at_ext_scheme.script              # combat scheme select (t03)
-├── at_ext_cvars.script               # global combat tuning (t16)
-├── at_ext_stance.script              # stance/weapon bias (t18)
 └── at_cond.script                    # condlist condition functions (t03, t14)
 ```
 

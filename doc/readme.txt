@@ -32,11 +32,27 @@ NPC weapon accuracy:
   AlifeTactics replaces that curve script-side. On every NPC shot the rank is read and a per-tier multiplier is applied to the engine's computed cone. Defaults run from novice at the vanilla baseline down to legend at roughly a third the cone width. Eight tier sliders in MCM tune each rank independently.
   Master stalkers shoot noticeably tighter than novices. The spread between ranks is configurable per tier, so you can flatten the curve, exaggerate it, or set extremes (laser masters, hopeless rookies).
 
-MCM:
-  Four tabs, each with a master toggle. Squad Memory: master toggle, substrate retention, state machine timings. Stalker Healing: master toggle, medkit restoration (info-only, boot-time data layer), heal rate multiplier, per-rank healing-charge probability. Weapon Accuracy: master toggle, per-tier dispersion sliders for the eight rank tiers. Development: log level.
+Squad roles:
+  When combat starts each squad member gets a role based on the squad's size and their weapon. Snipers and rocketeers become suppressors (long-range fire from cover). Shotgunners, pistoleers, and SMG carriers become assaulters (they need to close the distance to be effective). Riflemen become flankers (mid-range versatile, arc around). The squad commander is always the lead.
+  Distribution scales with squad size. A two-stalker squad has a leader and a fire base. A four-stalker squad adds an assault role and a flanker. Six-stalker squads spread further: two suppressors holding the fire base, one closing the distance, two arcing around to flank. Solos roll by weapon too: snipers always crouch as fire base, shotgunners and pistoleers stand as lead (they have no squad to assault for).
+  Roles are assigned once on the first hit against the squad and persist until the squad despawns. New members joining mid-fight default to flanker.
+  The behaviors below all read the role. Flanking and crouching are not always-on tricks but doctrinal positions held by specific squad members based on what they carry.
 
-Backlog (not in 1.0.0):
-  Tactical flee, danger memory persistence, combat scheme selection, global combat tuning, stance and weapon bias. The backlog file on GitHub tracks each.
+Squad flanking:
+  Vanilla NPC cover selection is per-stalker. Each member scores its own cover with no awareness of squadmates, so squads end up stacked behind one wall on one loophole. There is no flanking, no enfilade.
+  AlifeTactics dispatches the flankers and assaulters of an engaged squad toward angular positions around the disclosed enemy. Flankers arc to the left and right at sixty to ninety degrees from the enemy bearing. Additional flankers spread at inner angles. Assaulters close the distance straight forward.
+  What you see: squads stop clustering on one cover and spread around the engagement. Within a few seconds of an engagement starting, members move to fan out. The lead and suppressors stay put and lay down fire from their initial positions.
+
+Combat crouch:
+  Vanilla NPC stance during combat is inherited from current state. A stalker that walked to cover standing stays standing in cover, and gets headshot through the chest-high crate they thought was protecting them.
+  AlifeTactics tells suppressors to crouch when the engine selects a static cover action: firing at the enemy, holding position, peeking from cover, waiting in cover, ambushing. Suppressors are the squad's base of fire; they crouch for low silhouette and stable sustained shooting.
+  Other roles do not crouch. Movers (lead, assaulter, flanker) keep standing to move fast under fire. The crouch is meaningful: it marks the member holding the fire base.
+
+MCM:
+  Five tabs, each with master toggles. Squad Memory: master toggle, substrate retention, state machine timings. Stalker Healing: master toggle, medkit restoration (info-only, boot-time data layer), heal rate multiplier, per-rank healing-charge probability. Weapon Accuracy: master toggle, per-tier dispersion sliders for the eight rank tiers. Combat Tactics: squad flanking toggle, combat crouch toggle. Development: log level.
+
+Backlog:
+  Tactical flee, danger memory persistence, combat scheme selection, NPC weapon bias. The backlog file on GitHub tracks each.
 
 Performance:
   Squad-aware behaviors scale with squad count. NPC count does not enter the cost. Two periodic cleanup ticks run every few seconds. Nothing runs on every frame and nothing polls.
@@ -46,6 +62,14 @@ Compatibility:
   No base script edits. No engine patches.
   Mid-save install works. Mid-save uninstall is safe.
   Story NPCs, companions, and traders go through the same faction-relation gate as every other stalker, so they do not get caught by the squad alarm.
+
+Disable before installing AlifeTactics:
+  AI more cover (Mora): forces all ranged NPCs into a static camper scheme via [combat] combat_type, bypassing vanilla's context-based combat selection. NPCs always stand and fire from their initial position regardless of cover, distance, or rank.
+  G.A.M.M.A. AI Rework: copies Mora's camper and replaces 60+ per-smart logic files with a single condlist. Long-standing bugs include broken NPC-vs-NPC behavior, save/load issues, db.storage collisions, and memory leaks.
+  ReDone Combat AI: copies Mora's camper and overrides 12 core vanilla scripts, creating compatibility issues with other AI mods. Much of its logic is version-gated for 1.5.2 and skipped on 1.5.3.
+  Wuut AI Extension: injects a forced-movement scheme that overrides the engine combat planner. Forced movement during combat causes stuck NPCs; Wuut ships explicit stuck-detection logic to mask it.
+  NPC_Fleeing: implements squad flee via forced movement. Like other forced-movement combat schemes, NPCs get stuck mid-flee and the mod ships stuck-detection logic to mask it.
+  Dynamic AI Aim Settings / DLTX_JURASZKA Worse NPC vision and accuracy: redundant since Demonized fixed the underlying engine settings in PR #523.
 
 Companion mods:
 

@@ -1,21 +1,40 @@
-next
-  Summary: Weapon accuracy hook (per-rank NPC dispersion curve, restores rank-aware shooting that the engine knob loses to its [0,100] rank clamp). Per-feature MCM master toggles replace the per-sub-behavior hit disclosure toggle.
+1.0.0
+  First release. Squad combat AI organised around a shared per-squad memory substrate and tactical roles. Hit disclosure, role-aware flanking and crouching, per-rank weapon accuracy, NPC self-healing restoration.
+
+  Squad Memory:
+    Added: Shared per-squad combat memory substrate. One Lua table per squad keyed by squad_id. Every combat behavior in the mod reads and writes here instead of duplicating state across NPC binders. Lazy-init on first access; cleared on squad despawn; 5s decay tick prunes per-shooter entries older than the retention window.
+    Added: Combat state machine. Per-squad state (IDLE / ALERTED / ENGAGED / FLEEING) driven by event counter within rolling window. Transitions: first event promotes IDLE to ALERTED; threshold events within window promotes ALERTED to ENGAGED; disclosure event short-circuits straight to ENGAGED. De-escalation tick demotes ENGAGED to ALERTED to IDLE on event-time timeouts.
+
+  Squad Alarm on Hit:
+    Added: On the first faction-enemy hit against a squad, force-disclose the shooter to every online squadmate via force_set_goodwill, enable_memory_object, register_in_combat. Distant patrol members previously outside audio range are now disclosed alongside the victim. Subsequent hits from the same shooter no-op via an idempotency flag. Friendly fire, neutrals, and same-community hits are rejected at the substrate-update gate.
+
+  Squad Roles:
+    Added: Tactical role assignment per squad member on first hit disclosure. Roles: Lead, Suppressor, Assaulter, Flanker. Distribution scales with squad size: solos roll 50/50 Lead-or-Suppressor; 2-member squads run Lead + Suppressor; 3-member adds a Flanker; 4-member adds an Assaulter; 5+ adds a second Suppressor, then a second Flanker, then a third Suppressor. New members joining mid-fight default to Flanker. Doctrine reference: US Army FM 3-21.8 small-unit infantry (fire and movement, base of fire + maneuver element split). Roles drive Squad Flanking and Combat Crouch behavior below.
+
+  Squad Flanking:
+    Added: GOAP-injected angular spread around the disclosed enemy during ENGAGED combat state. Flankers arc to outer 60-90 degrees left/right of the enemy bearing; additional Flankers spread 15-55 degrees alternating. Assaulters close the distance straight forward (no angular rotation). Lead and Suppressors do not dispatch — they hold their initial positions. Re-evaluated per squad every 2 seconds. Monolith and zombied factions are skipped (suicide-rush faction character is preserved).
+
+  Combat Crouch:
+    Added: Force crouch when the engine selects a static cover action (KillEnemy, HoldPosition, LookOut, WaitInCover, HoldAmbushLocation) AND the NPC is currently standing AND the NPC's role is Suppressor. Suppressors are the squad's base of fire; crouching tightens dispersion roughly 12x compared to standing-walk and reduces silhouette height. Movers (Lead, Assaulter, Flanker) keep standing for speed under fire. TakeCover and SuddenAttack operators are intentionally left vanilla so movers stand-walk to position instead of crouch-walking. Composes with Weapon Accuracy (engine bakes crouched dispersion into the base value before the per-rank hook scales it).
+
+  NPC Self-Healing (medkits AND bandages):
+    Added: Restores NPC consumption of medkits and bandages. Vanilla has a working consumption code path but ships the underlying configuration with an empty item list — the consumption loop never iterates. AlifeTactics adds both item lists via a DLTX overlay on ai_tweaks/xr_eat_medkit.ltx: six vanilla medkit sections (medkit, medkit_army, medkit_scientic, medkit_ai1/2/3) and the vanilla bandage section.
+    Added: Per-tick heal rate multiplier slider (0.5x to 3.0x; default 1.0 matches vanilla).
+    Added: Per-rank healing-charge probability sliders (novice/experienced/veteran/master; default 50% each, matches vanilla).
 
   Weapon Accuracy:
-    Added: NPC weapon dispersion now scales with rank. Master stalkers shoot noticeably tighter than novices. The engine rank curve is broken on Anomaly's rank intervals (every non-novice clamps to the same value); this restores rank-aware accuracy script-side.
-    Added: New MCM tab with master toggle and 8 per-tier dispersion multiplier sliders (novice through legend). Default curve runs novice 1.00 to legend 0.38. Lower multiplier means tighter shot cone.
+    Added: Per-shot, per-rank NPC dispersion curve. Replaces the engine's broken rank curve (every non-novice clamps to the same value, so master shoots no tighter than trainee on Anomaly's rank intervals). The hook subscribes to the vanilla npc_shot_dispersion forwarder so it composes with any other dispersion-touching mod. Master stalkers shoot noticeably tighter than novices; the curve is configurable per tier.
+    Added: 8 per-tier dispersion multiplier sliders (novice 1.00, trainee 0.90, experienced 0.80, professional 0.70, veteran 0.60, expert 0.52, master 0.45, legend 0.38). Lower multiplier = tighter shot cone.
 
   MCM:
-    Changed: Squad Tactics tab renamed Squad Memory.
-    Added: Squad Memory master toggle (gates substrate, state machine, and hit disclosure together).
-    Added: Stalker Healing master toggle (boot-time; runtime toggle requires game restart).
-    Added: Weapon Accuracy master toggle (runtime-toggleable).
-    Removed: Hit Disclosure sub-toggle (replaced by the Squad Memory master toggle).
+    Added: Squad Memory tab — master toggle, substrate retention slider, state machine timings (events to engage, event window, engaged-to-alerted, alerted-to-idle).
+    Added: Stalker Healing tab — master toggle (boot-time, restart required to toggle), heal rate multiplier, per-rank healing-charge probability.
+    Added: Weapon Accuracy tab — master toggle, 8 per-tier dispersion sliders.
+    Added: Combat Tactics tab — Squad Flanking toggle, Combat Crouch toggle. Both runtime-toggleable.
+    Added: Development tab — log level (ERROR/WARN/INFO/DEBUG).
 
-1.0.0
-  Summary: substrate-based combat AI release. Hit disclosure, squad combat state machine, MCM, NPC self-healing.
-  Architecture: substrate-based combat AI. One shared per-squad memory table fed by hit callback, read by hit disclosure, tactical flee, danger persistence, combat state, scheme selection. Per-NPC tuning layer (health, future: precision, damage, fx) sits alongside the squad-scope behaviors.
-  MCM split into four sub-menus: General (master toggle), Squad (substrate, state machine, hit disclosure), Individual (NPC health), Development (logging).
-  NPC self-healing restored: vanilla xr_eat_medkit contains the consumption code path but with an empty inventory item list, so NPCs never consume medkits or bandages. AlifeTactics adds the missing item list via a DLTX overlay on ai_tweaks/xr_eat_medkit.ltx. Five MCM sliders under Individual > NPC Health tune heal rate (per-tick HP multiplier) and per-rank healing-charge probability.
-  Backlog: tactical flee, memory persistence, scheme select, global combat tuning, stance and weapon bias, per-NPC accuracy hook. Per-NPC accuracy moved from an engine cvar PR to a script-side Lua hook on `_g.CAI_Stalker__GetWeaponAccuracy`, because the engine rank curve degenerates on modded gamedata (modded ranks clamp to constant 0.8 dispersion multiplier; cvar would be a dead knob).
-  See doc/architecture.md for the substrate model and behavior pipeline. See stalker-dev/doc/todo/todo-alifetactics-backlog.md for the task backlog (t11 substrate is the foundation).
+  Compatibility:
+    Tested on vanilla Anomaly 1.5.3 and GAMMA. No base script edits, no engine patches. Mid-save install works; mid-save uninstall is safe. Story NPCs, companions, and traders go through the same faction-relation gate as every other stalker. Conflicts with combat-scheme override mods (Mora, AI Rework, ReDone, Wuut, NPC_Fleeing) — see readme.txt for the disable list.
+
+  Backlog:
+    Tactical flee, danger memory persistence, combat scheme selection (camper/cover condlist), NPC weapon bias.

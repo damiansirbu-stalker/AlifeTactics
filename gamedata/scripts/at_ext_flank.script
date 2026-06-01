@@ -1,0 +1,417 @@
+--- at_ext_flank: Squad-coordinated angular spread around target during ENGAGED state
+--
+-- GOAP injection per Mugging Squads pattern (demonized_mugging_squads.script:1066-1089).
+-- Per-NPC bind via npc_on_net_spawn. Evaluator returns true when:
+--   1. Squad is ENGAGED (read from at_state_machine via substrate)
+--   2. Squad has 2+ alive members
+--   3. NPC is not the commander
+--   4. Throttle window (2s) elapsed for this squad
+--   5. Substrate has a primary enemy (highest count per_shooter entry)
+-- Action picks an angular slot by member rank within squad and moves the NPC to a
+-- validated level vertex offset from the enemy's bearing.
+--
+-- Engine gap: cover_evaluators.cpp scores covers per NPC with no squadmate awareness.
+-- Four-NPC squads stack behind the same wall on the same loophole. No flanking, no
+-- enfilade. This module restores positional coordination by feeding the engine a
+-- destination vertex per non-commander; the engine handles navigation and combat from
+-- there.
+
+local pairs, math_random, math_pi, math_cos, math_sin, math_min =
+    pairs, math.random, math.pi, math.cos, math.sin, math.min
+local time_global = time_global
+local IsStalker, IsWounded = IsStalker, IsWounded
+local get_object_squad = get_object_squad
+local RegisterScriptCallback = RegisterScriptCallback
+local xcreature, xslice = xcreature, xslice
+
+local log = xlog.get_logger("AT.FLANK", { outfile = "alifetactics.log" })
+local _dbg = false
+
+-- ==================== CONSTANTS ====================
+
+-- Unique high ID, out of vanilla reserved range (mirrors Mugging Squads' 18811100
+-- and wuut_ai's 18811400; we own 18811700).
+local FLANK_EVAID = 18811700
+local FLANK_ACTID = 18811700
+
+local BIND_SWEEP_QUEUE         = "at_flank_bind_sweep"
+local BIND_SWEEP_STEP          = 5      -- NPCs to bind per frame during the sweep
+local THROTTLE_MS              = 2000   -- per-squad re-evaluation gate
+local MIN_FLANK_DISTANCE       = 6      -- below this enemy distance, skip (close quarters)
+local MAX_RAY_RADIUS           = 30     -- cap on level.vertex_in_direction radius
+local OUTER_HALF_ANGLE_LO      = 60     -- non-commander ranks 1+2: outer flankers
+local OUTER_HALF_ANGLE_HI      = 90
+local INNER_HALF_ANGLE_LO      = 15     -- non-commander ranks 3+: inner spread, alternating
+local INNER_HALF_ANGLE_HI      = 55
+local MAX_U32                  = 4294967295   -- engine level_vertex_id invalid sentinel
+
+local FACTION_SKIP = {
+    monolith = true,
+    zombied  = true,
+}
+
+-- ==================== STATE ====================
+
+local _enabled = true
+
+-- Per-squad last-evaluator-pass timestamp (time_global ms). Set in execute() so the
+-- throttle resets on actual dispatch, not on every evaluate.
+local _per_squad_last_dispatch = {}
+
+-- Per-NPC binder dedup: npc_on_net_spawn can fire across save/load. Track which NPC ids
+-- we have already bound this session.
+local _bound = {}
+
+-- Set to true at the end of actor_on_first_update. While false, npc_on_net_spawn
+-- callbacks DO NOT bind — they'd run during the LSS save-restoration phase when the
+-- engine is bulk-restoring NPCs and their motivation managers, where GOAP modifications
+-- can crash native code. The xslice sweep at first_update binds the pre-existing NPCs
+-- safely once LSS is done; only post-load spawns hit the immediate-bind path.
+local _first_update_fired = false
+
+-- ==================== MCM ACCESSORS ====================
+
+local function _is_enabled()
+    if at_core_mcm and at_core_mcm.get_config then
+        local v = at_core_mcm.get_config("squad_flanking_enabled")
+        if v ~= nil then return v end
+    end
+    return true
+end
+
+-- ==================== SUBSTRATE ACCESS ====================
+
+-- Read squad state from at_squad_memory + at_state_machine. get() is lazy-init so we
+-- do not pollute the substrate with empty records on misses.
+local function _squad_is_engaged(squad_id)
+    if not at_squad_memory or not at_state_machine then return false end
+    local record = at_squad_memory.get(squad_id)
+    return record and record.state.current_state == at_state_machine.STATE.ENGAGED or false
+end
+
+-- Resolve primary enemy by highest per_shooter.count. Online check is implicit:
+-- level.object_by_id returns nil for offline shooters.
+local function _primary_enemy_pos(squad_id)
+    if not at_squad_memory then return nil end
+    local record = at_squad_memory.get(squad_id)
+    if not record then return nil end
+
+    local best_id, best_count = nil, 0
+    for shooter_id, entry in pairs(record.per_shooter) do
+        if entry.count > best_count then
+            best_id    = shooter_id
+            best_count = entry.count
+        end
+    end
+    if not best_id then return nil end
+
+    local who = level.object_by_id(best_id)
+    return who and who:position() or nil
+end
+
+-- ==================== GEOMETRY ====================
+
+-- npc's index within non-commander members (1 = first non-commander, 2 = second, ...).
+-- Iteration order is engine-owned; excluding the commander makes the index stable when
+-- the engine puts the commander first OR somewhere in the middle of the iteration.
+local function _non_commander_rank(squad, commander_id, npc_id)
+    local i = 0
+    for member in squad:squad_members() do
+        if member.id ~= commander_id then
+            i = i + 1
+            if member.id == npc_id then return i end
+        end
+    end
+    return 0
+end
+
+-- Map non-commander rank to (degrees, sign). Rank 1 = outer left, 2 = outer right,
+-- 3+ = alternating inner (3=left, 4=right, 5=left, ...).
+local function _slot_angle(rank)
+    if rank < 1 then return nil end
+    if rank == 1 then return math_random(OUTER_HALF_ANGLE_LO, OUTER_HALF_ANGLE_HI), -1 end
+    if rank == 2 then return math_random(OUTER_HALF_ANGLE_LO, OUTER_HALF_ANGLE_HI),  1 end
+    local sign = (rank % 2 == 1) and -1 or 1
+    return math_random(INNER_HALF_ANGLE_LO, INNER_HALF_ANGLE_HI), sign
+end
+
+-- Rotate v around the Y axis by deg degrees. Pure Lua so no luabind crossing.
+local function _rotate_y(v, deg)
+    local rad = deg * math_pi / 180
+    local c, s = math_cos(rad), math_sin(rad)
+    local out = vector():set(0, v.y, 0)
+    out.x =  v.x * c + v.z * s
+    out.z = -v.x * s + v.z * c
+    return out
+end
+
+-- ==================== EVALUATOR ====================
+
+class "evaluator_flank" (property_evaluator)
+function evaluator_flank:__init(name) super (nil, name) end
+
+function evaluator_flank:evaluate()
+    if not _enabled then return false end
+    local npc = self.object
+    if not npc or not npc:alive() then return false end
+    if IsWounded(npc) then return false end
+
+    -- Engine-side enemy gate: if the engine sees no enemy, our action will fail its
+    -- stalker_ids.property_enemy precondition anyway. Returning false here keeps
+    -- FLANK_EVAID = false so state_mgr / alife (which we condition on FLANK_EVAID=false
+    -- in configure-actions) stay unblocked when this NPC has no enemy memory.
+    if not npc:best_enemy() then return false end
+
+    local squad = get_object_squad(npc)
+    if not squad or not squad.squad_members then return false end
+    if FACTION_SKIP[squad.player_id or ""] then return false end
+
+    -- Engaged gate first: most NPCs are NOT engaged most of the time. Skip member
+    -- iteration and the commander luabind for the common-return path.
+    if not _squad_is_engaged(squad.id) then return false end
+
+    -- Role gate: only Flankers and Assaulters dispatch. Lead and Suppressor hold position
+    -- (Suppressor = base of fire, Lead = command position). Pre-disclosure squads have
+    -- no role yet; return false until roles are assigned.
+    local role = at_squad_memory and at_squad_memory.get_role(squad.id, npc:id())
+    if role ~= at_squad_memory.ROLE.FLANKER and role ~= at_squad_memory.ROLE.ASSAULTER then
+        return false
+    end
+
+    local now  = time_global()
+    local last = _per_squad_last_dispatch[squad.id] or 0
+    if now - last < THROTTLE_MS then return false end
+
+    if not _primary_enemy_pos(squad.id) then return false end
+
+    return true
+end
+
+-- ==================== ACTION ====================
+
+class "action_flank" (action_base)
+function action_flank:__init(name) super (nil, name) end
+
+function action_flank:initialize()
+    action_base.initialize(self)
+    local npc = self.object
+    if not npc then return end
+    if npc:path_type() ~= game_object.level_path then
+        npc:set_path_type(game_object.level_path)
+    end
+end
+
+function action_flank:execute()
+    action_base.execute(self)
+    local npc = self.object
+    if not npc then return end
+
+    local squad = get_object_squad(npc)
+    if not squad then return end
+
+    -- Reserve the throttle slot first so the eval gate stays closed even if our
+    -- geometry path bails below.
+    _per_squad_last_dispatch[squad.id] = time_global()
+
+    local enemy_pos = _primary_enemy_pos(squad.id)
+    if not enemy_pos then return end
+
+    local npc_id = npc:id()
+    local role   = at_squad_memory and at_squad_memory.get_role(squad.id, npc_id)
+
+    -- Assaulter: dest = enemy_pos directly (no angular rotation, closing the distance).
+    -- Flanker: dest = enemy bearing rotated by angular slot (arc).
+    local angle, sign
+    if role == at_squad_memory.ROLE.ASSAULTER then
+        angle, sign = 0, 1
+    else
+        local rank = _non_commander_rank(squad, squad:commander_id(), npc_id)
+        angle, sign = _slot_angle(rank)
+        if not angle then return end
+    end
+
+    local tmr = xprofiler.new_if(_dbg):start()
+
+    local npc_pos = npc:position()
+    local raw_dir = vector():set(enemy_pos):sub(npc_pos)
+    raw_dir.y = 0
+    local dist = raw_dir:magnitude()
+    if dist < MIN_FLANK_DISTANCE then
+        tmr:stop()
+        if _dbg then
+            log.debug("[FLANK] skip squad=%d npc=%d role=%s dist=%.1f reason=close_quarters [%.2fms]",
+                squad.id, npc_id, tostring(role), dist, tmr:get_ms())
+        end
+        return
+    end
+    raw_dir:normalize()
+    local rot_dir = _rotate_y(raw_dir, angle * sign)
+    rot_dir:normalize()
+
+    -- Pick a vertex at distance (dist / 1.5) in rotated direction; walk back if invalid.
+    local base_vid = npc:level_vertex_id()
+    local radius   = math_min(dist / 1.5, MAX_RAY_RADIUS)
+    local vid      = nil
+    for r = radius, MIN_FLANK_DISTANCE, -1 do
+        local candidate = level.vertex_in_direction(base_vid, rot_dir, r)
+        if candidate and candidate < MAX_U32 and npc:accessible(candidate) then
+            vid = candidate
+            break
+        end
+    end
+    tmr:stop()
+
+    if not vid then
+        if _dbg then
+            log.debug("[FLANK] no_vid squad=%d npc=%d role=%s angle=%.0f side=%d dist=%.1f [%.2fms]",
+                squad.id, npc_id, tostring(role), angle, sign, dist, tmr:get_ms())
+        end
+        return
+    end
+
+    npc:set_dest_level_vertex_id(vid)
+
+    if _dbg then
+        log.debug("[FLANK] dispatch squad=%d npc=%d role=%s angle=%.0f side=%d dist=%.1f vid=%d [%.2fms]",
+            squad.id, npc_id, tostring(role), angle, sign, dist, vid, tmr:get_ms())
+    end
+end
+
+function action_flank:finalize()
+    action_base.finalize(self)
+end
+
+-- ==================== BINDER ====================
+
+local function _add_to_binder(npc)
+    if not npc or not npc:alive() then return end
+    if not IsStalker(npc) then return end
+    if npc:section() == "actor_visual_stalker" then return end
+    local id = npc:id()
+    -- Skip the actor: CAI_Stalker [actor] does not expose action_planner, so
+    -- manager:add_evaluator throws "cannot access class member action_planner!"
+    -- when called against the player.
+    if id == AC_ID then return end
+    if _bound[id] then return end
+
+    local manager = npc:motivation_action_manager()
+    if not manager then return end
+
+    local evaluator = evaluator_flank("eva_at_flank")
+    local action    = action_flank("act_at_flank")
+    if not evaluator or not action then return end
+
+    manager:add_evaluator(FLANK_EVAID, evaluator)
+    action:add_precondition(world_property(stalker_ids.property_alive,  true))
+    action:add_precondition(world_property(stalker_ids.property_enemy,  true))
+    action:add_precondition(world_property(stalker_ids.property_danger, true))
+    action:add_precondition(world_property(FLANK_EVAID, true))
+    action:add_effect(world_property(FLANK_EVAID, false))
+    manager:add_action(FLANK_ACTID, action)
+
+    -- Tell vanilla state_mgr and alife planners to wait on our flag (mirrors
+    -- wuut_ai.script:1206-1230 configure_actions). Without this, the vanilla
+    -- alife planner can grab the NPC and our action never gets to run.
+    local action_state = manager:action(xr_actions_id.state_mgr + 2)
+    if action_state then
+        action_state:add_precondition(world_property(FLANK_EVAID, false))
+    end
+    local action_alife = manager:action(xr_actions_id.alife)
+    if action_alife then
+        action_alife:add_precondition(world_property(FLANK_EVAID, false))
+    end
+
+    _bound[id] = true
+
+    if _dbg then log.debug("[BIND] npc=%d", id) end
+end
+
+-- ==================== INITIAL SWEEP ====================
+
+-- xslice per-frame worker: resolve npc by id, bind if eligible. Returning true
+-- tells xslice to continue with the next id next frame.
+local function _bind_one_id(npc_id)
+    if not npc_id then return true end
+    if _bound[npc_id] then return true end
+    local npc = level.object_by_id(npc_id)
+    if not npc then return true end
+    _add_to_binder(npc)
+    return true
+end
+
+local function _on_sweep_done()
+    local count = 0
+    for _ in pairs(_bound) do count = count + 1 end
+    log.info("[SWEEP] bind sweep complete, bound=%d", count)
+end
+
+-- Walk online stalkers, queue ids for the xslice sweep. One-frame online iteration
+-- (cheap: engine-side via xcreature.online_iter); per-frame binds are throttled by
+-- BIND_SWEEP_STEP. Already-bound NPCs are filtered up-front so we do not re-enqueue
+-- them across save/load cycles.
+local function _start_bind_sweep()
+    if not xslice or not xcreature then return end
+    if xslice.is_active(BIND_SWEEP_QUEUE) then return end
+
+    local queue = {}
+    for obj in xcreature.online_iter() do
+        if obj and IsStalker(obj) and obj:alive() then
+            local id = obj:id()
+            if id ~= AC_ID and not _bound[id] then
+                queue[#queue + 1] = id
+            end
+        end
+    end
+    if #queue == 0 then return end
+
+    if _dbg then log.debug("[SWEEP] queued=%d step=%d", #queue, BIND_SWEEP_STEP) end
+    xslice.start(BIND_SWEEP_QUEUE, queue, {
+        step    = BIND_SWEEP_STEP,
+        func    = _bind_one_id,
+        on_done = _on_sweep_done,
+    })
+end
+
+-- ==================== LIFECYCLE ====================
+
+local function _on_npc_spawn(npc)
+    if not _enabled then return end
+    if not _first_update_fired then return end  -- defer LSS-time binds to the sweep
+    _add_to_binder(npc)
+end
+
+local function _on_entity_unregister(se_obj)
+    if not se_obj then return end
+    local id = se_obj.id
+    _per_squad_last_dispatch[id] = nil
+    _bound[id] = nil
+end
+
+local function _refresh_config()
+    if not (at_core_mcm and at_core_mcm.get_config) then return end
+
+    local level_str = at_core_mcm.get_config("log_level") or "WARN"
+    log.set_level(level_str)
+    _dbg = log.get_level() >= 5
+
+    local v = at_core_mcm.get_config("squad_flanking_enabled")
+    if v ~= nil then _enabled = v end
+end
+
+local function _on_first_update()
+    _per_squad_last_dispatch = {}
+    _bound = {}
+    _refresh_config()
+    log.info("Squad Flanking initialized (enabled=%s, dbg=%s)",
+        _enabled and "true" or "false", _dbg and "true" or "false")
+    if _enabled then _start_bind_sweep() end
+    _first_update_fired = true
+end
+
+function on_game_start()
+    RegisterScriptCallback("npc_on_net_spawn",            _on_npc_spawn)
+    RegisterScriptCallback("server_entity_on_unregister", _on_entity_unregister)
+    RegisterScriptCallback("actor_on_first_update",       _on_first_update)
+    RegisterScriptCallback("on_option_change",            _refresh_config)
+    RegisterScriptCallback("mcm_option_restore_default",  _refresh_config)
+end
