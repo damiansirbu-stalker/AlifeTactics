@@ -409,6 +409,8 @@ local function _on_actor_first_update()
 end
 
 function on_game_start()
+    log.info("AlifeTactics v%s (xlibs v%s)", _at_deps.get_version(), xlibs.get_version())
+
     -- Limping is independent of the healing master toggle (purely cosmetic, no
     -- heal patch needed). Always register; gated at runtime by _limping_enabled.
     RegisterScriptCallback("npc_on_update",              _on_npc_update)
