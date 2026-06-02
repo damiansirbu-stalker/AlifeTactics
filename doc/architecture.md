@@ -176,7 +176,7 @@ Per-shot hot path. Cost ~1.5μs per call when DEBUG off (2 luabind crossings via
 
 ## Dynamic Combat
 
-Drives engine combat sub-actions via memory-input manipulation. No GOAP injection, no combat_planner block, no forced movement via `set_dest_level_vertex_id`, no `default_custom_data.ltx` overlay, no vanilla script monkey-patching. The engine's existing combat sub-planner picks `CStalkerActionDetourEnemy` (op 25) when its preconditions align; AT temporarily flips one of those preconditions and lets the engine run.
+Per-NPC override of the combat planner's `SeeEnemy` evaluator via `add_evaluator(stalker_ids.property_see_enemy, ...)` on each NPC's combat planner. When the squad's rotation marks an NPC as designated, the evaluator returns false; the engine combat sub-planner sees `SeeEnemy=false` and picks `CStalkerActionDetourEnemy`. No engine memory mutation, no `enable_memory_object` calls, no GOAP graft on existing actions, no combat_planner block, no forced movement via `set_dest_level_vertex_id`, no `default_custom_data.ltx` overlay, no vanilla script monkey-patching.
 
 ### Mechanism
 
@@ -191,29 +191,42 @@ DangerGrenade=false, UseSuddenness=false, EnemyWounded=false, PlayerOnThePath=fa
 
 Effect: `EnemyDetoured=true`.
 
-`SeeEnemy` is the lever. The evaluator (`stalker_property_evaluators.cpp:127-132`) reads `memory().enemy().selected() ? visual().visible_now(selected) : false`. When `enable_memory_object(shooter, false)` is called (`script_game_object2.cpp:260-268`), the engine's memory manager toggles `m_enabled=false` on the visual / sound / hit entries for that shooter (`memory_manager.cpp:151-156`). The next `memory().update_enemies` cycle filters disabled entries (`memory_manager.cpp:164-166`); when the disabled shooter was the squad's sole tracked enemy, `enemy().selected()` switches to null and `SeeEnemy` evaluates false.
+`SeeEnemy` (property id 15, `stalker_decision_space.h:33`) is the lever. Engine evaluator (`stalker_property_evaluators.cpp:127-132`) returns `selected ? visible_now(selected) : false`. Our evaluator replaces it on the combat planner via `combat:add_evaluator(stalker_ids.property_see_enemy, ours)` (same pattern as `post_combat_idle.script:218-222`). Our `evaluate()`:
 
-In the cover cycle (TakeCover → LookOut → HoldPosition), the NPC has already accumulated `LookedOut=true` and `PositionHolded=true`. Once `SeeEnemy` flips false on the next memory cycle, the planner picks `DetourEnemy`. The engine handles its own vertex pick, level-path routing, body-state, sound, and fire (`stalker_combat_actions.cpp:924-940`).
+```
+if _designated[squad.id][npc:id()] then return false end
+local be = npc:best_enemy()
+if not be then return false end
+return npc:see(be) and true or false
+```
+
+When designated, return false unconditionally. When not designated, mirror engine semantics so non-designated NPCs are unaffected.
+
+In the cover cycle (TakeCover → LookOut → HoldPosition), the NPC has already accumulated `LookedOut=true` and `PositionHolded=true`. While designated, `SeeEnemy=false`, the planner picks `DetourEnemy`. The engine handles its own vertex pick, level-path routing, body-state, sound, and fire (`stalker_combat_actions.cpp:924-1022`) via `CCoverEvaluatorAngle` at 10m primary / 30m fallback.
 
 ### Tick
 
 One global `CreateTimeEvent` at `TICK_INTERVAL_SEC=20`. Each fire:
 
 1. Walk `at_squad_memory.iterate`. For each engaged squad (`engaged_until > xtime.game_sec`):
-2. Resolve primary shooter by highest `per_shooter.count`.
-3. Pick one non-commander squad member who has not been designated this rotation. Filter for alive, non-wounded, online. When all candidates are designated, reset the rotation set and pick afresh. Random selection from the fresh pool.
-4. Call `npc:enable_memory_object(shooter, false)`.
-5. Schedule a one-shot `CreateTimeEvent` at `REENABLE_DELAY_SEC=4` that re-resolves `npc` and `shooter` via `level.object_by_id` and calls `enable_memory_object(shooter, true)`. The re-enable closure is a no-op if either side has gone offline by fire time.
+2. Skip monolith / zombied factions (their own combat archetype).
+3. Pick one non-commander squad member who has not been designated this rotation. Filter for alive, non-wounded, online. When all candidates are designated, reset the rotation set and pick afresh.
+4. Mark the picked member designated in `_designated[squad_id][npc_id]`.
+5. Schedule a one-shot `CreateTimeEvent` at `DESIGNATE_HOLD_SEC=4` that clears the designation (pure Lua flag flip, no engine APIs).
 
-The 4-second window lets the engine planner run `DetourEnemy` to completion (vertex pick + path traversal + fire) before memory restores. After re-enable, the next memory cycle re-detects the shooter and the planner moves to the next phase of the cover cycle.
+While designated, the NPC's combat planner sees `SeeEnemy=false`, picks `DetourEnemy`, runs it. After 4s the clear timer fires, `_designated[squad_id][npc_id]` becomes nil, our evaluator falls through to the engine mirror path; next planner tick `SeeEnemy` reflects actual visibility, the planner moves to KillEnemy / LookOut / whatever vanilla would pick.
 
 ### Rotation
 
-Per-squad designated set: `_designated[squad_id] = { [npc_id] = true, ... }`. Each tick marks the picked member; rotation resets when the set covers every eligible member. With a 4-member squad and 20s tick interval, the full rotation completes in 80s; the re-enable (4s) always fires before the same member could be re-picked.
+Per-squad designated set: `_designated[squad_id] = { [npc_id] = true, ... }`. Each tick marks one picked member; the short-lived clear timer (4s) releases that slot. Full-rotation reset (`_pick_member` zeroes the set when no fresh candidates remain) is a safety net for cases where the per-NPC clear timer was lost.
+
+### Binder
+
+Per-NPC bind via `npc_on_net_spawn`. Deferred to after `actor_on_first_update` via `_first_update_fired` flag to avoid modifying GOAP during LSS save-restoration. xslice sweep at first_update binds pre-existing online stalkers in batches of 5 per frame. Late spawns hit the immediate-bind path. AC_ID and `actor_visual_stalker` skipped (actor's combat planner is not exposed the same way).
 
 ### Disable behavior
 
-When `dynamic_combat_enabled = false`, the tick still fires every 20s but returns immediately. No memory toggles, no designations. The vanilla engine combat planner runs unmodified.
+When `dynamic_combat_enabled = false`, the evaluator's designated-check short-circuits (the `if _enabled` guard at the top of `evaluate()`). The evaluator still runs and still mirrors engine semantics for SeeEnemy, but never returns false on designation grounds. The tick continues to fire every 20s but is a no-op. The vanilla engine combat planner runs unmodified through our pass-through evaluator.
 
 ---
 
@@ -258,7 +271,7 @@ The architecture principle is to feed engine memory and state, not fight it. Per
 | Hit Sharing | RELATION_REGISTRY personal goodwill, memory entry m_enabled, agent_member_manager m_combat_mask | `force_set_goodwill`, `enable_memory_object`, `register_in_combat` |
 | Healing | NPC health field, bleeding field, `healing_charge` se_var | `change_health`, direct `bleeding =` write, `se_save_var` |
 | Accuracy | Per-shot dispersion radius via callback return | (subscribes to `npc_shot_dispersion`) |
-| Dynamic Combat | NPC memory entry m_enabled (visual / sound / hit) for primary shooter | `enable_memory_object` |
+| Dynamic Combat | Combat planner SeeEnemy property evaluator (per-NPC override) | `combat_planner:add_evaluator(stalker_ids.property_see_enemy, ...)` |
 | Stance Switch | NPC body_state via functor return | (functor at `_G.CAI_Stalker__CombatSetBodyState`) |
 
 The engine then runs its own combat detection (property_enemy, m_combat_mask, agent_memory propagation) on the state we wrote. No system reimplements engine behavior; each one nudges engine state to produce the desired outcome.
@@ -294,8 +307,10 @@ MCM `log_level` (ERROR/WARN/INFO/DEBUG) controls verbosity. Each module subscrib
 - `[PATCH]` — install messages for xr_eat_medkit patches
 - `[ACC]` — per-shot accuracy calculation
 - `[TICK]` — dynamic combat tick: engaged squad count and designations issued
-- `[DESIGNATE]` — per-NPC memory disable on designation (with reenable delay)
-- `[REENABLE]` — per-NPC memory restore after the detour window elapses
+- `[DESIGNATE]` — per-NPC SeeEnemy held false on designation (with hold duration)
+- `[CLEAR]` — per-NPC designation released after the hold window elapses
+- `[BIND]` — per-NPC SeeEnemy evaluator bound on the combat planner
+- `[SWEEP]` — xslice bind sweep status for pre-existing online stalkers
 - `[STANCE]` — body_state override fires
 
 ---

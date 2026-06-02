@@ -1,22 +1,23 @@
---- at_dynamic_combat: Rotate squad members through engine DetourEnemy via memory toggle
--- Engine combat sub-planner picks CStalkerActionDetourEnemy (op 25) when SeeEnemy
--- flips false on an NPC that has already LookedOut and PositionHolded
--- (stalker_combat_planner.cpp:387-405). We toggle that input by calling
--- enable_memory_object(shooter, false) on the NPC's memory of the primary shooter
--- (script_game_object2.cpp:260-268), let the engine action run its own vertex
--- pick + path + fire (stalker_combat_actions.cpp:924-940), then restore memory
--- after REENABLE_DELAY_SEC. No GOAP injection. No combat_planner block. No
--- forced movement via set_dest_level_vertex_id. No scheme overlay. No vanilla
--- script monkey-patches.
+--- at_dynamic_combat: Rotate squad members through engine DetourEnemy via SeeEnemy evaluator override
+-- Per-NPC override of stalker_ids.property_see_enemy on the combat planner
+-- (action_planner_script.cpp:49 exposes add_evaluator). When the squad's
+-- rotation marks this NPC designated, the evaluator returns false; the
+-- engine combat sub-planner then sees SeeEnemy=false and picks
+-- CStalkerActionDetourEnemy (op 25) because LookedOut+PositionHolded are
+-- already accumulated from the cover cycle (stalker_combat_planner.cpp:387-405).
+-- Engine runs its own cover pick + path + fire (stalker_combat_actions.cpp:924-1022).
+-- No engine memory state mutation. No enable_memory_object calls.
+-- No re-enable timer for engine state; designation clears via short-lived
+-- flag set by the tick.
 --
--- One global tick walks the substrate every TICK_INTERVAL_SEC. For each engaged
--- squad it picks one non-commander member not yet designated this rotation and
--- nudges their memory. The substrate's engaged_until field (written by
--- at_hitresponse on every kept hit) gates the per-squad work.
+-- Per-NPC bind via npc_on_net_spawn. Bind deferred until actor_on_first_update
+-- via _first_update_fired flag to avoid modifying GOAP during LSS save-restoration.
+-- xslice sweep at first_update binds pre-existing NPCs in batches.
 
-local pairs, RegisterScriptCallback, IsWounded =
-    pairs, RegisterScriptCallback, IsWounded
+local pairs, RegisterScriptCallback, IsWounded, IsStalker =
+    pairs, RegisterScriptCallback, IsWounded, IsStalker
 local math_random = math.random
+local xcreature, xslice = xcreature, xslice
 -- DO NOT cache CreateTimeEvent / ResetTimeEvent / RemoveTimeEvent as locals.
 -- demonized_time_events.script replaces them; cached locals capture the dead
 -- originals and timers never fire. See doc/library/xray/internals/globals.md:208-219.
@@ -28,38 +29,100 @@ local _dbg = false
 
 local TIMER_EV           = "at_dynamic_combat"
 local TIMER_TICK         = "tick"
-local TIMER_REENABLE_PFX = "reenable_"
+local TIMER_CLEAR_PFX    = "clear_"
 local TICK_INTERVAL_SEC  = 20
-local REENABLE_DELAY_SEC = 4
+local DESIGNATE_HOLD_SEC = 4   -- how long SeeEnemy is held false per designation
 
 local INVALID_GROUP = 65535
+
+local BIND_SWEEP_QUEUE = "at_dynamic_combat_sweep"
+local BIND_SWEEP_STEP  = 5     -- NPCs to bind per frame during the sweep
+
+local FACTION_SKIP = {
+    monolith = true,
+    zombied  = true,
+}
 
 -- ==================== STATE ====================
 
 local _enabled = true
 
--- Per-squad set of NPC ids already designated this rotation. Reset by
--- _pick_member when every non-commander member has been designated.
-local _designated = {}  -- _designated[squad_id] = { [npc_id] = true, ... }
+-- Per-squad designated set: _designated[squad_id] = { [npc_id] = true, ... }
+-- Cleared per-designation by a short-lived TimeEvent (DESIGNATE_HOLD_SEC).
+-- Full rotation reset happens in _pick_member when every eligible member has
+-- been picked at least once.
+local _designated = {}
+
+-- Per-NPC bind dedup.
+local _bound = {}
+
+-- Set true at the end of actor_on_first_update. While false, npc_on_net_spawn
+-- does NOT bind: that runs during the LSS save-restoration phase where the
+-- engine is bulk-restoring NPCs and their motivation managers; GOAP modifications
+-- during that window can crash native code. The xslice sweep at first_update
+-- binds pre-existing NPCs safely once LSS is done; only post-load spawns hit the
+-- immediate-bind path.
+local _first_update_fired = false
+
+-- ==================== EVALUATOR ====================
+
+-- SeeEnemy evaluator override. Returns false when the NPC is in its squad's
+-- current designated rotation; otherwise mirrors the engine evaluator
+-- (stalker_property_evaluators.cpp:127-132): SeeEnemy = best_enemy and
+-- can_see(best_enemy).
+class "evaluator_see_enemy" (property_evaluator)
+function evaluator_see_enemy:__init(name) super (nil, name) end
+
+function evaluator_see_enemy:evaluate()
+    local npc = self.object
+    if not npc or not npc:alive() then return false end
+
+    if _enabled then
+        local squad = get_object_squad(npc)
+        if squad then
+            local set = _designated[squad.id]
+            if set and set[npc:id()] then return false end
+        end
+    end
+
+    local be = npc:best_enemy()
+    if not be then return false end
+    return npc:see(be) and true or false
+end
+
+-- ==================== BINDER ====================
+
+-- Per-NPC bind: override SeeEnemy on the NPC's combat planner. action_planner
+-- add_evaluator replaces any existing evaluator for the property (post_combat_idle
+-- uses the same pattern at stalker-anomaly/post_combat_idle.script:218-222).
+local function _bind_npc(npc)
+    if not npc or not npc:alive() then return end
+    if not IsStalker(npc) then return end
+    if npc:section() == "actor_visual_stalker" then return end
+    local id = npc:id()
+    if id == AC_ID then return end
+    if _bound[id] then return end
+
+    local manager = npc:motivation_action_manager()
+    if not manager then return end
+
+    local combat = manager:action(stalker_ids.action_combat_planner)
+    if not combat then return end
+
+    local evaluator = evaluator_see_enemy("eva_at_see_enemy")
+    if not evaluator then return end
+
+    combat:add_evaluator(stalker_ids.property_see_enemy, evaluator)
+    _bound[id] = true
+
+    if _dbg then log.debug("[BIND] npc=%d", id) end
+end
 
 -- ==================== SUBSTRATE ACCESS ====================
 
 local function _is_engaged(record)
     if not record then return false end
     return xtime.game_sec() < (record.engaged_until or 0)
-end
-
--- Resolve primary shooter id by highest per_shooter.count. Returns nil if the
--- substrate has no tracked shooters for the squad.
-local function _primary_shooter_id(record)
-    local best_id, best_count = nil, 0
-    for shooter_id, entry in pairs(record.per_shooter) do
-        if entry.count > best_count then
-            best_id    = shooter_id
-            best_count = entry.count
-        end
-    end
-    return best_id
 end
 
 -- ==================== MEMBER PICK ====================
@@ -91,8 +154,6 @@ local function _pick_member(squad, designated)
             fresh[#fresh + 1] = candidates[i]
         end
     end
-
-    -- Rotation complete: clear and treat the full candidate set as fresh.
     if #fresh == 0 then
         for i = 1, #candidates do designated[candidates[i]] = nil end
         fresh = candidates
@@ -103,42 +164,29 @@ end
 
 -- ==================== DESIGNATE ====================
 
--- Disable npc's memory of shooter, then schedule a re-enable after
--- REENABLE_DELAY_SEC. Returns true if memory was disabled, false if either
--- side could not be resolved this tick or the npc is not in a safe state.
---
--- Alive guard at both call sites because CVisualMemoryManager::enable
--- (visual_memory_manager.cpp:245-251) does std::find on m_objects without
--- a null guard. The pointer is torn down when an NPC dies, despawns, or
--- goes offline (level transition), so calling enable_memory_object on a
--- dead/offline NPC null-derefs C++ and lands as a [BusyHandsDebug] runtime
--- error. The 4s gap between disable and re-enable spans the risk window.
-local function _designate(squad_id, npc_id, shooter_id)
-    local npc = level.object_by_id(npc_id)
-    if not npc or not npc:alive() then return false end
-    local shooter = level.object_by_id(shooter_id)
-    if not shooter then return false end
+-- Mark NPC designated, schedule the short-lived clear. No engine APIs touched.
+local function _designate(squad_id, npc_id)
+    local designated = _designated[squad_id]
+    if not designated then
+        designated = {}
+        _designated[squad_id] = designated
+    end
+    designated[npc_id] = true
 
-    npc:enable_memory_object(shooter, false)
-
-    local ev_id = TIMER_REENABLE_PFX .. npc_id .. "_" .. shooter_id
-    CreateTimeEvent(TIMER_EV, ev_id, REENABLE_DELAY_SEC, function()
-        local n = level.object_by_id(npc_id)
-        if not n or not n:alive() then return true end
-        local s = level.object_by_id(shooter_id)
-        if not s then return true end
-        n:enable_memory_object(s, true)
+    local ev_id = TIMER_CLEAR_PFX .. squad_id .. "_" .. npc_id
+    CreateTimeEvent(TIMER_EV, ev_id, DESIGNATE_HOLD_SEC, function()
+        local set = _designated[squad_id]
+        if set then set[npc_id] = nil end
         if _dbg then
-            log.debug("[REENABLE] squad=%d npc=%d shooter=%d", squad_id, npc_id, shooter_id)
+            log.debug("[CLEAR] squad=%d npc=%d designation released", squad_id, npc_id)
         end
         return true
     end)
 
     if _dbg then
-        log.debug("[DESIGNATE] squad=%d npc=%d shooter=%d memory_disabled reenable_in=%ds",
-            squad_id, npc_id, shooter_id, REENABLE_DELAY_SEC)
+        log.debug("[DESIGNATE] squad=%d npc=%d see_enemy_held_false hold=%ds",
+            squad_id, npc_id, DESIGNATE_HOLD_SEC)
     end
-    return true
 end
 
 -- ==================== TICK ====================
@@ -158,11 +206,9 @@ local function _on_tick()
         if not _is_engaged(record) then return end
         if _dbg then engaged_count = engaged_count + 1 end
 
-        local shooter_id = _primary_shooter_id(record)
-        if not shooter_id then return end
-
         local squad = alife_object(squad_id)
         if not squad then return end
+        if FACTION_SKIP[squad.player_id or ""] then return end
 
         local designated = _designated[squad_id]
         if not designated then
@@ -173,10 +219,8 @@ local function _on_tick()
         local npc_id = _pick_member(squad, designated)
         if not npc_id then return end
 
-        if _designate(squad_id, npc_id, shooter_id) then
-            designated[npc_id] = true
-            if _dbg then designated_count = designated_count + 1 end
-        end
+        _designate(squad_id, npc_id)
+        if _dbg then designated_count = designated_count + 1 end
     end)
 
     tmr:stop()
@@ -186,11 +230,59 @@ local function _on_tick()
     end
 end
 
+-- ==================== SWEEP ====================
+
+local function _bind_one_id(npc_id)
+    if not npc_id then return true end
+    if _bound[npc_id] then return true end
+    local npc = level.object_by_id(npc_id)
+    if not npc then return true end
+    _bind_npc(npc)
+    return true
+end
+
+local function _on_sweep_done()
+    local count = 0
+    for _ in pairs(_bound) do count = count + 1 end
+    log.info("[SWEEP] bind sweep complete, bound=%d", count)
+end
+
+local function _start_bind_sweep()
+    if not xslice or not xcreature then return end
+    if xslice.is_active(BIND_SWEEP_QUEUE) then return end
+
+    local queue = {}
+    for obj in xcreature.online_iter() do
+        if obj and IsStalker(obj) and obj:alive() then
+            local id = obj:id()
+            if id ~= AC_ID and not _bound[id] then
+                queue[#queue + 1] = id
+            end
+        end
+    end
+    if #queue == 0 then return end
+
+    if _dbg then log.debug("[SWEEP] queued=%d step=%d", #queue, BIND_SWEEP_STEP) end
+    xslice.start(BIND_SWEEP_QUEUE, queue, {
+        step    = BIND_SWEEP_STEP,
+        func    = _bind_one_id,
+        on_done = _on_sweep_done,
+    })
+end
+
 -- ==================== LIFECYCLE ====================
+
+local function _on_npc_spawn(npc)
+    if not _enabled then return end
+    if not _first_update_fired then return end
+    _bind_npc(npc)
+end
 
 local function _on_entity_unregister(se_obj)
     if not se_obj then return end
-    _designated[se_obj.id] = nil
+    local id = se_obj.id
+    _designated[id] = nil
+    _bound[id] = nil
 end
 
 local function _refresh_config()
@@ -206,15 +298,19 @@ end
 
 local function _on_first_update()
     _designated = {}
+    _bound = {}
     _refresh_config()
     RemoveTimeEvent(TIMER_EV, TIMER_TICK)
     CreateTimeEvent(TIMER_EV, TIMER_TICK, TICK_INTERVAL_SEC, _on_tick)
-    log.info("Dynamic Combat initialized (enabled=%s, tick=%ds, reenable=%ds, dbg=%s)",
-        _enabled and "true" or "false", TICK_INTERVAL_SEC, REENABLE_DELAY_SEC,
+    log.info("Dynamic Combat initialized (enabled=%s, tick=%ds, hold=%ds, dbg=%s)",
+        _enabled and "true" or "false", TICK_INTERVAL_SEC, DESIGNATE_HOLD_SEC,
         _dbg and "true" or "false")
+    if _enabled then _start_bind_sweep() end
+    _first_update_fired = true
 end
 
 function on_game_start()
+    RegisterScriptCallback("npc_on_net_spawn",            _on_npc_spawn)
     RegisterScriptCallback("server_entity_on_unregister", _on_entity_unregister)
     RegisterScriptCallback("actor_on_first_update",       _on_first_update)
     RegisterScriptCallback("on_option_change",            _refresh_config)

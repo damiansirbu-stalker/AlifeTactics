@@ -164,7 +164,7 @@
   </string>
   <!-- ==================== DYNAMIC COMBAT TAB ==================== -->
   <string id="ui_mcm_at_dynamic_combat_desc">
-    <text>Rotates squad members through the engine's DetourEnemy action while the squad is in active combat (a faction-enemy hit landed within the last 60s). Every 20 seconds, one non-commander member of each engaged squad has their visual memory of the primary shooter briefly disabled (4s), which makes the engine's combat sub-planner pick DetourEnemy: the engine handles its own vertex pick, pathing, and fire. Members rotate across ticks so the squad spreads around the engagement without forced movement, GOAP injection, or combat-planner blocking.</text>
+    <text>Rotates squad members through the engine's DetourEnemy action while the squad is in active combat (a faction-enemy hit within the last 60s). Every 20 seconds, one non-commander member of each engaged squad has the combat planner's SeeEnemy property held false for 4 seconds via a per-NPC evaluator override; the engine's combat sub-planner reads SeeEnemy=false and picks DetourEnemy, which handles its own cover pick, pathing, and fire. Members rotate across ticks so the squad spreads around the engagement without forced movement, GOAP graft, or combat-planner blocking.</text>
   </string>
   <string id="ui_mcm_at_dynamic_combat_dynamic_combat_enabled">
     <text>Enable Dynamic Combat</text>

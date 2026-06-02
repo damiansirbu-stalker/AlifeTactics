@@ -34,7 +34,7 @@ NPC weapon accuracy:
 
 Dynamic combat:
   Vanilla NPC cover selection is per-stalker. Each member scores its own cover with no awareness of squadmates, so squads end up stacked behind one wall on one loophole. There is no flanking, no enfilade.
-  AlifeTactics rotates squad members through the engine's own flank-around-cover action. While the squad is in active combat, every twenty seconds one non-commander member has their memory of the primary shooter briefly suppressed for four seconds. The engine combat planner reads the modified memory and picks its built-in detour-enemy action: it scores a cover spot at an angle from the enemy bearing within ten meters (thirty fallback), runs the NPC there, and resumes firing. Rotation across members across ticks distributes the behavior.
+  AlifeTactics rotates squad members through the engine's own flank-around-cover action. While the squad is in active combat, every twenty seconds one non-commander member is told for four seconds that no enemy is visible. The engine combat planner reads that, picks its built-in detour-enemy action, scores a cover spot at an angle from the enemy bearing within ten meters (thirty fallback), runs the NPC there, and resumes firing. Rotation across members across ticks distributes the behavior.
   What you see: a squad in cover starts shifting positions during sustained combat. Members peel off one at a time to angular cover spots, playing the engine's detour bark line. The squad ends up spread around the engagement instead of stacked on one loophole.
 
 Combat crouch:
