@@ -1,0 +1,222 @@
+--- at_dynamic_combat: Rotate squad members through engine DetourEnemy via memory toggle
+-- Engine combat sub-planner picks CStalkerActionDetourEnemy (op 25) when SeeEnemy
+-- flips false on an NPC that has already LookedOut and PositionHolded
+-- (stalker_combat_planner.cpp:387-405). We toggle that input by calling
+-- enable_memory_object(shooter, false) on the NPC's memory of the primary shooter
+-- (script_game_object2.cpp:260-268), let the engine action run its own vertex
+-- pick + path + fire (stalker_combat_actions.cpp:924-940), then restore memory
+-- after REENABLE_DELAY_SEC. No GOAP injection. No combat_planner block. No
+-- forced movement via set_dest_level_vertex_id. No scheme overlay. No vanilla
+-- script monkey-patches.
+--
+-- One global tick walks the substrate every TICK_INTERVAL_SEC. For each engaged
+-- squad it picks one non-commander member not yet designated this rotation and
+-- nudges their memory. The substrate's engaged_until field (written by
+-- at_hitresponse on every kept hit) gates the per-squad work.
+
+local pairs, RegisterScriptCallback, IsWounded =
+    pairs, RegisterScriptCallback, IsWounded
+local math_random = math.random
+-- DO NOT cache CreateTimeEvent / ResetTimeEvent / RemoveTimeEvent as locals.
+-- demonized_time_events.script replaces them; cached locals capture the dead
+-- originals and timers never fire. See doc/library/xray/internals/globals.md:208-219.
+
+local log = xlog.get_logger("AT.DYN", { outfile = "alifetactics.log" })
+local _dbg = false
+
+-- ==================== CONSTANTS ====================
+
+local TIMER_EV           = "at_dynamic_combat"
+local TIMER_TICK         = "tick"
+local TIMER_REENABLE_PFX = "reenable_"
+local TICK_INTERVAL_SEC  = 20
+local REENABLE_DELAY_SEC = 4
+
+local INVALID_GROUP = 65535
+
+-- ==================== STATE ====================
+
+local _enabled = true
+
+-- Per-squad set of NPC ids already designated this rotation. Reset by
+-- _pick_member when every non-commander member has been designated.
+local _designated = {}  -- _designated[squad_id] = { [npc_id] = true, ... }
+
+-- ==================== SUBSTRATE ACCESS ====================
+
+local function _is_engaged(record)
+    if not record then return false end
+    return xtime.game_sec() < (record.engaged_until or 0)
+end
+
+-- Resolve primary shooter id by highest per_shooter.count. Returns nil if the
+-- substrate has no tracked shooters for the squad.
+local function _primary_shooter_id(record)
+    local best_id, best_count = nil, 0
+    for shooter_id, entry in pairs(record.per_shooter) do
+        if entry.count > best_count then
+            best_id    = shooter_id
+            best_count = entry.count
+        end
+    end
+    return best_id
+end
+
+-- ==================== MEMBER PICK ====================
+
+-- Pick one non-commander member who has not been designated this rotation. When
+-- every eligible member has been designated, reset the designated set and pick
+-- fresh. Returns nil when the squad has no alive non-wounded non-commander
+-- online members.
+local function _pick_member(squad, designated)
+    if not squad or not squad.squad_members then return nil end
+
+    local commander_id = squad.commander_id and squad:commander_id() or nil
+    if commander_id == INVALID_GROUP then commander_id = nil end
+
+    local candidates = {}
+    for member in squad:squad_members() do
+        if member.id ~= commander_id then
+            local npc = level.object_by_id(member.id)
+            if npc and npc:alive() and not IsWounded(npc) then
+                candidates[#candidates + 1] = member.id
+            end
+        end
+    end
+    if #candidates == 0 then return nil end
+
+    local fresh = {}
+    for i = 1, #candidates do
+        if not designated[candidates[i]] then
+            fresh[#fresh + 1] = candidates[i]
+        end
+    end
+
+    -- Rotation complete: clear and treat the full candidate set as fresh.
+    if #fresh == 0 then
+        for i = 1, #candidates do designated[candidates[i]] = nil end
+        fresh = candidates
+    end
+
+    return fresh[math_random(#fresh)]
+end
+
+-- ==================== DESIGNATE ====================
+
+-- Disable npc's memory of shooter, then schedule a re-enable after
+-- REENABLE_DELAY_SEC. Returns true if memory was disabled, false if either
+-- side could not be resolved this tick or the npc is not in a safe state.
+--
+-- Alive guard at both call sites because CVisualMemoryManager::enable
+-- (visual_memory_manager.cpp:245-251) does std::find on m_objects without
+-- a null guard. The pointer is torn down when an NPC dies, despawns, or
+-- goes offline (level transition), so calling enable_memory_object on a
+-- dead/offline NPC null-derefs C++ and lands as a [BusyHandsDebug] runtime
+-- error. The 4s gap between disable and re-enable spans the risk window.
+local function _designate(squad_id, npc_id, shooter_id)
+    local npc = level.object_by_id(npc_id)
+    if not npc or not npc:alive() then return false end
+    local shooter = level.object_by_id(shooter_id)
+    if not shooter then return false end
+
+    npc:enable_memory_object(shooter, false)
+
+    local ev_id = TIMER_REENABLE_PFX .. npc_id .. "_" .. shooter_id
+    CreateTimeEvent(TIMER_EV, ev_id, REENABLE_DELAY_SEC, function()
+        local n = level.object_by_id(npc_id)
+        if not n or not n:alive() then return true end
+        local s = level.object_by_id(shooter_id)
+        if not s then return true end
+        n:enable_memory_object(s, true)
+        if _dbg then
+            log.debug("[REENABLE] squad=%d npc=%d shooter=%d", squad_id, npc_id, shooter_id)
+        end
+        return true
+    end)
+
+    if _dbg then
+        log.debug("[DESIGNATE] squad=%d npc=%d shooter=%d memory_disabled reenable_in=%ds",
+            squad_id, npc_id, shooter_id, REENABLE_DELAY_SEC)
+    end
+    return true
+end
+
+-- ==================== TICK ====================
+
+local function _on_tick()
+    ResetTimeEvent(TIMER_EV, TIMER_TICK, TICK_INTERVAL_SEC)
+    if not _enabled then return end
+    if not at_squad_memory then return end
+
+    local now = xtime.game_sec()
+    if now == 0 then return end
+
+    local tmr = xprofiler.new_if(_dbg):start()
+    local engaged_count, designated_count = 0, 0
+
+    at_squad_memory.iterate(function(squad_id, record)
+        if not _is_engaged(record) then return end
+        if _dbg then engaged_count = engaged_count + 1 end
+
+        local shooter_id = _primary_shooter_id(record)
+        if not shooter_id then return end
+
+        local squad = alife_object(squad_id)
+        if not squad then return end
+
+        local designated = _designated[squad_id]
+        if not designated then
+            designated = {}
+            _designated[squad_id] = designated
+        end
+
+        local npc_id = _pick_member(squad, designated)
+        if not npc_id then return end
+
+        if _designate(squad_id, npc_id, shooter_id) then
+            designated[npc_id] = true
+            if _dbg then designated_count = designated_count + 1 end
+        end
+    end)
+
+    tmr:stop()
+    if _dbg then
+        log.debug("[TICK] engaged_squads=%d designated=%d [%.2fms]",
+            engaged_count, designated_count, tmr:get_ms())
+    end
+end
+
+-- ==================== LIFECYCLE ====================
+
+local function _on_entity_unregister(se_obj)
+    if not se_obj then return end
+    _designated[se_obj.id] = nil
+end
+
+local function _refresh_config()
+    if not (at_mcm and at_mcm.get_config) then return end
+
+    local level_str = at_mcm.get_config("log_level") or "WARN"
+    log.set_level(level_str)
+    _dbg = log.get_level() >= 5
+
+    local v = at_mcm.get_config("dynamic_combat_enabled")
+    if v ~= nil then _enabled = v end
+end
+
+local function _on_first_update()
+    _designated = {}
+    _refresh_config()
+    RemoveTimeEvent(TIMER_EV, TIMER_TICK)
+    CreateTimeEvent(TIMER_EV, TIMER_TICK, TICK_INTERVAL_SEC, _on_tick)
+    log.info("Dynamic Combat initialized (enabled=%s, tick=%ds, reenable=%ds, dbg=%s)",
+        _enabled and "true" or "false", TICK_INTERVAL_SEC, REENABLE_DELAY_SEC,
+        _dbg and "true" or "false")
+end
+
+function on_game_start()
+    RegisterScriptCallback("server_entity_on_unregister", _on_entity_unregister)
+    RegisterScriptCallback("actor_on_first_update",       _on_first_update)
+    RegisterScriptCallback("on_option_change",            _refresh_config)
+    RegisterScriptCallback("mcm_option_restore_default",  _refresh_config)
+end

@@ -3,7 +3,7 @@
 local log = xlog.get_logger("AT.MCM", { outfile = "alifetactics.log" })
 
 -- ==================== DEFAULTS ====================
--- Squad Memory is internal core (substrate + role assignment), no MCM toggle.
+-- Squad Memory is internal core (substrate + decay), no MCM toggle.
 -- Each user-facing system has its own tab and its own master toggle.
 
 local defaults = {
@@ -27,8 +27,8 @@ local defaults = {
     acc_mult_expert        = 0.52,
     acc_mult_master        = 0.45,
     acc_mult_legend        = 0.38,
-    -- Maneuver
-    maneuver_enabled = true,
+    -- Dynamic Combat
+    dynamic_combat_enabled = true,
     -- Stance Switch
     stance_enabled = true,
     -- Development
@@ -60,8 +60,8 @@ local _key_to_tab = {
     acc_mult_expert        = "accuracy",
     acc_mult_master        = "accuracy",
     acc_mult_legend        = "accuracy",
-    -- Maneuver
-    maneuver_enabled = "maneuver",
+    -- Dynamic Combat
+    dynamic_combat_enabled = "dynamic_combat",
     -- Stance Switch
     stance_enabled = "stance",
     -- Development
@@ -148,15 +148,15 @@ function on_mcm_load()
                     { id = "acc_mult_legend",       type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 0.38 },
                 },
             },
-            -- ============ MANEUVER TAB ============
+            -- ============ DYNAMIC COMBAT TAB ============
             {
-                id = "maneuver",
+                id = "dynamic_combat",
                 sh = true,
                 gr = {
                     { id = "title", type = "slide", link = "at_mcm_banner",
                         text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
-                    { id = "desc", type = "desc", text = "ui_mcm_at_maneuver_desc" },
-                    { id = "maneuver_enabled", type = "check", val = 1, def = true },
+                    { id = "desc", type = "desc", text = "ui_mcm_at_dynamic_combat_desc" },
+                    { id = "dynamic_combat_enabled", type = "check", val = 1, def = true },
                 },
             },
             -- ============ STANCE SWITCH TAB ============

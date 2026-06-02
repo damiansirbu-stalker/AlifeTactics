@@ -14,10 +14,17 @@
 -- so other mods touching this seam are not silently overridden.
 
 local RegisterScriptCallback = RegisterScriptCallback
-local get_object_squad = get_object_squad
 
 local log = xlog.get_logger("AT.STANCE", { outfile = "alifetactics.log" })
 local _dbg = false
+
+-- Weapon kinds that crouch in static-cover ops. Sniper and launcher are
+-- long-range, sustained-fire weapons; crouch gives low silhouette + stable
+-- aim. Other kinds (pistol/shotgun/SMG/rifle/knife) keep vanilla stand.
+local CROUCH_KINDS = {
+    w_sniper   = true,
+    w_launcher = true,
+}
 
 -- ==================== CONSTANTS ====================
 
@@ -68,16 +75,18 @@ local function _on_combat_set_body_state(npc, wo, body_state)
     if body_state ~= BS_STAND then return body_state end
     if not npc then return body_state end
 
-    -- Role gate: only Suppressors crouch (base of fire, sustained-fire doctrine).
-    -- Lead/Assaulter/Flanker keep standing (movers + suppressor commander). Pre-disclosure
-    -- and squadless NPCs have no role - leave vanilla body_state.
-    local squad = get_object_squad(npc)
-    if not squad then return body_state end
-    local role = at_squad_memory and at_squad_memory.get_role(squad.id, npc:id())
-    if role ~= at_squad_memory.ROLE.SUPPRESSOR then return body_state end
+    -- Weapon-kind gate: sniper/launcher carriers crouch in static-cover ops
+    -- (base of fire, sustained-fire doctrine). Other weapon kinds keep
+    -- vanilla stand. Pure active_item read, no substrate dependency.
+    local wpn = npc:active_item()
+    if not wpn then return body_state end
+    local section = wpn:section()
+    if not section then return body_state end
+    local kind = ini_sys:r_string_ex(section, "kind")
+    if not kind or not CROUCH_KINDS[kind] then return body_state end
 
     if _dbg then
-        log.debug("[STANCE] id=%d op=%d role=%s stand->crouch", npc:id(), wo, role)
+        log.debug("[STANCE] id=%d op=%d kind=%s stand->crouch", npc:id(), wo, kind)
     end
     return BS_CROUCH
 end

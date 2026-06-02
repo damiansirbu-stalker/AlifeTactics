@@ -32,24 +32,18 @@ NPC weapon accuracy:
   AlifeTactics replaces that curve script-side. On every NPC shot the rank is read and a per-tier multiplier is applied to the engine's computed cone. Defaults run from novice at the vanilla baseline down to legend at roughly a third the cone width. Eight tier sliders in MCM tune each rank independently.
   Master stalkers shoot noticeably tighter than novices. The spread between ranks is configurable per tier, so you can flatten the curve, exaggerate it, or set extremes (laser masters, hopeless rookies).
 
-Squad roles:
-  When combat starts each squad member gets a role based on the squad's size and their weapon. Snipers and rocketeers become suppressors (long-range fire from cover). Shotgunners, pistoleers, and SMG carriers become assaulters (they need to close the distance to be effective). Riflemen become flankers (mid-range versatile, arc around). The squad commander is always the lead.
-  Distribution scales with squad size. A two-stalker squad has a leader and a fire base. A four-stalker squad adds an assault role and a flanker. Six-stalker squads spread further: two suppressors holding the fire base, one closing the distance, two arcing around to flank. Solos roll by weapon too: snipers always crouch as fire base, shotgunners and pistoleers stand as lead (they have no squad to assault for).
-  Roles are assigned once on the first hit against the squad and persist until the squad despawns. New members joining mid-fight default to flanker.
-  The behaviors below all read the role. Flanking and crouching are not always-on tricks but doctrinal positions held by specific squad members based on what they carry.
-
-Squad flanking:
+Dynamic combat:
   Vanilla NPC cover selection is per-stalker. Each member scores its own cover with no awareness of squadmates, so squads end up stacked behind one wall on one loophole. There is no flanking, no enfilade.
-  AlifeTactics dispatches the flankers and assaulters of an engaged squad toward angular positions around the disclosed enemy. Flankers arc to the left and right at sixty to ninety degrees from the enemy bearing. Additional flankers spread at inner angles. Assaulters close the distance straight forward.
-  What you see: squads stop clustering on one cover and spread around the engagement. Within a few seconds of an engagement starting, members move to fan out. The lead and suppressors stay put and lay down fire from their initial positions.
+  AlifeTactics rotates squad members through the engine's own flank-around-cover action. While the squad is in active combat, every twenty seconds one non-commander member has their memory of the primary shooter briefly suppressed for four seconds. The engine combat planner reads the modified memory and picks its built-in detour-enemy action: it scores a cover spot at an angle from the enemy bearing within ten meters (thirty fallback), runs the NPC there, and resumes firing. Rotation across members across ticks distributes the behavior.
+  What you see: a squad in cover starts shifting positions during sustained combat. Members peel off one at a time to angular cover spots, playing the engine's detour bark line. The squad ends up spread around the engagement instead of stacked on one loophole.
 
 Combat crouch:
   Vanilla NPC stance during combat is inherited from current state. A stalker that walked to cover standing stays standing in cover, and gets headshot through the chest-high crate they thought was protecting them.
-  AlifeTactics tells suppressors to crouch when the engine selects a static cover action: firing at the enemy, holding position, peeking from cover, waiting in cover, ambushing. Suppressors are the squad's base of fire; they crouch for low silhouette and stable sustained shooting.
-  Other roles do not crouch. Movers (lead, assaulter, flanker) keep standing to move fast under fire. The crouch is meaningful: it marks the member holding the fire base.
+  AlifeTactics tells snipers and rocket-launcher carriers to crouch when the engine selects a static cover action: firing at the enemy, holding position, peeking from cover, waiting in cover, ambushing. These weapons are long-range sustained-fire tools; crouching gives low silhouette and stable sustained shooting.
+  Other weapons keep vanilla stance. Riflemen, pistoleers, shotgunners, and SMG carriers stand up to move and fire normally. The crouch is meaningful: it marks the squad's fire base by weapon type alone, no role taxonomy needed.
 
 MCM:
-  Five tabs, each with master toggles. Squad Memory: master toggle, substrate retention, state machine timings. Stalker Healing: master toggle, medkit restoration (info-only, boot-time data layer), heal rate multiplier, per-rank healing-charge probability. Weapon Accuracy: master toggle, per-tier dispersion sliders for the eight rank tiers. Combat Tactics: squad flanking toggle, combat crouch toggle. Development: log level.
+  Six tabs, each with a master toggle. Hit Sharing: master toggle, per-shooter memory retention. Healing: master toggle, medkit restoration (info-only, boot-time data layer), heal rate multiplier, per-rank healing-charge probability. Accuracy: master toggle, per-tier dispersion sliders for the eight rank tiers. Dynamic Combat: master toggle. Stance Switch: master toggle. Development: log level.
 
 Backlog:
   Tactical flee, danger memory persistence, combat scheme selection, NPC weapon bias. The backlog file on GitHub tracks each.

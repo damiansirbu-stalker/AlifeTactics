@@ -21,7 +21,7 @@ Version 1.0.0.
 | `at_hitresponse.script` | feature | done |
 | `at_health.script` | feature | done |
 | `at_accuracy.script` | feature | done |
-| `at_maneuver.script` | feature | partial (works mechanically; effectiveness pending runtime verification) |
+| `at_dynamic_combat.script` | feature | done |
 | `at_stance.script` | feature | done |
 | `configs/ai_tweaks/mod_xr_eat_medkit_at.ltx` | data | done |
 
@@ -51,11 +51,11 @@ AlifeTactics/
 │   ├── scripts/
 │   │   ├── _at_deps.script                    # dependency gate
 │   │   ├── at_mcm.script                      # MCM configuration
-│   │   ├── at_squad_memory.script             # DTO + role assignment + decay
+│   │   ├── at_squad_memory.script             # DTO + decay
 │   │   ├── at_hitresponse.script              # Hit Sharing system
 │   │   ├── at_health.script                   # Healing system
 │   │   ├── at_accuracy.script                 # Accuracy system
-│   │   ├── at_maneuver.script                 # Maneuver system
+│   │   ├── at_dynamic_combat.script           # Dynamic Combat system
 │   │   ├── at_stance.script                   # Stance Switch system
 │   │   └── at_test.script                     # console test commands
 │   └── textures/
@@ -77,7 +77,7 @@ Each system has its own file, its own MCM tab, and one master toggle. Plus one i
 | Hit Sharing | `at_hitresponse.script` | Hit Sharing | `hit_share_enabled` |
 | Healing | `at_health.script` | Healing | `healing_enabled` |
 | Accuracy | `at_accuracy.script` | Accuracy | `accuracy_enabled` |
-| Maneuver | `at_maneuver.script` | Maneuver | `maneuver_enabled` |
+| Dynamic Combat | `at_dynamic_combat.script` | Dynamic Combat | `dynamic_combat_enabled` |
 | Stance Switch | `at_stance.script` | Stance Switch | `stance_enabled` |
 
 Plus `at_squad_memory.script` — internal core. No MCM exposure. Always on.
@@ -92,52 +92,13 @@ Record schema:
 
 | Field | Type | Written by | Read by | Description |
 |---|---|---|---|---|
-| `per_shooter[shooter_id]` | record | hit_share | maneuver | `{ count, last_hit_time, total_damage }` — accumulated hits per shooter against this squad |
+| `per_shooter[shooter_id]` | record | hit_share | dynamic_combat | `{ count, last_hit_time, total_damage }` — accumulated hits per shooter against this squad |
 | `disclosed_shooters[shooter_id]` | bool | hit_share | hit_share | session-persistent idempotency guard |
-| `engaged_until` | number | hit_share | maneuver | xtime.game_sec when active combat ends; set to `now + ENGAGED_WINDOW_SEC` on every kept hit |
-| `roles[member_id]` | string | squad_memory | maneuver, stance | tactical role per member: `lead` / `suppressor` / `assaulter` / `flanker` |
-
-Role assignment (`assign_roles`) is called from hit_share on first disclosure per squad. Idempotent — repeats no-op. Roles never change once assigned. New members joining the squad after assignment default to FLANKER.
+| `engaged_until` | number | hit_share | dynamic_combat | xtime.game_sec when active combat ends; set to `now + ENGAGED_WINDOW_SEC` on every kept hit |
 
 Decay tick (every 5s) prunes `per_shooter` entries older than `substrate_retention_sec` (MCM-tunable, default 60s).
 
 The substrate has no on/off toggle. The DTO is always available; if hit_share is disabled, nothing writes to it, but consumers can still call `get()` safely (record will be empty).
-
-### Tactical role distribution
-
-Doctrine reference: US Army FM 3-21.8 small-unit infantry tactics — fire and movement, base of fire + maneuver element split.
-
-| Role | Function |
-|---|---|
-| Lead | commander, holds front |
-| Suppressor | base of fire from cover (low silhouette, sustained fire) |
-| Assaulter | closes distance, runs toward enemy |
-| Flanker | maneuvers to angular position |
-
-Distribution scaled by squad size:
-
-| Squad size | Lead | Suppressor | Assaulter | Flanker |
-|---|---|---|---|---|
-| 1 (solo) | 50% | 50% | 0 | 0 |
-| 2 | 1 | 1 | 0 | 0 |
-| 3 | 1 | 1 | 0 | 1 |
-| 4 | 1 | 1 | 1 | 1 |
-| 5 | 1 | 2 | 1 | 1 |
-| 6 | 1 | 2 | 1 | 2 |
-| 7 | 1 | 2 | 1 | 3 |
-| 8+ | 1 | 3 | 1 | (rest) |
-
-Solo NPCs (size 1) roll by weapon: sniper/launcher always Suppressor, pistol/shotgun/SMG always Lead, rifle and other 50/50 Lead-or-Suppressor.
-
-Non-commander role assignment is weapon-driven via the `kind` field on the NPC's active item:
-
-| Weapon kind | Preferred role |
-|---|---|
-| `w_sniper`, `w_launcher` | Suppressor |
-| `w_pistol`, `w_shotgun`, `w_smg`, `w_knife` | Assaulter |
-| `w_rifle` | Flanker |
-
-Assignment is greedy: each member tries their preferred role first; cap overflow falls through to Flanker.
 
 ---
 
@@ -164,7 +125,7 @@ Hooks `npc_on_hit_callback`. When a faction-enemy hits any squad member, the ent
 4. Substrate writes: increment `record.per_shooter[shooter_id].count`, refresh `last_hit_time`, accumulate `total_damage`.
 5. Write `record.engaged_until = now + ENGAGED_WINDOW_SEC` — marks the squad as in active combat for the next window.
 6. Idempotency check: if `record.disclosed_shooters[shooter_id]` is set, return.
-7. Otherwise, set the flag, call `at_squad_memory.assign_roles(squad)`, and call `_disclose(squad, who)` — three engine APIs per online squadmate:
+7. Otherwise, set the flag and call `_disclose(squad, who)` — three engine APIs per online squadmate:
 
    - **`force_set_goodwill(-2000, who)`** — writes RELATION_REGISTRY personal goodwill (`relation_registry.cpp:161-179`). `CAI_Stalker::tfGetRelationType` routes through RELATION_REGISTRY for stalkers so this drives every downstream `is_relation_enemy` check. Gated on `IsStalker(who)`: `ForceSetGoodwill` smart_casts both ids to `CSE_ALifeTraderAbstract` and logs an error for mutants. For mutant / helicopter / anomaly shooters, the goodwill write is skipped.
    - **`enable_memory_object(who, true)`** — toggles `m_enabled` on existing visual/sound/hit memory entries (`memory_manager.cpp:151-156`). No-op when no prior entry; cheap insurance otherwise. Works for any shooter type.
@@ -213,80 +174,78 @@ Per-shot hot path. Cost ~1.5μs per call when DEBUG off (2 luabind crossings via
 
 ---
 
-## Maneuver
+## Dynamic Combat
 
-Squad-coordinated combat positioning. Per-NPC GOAP injection on `motivation_action_manager`.
+Drives engine combat sub-actions via memory-input manipulation. No GOAP injection, no combat_planner block, no forced movement via `set_dest_level_vertex_id`, no `default_custom_data.ltx` overlay, no vanilla script monkey-patching. The engine's existing combat sub-planner picks `CStalkerActionDetourEnemy` (op 25) when its preconditions align; AT temporarily flips one of those preconditions and lets the engine run.
 
-### Design
+### Mechanism
 
-Each non-commander member's evaluator returns true when:
-1. Maneuver is enabled
-2. NPC is alive and not wounded
-3. NPC has a `best_enemy` (engine memory)
-4. Squad exists and is not Monolith/zombied
-5. Squad is currently engaged (`xtime.game_sec() < record.engaged_until`)
-6. Member's role is Assaulter or Flanker (Lead and Suppressor pass through)
-7. 2-second throttle expired for this squad
-8. Substrate has a primary enemy (highest count in `per_shooter`)
+`CStalkerActionDetourEnemy` preconditions (`stalker_combat_planner.cpp:387-405`):
 
-Action `:execute()`:
-1. Compute direction from NPC to primary enemy
-2. Rotate by role-specific angle (Assaulter: 0°; Flanker: outer ±60-90° for ranks 1/2, inner ±15-55° alternating for 3+)
-3. Pick a level vertex via `level.vertex_in_direction(base_vid, rotated_dir, radius)` with fallback walk-down
-4. Call `npc:set_dest_level_vertex_id(vid)` and `npc:set_path_type(game_object.level_path)`
-5. Call `state_mgr.set_state(npc, "assault_fire", nil, nil, {look_object = npc:best_enemy()}, {fast_set = true})` so the NPC fires while moving
+```
+ReadyToKill=true, ReadyToDetour=true, InCover=false, LookedOut=true,
+PositionHolded=true, SeeEnemy=false, EnemyDetoured=false, Panic=false,
+ShouldThrowGrenade=false, TooFarToKillEnemy=false, CriticallyWounded=false,
+DangerGrenade=false, UseSuddenness=false, EnemyWounded=false, PlayerOnThePath=false
+```
 
-### GOAP wiring
+Effect: `EnemyDetoured=true`.
 
-Action preconditions: `property_alive=true`, `property_enemy=true`, `property_danger=true`, `MANEUVER_EVAID=true`. Effect: `MANEUVER_EVAID=false`.
+`SeeEnemy` is the lever. The evaluator (`stalker_property_evaluators.cpp:127-132`) reads `memory().enemy().selected() ? visual().visible_now(selected) : false`. When `enable_memory_object(shooter, false)` is called (`script_game_object2.cpp:260-268`), the engine's memory manager toggles `m_enabled=false` on the visual / sound / hit entries for that shooter (`memory_manager.cpp:151-156`). The next `memory().update_enemies` cycle filters disabled entries (`memory_manager.cpp:164-166`); when the disabled shooter was the squad's sole tracked enemy, `enemy().selected()` switches to null and `SeeEnemy` evaluates false.
 
-`configure_actions` grafts `MANEUVER_EVAID=false` precondition onto five existing actions:
-- `stalker_ids.action_combat_planner`
-- `stalker_ids.action_danger_planner`
-- `xr_actions_id.state_mgr + 2`
-- `xr_actions_id.alife`
-- `xr_danger.actid`
+In the cover cycle (TakeCover → LookOut → HoldPosition), the NPC has already accumulated `LookedOut=true` and `PositionHolded=true`. Once `SeeEnemy` flips false on the next memory cycle, the planner picks `DetourEnemy`. The engine handles its own vertex pick, level-path routing, body-state, sound, and fire (`stalker_combat_actions.cpp:924-940`).
 
-This is the pattern from `axr_fight_from_cover.script` (ReDone Combat AI / Wuut AI Extension). Blocking the combat_planner via precondition forces the engine planner to run our action first to satisfy the new requirement. Our action's effect provides `MANEUVER_EVAID=false`, satisfying combat_planner's grafted precondition. Combat_planner is then unblocked but the evaluator re-queries on the next planner tick and returns true again (squad still engaged), so our action runs every tick as long as the squad is engaged.
+### Tick
 
-Without this graft (combat_planner unblocked), the engine planner picks combat_planner over our action because combat_planner's effect (`property_enemy=false`) directly satisfies the parent goal direction while our action's effect does not.
+One global `CreateTimeEvent` at `TICK_INTERVAL_SEC=20`. Each fire:
 
-### Binder
+1. Walk `at_squad_memory.iterate`. For each engaged squad (`engaged_until > xtime.game_sec`):
+2. Resolve primary shooter by highest `per_shooter.count`.
+3. Pick one non-commander squad member who has not been designated this rotation. Filter for alive, non-wounded, online. When all candidates are designated, reset the rotation set and pick afresh. Random selection from the fresh pool.
+4. Call `npc:enable_memory_object(shooter, false)`.
+5. Schedule a one-shot `CreateTimeEvent` at `REENABLE_DELAY_SEC=4` that re-resolves `npc` and `shooter` via `level.object_by_id` and calls `enable_memory_object(shooter, true)`. The re-enable closure is a no-op if either side has gone offline by fire time.
 
-Per-NPC bind via `npc_on_net_spawn`. Deferred to after `actor_on_first_update` via `_first_update_fired` flag to avoid modifying GOAP during LSS save-restoration. The xslice sweep at first_update binds pre-existing NPCs in batches of 5 per frame. Late spawns hit the immediate-bind path.
+The 4-second window lets the engine planner run `DetourEnemy` to completion (vertex pick + path traversal + fire) before memory restores. After re-enable, the next memory cycle re-detects the shooter and the planner moves to the next phase of the cover cycle.
 
-`FACTION_SKIP` excludes Monolith and zombied stalkers from binding (they have their own combat archetypes).
+### Rotation
+
+Per-squad designated set: `_designated[squad_id] = { [npc_id] = true, ... }`. Each tick marks the picked member; rotation resets when the set covers every eligible member. With a 4-member squad and 20s tick interval, the full rotation completes in 80s; the re-enable (4s) always fires before the same member could be re-picked.
+
+### Disable behavior
+
+When `dynamic_combat_enabled = false`, the tick still fires every 20s but returns immediately. No memory toggles, no designations. The vanilla engine combat planner runs unmodified.
 
 ---
 
 ## Stance Switch
 
-Hooks the modded-exe `_G.CAI_Stalker__CombatSetBodyState(npc, wo, body_state)` functor at `stalker_movement_manager_base_inline.h:51-59`. Returns `eBodyStateCrouch` for Suppressor-role NPCs when the engine selected Stand for a static-cover operator.
+Hooks the modded-exe `_G.CAI_Stalker__CombatSetBodyState(npc, wo, body_state)` functor at `stalker_movement_manager_base_inline.h:51-59`. Returns `eBodyStateCrouch` for sniper and launcher carriers when the engine selected Stand for one of the override operators.
 
 ### Engine call sites
 
 The functor fires from `body_state_combat_override` calls in `stalker_combat_actions.cpp`. Enumerated EWorldOperators that reach the functor: `{12, 14, 17, 20, 21, 22, 23, 25, 27, 28, 39}` (GetItemToKill, MakeItemKilling, GetReadyToKill, RetreatFromEnemy, TakeCover, LookOut, HoldPosition, DetourEnemy, HideFromGrenade, SuddenAttack, ThrowGrenade).
 
-Of these, the only static-cover ops are LookOut (22) and HoldPosition (23). The remaining operators are movement transients where crouch is doctrinally wrong (slows movement under fire).
-
 ### Override set
 
 ```
 OVERRIDE_OPS = {
+    [OP_KILL_ENEMY]    = true,  -- 19
     [OP_LOOKOUT]       = true,  -- 22
     [OP_HOLD_POSITION] = true,  -- 23
+    [OP_WAIT_IN_COVER] = true,  -- 41
+    [OP_HOLD_AMBUSH]   = true,  -- 44
 }
 ```
 
-Once a Suppressor is crouched via LookOut or HoldPosition, subsequent actions (KillEnemy, WaitInCover, HoldAmbushLocation) inherit the body_state from the previous action — the engine doesn't call `set_body_state` for these. So Suppressor stays crouched through sustained fire by inheritance.
+These are the static-cover firing ops. Once crouched on entry to one of them, subsequent actions inherit body_state until the engine calls `set_body_state` again for a transient operator.
 
 ### Composition chain
 
-`_prev_functor` captures any prior `_G.CAI_Stalker__CombatSetBodyState` installer at `on_game_start`. The chain ensures we compose with any other mod touching this seam instead of silently overriding.
+`_prev_functor` captures any prior `_G.CAI_Stalker__CombatSetBodyState` installer at `on_game_start`. The chain composes with any other mod touching this seam instead of silently overriding.
 
-### Role gate
+### Weapon-kind gate
 
-Reads role via `at_squad_memory.get_role(squad_id, npc_id)`. Returns vanilla body_state for Lead / Assaulter / Flanker / unbound NPCs. Suppressor returns Crouch when engine picked Stand.
+Reads `kind` from the NPC's `active_item():section()` via `ini_sys:r_string_ex(section, "kind")`. Crouches when `kind == "w_sniper"` or `kind == "w_launcher"`. All other weapon kinds (including `w_rifle`, `w_pistol`, `w_shotgun`, `w_smg`, `w_knife`) and NPCs without an active item pass through with the engine's chosen body_state. No squad-memory dependency, no role taxonomy.
 
 ---
 
@@ -299,7 +258,7 @@ The architecture principle is to feed engine memory and state, not fight it. Per
 | Hit Sharing | RELATION_REGISTRY personal goodwill, memory entry m_enabled, agent_member_manager m_combat_mask | `force_set_goodwill`, `enable_memory_object`, `register_in_combat` |
 | Healing | NPC health field, bleeding field, `healing_charge` se_var | `change_health`, direct `bleeding =` write, `se_save_var` |
 | Accuracy | Per-shot dispersion radius via callback return | (subscribes to `npc_shot_dispersion`) |
-| Maneuver | NPC dest level_vertex_id, path_type, animation state | `set_dest_level_vertex_id`, `set_path_type`, `state_mgr.set_state` |
+| Dynamic Combat | NPC memory entry m_enabled (visual / sound / hit) for primary shooter | `enable_memory_object` |
 | Stance Switch | NPC body_state via functor return | (functor at `_G.CAI_Stalker__CombatSetBodyState`) |
 
 The engine then runs its own combat detection (property_enemy, m_combat_mask, agent_memory propagation) on the state we wrote. No system reimplements engine behavior; each one nudges engine state to produce the desired outcome.
@@ -315,7 +274,7 @@ Each module owns its own `xlog.get_logger("AT.X", { outfile = "alifetactics.log"
 - `AT.HIT` — Hit Sharing
 - `AT.HEALTH` — Healing
 - `AT.ACC` — Accuracy
-- `AT.MANEUVER` — Maneuver
+- `AT.DYN` — Dynamic Combat
 - `AT.STANCE` — Stance Switch
 - `AT.TEST` — console test harness
 
@@ -327,7 +286,6 @@ MCM `log_level` (ERROR/WARN/INFO/DEBUG) controls verbosity. Each module subscrib
 
 - `[DECAY]` — substrate decay tick stats
 - `[CLEAR]` — substrate clear on entity unregister
-- `[ROLES]` — role assignment per squad with distribution
 - `[HIT]` — hit handler reject reasons or already-disclosed cases (includes `engaged_until`)
 - `[DISCLOSURE]` — full-squad disclosure with member count and `engaged_until`
 - `[UNREGISTER]` — substrate cleanup on entity despawn
@@ -335,9 +293,9 @@ MCM `log_level` (ERROR/WARN/INFO/DEBUG) controls verbosity. Each module subscrib
 - `[CHARGE]` — healing charge rolls
 - `[PATCH]` — install messages for xr_eat_medkit patches
 - `[ACC]` — per-shot accuracy calculation
-- `[SWEEP]` — xslice bind sweep status
-- `[BIND]` — per-NPC GOAP bind
-- `[MANEUVER]` `eval_true`, `init`, `dispatch`, `no_vid`, `skip`, `set_state`, `set_state_skip`
+- `[TICK]` — dynamic combat tick: engaged squad count and designations issued
+- `[DESIGNATE]` — per-NPC memory disable on designation (with reenable delay)
+- `[REENABLE]` — per-NPC memory restore after the detour window elapses
 - `[STANCE]` — body_state override fires
 
 ---

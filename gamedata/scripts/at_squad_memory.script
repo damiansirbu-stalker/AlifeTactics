@@ -1,9 +1,8 @@
 --- at_squad_memory: Shared per-squad combat memory substrate
--- Owns the per-squad record table. Behaviors (hit disclosure, maneuver,
+-- Owns the per-squad record table. Behaviors (hit disclosure, dynamic combat,
 -- tactical flee) read and write here instead of duplicating per-NPC state.
 
-local pairs, ipairs, math_random, RegisterScriptCallback =
-    pairs, ipairs, math.random, RegisterScriptCallback
+local pairs, RegisterScriptCallback = pairs, RegisterScriptCallback
 -- DO NOT cache CreateTimeEvent / ResetTimeEvent / RemoveTimeEvent as locals.
 -- demonized_time_events.script replaces them; cached locals capture the dead
 -- originals and timers never fire. See doc/library/xray/internals/globals.md:208-219.
@@ -19,43 +18,6 @@ local DECAY_INTERVAL_SEC    = 5
 local DEFAULT_RETENTION_SEC = 60
 ENGAGED_WINDOW_SEC          = 60
 
--- Tactical roles per Lead / Suppressor / Assaulter / Flanker doctrine
--- (US Army FM 3-21.8 small-unit infantry). Distribution is scaled by squad size:
---   solo (1): 50/50 Lead or Suppressor
---   2:        Lead + 1 Suppressor
---   3:        Lead + 1 Suppressor + 1 Flanker
---   4:        Lead + 1 Suppressor + 1 Assaulter + 1 Flanker
---   5:        Lead + 2 Suppressor + 1 Assaulter + 1 Flanker
---   6:        Lead + 2 Suppressor + 1 Assaulter + 2 Flanker
---   7:        Lead + 2 Suppressor + 1 Assaulter + 3 Flanker
---   8+:       Lead + 3 Suppressor + 1 Assaulter + (rest) Flanker
-ROLE = {
-    LEAD       = "lead",
-    SUPPRESSOR = "suppressor",
-    ASSAULTER  = "assaulter",
-    FLANKER    = "flanker",
-}
-
--- Weapon-driven role preference. Each member's preference is determined by their
--- active_item's "kind" field (system.ltx). The size mix caps each role count, so
--- preferences are honored greedily; overflow falls through to Flanker.
---
--- Doctrine:
---   sniper, launcher  -> Suppressor (long-range, base of fire)
---   pistol, shotgun, SMG, knife -> Assaulter (CQB-only, must close distance)
---   rifle             -> Flanker (versatile, maneuver element)
-local WEAPON_ROLE_PREF = {
-    w_pistol   = "assaulter",
-    w_shotgun  = "assaulter",
-    w_smg      = "assaulter",
-    w_knife    = "assaulter",
-    w_rifle    = "flanker",
-    w_sniper   = "suppressor",
-    w_launcher = "suppressor",
-}
-
-local INVALID_GROUP = 65535
-
 -- ==================== STATE ====================
 
 local _records = {}
@@ -67,121 +29,9 @@ local function _new_record()
         per_shooter        = {},
         disclosed_shooters = {},
         -- Set by hit_share on every kept hit: now + ENGAGED_WINDOW_SEC.
-        -- Read by maneuver to decide if the squad is currently in active combat.
+        -- Read by dynamic_combat to decide if the squad is currently in active combat.
         engaged_until      = 0,
-        -- Lazy-init on first assign_roles call. Shape: { [npc_id] = ROLE.X, ... }
-        roles = nil,
     }
-end
-
--- Tactical role count per (sup, asslt, flank) for a given non-commander count.
--- Returns three numbers summing to the non-commander count.
-local function _role_counts(nc)
-    if     nc <= 0 then return 0, 0, 0
-    elseif nc == 1 then return 1, 0, 0           -- 1 Sup
-    elseif nc == 2 then return 1, 0, 1           -- 1 Sup + 1 Flank
-    elseif nc == 3 then return 1, 1, 1           -- 1 Sup + 1 Asslt + 1 Flank
-    elseif nc == 4 then return 2, 1, 1           -- 2 Sup + 1 Asslt + 1 Flank
-    elseif nc == 5 then return 2, 1, 2
-    elseif nc == 6 then return 2, 1, 3
-    elseif nc == 7 then return 3, 1, 3
-    else                return 3, 1, nc - 4      -- 8+: 3 Sup + 1 Asslt + rest Flank
-    end
-end
-
--- Read a member's weapon-driven role preference. Returns the preferred role string,
--- or nil for offline / unarmed / unknown-kind members (caller treats nil as Flanker
--- default).
--- @cost 3-4 luabind per call (level.object_by_id + active_item + section + ini read)
-local function _npc_weapon_pref(npc_id)
-    local npc = level.object_by_id(npc_id)
-    if not npc then return nil end
-    local wpn = npc:active_item()
-    if not wpn then return nil end
-    local sec = wpn:section()
-    if not sec then return nil end
-    local kind = ini_sys:r_string_ex(sec, "kind")
-    return kind and WEAPON_ROLE_PREF[kind] or nil
-end
-
--- Solo-squad role roll. Weapon-aware: sniper/launcher always Suppressor (matches
--- weapon character); pistol/shotgun/SMG always Lead (Assaulter needs squad to assault
--- for, doesn't apply solo); rifle and everything else rolls 50/50 Lead/Suppressor.
-local function _solo_role(npc_id)
-    local pref = _npc_weapon_pref(npc_id)
-    if pref == ROLE.SUPPRESSOR then return ROLE.SUPPRESSOR end
-    if pref == ROLE.ASSAULTER  then return ROLE.LEAD end
-    return (math_random() < 0.5) and ROLE.LEAD or ROLE.SUPPRESSOR
-end
-
--- Build a fresh roles table for the squad. Commander is Lead (or weapon-aware solo
--- role for size-1 squads). Non-commanders distributed by squad size via _role_counts,
--- with weapon-driven preference: each member tries their preferred role first; cap
--- overflow falls through to Flanker (universal fallback).
-local function _assign_roles_table(squad)
-    if not squad or not squad.squad_members then return {} end
-
-    local commander_id = squad.commander_id and squad:commander_id() or nil
-    if commander_id == INVALID_GROUP then commander_id = nil end
-
-    local non_commanders = {}
-    local total = 0
-    for member in squad:squad_members() do
-        total = total + 1
-        if commander_id and member.id == commander_id then
-            -- commander slot reserved
-        else
-            non_commanders[#non_commanders + 1] = member.id
-        end
-    end
-
-    local roles = {}
-
-    -- Solo case
-    if total <= 1 then
-        local lone_id = commander_id or non_commanders[1]
-        if lone_id then roles[lone_id] = _solo_role(lone_id) end
-        return roles
-    end
-
-    if commander_id then roles[commander_id] = ROLE.LEAD end
-
-    local sup_n, asslt_n, flank_n = _role_counts(#non_commanders)
-    local caps = {
-        [ROLE.SUPPRESSOR] = sup_n,
-        [ROLE.ASSAULTER]  = asslt_n,
-        [ROLE.FLANKER]    = flank_n,
-    }
-
-    -- First pass: assign by weapon preference where the role cap allows.
-    local pending = {}
-    for _, id in ipairs(non_commanders) do
-        local pref = _npc_weapon_pref(id)
-        if pref and caps[pref] > 0 then
-            roles[id] = pref
-            caps[pref] = caps[pref] - 1
-        else
-            pending[#pending + 1] = id
-        end
-    end
-
-    -- Second pass: fill remaining members into open slots, preferring Flanker.
-    for _, id in ipairs(pending) do
-        if caps[ROLE.FLANKER] > 0 then
-            roles[id] = ROLE.FLANKER
-            caps[ROLE.FLANKER] = caps[ROLE.FLANKER] - 1
-        elseif caps[ROLE.SUPPRESSOR] > 0 then
-            roles[id] = ROLE.SUPPRESSOR
-            caps[ROLE.SUPPRESSOR] = caps[ROLE.SUPPRESSOR] - 1
-        elseif caps[ROLE.ASSAULTER] > 0 then
-            roles[id] = ROLE.ASSAULTER
-            caps[ROLE.ASSAULTER] = caps[ROLE.ASSAULTER] - 1
-        else
-            roles[id] = ROLE.FLANKER  -- defensive: should never reach here
-        end
-    end
-
-    return roles
 end
 
 local function _retention_sec()
@@ -255,50 +105,6 @@ local function _on_first_update()
 end
 
 -- ==================== PUBLIC ====================
-
---- Assign tactical roles for the squad's members. Idempotent: if roles are already set,
---- only fills in any new members (e.g. squad members spawned after the first assignment).
---- Called from at_hitresponse after the first disclosure event for a squad.
---- @param squad cse_alife_squad
-function assign_roles(squad)
-    if not squad then return end
-    local record = get(squad.id)
-    if record.roles then
-        -- Fill any new member ids missing from the table without re-rolling existing.
-        local existing = record.roles
-        for member in squad:squad_members() do
-            if not existing[member.id] then
-                existing[member.id] = ROLE.FLANKER  -- new joiner default
-            end
-        end
-        return
-    end
-    record.roles = _assign_roles_table(squad)
-    if _dbg then
-        local sup, asslt, flank, lead = 0, 0, 0, 0
-        for _, r in pairs(record.roles) do
-            if     r == ROLE.LEAD       then lead   = lead   + 1
-            elseif r == ROLE.SUPPRESSOR then sup    = sup    + 1
-            elseif r == ROLE.ASSAULTER  then asslt  = asslt  + 1
-            elseif r == ROLE.FLANKER    then flank  = flank  + 1
-            end
-        end
-        log.debug("[ROLES] squad=%d lead=%d sup=%d asslt=%d flank=%d",
-            squad.id, lead, sup, asslt, flank)
-    end
-end
-
---- Read the role for a squad member. Returns nil if no roles assigned yet (pre-disclosure)
---- or if the member id is not in the squad's role table. Callers should treat nil as
---- "vanilla behavior" - no override, no role-specific dispatch.
---- @param squad_id number
---- @param npc_id number
---- @return string|nil ROLE.* value
-function get_role(squad_id, npc_id)
-    local record = _records[squad_id]
-    if not record or not record.roles then return nil end
-    return record.roles[npc_id]
-end
 
 --- Get the squad record, lazy-initializing if absent
 function get(squad_id)
