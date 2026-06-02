@@ -1,6 +1,6 @@
 # AlifeTactics Architecture
 
-Combat AI mod for STALKER Anomaly. Built around a shared per-squad memory DTO that user-facing systems consume. Five user-facing systems sit on top of one internal core.
+Combat AI mod for STALKER Anomaly. Built around a shared per-squad memory DTO that user-facing systems consume. Four user-facing systems sit on top of one internal core.
 
 Built on xlibs (xsquad, xttltable, xtime, xprofiler, xlog, xmcm, xslice, xcreature).
 
@@ -21,7 +21,6 @@ Version 1.0.0.
 | `at_hitresponse.script` | feature | done |
 | `at_health.script` | feature | done |
 | `at_accuracy.script` | feature | done |
-| `at_dynamic_combat.script` | feature | done |
 | `at_stance.script` | feature | done |
 | `configs/ai_tweaks/mod_xr_eat_medkit_at.ltx` | data | done |
 
@@ -55,7 +54,6 @@ AlifeTactics/
 │   │   ├── at_hitresponse.script              # Hit Sharing system
 │   │   ├── at_health.script                   # Healing system
 │   │   ├── at_accuracy.script                 # Accuracy system
-│   │   ├── at_dynamic_combat.script           # Dynamic Combat system
 │   │   ├── at_stance.script                   # Stance Switch system
 │   │   └── at_test.script                     # console test commands
 │   └── textures/
@@ -68,7 +66,7 @@ Namespace: `at_*` (parallel to `ap_*` for AlifePlus, `ag_*` for AlifeGuard, `x*`
 
 ---
 
-## Five user-facing systems
+## Four user-facing systems
 
 Each system has its own file, its own MCM tab, and one master toggle. Plus one internal core that all squad-aware systems read from.
 
@@ -77,7 +75,6 @@ Each system has its own file, its own MCM tab, and one master toggle. Plus one i
 | Hit Sharing | `at_hitresponse.script` | Hit Sharing | `hit_share_enabled` |
 | Healing | `at_health.script` | Healing | `healing_enabled` |
 | Accuracy | `at_accuracy.script` | Accuracy | `accuracy_enabled` |
-| Dynamic Combat | `at_dynamic_combat.script` | Dynamic Combat | `dynamic_combat_enabled` |
 | Stance Switch | `at_stance.script` | Stance Switch | `stance_enabled` |
 
 Plus `at_squad_memory.script` — internal core. No MCM exposure. Always on.
@@ -174,62 +171,6 @@ Per-shot hot path. Cost ~1.5μs per call when DEBUG off (2 luabind crossings via
 
 ---
 
-## Dynamic Combat
-
-Per-NPC override of the combat planner's `SeeEnemy` evaluator via `add_evaluator(stalker_ids.property_see_enemy, ...)` on each NPC's combat planner. When the squad's rotation marks an NPC as designated, the evaluator returns false; the engine combat sub-planner sees `SeeEnemy=false` and picks `CStalkerActionDetourEnemy`. No engine memory mutation, no `enable_memory_object` calls, no GOAP graft on existing actions, no combat_planner block, no forced movement via `set_dest_level_vertex_id`, no `default_custom_data.ltx` overlay, no vanilla script monkey-patching.
-
-### Mechanism
-
-`CStalkerActionDetourEnemy` preconditions (`stalker_combat_planner.cpp:387-405`):
-
-```
-ReadyToKill=true, ReadyToDetour=true, InCover=false, LookedOut=true,
-PositionHolded=true, SeeEnemy=false, EnemyDetoured=false, Panic=false,
-ShouldThrowGrenade=false, TooFarToKillEnemy=false, CriticallyWounded=false,
-DangerGrenade=false, UseSuddenness=false, EnemyWounded=false, PlayerOnThePath=false
-```
-
-Effect: `EnemyDetoured=true`.
-
-`SeeEnemy` (property id 15, `stalker_decision_space.h:33`) is the lever. Engine evaluator (`stalker_property_evaluators.cpp:127-132`) returns `selected ? visible_now(selected) : false`. Our evaluator replaces it on the combat planner via `combat:add_evaluator(stalker_ids.property_see_enemy, ours)` (same pattern as `post_combat_idle.script:218-222`). Our `evaluate()`:
-
-```
-if _designated[squad.id][npc:id()] then return false end
-local be = npc:best_enemy()
-if not be then return false end
-return npc:see(be) and true or false
-```
-
-When designated, return false unconditionally. When not designated, mirror engine semantics so non-designated NPCs are unaffected.
-
-In the cover cycle (TakeCover → LookOut → HoldPosition), the NPC has already accumulated `LookedOut=true` and `PositionHolded=true`. While designated, `SeeEnemy=false`, the planner picks `DetourEnemy`. The engine handles its own vertex pick, level-path routing, body-state, sound, and fire (`stalker_combat_actions.cpp:924-1022`) via `CCoverEvaluatorAngle` at 10m primary / 30m fallback.
-
-### Tick
-
-One global `CreateTimeEvent` at `TICK_INTERVAL_SEC=20`. Each fire:
-
-1. Walk `at_squad_memory.iterate`. For each engaged squad (`engaged_until > xtime.game_sec`):
-2. Skip monolith / zombied factions (their own combat archetype).
-3. Pick one non-commander squad member who has not been designated this rotation. Filter for alive, non-wounded, online. When all candidates are designated, reset the rotation set and pick afresh.
-4. Mark the picked member designated in `_designated[squad_id][npc_id]`.
-5. Schedule a one-shot `CreateTimeEvent` at `DESIGNATE_HOLD_SEC=4` that clears the designation (pure Lua flag flip, no engine APIs).
-
-While designated, the NPC's combat planner sees `SeeEnemy=false`, picks `DetourEnemy`, runs it. After 4s the clear timer fires, `_designated[squad_id][npc_id]` becomes nil, our evaluator falls through to the engine mirror path; next planner tick `SeeEnemy` reflects actual visibility, the planner moves to KillEnemy / LookOut / whatever vanilla would pick.
-
-### Rotation
-
-Per-squad designated set: `_designated[squad_id] = { [npc_id] = true, ... }`. Each tick marks one picked member; the short-lived clear timer (4s) releases that slot. Full-rotation reset (`_pick_member` zeroes the set when no fresh candidates remain) is a safety net for cases where the per-NPC clear timer was lost.
-
-### Binder
-
-Per-NPC bind via `npc_on_net_spawn`. Deferred to after `actor_on_first_update` via `_first_update_fired` flag to avoid modifying GOAP during LSS save-restoration. xslice sweep at first_update binds pre-existing online stalkers in batches of 5 per frame. Late spawns hit the immediate-bind path. AC_ID and `actor_visual_stalker` skipped (actor's combat planner is not exposed the same way).
-
-### Disable behavior
-
-When `dynamic_combat_enabled = false`, the evaluator's designated-check short-circuits (the `if _enabled` guard at the top of `evaluate()`). The evaluator still runs and still mirrors engine semantics for SeeEnemy, but never returns false on designation grounds. The tick continues to fire every 20s but is a no-op. The vanilla engine combat planner runs unmodified through our pass-through evaluator.
-
----
-
 ## Stance Switch
 
 Hooks the modded-exe `_G.CAI_Stalker__CombatSetBodyState(npc, wo, body_state)` functor at `stalker_movement_manager_base_inline.h:51-59`. Returns `eBodyStateCrouch` for sniper and launcher carriers when the engine selected Stand for one of the override operators.
@@ -271,7 +212,6 @@ The architecture principle is to feed engine memory and state, not fight it. Per
 | Hit Sharing | RELATION_REGISTRY personal goodwill, memory entry m_enabled, agent_member_manager m_combat_mask | `force_set_goodwill`, `enable_memory_object`, `register_in_combat` |
 | Healing | NPC health field, bleeding field, `healing_charge` se_var | `change_health`, direct `bleeding =` write, `se_save_var` |
 | Accuracy | Per-shot dispersion radius via callback return | (subscribes to `npc_shot_dispersion`) |
-| Dynamic Combat | Combat planner SeeEnemy property evaluator (per-NPC override) | `combat_planner:add_evaluator(stalker_ids.property_see_enemy, ...)` |
 | Stance Switch | NPC body_state via functor return | (functor at `_G.CAI_Stalker__CombatSetBodyState`) |
 
 The engine then runs its own combat detection (property_enemy, m_combat_mask, agent_memory propagation) on the state we wrote. No system reimplements engine behavior; each one nudges engine state to produce the desired outcome.
@@ -287,7 +227,6 @@ Each module owns its own `xlog.get_logger("AT.X", { outfile = "alifetactics.log"
 - `AT.HIT` — Hit Sharing
 - `AT.HEALTH` — Healing
 - `AT.ACC` — Accuracy
-- `AT.DYN` — Dynamic Combat
 - `AT.STANCE` — Stance Switch
 - `AT.TEST` — console test harness
 
@@ -306,11 +245,6 @@ MCM `log_level` (ERROR/WARN/INFO/DEBUG) controls verbosity. Each module subscrib
 - `[CHARGE]` — healing charge rolls
 - `[PATCH]` — install messages for xr_eat_medkit patches
 - `[ACC]` — per-shot accuracy calculation
-- `[TICK]` — dynamic combat tick: engaged squad count and designations issued
-- `[DESIGNATE]` — per-NPC SeeEnemy held false on designation (with hold duration)
-- `[CLEAR]` — per-NPC designation released after the hold window elapses
-- `[BIND]` — per-NPC SeeEnemy evaluator bound on the combat planner
-- `[SWEEP]` — xslice bind sweep status for pre-existing online stalkers
 - `[STANCE]` — body_state override fires
 
 ---

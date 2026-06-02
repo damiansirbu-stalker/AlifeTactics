@@ -27,8 +27,6 @@ local defaults = {
     acc_mult_expert        = 0.52,
     acc_mult_master        = 0.45,
     acc_mult_legend        = 0.38,
-    -- Dynamic Combat
-    dynamic_combat_enabled = true,
     -- Stance Switch
     stance_enabled = true,
     -- Development
@@ -60,8 +58,6 @@ local _key_to_tab = {
     acc_mult_expert        = "accuracy",
     acc_mult_master        = "accuracy",
     acc_mult_legend        = "accuracy",
-    -- Dynamic Combat
-    dynamic_combat_enabled = "dynamic_combat",
     -- Stance Switch
     stance_enabled = "stance",
     -- Development
@@ -146,17 +142,6 @@ function on_mcm_load()
                     { id = "acc_mult_expert",       type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 0.52 },
                     { id = "acc_mult_master",       type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 0.45 },
                     { id = "acc_mult_legend",       type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 0.38 },
-                },
-            },
-            -- ============ DYNAMIC COMBAT TAB ============
-            {
-                id = "dynamic_combat",
-                sh = true,
-                gr = {
-                    { id = "title", type = "slide", link = "at_mcm_banner",
-                        text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
-                    { id = "desc", type = "desc", text = "ui_mcm_at_dynamic_combat_desc" },
-                    { id = "dynamic_combat_enabled", type = "check", val = 1, def = true },
                 },
             },
             -- ============ STANCE SWITCH TAB ============

@@ -32,18 +32,13 @@ NPC weapon accuracy:
   AlifeTactics replaces that curve script-side. On every NPC shot the rank is read and a per-tier multiplier is applied to the engine's computed cone. Defaults run from novice at the vanilla baseline down to legend at roughly a third the cone width. Eight tier sliders in MCM tune each rank independently.
   Master stalkers shoot noticeably tighter than novices. The spread between ranks is configurable per tier, so you can flatten the curve, exaggerate it, or set extremes (laser masters, hopeless rookies).
 
-Dynamic combat:
-  Vanilla NPC cover selection is per-stalker. Each member scores its own cover with no awareness of squadmates, so squads end up stacked behind one wall on one loophole. There is no flanking, no enfilade.
-  AlifeTactics rotates squad members through the engine's own flank-around-cover action. While the squad is in active combat, every twenty seconds one non-commander member is told for four seconds that no enemy is visible. The engine combat planner reads that, picks its built-in detour-enemy action, scores a cover spot at an angle from the enemy bearing within ten meters (thirty fallback), runs the NPC there, and resumes firing. Rotation across members across ticks distributes the behavior.
-  What you see: a squad in cover starts shifting positions during sustained combat. Members peel off one at a time to angular cover spots, playing the engine's detour bark line. The squad ends up spread around the engagement instead of stacked on one loophole.
-
 Combat crouch:
   Vanilla NPC stance during combat is inherited from current state. A stalker that walked to cover standing stays standing in cover, and gets headshot through the chest-high crate they thought was protecting them.
   AlifeTactics tells snipers and rocket-launcher carriers to crouch when the engine selects a static cover action: firing at the enemy, holding position, peeking from cover, waiting in cover, ambushing. These weapons are long-range sustained-fire tools; crouching gives low silhouette and stable sustained shooting.
   Other weapons keep vanilla stance. Riflemen, pistoleers, shotgunners, and SMG carriers stand up to move and fire normally. The crouch is meaningful: it marks the squad's fire base by weapon type alone, no role taxonomy needed.
 
 MCM:
-  Six tabs, each with a master toggle. Hit Sharing: master toggle, per-shooter memory retention. Healing: master toggle, medkit restoration (info-only, boot-time data layer), heal rate multiplier, per-rank healing-charge probability. Accuracy: master toggle, per-tier dispersion sliders for the eight rank tiers. Dynamic Combat: master toggle. Stance Switch: master toggle. Development: log level.
+  Five tabs, each with a master toggle. Hit Sharing: master toggle, per-shooter memory retention. Healing: master toggle, medkit restoration (info-only, boot-time data layer), heal rate multiplier, per-rank healing-charge probability. Accuracy: master toggle, per-tier dispersion sliders for the eight rank tiers. Stance Switch: master toggle. Development: log level.
 
 Backlog:
   Tactical flee, danger memory persistence, combat scheme selection, NPC weapon bias. The backlog file on GitHub tracks each.
@@ -58,11 +53,11 @@ Compatibility:
   Story NPCs, companions, and traders go through the same faction-relation gate as every other stalker, so they do not get caught by the squad alarm.
 
 Disable before installing AlifeTactics:
-  AI more cover (Mora): forces all ranged NPCs into a static camper scheme via [combat] combat_type, bypassing vanilla's context-based combat selection. NPCs always stand and fire from their initial position regardless of cover, distance, or rank.
-  G.A.M.M.A. AI Rework: copies Mora's camper and replaces 60+ per-smart logic files with a single condlist. Long-standing bugs include broken NPC-vs-NPC behavior, save/load issues, db.storage collisions, and memory leaks.
-  ReDone Combat AI: copies Mora's camper and overrides 12 core vanilla scripts, creating compatibility issues with other AI mods. Much of its logic is version-gated for 1.5.2 and skipped on 1.5.3.
-  Wuut AI Extension: injects a forced-movement scheme that overrides the engine combat planner. Forced movement during combat causes stuck NPCs; Wuut ships explicit stuck-detection logic to mask it.
-  NPC_Fleeing: implements squad flee via forced movement. Like other forced-movement combat schemes, NPCs get stuck mid-flee and the mod ships stuck-detection logic to mask it.
+  AI more cover (Mora): assigns a camper combat scheme via global default_custom_data.ltx [combat] combat_type. The camper action_shoot fires while the NPC has visual on the enemy (state_mgr hide_fire from current cover); when visual breaks, the vanilla engine combat planner takes over. The global LTX overlay overlaps with anything that touches smart-terrain combat selection.
+  G.A.M.M.A. AI Rework: layered scheme selector built on Mora's camper pattern. Routes to one of three sub-modes (cover for melee weapons, camper for rifles/snipers/launchers, monolith-specific behaviors) with rank-based dumbness rolls, distance-banded memory timeouts, and faction-aware logic. Overlays default_custom_data.ltx and overrides four vanilla scripts (xr_combat_camper, xr_conditions, xr_danger, schemes_ai_gamma); overlaps the same scripts AlifeTactics integrates with.
+  ReDone Combat AI: copies Mora's camper pattern and overrides 12 core vanilla scripts. Much of its logic is version-gated for 1.5.2 and skipped on 1.5.3.
+  Wuut AI Extension: injects a forced-movement scheme that grafts a precondition on the engine combat planner. Forced movement during combat can cause stuck NPCs; Wuut ships explicit stuck-detection logic.
+  NPC_Fleeing: implements squad flee via forced movement. Like other forced-movement combat schemes, NPCs can get stuck mid-flee and the mod ships stuck-detection logic.
   Dynamic AI Aim Settings / DLTX_JURASZKA Worse NPC vision and accuracy: redundant since Demonized fixed the underlying engine settings in PR #523.
 
 Companion mods:
