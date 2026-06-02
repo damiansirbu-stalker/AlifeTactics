@@ -26,6 +26,10 @@ NPC self-healing (medkits AND bandages):
     - Wounded stalkers below 50% HP use medkits to heal up.
     - Bleeding stalkers above the wound threshold use bandages to stop the bleed.
     - Stalkers without either fall back to the lifetime healing charge if their rank rolls allow.
+  Visual cues (cosmetic, MCM-toggleable):
+    - Stalkers below 65% HP visibly limp when out of combat. A torso slump overlay (visible whether standing or walking; engine drives the legs normally). Re-armed every 20 seconds per NPC.
+    - Stalkers play a medkit-injection or bandage-application torso animation when they start a heal cycle. One-shot cue per cycle.
+    - Combat NPCs are excluded from limping (mental state changes to danger in combat). Heal cues play in or out of combat.
 
 NPC weapon accuracy:
   In vanilla every stalker fires with the same dispersion regardless of rank. The engine has a rank-based accuracy curve but it is broken on Anomaly's data: every non-novice stalker clamps to the same value, so a master shoots no tighter than a trainee. The rank dispersion knob in the engine is a dead knob.

@@ -17,6 +17,9 @@ local defaults = {
     charge_chance_experienced = 50,
     charge_chance_veteran     = 50,
     charge_chance_master      = 50,
+    limping_anim_enabled      = true,
+    limping_health_threshold  = 0.65,
+    healing_anim_enabled      = true,
     -- Accuracy
     accuracy_enabled       = true,
     acc_mult_novice        = 1.00,
@@ -48,6 +51,9 @@ local _key_to_tab = {
     charge_chance_experienced = "health",
     charge_chance_veteran     = "health",
     charge_chance_master      = "health",
+    limping_anim_enabled      = "health",
+    limping_health_threshold  = "health",
+    healing_anim_enabled      = "health",
     -- Accuracy
     accuracy_enabled       = "accuracy",
     acc_mult_novice        = "accuracy",
@@ -119,6 +125,13 @@ function on_mcm_load()
                     { id = "charge_chance_experienced", type = "track", val = 2, min = 0, max = 100, step = 5, def = 50 },
                     { id = "charge_chance_veteran",     type = "track", val = 2, min = 0, max = 100, step = 5, def = 50 },
                     { id = "charge_chance_master",      type = "track", val = 2, min = 0, max = 100, step = 5, def = 50 },
+
+                    -- Visual Layer
+                    { id = "div_visuals", type = "line" },
+                    { id = "hdr_visuals", type = "desc", text = "ui_mcm_at_hdr_visuals", clr = {255, 200, 200, 200} },
+                    { id = "limping_anim_enabled",     type = "check", val = 1, def = true },
+                    { id = "limping_health_threshold", type = "track", val = 2, min = 0.30, max = 1.00, step = 0.05, def = 0.65 },
+                    { id = "healing_anim_enabled",     type = "check", val = 1, def = true },
                 },
             },
             -- ============ ACCURACY TAB ============

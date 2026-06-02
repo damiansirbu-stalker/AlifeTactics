@@ -98,6 +98,28 @@
   <string id="ui_mcm_at_health_charge_chance_master_desc">
     <text>Probability for master-rank stalkers. Default: 50.</text>
   </string>
+  <!-- Healing - Visual Layer -->
+  <string id="ui_mcm_at_hdr_visuals">
+    <text>Visual Layer</text>
+  </string>
+  <string id="ui_mcm_at_health_limping_anim_enabled">
+    <text>Limping animation</text>
+  </string>
+  <string id="ui_mcm_at_health_limping_anim_enabled_desc">
+    <text>Out-of-combat stalkers below the HP threshold visibly limp: an idle torso slump while standing, a damaged walk cycle while moving. Re-armed every 20 seconds per NPC. Combat NPCs (mental state danger) are excluded so combat posture is not disrupted. Default: on.</text>
+  </string>
+  <string id="ui_mcm_at_health_limping_health_threshold">
+    <text>Limp HP threshold</text>
+  </string>
+  <string id="ui_mcm_at_health_limping_health_threshold_desc">
+    <text>HP fraction below which an eligible stalker starts limping. 0.65 means limping kicks in at 65% HP and below. Lower values delay the visual cue until the stalker is more seriously hurt. Default: 0.65.</text>
+  </string>
+  <string id="ui_mcm_at_health_healing_anim_enabled">
+    <text>Healing animation</text>
+  </string>
+  <string id="ui_mcm_at_health_healing_anim_enabled_desc">
+    <text>Plays a medkit-injection or bandage-application torso animation when a stalker starts a heal cycle (first heal_hp / heal_bleed tick). Engine pops the queued animation after it completes; no manual clear. One-shot cue per cycle. Default: on.</text>
+  </string>
   <!-- ==================== ACCURACY TAB ==================== -->
   <string id="ui_mcm_at_accuracy_desc">
     <text>Stalkers in vanilla fire with one shared dispersion - the engine's rank curve is dead at Anomaly's rank values. AlifeTactics restores per-rank scaling so masters shoot tighter than novices. Tune each tier below.</text>

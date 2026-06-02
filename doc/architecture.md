@@ -155,6 +155,19 @@ Per-NPC self-healing. Vanilla `xr_eat_medkit.script` has a working stage machine
 | Bandage tick logging | `xr_eat_medkit.heal_bleed = _patched_heal_bleed` | Logging-only wrapper around vanilla bleed loop |
 | Per-rank healing-charge | `RegisterScriptCallback("npc_on_net_spawn", _on_net_spawn)` | Reads `ranks.get_obj_rank_name(npc)`, folds 8 rank names into 4 MCM tiers, rolls per-tier chance, overrides vanilla's flat 50% roll. Per-NPC `at_charge_processed` se_var prevents re-roll. |
 
+### Visual layer (Path 1 script-queue overlay)
+
+Two cosmetic cues using `npc:add_animation` directly. No state_mgr, no GOAP, no `state_lib` changes. See `doc/library/modding/state-lib-animations.md` "Path 1 -- script-queue overlay" for the mechanism.
+
+| Cue | Trigger | Animation(s) |
+|---|---|---|
+| Limping | `npc_on_update` per-NPC throttled to 1s; eligibility = `health < threshold` AND `mental_state() == anim.free` AND `body_state() == move.standing` AND not zombied AND not wounded AND not in smart_cover. Re-arms every 20s | `dmg_norm_torso_1_idle_0` (torso overlay; layers over engine-driven locomotion, legs stay attached to ground) |
+| Heal anim | First tick of `_patched_heal_hp` / `_patched_heal_bleed` (`left == 15`); engine drains the queue naturally after | `dmg_norm_torso_11_attack_0` (medkit) / `norm_torso_12_attack_0` (bandage) |
+
+Limping is independent of the healing master toggle (its callback registers unconditionally; gated at runtime by `limping_anim_enabled`). Heal cue is gated by `healing_anim_enabled` AND the master toggle (it lives inside the heal_hp/heal_bleed patches that only install when healing is enabled).
+
+Combat NPCs are excluded by the `mental_state == anim.free` gate -- state_mgr drives mental to `anim.danger` in combat states (`state_lib.script:326-340` hide_fire / threat). Adapted from NPC_Limping_and_Healing by Vodoxleb (the source mod's `axr_light_wound.script` pattern); the source mod's `axr_otheal.script` (out-of-combat instant heal) and its state_mgr state definitions are NOT adopted -- our heal flow already runs via vanilla `xr_eat_medkit`.
+
 ---
 
 ## Accuracy
