@@ -90,18 +90,25 @@ end
 -- they always run — distant patrol squadmates still learn the squad is engaged with
 -- the mutant via combat_mask propagation, matching vanilla xr_danger.script:132 which
 -- escalates alertness regardless of shooter community.
+-- Apply combat disclosure to one squad member: hostility for human shooters,
+-- memory + register-in-combat for any shooter type. Returns true if disclosed.
+local function _disclose_to_member(member, who, who_is_human)
+    local mem_npc = level.object_by_id(member.id)
+    if not mem_npc then return false end
+    if who_is_human then
+        mem_npc:force_set_goodwill(GOODWILL_HOSTILE, who)
+    end
+    mem_npc:enable_memory_object(who, true)
+    mem_npc:register_in_combat()
+    return true
+end
+
 local function _disclose(squad, who)
     if squad:npc_count() == 0 then return 0 end
     local count = 0
     local who_is_human = IsStalker(who)
     for member in squad:squad_members() do
-        local mem_npc = level.object_by_id(member.id)
-        if mem_npc then
-            if who_is_human then
-                mem_npc:force_set_goodwill(GOODWILL_HOSTILE, who)
-            end
-            mem_npc:enable_memory_object(who, true)
-            mem_npc:register_in_combat()
+        if _disclose_to_member(member, who, who_is_human) then
             count = count + 1
         end
     end

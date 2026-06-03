@@ -24,16 +24,18 @@
 
 local math_random, tonumber = math.random, tonumber
 local se_save_var, se_load_var = se_save_var, se_load_var
-local RegisterScriptCallback = RegisterScriptCallback
-local time_global = time_global
+local RegisterScriptCallback, time_global = RegisterScriptCallback, time_global
 local IsStalker, IsWounded = IsStalker, IsWounded
 
 -- ==================== VISUAL LAYER CONSTANTS ====================
 
 local LIMP_ELIGIBILITY_CHECK_MS = 1000
-local LIMP_REARM_MS             = 5000  -- min ms between successive limp anim queues; lower stalls locomotion
-local HEAL_TICK_FIRST          = 15   -- xr_eat_medkit.consume_medkit calls heal_hp/heal_bleed with left=15
-local HEAL_ACTIVE_EXPIRY_MS    = 30000 -- _healing_active auto-expires after this (covers save/load + offline edge cases)
+-- Min ms between successive limp anim queues; lower stalls locomotion.
+local LIMP_REARM_MS             = 5000
+-- xr_eat_medkit.consume_medkit calls heal_hp/heal_bleed with left=15.
+local HEAL_TICK_FIRST          = 15
+-- _healing_active auto-expires after this (covers save/load + offline edge cases).
+local HEAL_ACTIVE_EXPIRY_MS    = 30000
 
 -- Torso-layer limp variants from vanilla stalker OMF. The "torso_N_*" naming
 -- encodes (damage character N, gait). Bone mask is torso-only so engine drives
@@ -45,8 +47,10 @@ local LIMP_ANIM_RUN     = "dmg_norm_torso_0_run_0"
 local HEAL_ANIM_MEDKIT  = "dmg_norm_torso_11_attack_0"
 local HEAL_ANIM_BANDAGE = "norm_torso_12_attack_0"
 
-local _limping = {}             -- [npc_id] = { next_add_ms }
-local _healing_active = {}      -- [npc_id] = expiry_ms while heal_hp or heal_bleed cycle is running (gates limp)
+-- [npc_id] = { next_add_ms } limp anim queue scheduler state per NPC
+local _limping = {}
+-- [npc_id] = expiry_ms while heal_hp or heal_bleed cycle is running (gates limp)
+local _healing_active = {}
 -- Heal sequence: [id] = { stage = "clutch"|"gesture", until_ms, gesture_anim }
 -- At heal cycle start: stop NPC, play wound-clutch pose for CLUTCH_MS, then
 -- swap to medkit/bandage gesture for GESTURE_MS, then restore movement.
@@ -303,6 +307,45 @@ local function _pick_limp_anim(npc)
     return LIMP_ANIM_IDLE
 end
 
+-- End the staged heal sequence: restore movement, clear anim, drop the entry.
+-- Called when the gesture stage completes or when damage aborts the sequence.
+local function _end_heal_sequence(npc, id)
+    _heal_seq[id] = nil
+    npc:movement_enabled(true)
+    npc:clear_animations()
+end
+
+-- Drive one tick of the staged heal sequence (clutch -> gesture -> restore).
+-- Returns early when no sequence is active. Aborts on incoming damage so NPC
+-- can defend themselves instead of standing helpless during combat.
+local function _drive_heal_sequence(npc, id, tg)
+    local seq = _heal_seq[id]
+    if not seq then return end
+    if not npc:alive() then _heal_seq[id] = nil; return end
+    if seq.last_hp and npc.health < seq.last_hp - 0.02 then
+        -- Net HP drop while frozen -> NPC under attack -> abort
+        if _dbg then
+            log.debug("[HEAL] seq_abort id=%d reason=damage hp=%.2f->%.2f", id, seq.last_hp, npc.health)
+        end
+        _end_heal_sequence(npc, id)
+        return
+    end
+    if tg >= seq.until_ms then
+        if seq.stage == "clutch" then
+            npc:clear_animations()
+            utils_obj.add_anim(npc, seq.gesture)
+            seq.stage    = "gesture"
+            seq.until_ms = tg + HEAL_GESTURE_MS
+            if _dbg then log.debug("[HEAL] seq_gesture id=%d anim=%s", id, seq.gesture) end
+        else
+            if _dbg then log.debug("[HEAL] seq_end id=%d", id) end
+            _end_heal_sequence(npc, id)
+            return
+        end
+    end
+    seq.last_hp = npc.health
+end
+
 -- npc_on_update fires every motivator binder tick (~30-60 Hz per online stalker
 -- from xr_motivator.script:486). Throttled per-NPC to LIMP_ELIGIBILITY_CHECK_MS
 -- via storage table; eligibility -> pick the gait-matching torso overlay
@@ -314,36 +357,7 @@ local function _on_npc_update(npc, st)
     local id = npc:id()
     local tg = time_global()
 
-    -- Drive the staged heal sequence: clutch -> gesture -> restore. Runs every
-    -- motivator tick (~30Hz). Aborts on incoming damage so NPC can defend
-    -- themselves instead of standing helpless during combat.
-    local seq = _heal_seq[id]
-    if seq then
-        if not npc:alive() then
-            _heal_seq[id] = nil
-        elseif seq.last_hp and npc.health < seq.last_hp - 0.02 then
-            -- Net HP drop while frozen -> NPC under attack -> abort
-            _heal_seq[id] = nil
-            npc:movement_enabled(true)
-            npc:clear_animations()
-            if _dbg then log.debug("[HEAL] seq_abort id=%d reason=damage hp=%.2f->%.2f",
-                id, seq.last_hp, npc.health) end
-        elseif tg >= seq.until_ms then
-            if seq.stage == "clutch" then
-                npc:clear_animations()
-                utils_obj.add_anim(npc, seq.gesture)
-                seq.stage    = "gesture"
-                seq.until_ms = tg + HEAL_GESTURE_MS
-                if _dbg then log.debug("[HEAL] seq_gesture id=%d anim=%s", id, seq.gesture) end
-            else  -- "gesture" complete
-                _heal_seq[id] = nil
-                npc:movement_enabled(true)
-                npc:clear_animations()
-                if _dbg then log.debug("[HEAL] seq_end id=%d", id) end
-            end
-        end
-        if seq then seq.last_hp = npc.health end
-    end
+    _drive_heal_sequence(npc, id, tg)
 
     if not _limping_enabled() then return end
     if st._at_limp_next_check_ms and tg < st._at_limp_next_check_ms then return end
@@ -360,10 +374,9 @@ local function _on_npc_update(npc, st)
         and not IsWounded(npc)
 
     if not eligible then
-        if _limping[id] then
-            _limping[id] = nil
-            if _dbg then log.debug("[LIMP] lost id=%d hp=%.2f", id, npc.health) end
-        end
+        if not _limping[id] then return end
+        _limping[id] = nil
+        if _dbg then log.debug("[LIMP] lost id=%d hp=%.2f", id, npc.health) end
         return
     end
     local rec = _limping[id]

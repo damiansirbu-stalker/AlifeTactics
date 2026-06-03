@@ -66,8 +66,8 @@ local _prev_functor = nil
 -- Returns the EBodyState to apply.
 local function _on_combat_set_body_state(npc, wo, body_state)
     if _prev_functor then
-        local r = _prev_functor(npc, wo, body_state)
-        if r ~= nil then body_state = r end
+        local prev_result = _prev_functor(npc, wo, body_state)
+        if prev_result ~= nil then body_state = prev_result end
     end
 
     if not _enabled then return body_state end
