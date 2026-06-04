@@ -108,11 +108,6 @@ function on_mcm_load()
                     { id = "desc", type = "desc", text = "ui_mcm_at_health_desc" },
                     { id = "healing_enabled", type = "check", val = 1, def = true },
 
-                    -- Medkit Restoration (info-only: DLTX overlay, boot-time, no runtime toggle)
-                    { id = "div_medkit_restoration", type = "line" },
-                    { id = "hdr_medkit_restoration", type = "desc", text = "ui_mcm_at_hdr_medkit_restoration", clr = {255, 200, 200, 200} },
-                    { id = "info_medkit_restoration", type = "desc", text = "ui_mcm_at_health_medkit_restoration_info" },
-
                     -- Heal Rate
                     { id = "div_heal_rate", type = "line" },
                     { id = "hdr_heal_rate", type = "desc", text = "ui_mcm_at_hdr_heal_rate", clr = {255, 200, 200, 200} },

@@ -45,20 +45,13 @@
   </string>
   <!-- ==================== HEALING TAB ==================== -->
   <string id="ui_mcm_at_health_desc">
-    <text>Per-stalker healing behaviors. Each section below tunes one subsystem.</text>
+    <text>Per-stalker healing behaviors. Medkit and bandage item lists restored at boot via DLTX overlay on ai_tweaks/xr_eat_medkit.ltx (vanilla ships them empty, so stalkers carrying kits never use them). Sections below tune the runtime layer.</text>
   </string>
   <string id="ui_mcm_at_health_healing_enabled">
     <text>Enable Healing</text>
   </string>
   <string id="ui_mcm_at_health_healing_enabled_desc">
     <text>Master toggle for the whole Healing feature: heal rate patch and per-rank healing-charge override. When off, vanilla xr_eat_medkit behavior runs unmodified. Toggle requires game restart. The medkit DLTX overlay is boot-time and always active. Default: on.</text>
-  </string>
-  <!-- Healing - Medkit Restoration (info-only) -->
-  <string id="ui_mcm_at_hdr_medkit_restoration">
-    <text>Medkit Restoration</text>
-  </string>
-  <string id="ui_mcm_at_health_medkit_restoration_info">
-    <text>Vanilla xr_eat_medkit's [plugin] section ships without the medkits / bandages item lists, so the consumption loop iterates over nothing and stalkers never use the kits in their inventory. AlifeTactics restores the missing lists through a DLTX overlay on ai_tweaks/xr_eat_medkit.ltx covering the vanilla medkits and the bandage. Data-layer fix loaded at boot; no runtime toggle.</text>
   </string>
   <!-- Healing - Heal Rate -->
   <string id="ui_mcm_at_hdr_heal_rate">
@@ -72,7 +65,7 @@
   </string>
   <!-- Healing - Healing Charge -->
   <string id="ui_mcm_at_hdr_healing_charge">
-    <text>Healing Charge</text>
+    <text>Healing Charge (vanilla 50% override)</text>
   </string>
   <string id="ui_mcm_at_health_charge_chance_novice">
     <text>Novice charge chance (%)</text>

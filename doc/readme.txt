@@ -21,7 +21,7 @@ Squad alarm on hit:
 
 NPC self-healing (medkits AND bandages):
   Vanilla has a working code path for NPCs to consume medkits and bandages from their inventory, but ships the underlying configuration with an empty item list. The consumption loop never iterates, and only a once-per-life fallback ever heals. NPCs carry full medkits and bandages and die clutching them.
-  AlifeTactics restores BOTH item lists through a configuration overlay covering the six vanilla medkit sections (medkit, medkit_army, medkit_scientic, medkit_ai1/2/3) and the vanilla bandage. Two MCM sliders tune on top: one scales how fast NPCs heal, one sets a per-rank chance for the lifetime fallback. Defaults match vanilla behavior, so out of the box you only get the fix.
+  AlifeTactics restores BOTH item lists through a configuration overlay covering the six vanilla medkit sections (medkit, medkit_army, medkit_scientic, medkit_ai1/2/3) and the vanilla bandage. MCM controls on top: heal-rate multiplier, four per-rank charge-chance sliders for the lifetime fallback (novice, experienced, veteran, master) replacing vanilla's flat 50%, and toggles for limping and the heal-cue animation. Defaults match vanilla behavior, so out of the box you only get the fix.
   What actually happens now:
     - Wounded stalkers below 50% HP use medkits to heal up.
     - Bleeding stalkers above the wound threshold use bandages to stop the bleed.
@@ -42,7 +42,7 @@ Combat crouch:
   Other weapons keep vanilla stance. Riflemen, pistoleers, shotgunners, and SMG carriers stand up to move and fire normally. The crouch is meaningful: it marks the squad's fire base by weapon type alone, no role taxonomy needed.
 
 MCM:
-  Five tabs, each with a master toggle. Hit Sharing: master toggle, per-shooter memory retention. Healing: master toggle, medkit restoration (info-only, boot-time data layer), heal rate multiplier, per-rank healing-charge probability. Accuracy: master toggle, per-tier dispersion sliders for the eight rank tiers. Stance Switch: master toggle. Development: log level.
+  Five tabs, each with a master toggle. Hit Sharing: master toggle, per-shooter memory retention. Healing: master toggle, heal-rate multiplier, four per-rank charge-chance sliders, limping toggle + threshold, heal-cue animation toggle. Accuracy: master toggle, per-tier dispersion sliders for the eight rank tiers. Stance Switch: master toggle. Development: log level.
 
 Backlog:
   Tactical flee, danger memory persistence, combat scheme selection, NPC weapon bias. The backlog file on GitHub tracks each.
@@ -57,12 +57,18 @@ Compatibility:
   Story NPCs, companions, and traders go through the same faction-relation gate as every other stalker, so they do not get caught by the squad alarm.
 
 Disable before installing AlifeTactics:
-  AI more cover (Mora): assigns a camper combat scheme via global default_custom_data.ltx [combat] combat_type. The camper action_shoot fires while the NPC has visual on the enemy (state_mgr hide_fire from current cover); when visual breaks, the vanilla engine combat planner takes over. The global LTX overlay overlaps with anything that touches smart-terrain combat selection.
-  G.A.M.M.A. AI Rework: layered scheme selector built on Mora's camper pattern. Routes to one of three sub-modes (cover for melee weapons, camper for rifles/snipers/launchers, monolith-specific behaviors) with rank-based dumbness rolls, distance-banded memory timeouts, and faction-aware logic. Overlays default_custom_data.ltx and overrides four vanilla scripts (xr_combat_camper, xr_conditions, xr_danger, schemes_ai_gamma); overlaps the same scripts AlifeTactics integrates with.
-  ReDone Combat AI: copies Mora's camper pattern and overrides 12 core vanilla scripts. Much of its logic is version-gated for 1.5.2 and skipped on 1.5.3.
-  Wuut AI Extension: injects a forced-movement scheme that grafts a precondition on the engine combat planner. Forced movement during combat can cause stuck NPCs; Wuut ships explicit stuck-detection logic.
-  NPC_Fleeing: implements squad flee via forced movement. Like other forced-movement combat schemes, NPCs can get stuck mid-flee and the mod ships stuck-detection logic.
-  Dynamic AI Aim Settings / DLTX_JURASZKA Worse NPC vision and accuracy: redundant since Demonized fixed the underlying engine settings in PR #523.
+
+  Redundant with engine settings:
+    Dynamic AI Aim Settings, DLTX_JURASZKA Worse NPC vision and accuracy. Demonized PR #523 exposes the underlying ai_aim_* / ai_vision_speed_boost / ai_search_inertia_time cvars in the engine Settings > Stalkers menu. AlifeTactics's accuracy hook also writes per-shot dispersion via the npc_shot_dispersion callback. Either path stacks on the other.
+
+  Forced-movement schemes (stuck-NPC risk):
+    Wuut AI Extension. Grafts a forced-movement precondition onto the engine combat planner; includes its own stuck-detection because forced movement during combat can leave NPCs stuck.
+    NPC_Fleeing. Squad flee via forced movement; same stuck risk, includes its own stuck-detection.
+
+Compatible today, will overlap once the per-NPC camper scheme is added:
+  AI more cover (Mora). Assigns the vanilla camper combat scheme via global default_custom_data.ltx [combat] combat_type. Engine-documented machinery. AlifeTactics's planned per-NPC camper writes script_combat_type from a binder; two writers on the same field.
+  G.A.M.M.A. AI Rework. Layered scheme selector on Mora's pattern with rank-weighted dispatch. Overrides xr_combat_camper, xr_conditions, xr_danger, schemes_ai_gamma. The xr_combat_camper override removes action_look_around, which AlifeTactics's planned camper depends on to scan when sight breaks. The xr_danger override file-replaces a script AlifeTactics will surgically monkey-patch.
+  ReDone Combat AI. Copies Mora's pattern; overrides 12 vanilla scripts. Much of its logic is 1.5.2-gated and skipped on 1.5.3.
 
 Companion mods:
 
