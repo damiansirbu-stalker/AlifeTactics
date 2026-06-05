@@ -5,6 +5,12 @@ GitHub: https://github.com/damiansirbu-stalker/AlifeTactics
 English: https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/readme.txt
 Баги, предложения: https://github.com/damiansirbu-stalker/AlifeTactics/issues
 
+Коллекция Alife:
+AlifePlus: https://www.moddb.com/mods/stalker-anomaly/addons/alifeplus-v1-0-01
+AlifeBalance: https://www.moddb.com/mods/stalker-anomaly/addons/alifebalance
+AlifeGuard: https://www.moddb.com/mods/stalker-anomaly/addons/alifeguard-1001
+AlifeTactics: TBD
+
 ! Сбросьте настройки MCM при обновлении до новой версии !
 
 AlifeTactics — мод из нескольких систем, которые дают отрядам NPC скоординированное боевое поведение.
@@ -64,12 +70,6 @@ MCM:
   AI more cover (Mora). Назначает ванильную схему кэмпера через глобальный default_custom_data.ltx [combat] combat_type. Документированная машинерия движка. Планируемый per-NPC кэмпер AlifeTactics пишет script_combat_type из биндера; два писателя в одно поле.
   G.A.M.M.A. AI Rework. Слойный селектор схем на паттерне Mora со взвешенной по рангам диспетчеризацией. Перекрывает xr_combat_camper, xr_conditions, xr_danger, schemes_ai_gamma. Перекрытие xr_combat_camper удаляет action_look_around, на который опирается планируемый кэмпер AlifeTactics для сканирования при потере видимости. Перекрытие xr_danger полностью заменяет файл скрипта, который AlifeTactics будет точечно патчить.
   ReDone Combat AI. Копирует паттерн Mora; перекрывает 12 ванильных скриптов. Большая часть его логики гейтится на 1.5.2 и пропускается на 1.5.3.
-
-Коллекция Alife:
-AlifePlus: https://www.moddb.com/mods/stalker-anomaly/addons/alifeplus-v1-0-01
-AlifeBalance: https://www.moddb.com/mods/stalker-anomaly/addons/alifebalance
-AlifeGuard: https://www.moddb.com/mods/stalker-anomaly/addons/alifeguard-1001
-AlifeTactics: TBD
 
 Требования:
 Anomaly 1.5.3

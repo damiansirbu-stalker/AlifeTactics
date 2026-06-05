@@ -5,6 +5,12 @@ Changelog: https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/cha
 Russian / Na russkom: https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/readme_ru.txt
 Bugs, suggestions: https://github.com/damiansirbu-stalker/AlifeTactics/issues
 
+Alife Collection:
+AlifePlus: https://www.moddb.com/mods/stalker-anomaly/addons/alifeplus-v1-0-01
+AlifeBalance: https://www.moddb.com/mods/stalker-anomaly/addons/alifebalance
+AlifeGuard: https://www.moddb.com/mods/stalker-anomaly/addons/alifeguard-1001
+AlifeTactics: TBD
+
 ! Reset MCM settings to defaults after updating !
 
 AlifeTactics is a mod composed of several systems, that gives NPC squads coordinated combat behavior.
@@ -69,12 +75,6 @@ Compatible today, will overlap once the per-NPC camper scheme is added:
   AI more cover (Mora). Assigns the vanilla camper combat scheme via global default_custom_data.ltx [combat] combat_type. Engine-documented machinery. AlifeTactics's planned per-NPC camper writes script_combat_type from a binder; two writers on the same field.
   G.A.M.M.A. AI Rework. Layered scheme selector on Mora's pattern with rank-weighted dispatch. Overrides xr_combat_camper, xr_conditions, xr_danger, schemes_ai_gamma. The xr_combat_camper override removes action_look_around, which AlifeTactics's planned camper depends on to scan when sight breaks. The xr_danger override file-replaces a script AlifeTactics will surgically monkey-patch.
   ReDone Combat AI. Copies Mora's pattern; overrides 12 vanilla scripts. Much of its logic is 1.5.2-gated and skipped on 1.5.3.
-
-Alife Collection:
-AlifePlus: https://www.moddb.com/mods/stalker-anomaly/addons/alifeplus-v1-0-01
-AlifeBalance: https://www.moddb.com/mods/stalker-anomaly/addons/alifebalance
-AlifeGuard: https://www.moddb.com/mods/stalker-anomaly/addons/alifeguard-1001
-AlifeTactics: TBD
 
 Requirements:
 Anomaly 1.5.3
