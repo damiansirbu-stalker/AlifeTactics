@@ -1,0 +1,10 @@
+=== VALIDATE (1 mods) ===
+
+--- AlifeTactics ---
+  luacheck... OK
+  selene... OK
+  contract... OK
+  load... OK
+
+========================================
+PASS - Grade: S+
