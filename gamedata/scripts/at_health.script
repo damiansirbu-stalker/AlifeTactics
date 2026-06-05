@@ -76,6 +76,11 @@ local log = xlog.get_logger("AT.HEALTH", { outfile = "alifetactics.log" })
 local _dbg = false
 local _heal_active = false
 
+-- Cached MCM value, refreshed via _refresh_log on on_option_change / restore_default.
+-- _on_npc_update reads this every motivator tick before any throttle, so the cache
+-- saves ~1500 string allocations/sec at 50 online stalkers (path_builder concat).
+local _limping_enabled_cached = true
+
 -- Vanilla rank names from game_relations.ltx [game_relations] rating folded into
 -- the four MCM tiers. ranks.get_obj_rank_name resolves the numeric rank against
 -- the same source so any mod that reshapes the rating intervals keeps working.
@@ -116,14 +121,6 @@ local function _charge_chance_pct(tier)
         return tonumber(at_mcm.get_config("charge_chance_" .. tier)) or 50
     end
     return 50
-end
-
-local function _limping_enabled()
-    if at_mcm and at_mcm.get_config then
-        local v = at_mcm.get_config("limping_anim_enabled")
-        if v ~= nil then return v end
-    end
-    return true
 end
 
 local function _limping_threshold()
@@ -359,7 +356,7 @@ local function _on_npc_update(npc, st)
 
     _drive_heal_sequence(npc, id, tg)
 
-    if not _limping_enabled() then return end
+    if not _limping_enabled_cached then return end
     if st._at_limp_next_check_ms and tg < st._at_limp_next_check_ms then return end
     st._at_limp_next_check_ms = tg + LIMP_ELIGIBILITY_CHECK_MS
     local active = _healing_active[id]
@@ -404,11 +401,12 @@ end
 -- ==================== LIFECYCLE ====================
 
 local function _refresh_log()
-    if at_mcm and at_mcm.get_config then
-        local level_str = at_mcm.get_config("log_level") or "WARN"
-        log.set_level(level_str)
-        _dbg = log.get_level() >= 5
-    end
+    if not (at_mcm and at_mcm.get_config) then return end
+    local level_str = at_mcm.get_config("log_level") or "WARN"
+    log.set_level(level_str)
+    _dbg = log.get_level() >= 5
+    local v = at_mcm.get_config("limping_anim_enabled")
+    if v ~= nil then _limping_enabled_cached = v end
 end
 
 local function _on_actor_first_update()
@@ -422,10 +420,8 @@ local function _on_actor_first_update()
 end
 
 function on_game_start()
-    log.info("AlifeTactics v%s (xlibs v%s)", _at_deps.get_version(), xlibs.get_version())
-
     -- Limping is independent of the healing master toggle (purely cosmetic, no
-    -- heal patch needed). Always register; gated at runtime by _limping_enabled.
+    -- heal patch needed). Always register; gated at runtime by _limping_enabled_cached.
     RegisterScriptCallback("npc_on_update",              _on_npc_update)
     RegisterScriptCallback("server_entity_on_unregister", _on_entity_unregister)
 
