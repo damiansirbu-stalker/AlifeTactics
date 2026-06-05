@@ -16,7 +16,6 @@ local TIMER_EV              = "at_squad_memory"
 local TIMER_DECAY           = "decay"
 local DECAY_INTERVAL_SEC    = 5
 local DEFAULT_RETENTION_SEC = 60
-ENGAGED_WINDOW_SEC          = 60
 
 -- ==================== STATE ====================
 
@@ -24,13 +23,14 @@ local _records = {}
 
 -- ==================== PRIVATE ====================
 
+-- per_shooter[shooter_id] = last_hit_time (xtime.game_sec). Decay tick prunes entries
+-- whose timestamp is older than substrate_retention_sec.
+-- disclosed_shooters[shooter_id] = true. Session-persistent idempotency guard cleared
+-- only when the shooter or squad despawns (server_entity_on_unregister).
 local function _new_record()
     return {
         per_shooter        = {},
         disclosed_shooters = {},
-        -- Set by hit_share on every kept hit: now + ENGAGED_WINDOW_SEC.
-        -- Read by dynamic_combat to decide if the squad is currently in active combat.
-        engaged_until      = 0,
     }
 end
 
@@ -43,8 +43,8 @@ local function _retention_sec()
 end
 
 local function _decay_one(record, now, threshold)
-    for shooter_id, entry in pairs(record.per_shooter) do
-        if now - entry.last_hit_time > threshold then
+    for shooter_id, last_hit_time in pairs(record.per_shooter) do
+        if now - last_hit_time > threshold then
             record.per_shooter[shooter_id] = nil
         end
     end

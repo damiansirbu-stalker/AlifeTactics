@@ -28,7 +28,7 @@ end
 -- This is the substrate-update gate: accidental hits on friendly/neutral NPCs do not
 -- accumulate. Same-community hits are rejected as friendly fire.
 --
--- character_community(obj) is the anomaly global wrapper (_g.script:2407-2415). For
+-- character_community(obj) is the anomaly global wrapper (_g.script:2425-2433). For
 -- stalkers and the actor it returns obj:character_community(). For anything else
 -- (mutants, helicopters, anomalies) it returns the literal string "monster". Mutant
 -- shooters therefore PASS this gate because is_factions_enemies(<stalker>, "monster")
@@ -87,7 +87,7 @@ end
 -- Abstract!" when either fails; mutants are CSE_ALifeMonsterAbstract so the to-side
 -- cast returns nil. enable_memory_object (script_game_object2.cpp:260-268) and
 -- register_in_combat (agent_member_manager.cpp:114-132) work for any shooter type so
--- they always run — distant patrol squadmates still learn the squad is engaged with
+-- they always run. Distant patrol squadmates still learn the squad is engaged with
 -- the mutant via combat_mask propagation, matching vanilla xr_danger.script:132 which
 -- escalates alertness regardless of shooter community.
 -- Apply combat disclosure to one squad member: hostility for human shooters,
@@ -176,21 +176,8 @@ local function _on_hit(npc, amount, _local_direction, who, _bone_index)
     local who_id = who:id()
     local now    = xtime.game_sec()
 
-    -- Substrate writes: kept for future consumers (t13 flee reads per_shooter for
-    -- enemy power; t14 persistence reads disclosed_shooters retention; t03 scheme
-    -- select reads recent-hit count). Disclosure itself does NOT gate on count.
-    local entry = record.per_shooter[who_id]
-    if not entry then
-        entry = { count = 0, last_hit_time = 0, total_damage = 0 }
-        record.per_shooter[who_id] = entry
-    end
-    entry.count         = entry.count + 1
-    entry.last_hit_time = now
-    entry.total_damage  = entry.total_damage + amount
-
-    -- Squad is in active combat for the next ENGAGED_WINDOW_SEC seconds.
-    -- Dynamic Combat reads this to gate its per-squad designation tick.
-    record.engaged_until = now + at_squad_memory.ENGAGED_WINDOW_SEC
+    -- Refresh per-shooter last-hit timestamp. Decay tick prunes stale entries on TTL.
+    record.per_shooter[who_id] = now
 
     -- Idempotency guard: once we have disclosed this shooter to this squad, do
     -- not re-write goodwill / re-register every subsequent hit. The 3-API combo
@@ -199,8 +186,8 @@ local function _on_hit(npc, amount, _local_direction, who, _bone_index)
     if record.disclosed_shooters[who_id] then
         tmr_total:stop()
         if _dbg then
-            log.debug("[HIT] squad=%d shooter=%d count=%d damage=%.1f engaged_until=%.1f (already disclosed) [gate=%.2fms total=%.2fms]",
-                squad.id, who_id, entry.count, amount, record.engaged_until, tmr_gate:get_ms(), tmr_total:get_ms())
+            log.debug("[HIT] squad=%d shooter=%d (already disclosed) [gate=%.2fms total=%.2fms]",
+                squad.id, who_id, tmr_gate:get_ms(), tmr_total:get_ms())
         end
         return
     end
@@ -212,8 +199,8 @@ local function _on_hit(npc, amount, _local_direction, who, _bone_index)
     tmr_total:stop()
 
     if _dbg then
-        log.debug("[DISCLOSURE] squad=%d shooter=%d disclosed_to=%d members engaged_until=%.1f [gate=%.2fms disclose=%.2fms total=%.2fms]",
-            squad.id, who_id, disclosed_to, record.engaged_until, tmr_gate:get_ms(), tmr_disclose:get_ms(), tmr_total:get_ms())
+        log.debug("[DISCLOSURE] squad=%d shooter=%d disclosed_to=%d members [gate=%.2fms disclose=%.2fms total=%.2fms]",
+            squad.id, who_id, disclosed_to, tmr_gate:get_ms(), tmr_disclose:get_ms(), tmr_total:get_ms())
     end
 end
 

@@ -1,7 +1,7 @@
 --- at_test: Console commands for AlifeTactics development
--- Spawns enemy squads in front of the actor to exercise hit disclosure / state
--- machine behavior without finding a real spawn point in-world. Mirrors the
--- pattern of ap_ext_test.script (@export console annotations -> console commands).
+-- Spawns enemy squads in front of the actor to exercise hit disclosure, stance,
+-- accuracy, and healing systems without finding a real spawn point in-world. Mirrors
+-- the pattern of ap_ext_test.script (@export console annotations -> console commands).
 
 local pairs, tostring, string_format = pairs, tostring, string.format
 
@@ -43,7 +43,7 @@ local function _spawn(section, distance)
         return
     end
     squad:create_npc(nil, actor_pos, actor_lvid, actor_gvid)
-    if squad.npc_count and squad:npc_count() > 0 then
+    if squad:npc_count() > 0 then
         for member in squad:squad_members() do
             local se = member.object or alife_object(member.id)
             if se then SIMBOARD:setup_squad_and_group(se) end
@@ -95,14 +95,11 @@ end
 function at_dump()
     if not db.actor then return end
     local count = 0
-    local now = xtime.game_sec()
     at_squad_memory.iterate(function(squad_id, record)
         count = count + 1
         local per_shooter_n = 0
         for _ in pairs(record.per_shooter) do per_shooter_n = per_shooter_n + 1 end
-        local engaged = now < (record.engaged_until or 0)
-        log.info("[DUMP] squad=%d engaged=%s per_shooter=%d engaged_until=%.1f",
-            squad_id, tostring(engaged), per_shooter_n, record.engaged_until or 0)
+        log.info("[DUMP] squad=%d per_shooter=%d", squad_id, per_shooter_n)
     end)
     _tip(string_format("AT.TEST: %d substrate records (see alifetactics.log)", count))
 end
