@@ -32,7 +32,7 @@
     <text>Enable Hit Sharing</text>
   </string>
   <string id="ui_mcm_at_hit_share_hit_share_enabled_desc">
-    <text>Master toggle. When off, the npc_on_hit_callback handler skips; no force_set_goodwill, no enable_memory_object, no register_in_combat calls. The squad-memory substrate stays available for other systems to read but is not populated by hits. Default: on.</text>
+    <text>Master toggle. When off, the hit handler skips entirely: no squad disclosure, no per-shooter hostility pin, no combat-mask flip. Vanilla engine behavior runs unmodified (audio-range squadmates still propagate hit memory through the engine's own pipeline; distant patrol members do not). The squad-memory substrate stays available for other systems to read. Default: on.</text>
   </string>
   <string id="ui_mcm_at_hdr_retention">
     <text>Memory Retention</text>
@@ -51,7 +51,7 @@
     <text>Enable Healing</text>
   </string>
   <string id="ui_mcm_at_health_healing_enabled_desc">
-    <text>Master toggle for the whole Healing feature: heal rate patch and per-rank healing-charge override. When off, vanilla xr_eat_medkit behavior runs unmodified. Toggle requires game restart. The medkit DLTX overlay is boot-time and always active. Default: on.</text>
+    <text>Master toggle for the runtime healing layer: heal-rate scaling and per-rank healing-charge override. When off, vanilla self-heal behavior runs unmodified. Restart required to toggle. The medkit and bandage item-list restoration is a boot-time DLTX overlay and is always active. Default: on.</text>
   </string>
   <!-- Healing - Heal Rate -->
   <string id="ui_mcm_at_hdr_heal_rate">
@@ -61,7 +61,7 @@
     <text>Heal rate multiplier</text>
   </string>
   <string id="ui_mcm_at_health_heal_rate_multiplier_desc">
-    <text>Multiplies the per-tick HP recovery in xr_eat_medkit's heal_hp loop. Vanilla restores 0.05 HP per tick for 13 ticks (0.65 HP total) before the heal cycle exits. At 2.0x each tick restores 0.10 HP, so the heal completes in fewer ticks. At 0.5x each tick restores 0.025 HP. Default: 1.0.</text>
+    <text>Scales the per-tick HP recovery during a self-heal cycle. Vanilla restores 0.05 HP per tick for 13 ticks (0.65 HP total). At 2.0x each tick restores 0.10 HP; at 0.5x each tick restores 0.025 HP. The tick count is fixed by the engine. Default: 1.0.</text>
   </string>
   <!-- Healing - Healing Charge -->
   <string id="ui_mcm_at_hdr_healing_charge">
@@ -71,7 +71,7 @@
     <text>Novice charge chance (%)</text>
   </string>
   <string id="ui_mcm_at_health_charge_chance_novice_desc">
-    <text>Probability that a novice-rank stalker is granted the lifetime healing_charge token at first spawn. The charge fires once if the stalker drops below the medkit_health threshold without a medkit in inventory. Vanilla rolls 50% for every rank. Default: 50.</text>
+    <text>Probability that a novice-rank stalker is granted a lifetime healing token at first spawn. The token fires once if the stalker drops below the medkit health threshold without a medkit in inventory. Vanilla rolls 50% for every rank. Default: 50.</text>
   </string>
   <string id="ui_mcm_at_health_charge_chance_experienced">
     <text>Experienced charge chance (%)</text>
@@ -99,7 +99,7 @@
     <text>Limping animation</text>
   </string>
   <string id="ui_mcm_at_health_limping_anim_enabled_desc">
-    <text>Out-of-combat stalkers below the HP threshold visibly limp: an idle torso slump while standing, a damaged walk cycle while moving. Re-armed every 20 seconds per NPC. Combat NPCs (mental state danger) are excluded so combat posture is not disrupted. Default: on.</text>
+    <text>Out-of-combat stalkers below the HP threshold visibly limp: an idle torso slump while standing, a damaged walk cycle while moving. Re-armed every 5 seconds per NPC. Combat NPCs are excluded so combat posture is not disrupted. Default: on.</text>
   </string>
   <string id="ui_mcm_at_health_limping_health_threshold">
     <text>Limp HP threshold</text>
@@ -111,7 +111,7 @@
     <text>Healing animation</text>
   </string>
   <string id="ui_mcm_at_health_healing_anim_enabled_desc">
-    <text>Plays a medkit-injection or bandage-application torso animation when a stalker starts a heal cycle (first heal_hp / heal_bleed tick). Engine pops the queued animation after it completes; no manual clear. One-shot cue per cycle. Default: on.</text>
+    <text>Plays a medkit-injection or bandage-application torso animation when a stalker starts a heal cycle. The engine clears the animation when it completes. One-shot cue per cycle. Default: on.</text>
   </string>
   <!-- ==================== ACCURACY TAB ==================== -->
   <string id="ui_mcm_at_accuracy_desc">
@@ -176,7 +176,7 @@
   </string>
   <!-- ==================== STANCE SWITCH TAB ==================== -->
   <string id="ui_mcm_at_stance_desc">
-    <text>Forces sniper and launcher carriers into crouch when the engine selects a static-cover action (KillEnemy, LookOut, HoldPosition, WaitInCover, HoldAmbushLocation). Crouching gives a lower silhouette, tighter dispersion, and a stable firing position from cover. Hooks the engine's CombatSetBodyState functor; passes through unchanged for other weapon kinds. The weapon-kind check reads the active item's "kind" field directly (w_sniper / w_launcher), no substrate dependency.</text>
+    <text>Forces sniper and launcher carriers to crouch when the engine combat planner selects a static-cover firing or peek action (LookOut, HoldPosition). The crouch persists into subsequent KillEnemy, WaitInCover, and HoldAmbushLocation actions because the engine inherits body_state across those operators. Lower silhouette, tighter dispersion, stable firing position from cover. Other weapon kinds (rifle, pistol, shotgun, SMG, knife) keep vanilla stance. The weapon check reads the active item's "kind" field directly: w_sniper and w_launcher crouch, everything else passes through.</text>
   </string>
   <string id="ui_mcm_at_stance_stance_enabled">
     <text>Enable Stance Switch</text>
@@ -186,7 +186,7 @@
   </string>
   <!-- ==================== DEVELOPMENT TAB ==================== -->
   <string id="ui_mcm_at_development_desc">
-    <text>Debug and development tools. DEBUG enables structured tracing of every system: hit disclosure events, engaged_until updates, maneuver evaluator/dispatch, stance overrides, healing ticks, accuracy per-shot. Written to alifetactics.log. Has performance cost.</text>
+    <text>Debug and development tools. DEBUG enables structured tracing of every system: hit disclosure events, squad-memory decay, healing ticks and charges, per-shot accuracy, stance overrides, and limping cues. Written to alifetactics.log. Has performance cost; leave at WARN for normal play.</text>
   </string>
   <!-- Development - Logging -->
   <string id="ui_mcm_at_hdr_logging">
@@ -209,5 +209,15 @@
   </string>
   <string id="at_development_log_level_lst_debug">
     <text>Debug</text>
+  </string>
+  <!-- Development - Reset -->
+  <string id="ui_mcm_at_development_btn_reset_all">
+    <text>Reset to defaults</text>
+  </string>
+  <string id="ui_mcm_at_development_btn_reset_all_desc">
+    <text>Restore all AlifeTactics MCM settings to factory defaults. Use after upgrading from a version with different MCM structure (the old settings remain as orphaned keys in the MCM storage file but no longer apply).</text>
+  </string>
+  <string id="ui_mcm_at_development_reset_warning">
+    <text>Warning: save or discard pending MCM changes first; otherwise they override the reset on the next Accept.</text>
   </string>
 </string_table>
