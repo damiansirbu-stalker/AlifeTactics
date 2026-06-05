@@ -233,11 +233,6 @@ function on_mcm_load()
                         text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
                     { id = "desc", type = "desc", text = "ui_mcm_at_development_desc" },
 
-                    -- Reset
-                    { id = "div_reset", type = "line" },
-                    { id = "warn_reset", type = "desc", text = "ui_mcm_at_development_reset_warning", clr = {255, 240, 200, 80} },
-                    { id = "btn_reset_all", type = "button", functor_ui = { btn_reset_all } },
-
                     -- Logging
                     { id = "div_logging", type = "line" },
                     { id = "hdr_logging", type = "desc", text = "ui_mcm_at_hdr_logging", clr = {255, 200, 200, 200} },
@@ -249,6 +244,11 @@ function on_mcm_load()
                             {"DEBUG", "debug"},
                         },
                     },
+
+                    -- Reset
+                    { id = "div_reset", type = "line" },
+                    { id = "warn_reset", type = "desc", text = "ui_mcm_at_development_reset_warning", clr = {255, 240, 200, 80} },
+                    { id = "btn_reset_all", type = "button", functor_ui = { btn_reset_all } },
 
                     -- Version footer
                     { id = "div_version", type = "line" },
