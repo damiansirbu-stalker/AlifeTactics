@@ -1,5 +1,5 @@
 AlifeTactics: NPC combat behavior for STALKER Anomaly, by Damian
-Version: 1.0.0 (xlibs 1.5.2)
+Version: 1.0.0 (xlibs 1.5.2, demonized 20260601)
 GitHub: https://github.com/damiansirbu-stalker/AlifeTactics
 Changelog: https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/changelog
 Russian / Na russkom: https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/readme_ru.txt
@@ -27,7 +27,7 @@ NPC self-healing (medkits AND bandages):
     - Bleeding stalkers above the wound threshold use bandages to stop the bleed.
     - Stalkers without either fall back to the lifetime healing charge if their rank rolls allow.
   Visual cues (cosmetic, MCM-toggleable):
-    - Stalkers below 65% HP visibly limp when out of combat. A torso slump overlay (visible whether standing or walking; engine drives the legs normally). Re-armed every 20 seconds per NPC.
+    - Stalkers below 65% HP visibly limp when out of combat. A torso slump overlay (visible whether standing or walking; engine drives the legs normally). Re-armed every 5 seconds per NPC.
     - Stalkers play a medkit-injection or bandage-application torso animation when they start a heal cycle. One-shot cue per cycle.
     - Combat NPCs are excluded from limping (mental state changes to danger in combat). Heal cues play in or out of combat.
 
@@ -38,23 +38,23 @@ NPC weapon accuracy:
 
 Combat crouch:
   Vanilla NPC stance during combat is inherited from current state. A stalker that walked to cover standing stays standing in cover, and gets headshot through the chest-high crate they thought was protecting them.
-  AlifeTactics tells snipers and rocket-launcher carriers to crouch when the engine selects a static cover action: firing at the enemy, holding position, peeking from cover, waiting in cover, ambushing. These weapons are long-range sustained-fire tools; crouching gives low silhouette and stable sustained shooting.
+  AlifeTactics tells snipers and rocket-launcher carriers to crouch when the engine combat planner selects a static-cover firing or peek action (LookOut, HoldPosition). The crouch carries forward into KillEnemy, WaitInCover, and HoldAmbushLocation through the engine's body_state inheritance. These weapons are long-range sustained-fire tools; crouching gives low silhouette and stable sustained shooting.
   Other weapons keep vanilla stance. Riflemen, pistoleers, shotgunners, and SMG carriers stand up to move and fire normally. The crouch is meaningful: it marks the squad's fire base by weapon type alone, no role taxonomy needed.
 
 MCM:
-  Five tabs, each with a master toggle. Hit Sharing: master toggle, per-shooter memory retention. Healing: master toggle, heal-rate multiplier, four per-rank charge-chance sliders, limping toggle + threshold, heal-cue animation toggle. Accuracy: master toggle, per-tier dispersion sliders for the eight rank tiers. Stance Switch: master toggle. Development: log level.
+  Five tabs, each with a master toggle. Hit Sharing: master toggle, per-shooter memory retention. Healing: master toggle, heal-rate multiplier, four per-rank charge-chance sliders, limping toggle + threshold, heal-cue animation toggle. Accuracy: master toggle, per-tier dispersion sliders for the eight rank tiers. Stance Switch: master toggle. Development: log level, reset-to-defaults button.
 
 Backlog:
   Tactical flee, danger memory persistence, combat scheme selection, NPC weapon bias. The backlog file on GitHub tracks each.
 
 Performance:
-  Squad-aware behaviors scale with squad count. NPC count does not enter the cost. Two periodic cleanup ticks run every few seconds. Nothing runs on every frame and nothing polls.
+  Squad-aware behaviors (Hit Sharing, Squad Memory decay) scale with squad count. Per-NPC behaviors (Accuracy, Healing, Stance Switch) fire on their natural engine events: accuracy per bullet, stance per body-state set, healing tick per time-factor. None of these iterate the NPC list every frame. One periodic cleanup tick (substrate decay, every 5 game seconds).
 
 Compatibility:
   Tested with vanilla Anomaly 1.5.3 and GAMMA.
   No base script edits. No engine patches.
   Mid-save install works. Mid-save uninstall is safe.
-  Story NPCs, companions, and traders go through the same faction-relation gate as every other stalker, so they do not get caught by the squad alarm.
+  Friendly fire and same-community hits are rejected at the faction-relation gate before any squad-memory write or disclosure. Story NPCs, companions, and traders go through the same gate as every other stalker. A bandit hitting a friendly stalker still arms that stalker's squad against the bandit; the friendly stalker hitting their own squadmate is ignored.
 
 Disable before installing AlifeTactics:
 
@@ -70,15 +70,15 @@ Compatible today, will overlap once the per-NPC camper scheme is added:
   G.A.M.M.A. AI Rework. Layered scheme selector on Mora's pattern with rank-weighted dispatch. Overrides xr_combat_camper, xr_conditions, xr_danger, schemes_ai_gamma. The xr_combat_camper override removes action_look_around, which AlifeTactics's planned camper depends on to scan when sight breaks. The xr_danger override file-replaces a script AlifeTactics will surgically monkey-patch.
   ReDone Combat AI. Copies Mora's pattern; overrides 12 vanilla scripts. Much of its logic is 1.5.2-gated and skipped on 1.5.3.
 
-Companion mods:
-
-AlifePlus (reactive A-Life framework): https://www.moddb.com/mods/stalker-anomaly/addons/alifeplus-v1-0-01
-AlifeGuard (population control): https://www.moddb.com/mods/stalker-anomaly/addons/alifeguard-1001
-AlifeBalance (respawn pacing): https://www.moddb.com/mods/stalker-anomaly/addons/alifebalance
+Alife Collection:
+AlifePlus: https://www.moddb.com/mods/stalker-anomaly/addons/alifeplus-v1-0-01
+AlifeBalance: https://www.moddb.com/mods/stalker-anomaly/addons/alifebalance
+AlifeGuard: https://www.moddb.com/mods/stalker-anomaly/addons/alifeguard-1001
+AlifeTactics: TBD
 
 Requirements:
 Anomaly 1.5.3
-Demonized modded exes (latest), main or MT
+demonized 20260601+ (https://github.com/themrdemonized/xray-monolith)
 xlibs (https://www.moddb.com/mods/stalker-anomaly/addons/xlibs-1001)
 MCM
 

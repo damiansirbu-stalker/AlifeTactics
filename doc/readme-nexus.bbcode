@@ -1,15 +1,10 @@
-Version: 1.0.0 (xlibs 1.5.2)
+Version: 1.0.0 (xlibs 1.5.2, demonized 20260601)
 
 [url=https://github.com/damiansirbu-stalker/AlifeTactics]GitHub[/url] | [url=https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/changelog]Changelog[/url] | [url=https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/readme_ru.txt]Na russkom[/url] | [url=https://github.com/damiansirbu-stalker/AlifeTactics/issues]Bugs, suggestions[/url]
 
 [b]! Reset MCM settings to defaults after updating ![/b]
 
 AlifeTactics is a mod composed of several systems, that gives NPC squads coordinated combat behavior.
-
-[size=3][b]Squad memory[/b][/size]
-In vanilla each NPC tracks his own threats. The squad has no shared brain. A hit on one stalker stays a problem for one stalker, and the rest of the squad keeps walking.
-Squad memory is one shared table per squad. Every other combat system writes its observations there and reads them back. Hits, shooters, current state, all in one place.
-This is the backbone of the mod. Squads stop acting like four lone wolves wearing the same patches and start acting like a unit with shared awareness. Realistic squad combat is collaborative, and without a shared memory there is nothing to collaborate on.
 
 [size=3][b]Squad alarm on hit[/b][/size]
 Vanilla shares hit memory across squadmates within earshot. A suppressor breaks the share. A patrol member thirty meters off the line falls outside its range. The hit stays a private problem of whoever took it.
@@ -18,12 +13,18 @@ Shooting one stalker from cover or with a suppressor no longer leaves his squad 
 
 [size=3][b]NPC self-healing (medkits AND bandages)[/b][/size]
 Vanilla has a working code path for NPCs to consume medkits and bandages from their inventory, but ships the underlying configuration with an empty item list. The consumption loop never iterates, and only a once-per-life fallback ever heals. NPCs carry full medkits and bandages and die clutching them.
-AlifeTactics restores BOTH item lists through a configuration overlay covering the six vanilla medkit sections (medkit, medkit_army, medkit_scientic, medkit_ai1/2/3) and the vanilla bandage. Two MCM sliders tune on top: one scales how fast NPCs heal, one sets a per-rank chance for the lifetime fallback. Defaults match vanilla behavior, so out of the box you only get the fix.
+AlifeTactics restores BOTH item lists through a configuration overlay covering the six vanilla medkit sections (medkit, medkit_army, medkit_scientic, medkit_ai1/2/3) and the vanilla bandage. MCM controls on top: heal-rate multiplier, four per-rank charge-chance sliders for the lifetime fallback (novice, experienced, veteran, master) replacing vanilla's flat 50%, and toggles for limping and the heal-cue animation. Defaults match vanilla behavior, so out of the box you only get the fix.
 What actually happens now:
 [list]
 [*]Wounded stalkers below 50% HP use medkits to heal up.
 [*]Bleeding stalkers above the wound threshold use bandages to stop the bleed.
 [*]Stalkers without either fall back to the lifetime healing charge if their rank rolls allow.
+[/list]
+Visual cues (cosmetic, MCM-toggleable):
+[list]
+[*]Stalkers below 65% HP visibly limp when out of combat. A torso slump overlay (visible whether standing or walking; engine drives the legs normally). Re-armed every 5 seconds per NPC.
+[*]Stalkers play a medkit-injection or bandage-application torso animation when they start a heal cycle. One-shot cue per cycle.
+[*]Combat NPCs are excluded from limping (mental state changes to danger in combat). Heal cues play in or out of combat.
 [/list]
 
 [size=3][b]NPC weapon accuracy[/b][/size]
@@ -31,26 +32,49 @@ In vanilla every stalker fires with the same dispersion regardless of rank. The 
 AlifeTactics replaces that curve script-side. On every NPC shot the rank is read and a per-tier multiplier is applied to the engine's computed cone. Defaults run from novice at the vanilla baseline down to legend at roughly a third the cone width. Eight tier sliders in MCM tune each rank independently.
 Master stalkers shoot noticeably tighter than novices. The spread between ranks is configurable per tier, so you can flatten the curve, exaggerate it, or set extremes (laser masters, hopeless rookies).
 
-[size=3][b]MCM[/b][/size]
-Four tabs, each with a master toggle. Squad Memory: master toggle, substrate retention, state machine timings. Stalker Healing: master toggle, medkit restoration (info-only, boot-time data layer), heal rate multiplier, per-rank healing-charge probability. Weapon Accuracy: master toggle, per-tier dispersion sliders for the eight rank tiers. Development: log level.
+[size=3][b]Combat crouch[/b][/size]
+Vanilla NPC stance during combat is inherited from current state. A stalker that walked to cover standing stays standing in cover, and gets headshot through the chest-high crate they thought was protecting them.
+AlifeTactics tells snipers and rocket-launcher carriers to crouch when the engine selects a static-cover firing or peek action (LookOut, HoldPosition). The crouch carries forward into KillEnemy, WaitInCover, and HoldAmbushLocation through the engine's body_state inheritance. These weapons are long-range sustained-fire tools; crouching gives low silhouette and stable sustained shooting.
+Other weapons keep vanilla stance. Riflemen, pistoleers, shotgunners, and SMG carriers stand up to move and fire normally. The crouch is meaningful: it marks the squad's fire base by weapon type alone, no role taxonomy needed.
 
-[size=3][b]Backlog (not in 1.0.0)[/b][/size]
-Tactical flee, danger memory persistence, combat scheme selection, global combat tuning, stance and weapon bias. The backlog file on GitHub tracks each.
+[size=3][b]MCM[/b][/size]
+Five tabs, each with a master toggle. Hit Sharing: master toggle, per-shooter memory retention. Healing: master toggle, heal-rate multiplier, four per-rank charge-chance sliders, limping toggle + threshold, heal-cue animation toggle. Accuracy: master toggle, per-tier dispersion sliders for the eight rank tiers. Stance Switch: master toggle. Development: log level, reset-to-defaults button.
+
+[size=3][b]Backlog[/b][/size]
+Tactical flee, danger memory persistence, combat scheme selection, NPC weapon bias. The backlog file on GitHub tracks each.
 
 [size=3][b]Performance[/b][/size]
-Squad-aware behaviors scale with squad count. NPC count does not enter the cost. Two periodic cleanup ticks run every few seconds. Nothing runs on every frame and nothing polls.
+Squad-aware behaviors scale with squad count. Per-NPC behaviors (Accuracy, Healing, Stance Switch) fire on their natural engine events. None of them iterate the NPC list every frame. One periodic cleanup tick (substrate decay, every 5 game seconds).
 
 [size=3][b]Compatibility[/b][/size]
 Tested with vanilla Anomaly 1.5.3 and GAMMA.
 No base script edits. No engine patches.
 Mid-save install works. Mid-save uninstall is safe.
-Story NPCs, companions, and traders go through the same faction-relation gate as every other stalker, so they do not get caught by the squad alarm.
+Friendly fire and same-community hits are rejected at the faction-relation gate before any squad-memory write or disclosure. Story NPCs, companions, and traders go through the same gate as every other stalker. A bandit hitting a friendly stalker still arms that stalker's squad against the bandit; the friendly stalker hitting their own squadmate is ignored.
 
-[size=3][b]Companion mods[/b][/size]
+[size=3][b]Disable before installing AlifeTactics[/b][/size]
+Redundant with engine settings:
 [list]
-[*][b]AlifePlus[/b] (reactive A-Life framework) -- [url=https://www.moddb.com/mods/stalker-anomaly/addons/alifeplus-v1-0-01]ModDB[/url]
-[*][b]AlifeGuard[/b] (population control) -- [url=https://www.moddb.com/mods/stalker-anomaly/addons/alifeguard-1001]ModDB[/url]
-[*][b]AlifeBalance[/b] (respawn pacing) -- [url=https://www.moddb.com/mods/stalker-anomaly/addons/alifebalance]ModDB[/url]
+[*]Dynamic AI Aim Settings, DLTX_JURASZKA Worse NPC vision and accuracy. Demonized PR #523 exposes the underlying ai_aim_* / ai_vision_speed_boost / ai_search_inertia_time cvars in the engine Settings > Stalkers menu. AlifeTactics's accuracy hook also writes per-shot dispersion via the npc_shot_dispersion callback. Either path stacks on the other.
+[/list]
+Forced-movement schemes (stuck-NPC risk):
+[list]
+[*]Wuut AI Extension. Grafts a forced-movement precondition onto the engine combat planner; includes its own stuck-detection because forced movement during combat can leave NPCs stuck.
+[*]NPC_Fleeing. Squad flee via forced movement; same stuck risk, includes its own stuck-detection.
+[/list]
+Compatible today, will overlap once the per-NPC camper scheme is added:
+[list]
+[*]AI more cover (Mora). Assigns the vanilla camper combat scheme via global default_custom_data.ltx [combat] combat_type. Engine-documented machinery. AlifeTactics's planned per-NPC camper writes script_combat_type from a binder; two writers on the same field.
+[*]G.A.M.M.A. AI Rework. Layered scheme selector on Mora's pattern with rank-weighted dispatch. Overrides xr_combat_camper, xr_conditions, xr_danger, schemes_ai_gamma. The xr_combat_camper override removes action_look_around, which AlifeTactics's planned camper depends on to scan when sight breaks. The xr_danger override file-replaces a script AlifeTactics will surgically monkey-patch.
+[*]ReDone Combat AI. Copies Mora's pattern; overrides 12 vanilla scripts. Much of its logic is 1.5.2-gated and skipped on 1.5.3.
+[/list]
+
+[size=3][b]Alife Collection[/b][/size]
+[list]
+[*][url=https://www.moddb.com/mods/stalker-anomaly/addons/alifeplus-v1-0-01]AlifePlus[/url]
+[*][url=https://www.moddb.com/mods/stalker-anomaly/addons/alifebalance]AlifeBalance[/url]
+[*][url=https://www.moddb.com/mods/stalker-anomaly/addons/alifeguard-1001]AlifeGuard[/url]
+[*]AlifeTactics (TBD)
 [/list]
 
 [line]
@@ -58,7 +82,7 @@ Story NPCs, companions, and traders go through the same faction-relation gate as
 [size=3][b]Requirements[/b][/size]
 [list]
 [*]Anomaly 1.5.3
-[*]Demonized modded exes (latest), main or MT
+[*][url=https://github.com/themrdemonized/xray-monolith]demonized[/url] 20260601+
 [*][url=https://www.moddb.com/mods/stalker-anomaly/addons/xlibs-1001]xlibs[/url]
 [*]MCM
 [/list]
