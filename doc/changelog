@@ -2,10 +2,9 @@
   Summary: First release, hit sharing, NPC self-healing fix, per-rank accuracy, sniper and launcher crouch
   First release. NPC combat AI organised around a shared per-squad memory substrate.
   Four user-facing systems on top of one internal core. Full MCM configuration.
-  Added: Hit Sharing - on first faction-enemy hit, force-disclose shooter to every online squadmate (force_set_goodwill, enable_memory_object, register_in_combat). Distant patrols and suppressor victims now engage on hit 1.
-  Added: Squad Memory - shared per-squad DTO keyed by squad_id, lazy-init on first hit, decay tick prunes per-shooter entries on TTL.
+  Added: Hit Sharing - on first faction-enemy hit, force-disclose shooter to every online squadmate (force_set_goodwill, enable_memory_object, register_in_combat). Distant patrols and suppressor victims now engage on hit 1. Disclosure decays after the configured retention (default 2 game minutes of no further hits from that shooter), then re-fires on the next hit. New squad members inherit existing disclosures on spawn. Previously-offline shooters coming back online replay disclosure to every member of the squads tracking them.
   Added: NPC Self-Healing - DLTX overlay restores vanilla medkit and bandage item lists in xr_eat_medkit. Heal rate multiplier, per-rank healing-charge probability (novice, experienced, veteran, master), limping overlay, heal animation.
-  Added: Accuracy - per-shot, per-rank NPC dispersion curve replacing the engine's broken rank curve. 8 per-tier multiplier sliders (novice 1.00 to legend 0.38).
+  Added: Accuracy - per-shot, per-rank NPC dispersion curve replacing the engine's broken rank curve. 8 per-tier dispersion sliders (novice 1.00 to legend 0.38).
   Added: Stance Switch - sniper and launcher carriers crouch when engine selects LookOut or HoldPosition, crouch carries forward into KillEnemy, WaitInCover, HoldAmbushLocation through body_state inheritance.
   Added: MCM reset-to-defaults button (Development tab).
   Added: console test commands at_spawn, at_spawn_veteran, at_spawn_master, at_spawn_far, at_dump.

@@ -15,11 +15,6 @@ AlifeTactics: TBD
 
 AlifeTactics is a mod composed of several systems, that gives NPC squads coordinated combat behavior.
 
-Squad memory:
-  In vanilla each NPC tracks his own threats. The squad has no shared brain. A hit on one stalker stays a problem for one stalker, and the rest of the squad keeps walking.
-  Squad memory is one shared table per squad. Every other combat system writes its observations there and reads them back. Hits, shooters, current state, all in one place.
-  This is the backbone of the mod. Squads stop acting like four lone wolves wearing the same patches and start acting like a unit with shared awareness. Realistic squad combat is collaborative, and without a shared memory there is nothing to collaborate on.
-
 Squad alarm on hit:
   Vanilla shares hit memory across squadmates within earshot. A suppressor breaks the share. A patrol member thirty meters off the line falls outside its range. The hit stays a private problem of whoever took it.
   On the first faction-enemy hit, AlifeTactics writes the shooter into every squadmate's memory as hostile, audio range or not. The engine combat planner then handles target selection, cover, and return fire on the new information.
@@ -39,7 +34,7 @@ NPC self-healing (medkits AND bandages):
 
 NPC weapon accuracy:
   In vanilla every stalker fires with the same dispersion regardless of rank. The engine has a rank-based accuracy curve but it is broken on Anomaly's data: every non-novice stalker clamps to the same value, so a master shoots no tighter than a trainee. The rank dispersion knob in the engine is a dead knob.
-  AlifeTactics replaces that curve script-side. On every NPC shot the rank is read and a per-tier multiplier is applied to the engine's computed cone. Defaults run from novice at the vanilla baseline down to legend at roughly a third the cone width. Eight tier sliders in MCM tune each rank independently.
+  AlifeTactics replaces that curve script-side. On every NPC shot the rank is read and a per-tier dispersion factor is applied to the engine's computed cone. Defaults run from novice at the vanilla baseline down to legend at roughly a third the cone width. Eight tier sliders in MCM tune each rank independently.
   Master stalkers shoot noticeably tighter than novices. The spread between ranks is configurable per tier, so you can flatten the curve, exaggerate it, or set extremes (laser masters, hopeless rookies).
 
 Combat crouch:
@@ -48,13 +43,13 @@ Combat crouch:
   Other weapons keep vanilla stance. Riflemen, pistoleers, shotgunners, and SMG carriers stand up to move and fire normally. The crouch is meaningful: it marks the squad's fire base by weapon type alone, no role taxonomy needed.
 
 MCM:
-  Five tabs, each with a master toggle. Hit Sharing: master toggle, per-shooter memory retention. Healing: master toggle, heal-rate multiplier, four per-rank charge-chance sliders, limping toggle + threshold, heal-cue animation toggle. Accuracy: master toggle, per-tier dispersion sliders for the eight rank tiers. Stance Switch: master toggle. Development: log level, reset-to-defaults button.
+  Five tabs, each with a master toggle. Hit Sharing: master toggle, forget-shooter timer in game minutes. Healing: master toggle, heal-rate multiplier, four per-rank charge-chance sliders, limping toggle + threshold, heal-cue animation toggle. Accuracy: master toggle, per-tier dispersion sliders for the eight rank tiers. Stance Switch: master toggle. Development: log level, reset-to-defaults button.
 
 Backlog:
   Tactical flee, danger memory persistence, combat scheme selection, NPC weapon bias. The backlog file on GitHub tracks each.
 
 Performance:
-  Squad-aware behaviors (Hit Sharing, Squad Memory decay) scale with squad count. Per-NPC behaviors (Accuracy, Healing, Stance Switch) fire on their natural engine events: accuracy per bullet, stance per body-state set, healing tick per time-factor. None of these iterate the NPC list every frame. One periodic cleanup tick (substrate decay, every 5 game seconds).
+  Hit Sharing fires on the engine hit callback and scales with shots fired against squads. Per-NPC behaviors (Accuracy, Healing, Stance Switch) fire on their natural engine events: accuracy per bullet, stance per body-state set, healing tick per time-factor. None of these iterate the NPC list every frame. One periodic cleanup tick (disclosure decay, every 5 real seconds) walks tracked squads and prunes expired shooter entries.
 
 Compatibility:
   Tested with vanilla Anomaly 1.5.3 and GAMMA.

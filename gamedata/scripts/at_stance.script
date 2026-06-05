@@ -1,22 +1,14 @@
---- at_stance: Force crouch when engine combat planner selects static-cover actions
--- Hooks the modded-exe `_G.CAI_Stalker__CombatSetBodyState(npc, wo, body_state)` functor at
--- stalker_movement_manager_base_inline.h:54, called from every combat action in
--- stalker_combat_actions.cpp that sets body_state (gated by COMBAT_BODY_STATE_OVERRIDE,
--- unconditionally defined at stalker_movement_manager_base.h:23-24 in monolith builds).
---
--- Engine gap: TakeCover, HoldPosition, LookOut, KillEnemy etc. inherit body_state from the
--- current state. An NPC that walked to cover Standing stays Standing and gets headshot.
--- This module returns eBodyStateCrouch for a curated set of static-cover operators when
--- the engine selected eBodyStateStand. Applies to every stalker regardless of rank.
---
--- This is NOT a multi-subscriber callback (no vanilla forwarder dispatch). The engine reads
--- a single global functor by name. Compose with any prior installer via _prev_functor chain
--- so other mods touching this seam are not silently overridden.
+--- at_stance: Crouch override for sniper / launcher carriers in static-cover ops
+--- Installs the modded-exe _G.CAI_Stalker__CombatSetBodyState functor and returns
+--- eBodyStateCrouch when the engine selected Stand for LookOut or HoldPosition.
+--- Composes via _prev_functor chain so other mods at the same seam stack instead
+--- of silently overriding. See architecture.md Stance Switch section.
 
 local RegisterScriptCallback = RegisterScriptCallback
 
 local log = xlog.get_logger("AT.STANCE", { outfile = "alifetactics.log" })
 local _dbg = false
+local cfg = at_mcm.cfg
 
 -- Weapon kinds that crouch in static-cover ops. Sniper and launcher are
 -- long-range, sustained-fire weapons; crouch gives low silhouette + stable
@@ -48,8 +40,6 @@ local OVERRIDE_OPS = {
 
 -- ==================== STATE ====================
 
-local _enabled = true
-
 -- Composition chain: if another mod installed a functor before us, call it and use its
 -- return as the input to our decision.
 local _prev_functor = nil
@@ -64,7 +54,7 @@ local function _on_combat_set_body_state(npc, wo, body_state)
         if prev_result ~= nil then body_state = prev_result end
     end
 
-    if not _enabled then return body_state end
+    if not cfg.stance_enabled then return body_state end
     if not OVERRIDE_OPS[wo] then return body_state end
     if body_state ~= BS_STAND then return body_state end
     if not npc then return body_state end
@@ -88,20 +78,14 @@ end
 -- ==================== LIFECYCLE ====================
 
 local function _refresh_config()
-    if not (at_mcm and at_mcm.get_config) then return end
-
-    local level_str = at_mcm.get_config("log_level") or "WARN"
-    log.set_level(level_str)
+    log.set_level(at_mcm.get_config("log_level") or "WARN")
     _dbg = log.get_level() >= 5
-
-    local v = at_mcm.get_config("stance_enabled")
-    if v ~= nil then _enabled = v end
 end
 
 local function _on_first_update()
     _refresh_config()
     log.info("Combat Crouch initialized (enabled=%s, dbg=%s)",
-        _enabled and "true" or "false", _dbg and "true" or "false")
+        cfg.stance_enabled and "true" or "false", _dbg and "true" or "false")
 end
 
 function on_game_start()

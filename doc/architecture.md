@@ -16,7 +16,6 @@ Version 1.0.0.
 |---|---|---|
 | `_at_deps.script` | infra | done |
 | `at_mcm.script` | infra | done |
-| `at_squad_memory.script` | internal core | done |
 | `at_test.script` | infra | done |
 | `at_hitresponse.script` | feature | done |
 | `at_health.script` | feature | done |
@@ -28,6 +27,7 @@ Backlog (not built):
 - Tactical flee (per-squad retreat to friendly smart under power imbalance)
 - Memory persistence (extended danger inertion under sustained combat)
 - Combat scheme selection (per-NPC combat_type via condlist)
+- NPC weapon bias (per-NPC callback overrides for loadout selection)
 
 Groomed task entries in `stalker-dev/doc/todo/todo-alifetactics-next.md`; brainstorm pool in `todo-alifetactics-backlog.md`.
 
@@ -50,7 +50,6 @@ AlifeTactics/
 │   ├── scripts/
 │   │   ├── _at_deps.script                    # dependency gate
 │   │   ├── at_mcm.script                      # MCM configuration
-│   │   ├── at_squad_memory.script             # DTO + decay
 │   │   ├── at_hitresponse.script              # Hit Sharing system
 │   │   ├── at_health.script                   # Healing system
 │   │   ├── at_accuracy.script                 # Accuracy system
@@ -68,7 +67,7 @@ Namespace: `at_*` (parallel to `ap_*` for AlifePlus, `ag_*` for AlifeGuard, `x*`
 
 ## Four user-facing systems
 
-Each system has its own file, its own MCM tab, and one master toggle. Plus one internal core that all squad-aware systems read from.
+Each system has its own file, its own MCM tab, and one master toggle.
 
 | System | File | MCM Tab | Master toggle |
 |---|---|---|---|
@@ -76,25 +75,6 @@ Each system has its own file, its own MCM tab, and one master toggle. Plus one i
 | Healing | `at_health.script` | Healing | `healing_enabled` |
 | Accuracy | `at_accuracy.script` | Accuracy | `accuracy_enabled` |
 | Stance Switch | `at_stance.script` | Stance Switch | `stance_enabled` |
-
-Plus `at_squad_memory.script`: internal core. No MCM exposure. Always on.
-
----
-
-## Squad Memory (internal core, no MCM)
-
-The DTO. One Lua table per squad, keyed by `squad.id`. Holds the shared per-squad state. Lazy-initialized on first `get(squad_id)`. Cleared on `server_entity_on_unregister`.
-
-Record schema:
-
-| Field | Type | Written by | Read by | Description |
-|---|---|---|---|---|
-| `per_shooter[shooter_id]` | number | hit_share | decay tick | last-hit timestamp (xtime.game_sec); set on every kept hit |
-| `disclosed_shooters[shooter_id]` | bool | hit_share | hit_share | session-persistent idempotency guard; cleared on shooter or squad despawn |
-
-Decay tick (every 5s) prunes `per_shooter` entries whose timestamp is older than `substrate_retention_sec` (MCM-tunable, default 60s).
-
-The substrate has no on/off toggle. The DTO is always available; if hit_share is disabled, nothing writes to it, but consumers can still call `get()` safely (record will be empty).
 
 ---
 
@@ -116,22 +96,40 @@ Hooks `npc_on_hit_callback`. When a faction-enemy hits any squad member, the ent
 ### What we add on top
 
 1. Sanity guards: `amount > 0`, `who` exists, not self-hit.
-2. **Faction-relation gate** via `game_relations.is_factions_enemies(npc_community, shooter_community)`. Same-community hits rejected. Mirrors the engine's friendly-fire skip at our hook entry so substrate is never polluted by accidental hits.
+2. **Faction-relation gate** via `game_relations.is_factions_enemies(npc_community, shooter_community)`. Same-community hits rejected. Mirrors the engine's friendly-fire skip at our hook entry.
 3. Resolve squad via `get_object_squad(npc)`; skip solo NPCs.
-4. Substrate write: `record.per_shooter[shooter_id] = now`. Used by the decay tick for TTL pruning.
-5. Idempotency check: if `record.disclosed_shooters[shooter_id]` is set, return.
-6. Otherwise, set the flag and call `_disclose(squad, who)`. Three engine APIs per online squadmate:
+4. Write/refresh timestamp: `_disclosed[squad_id][shooter_id] = xtime.game_sec()`. Every hit refreshes.
+5. If the entry existed before the write (idempotency hit): return. The squad already engaged this shooter in this fight.
+6. Otherwise (first hit, or first hit since decay): call `_disclose(squad, who)`. Three engine APIs per online squadmate:
 
-   - **`force_set_goodwill(-2000, who)`**: writes RELATION_REGISTRY personal goodwill (`relation_registry.cpp:161-179`). `CAI_Stalker::tfGetRelationType` routes through RELATION_REGISTRY for stalkers so this drives every downstream `is_relation_enemy` check. Gated on `IsStalker(who)`: `ForceSetGoodwill` smart_casts both ids to `CSE_ALifeTraderAbstract` and logs an error for mutants. For mutant / helicopter / anomaly shooters, the goodwill write is skipped.
-   - **`enable_memory_object(who, true)`**: toggles `m_enabled` on existing visual/sound/hit memory entries (`memory_manager.cpp:151-156`). No-op when no prior entry. Works for any shooter type.
+   - **`force_set_goodwill(-2000, who)`**: writes RELATION_REGISTRY personal goodwill (`relation_registry.cpp:161-179`). `CAI_Stalker::tfGetRelationType` routes through RELATION_REGISTRY for stalkers so this drives every downstream `is_relation_enemy` check. Gated on `IsStalker(who) AND IsStalker(mem_npc)`: `ForceSetGoodwill` smart_casts both ids to `CSE_ALifeTraderAbstract` and logs an error if either side is non-stalker. Mutant shooters and mutant squadmates both skip the goodwill write.
+   - **`enable_memory_object(who, true)`**: toggles `m_enabled` on existing visual/sound/hit memory entries (`memory_manager.cpp:151-156`). No-op when no prior entry. Works for any actor type.
    - **`register_in_combat()`**: sets the member's squad_mask bit in `CAgentMemberManager::m_combat_mask` (`agent_member_manager.cpp:114-132`). This is the unlock for engine-native squad memory propagation. With the whole squad's bits set, the next `agent_memory_manager` tick ORs the full combat_mask into the victim's hit-memory entry's `m_squad_mask`, propagating memory of the shooter across every member including distant patrols.
+
+### Decay and re-engagement
+
+Decay tick fires every 5 seconds. Walks every `_disclosed[squad_id][shooter_id]` entry; prunes any whose timestamp is older than `hit_share_retention_min` minutes (MCM-tunable, default 2 game minutes). Pruning clears only the idempotency entry. Goodwill -2000 is RELATION_REGISTRY-persistent and survives independently for the rest of the game session.
+
+After decay, the next hit from that shooter against that squad triggers a fresh `_disclose` call. Distant patrol squadmates get re-pinned into combat_mask for the new engagement.
+
+### Spawn handler (mid-engagement replenishment + offline-shooter return)
+
+`npc_on_net_spawn` fires for every NPC spawn. Two paths run for each spawned NPC:
+
+1. **Inherit from squad** (case 1): if the spawning NPC's squad has active disclosures, apply `_disclose_to_member` for each disclosed shooter that resolves online. The replacement inherits the squad's combat state without waiting for the next hit.
+2. **Re-disclose on shooter return** (case 2): walk every tracked squad's disclosed map. If the spawning NPC's id is present (the NPC is a previously-offline shooter coming back online), replay `_disclose_to_member` for every online squadmate of those squads. Covers members who joined while the shooter was offline.
+
+Both paths short-circuit quickly when no entries match. Most spawn events trigger zero work.
 
 ### Net behavior
 
 - Engine handles audio-range squadmates on hit #1 (free, automatic).
 - Our hook handles distant patrol squadmates on hit #1 by forcing them into combat_mask, letting the engine's own propagation pipe carry the memory.
 - Hostility for the shooter is pinned at -2000 personal goodwill on every squadmate. The override survives community-relation drift and lasts the session.
-- Subsequent hits from the same shooter against the same squad no-op via `disclosed_shooters`.
+- Sustained engagement: subsequent hits refresh the timestamp and return early via idempotency.
+- After `hit_share_retention_min` game minutes of no hits from a given shooter, the squad's pin on that shooter expires; the next hit re-fires the full pipeline.
+- Mid-fight replenishment: new squad members inherit existing disclosures on spawn.
+- Offline-shooter return: when a previously-offline tracked shooter comes back online, the spawn handler replays disclosure to every member of the squads tracking them. Members who joined while the shooter was offline get pinned at this moment.
 
 ---
 
@@ -174,7 +172,7 @@ Rank-aware NPC dispersion in script. `at_accuracy.script` subscribes to the vani
 
 Why script and not cvars: the engine rank curve degenerates on Anomaly gamedata. `Rank()` clamps to `[0, 100]` at `ai_stalker.cpp:764`, but vanilla `<rank>` intervals run to 26999 (game_relations.ltx:8). All Anomaly NPCs end up at `rank_k = 1.0`, so `m_fRankDisperison` collapses to the constant `dispersion_experienced_k = 0.8`. Cvar tuning is a dead knob.
 
-Math: `out = (base / 0.8) * mult`. Divides out the engine's baked-in rank step, applies our per-tier multiplier.
+Math: `out = (base / 0.8) * disp`. Divides out the engine's baked-in rank step, applies our per-tier dispersion factor.
 
 8 tiers (novice / trainee / experienced / professional / veteran / expert / master / legend) with defaults from 1.00 down to 0.38.
 
@@ -231,7 +229,6 @@ The engine then runs its own combat detection (property_enemy, m_combat_mask, ag
 Each module owns its own `xlog.get_logger("AT.X", { outfile = "alifetactics.log" })` facade. All write to `alifetactics.log` with distinct prefixes:
 
 - `AT.MCM`: MCM configuration
-- `AT.MEM`: Squad Memory DTO + decay
 - `AT.HIT`: Hit Sharing
 - `AT.HEALTH`: Healing
 - `AT.ACC`: Accuracy
@@ -244,11 +241,12 @@ MCM `log_level` (ERROR/WARN/INFO/DEBUG) controls verbosity. Each module subscrib
 
 ### Key debug events
 
-- `[DECAY]`: substrate decay tick stats
-- `[CLEAR]`: substrate clear on entity unregister
-- `[HIT]`: hit handler reject reasons or already-disclosed cases
+- `[HIT]`: hit handler reject reasons or refreshed-disclosure cases
 - `[DISCLOSURE]`: full-squad disclosure with member count
-- `[UNREGISTER]`: substrate cleanup on entity despawn
+- `[INHERIT]`: new squad member inherits disclosed shooters on spawn
+- `[REDISCLOSE]`: previously-offline shooter came back online, replayed disclosure to tracked squads
+- `[DECAY]`: decay tick pruned entries past retention threshold
+- `[UNREGISTER]`: disclosure cleanup on entity despawn
 - `[HEAL]`: `seq_start`, `seq_gesture`, `seq_end`, `seq_abort`, `hp_tick`, `complete`, `bleed_tick`, `bleed_complete`
 - `[CHARGE]`: healing charge rolls per NPC
 - `[LIMP]`: limp gained / lost / anim queued per NPC
@@ -256,7 +254,7 @@ MCM `log_level` (ERROR/WARN/INFO/DEBUG) controls verbosity. Each module subscrib
 - `[ACC]`: per-shot accuracy calculation
 - `[STANCE]`: body_state override fires
 - `[SPAWN]`: at_test squad spawn
-- `[DUMP]`: at_test substrate dump
+- `[DUMP]`: at_test disclosed-squad dump
 
 ---
 
@@ -268,7 +266,7 @@ MCM `log_level` (ERROR/WARN/INFO/DEBUG) controls verbosity. Each module subscrib
 - `at_spawn_veteran()`: `bandit_sim_squad_veteran` 50m ahead
 - `at_spawn_master()`: `bandit_sim_squad_alpha` 50m ahead
 - `at_spawn_far()`: novice 100m ahead
-- `at_dump()`: log all substrate records (squad_id, per_shooter count)
+- `at_dump()`: log all disclosed-squad records (squad_id, shooter count)
 
 ---
 

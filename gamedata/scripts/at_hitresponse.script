@@ -1,28 +1,29 @@
 --- at_hitresponse: Squad-aware hit disclosure
--- Hooks npc_on_hit_callback. On the first hit from a given shooter against a
--- squad, disclose the shooter to every online squad member regardless of
--- distance. Engine handles audio-range squadmates natively via sound channel;
--- our script extends that to distant patrol members on hit #1. No rank-tiered
--- threshold - any single hit triggers full-squad disclosure.
+--- Hooks npc_on_hit_callback. On the first faction-enemy hit against a squad,
+--- discloses the shooter to every online squadmate regardless of audible range,
+--- extending the engine's earshot-bounded propagation to distant patrol members
+--- and suppressed-weapon victims. Decay reverses the disclosure after the MCM
+--- retention window so re-engagement re-fires the full pipeline.
 
-local RegisterScriptCallback, IsStalker = RegisterScriptCallback, IsStalker
+local pairs, tostring, RegisterScriptCallback, IsStalker, alife_object = pairs, tostring, RegisterScriptCallback, IsStalker, alife_object
+-- DO NOT cache CreateTimeEvent / ResetTimeEvent / RemoveTimeEvent as locals.
+-- demonized_time_events.script replaces them; cached locals capture the dead
+-- originals and timers never fire. See doc/library/xray/internals/globals.md:208-219.
 
 local log = xlog.get_logger("AT.HIT", { outfile = "alifetactics.log" })
 local _dbg = false
+local cfg = at_mcm.cfg
 
 -- ==================== CONSTANTS ====================
 
-local GOODWILL_HOSTILE = -2000
+local GOODWILL_HOSTILE   = -2000
+local TIMER_EV           = "at_hitresponse"
+local TIMER_DECAY        = "decay"
+local DECAY_INTERVAL_SEC = 5
 
--- ==================== PRIVATE: HELPERS ====================
+-- ==================== STATE ====================
 
-local function _is_enabled()
-    if at_mcm and at_mcm.get_config then
-        local v = at_mcm.get_config("hit_share_enabled")
-        if v ~= nil then return v end
-    end
-    return true
-end
+local _disclosed = {}
 
 -- Returns true only when shooter's faction is community-level enemy of victim's.
 -- This is the substrate-update gate: accidental hits on friendly/neutral NPCs do not
@@ -81,21 +82,20 @@ end
 -- force_set_goodwill (relation_registry_inline.h:25-44); set_enemy is a bloodsucker-
 -- only API that logs an error for stalkers (script_game_object_use2.cpp:231-243).
 --
--- Mutant / helicopter / anomaly shooters: force_set_goodwill is gated on IsStalker(who).
--- RELATION_REGISTRY::ForceSetGoodwill (relation_registry.cpp:165-172) smart_casts both
--- ids to CSE_ALifeTraderAbstract and bails with "cannot convert obj to CSE_ALifeTrader
--- Abstract!" when either fails; mutants are CSE_ALifeMonsterAbstract so the to-side
--- cast returns nil. enable_memory_object (script_game_object2.cpp:260-268) and
--- register_in_combat (agent_member_manager.cpp:114-132) work for any shooter type so
+-- Mutant / helicopter / anomaly shooters: force_set_goodwill gated on IsStalker(who).
+-- Mutant squadmates (e.g. mutant-vs-mutant or mutant-victim of stalker shooter):
+-- gated on IsStalker(mem_npc). RELATION_REGISTRY::ForceSetGoodwill
+-- (relation_registry.cpp:165-172) smart_casts BOTH ids to CSE_ALifeTraderAbstract
+-- and bails with "cannot convert obj to CSE_ALifeTraderAbstract!" if either side
+-- is non-stalker; mutants are CSE_ALifeMonsterAbstract so any mutant ID fails the
+-- cast. enable_memory_object (script_game_object2.cpp:260-268) and
+-- register_in_combat (agent_member_manager.cpp:114-132) work for any actor type so
 -- they always run. Distant patrol squadmates still learn the squad is engaged with
 -- the mutant via combat_mask propagation, matching vanilla xr_danger.script:132 which
 -- escalates alertness regardless of shooter community.
--- Apply combat disclosure to one squad member: hostility for human shooters,
--- memory + register-in-combat for any shooter type. Returns true if disclosed.
-local function _disclose_to_member(member, who, who_is_human)
-    local mem_npc = level.object_by_id(member.id)
+local function _disclose_to_member(mem_npc, who, who_is_human)
     if not mem_npc then return false end
-    if who_is_human then
+    if who_is_human and IsStalker(mem_npc) then
         mem_npc:force_set_goodwill(GOODWILL_HOSTILE, who)
     end
     mem_npc:enable_memory_object(who, true)
@@ -108,49 +108,72 @@ local function _disclose(squad, who)
     local count = 0
     local who_is_human = IsStalker(who)
     for member in squad:squad_members() do
-        if _disclose_to_member(member, who, who_is_human) then
+        if _disclose_to_member(level.object_by_id(member.id), who, who_is_human) then
             count = count + 1
         end
     end
     return count
 end
 
--- Sweep per_shooter[id] and disclosed_shooters[id] from all substrate records
--- when an entity unregisters. The decay tick eventually prunes per_shooter via
--- TTL, but disclosed_shooters never decays (session-long), so this hook is the
--- only cleanup path for that map.
+local function _collect_expired(map, now, threshold)
+    local expired = {}
+    for shooter_id, last_hit in pairs(map) do
+        if now - last_hit > threshold then
+            expired[#expired + 1] = shooter_id
+        end
+    end
+    return expired
+end
+
 local function _on_entity_unregister(se_obj)
     if not se_obj then return end
     local tmr = xprofiler.new_if(_dbg):start()
     local id = se_obj.id
-    local scanned, cleared = 0, 0
-    at_squad_memory.iterate(function(_squad_id, record)
-        scanned = scanned + 1
-        if record.per_shooter[id] or record.disclosed_shooters[id] then
-            record.per_shooter[id] = nil
-            record.disclosed_shooters[id] = nil
-            cleared = cleared + 1
-        end
-    end)
+    local was_squad = _disclosed[id] ~= nil
+    _disclosed[id] = nil
+    local affected = {}
+    for _, map in pairs(_disclosed) do
+        if map[id] then affected[#affected + 1] = map end
+    end
+    local cleared = #affected
+    for i = 1, cleared do affected[i][id] = nil end
     tmr:stop()
-    if _dbg and cleared > 0 then
-        log.debug("[UNREGISTER] entity=%d scanned=%d cleared=%d [%.2fms]",
-            id, scanned, cleared, tmr:get_ms())
+    if _dbg and (was_squad or cleared > 0) then
+        log.debug("[UNREGISTER] entity=%d was_squad=%s cleared=%d [%.2fms]",
+            id, tostring(was_squad), cleared, tmr:get_ms())
+    end
+end
+
+local function _decay_tick()
+    ResetTimeEvent(TIMER_EV, TIMER_DECAY, DECAY_INTERVAL_SEC)
+    local now = xtime.game_sec()
+    if now == 0 then return end
+    local threshold = cfg.hit_share_retention_min * 60
+    local tmr = xprofiler.new_if(_dbg):start()
+    local pruned = 0
+    for _, map in pairs(_disclosed) do
+        local expired = _collect_expired(map, now, threshold)
+        local count = #expired
+        for i = 1, count do map[expired[i]] = nil end
+        pruned = pruned + count
+    end
+    tmr:stop()
+    if _dbg and pruned > 0 then
+        log.debug("[DECAY] pruned=%d threshold=%.0f [%.2fms]",
+            pruned, threshold, tmr:get_ms())
     end
 end
 
 -- ==================== HIT HANDLER ====================
 
 local function _on_hit(npc, amount, _local_direction, who, _bone_index)
-    if not _is_enabled() then return end
+    if not cfg.hit_share_enabled then return end
     if not amount or amount <= 0 then return end
     if not who or not npc then return end
     if who:id() == npc:id() then return end
 
     local tmr_total = xprofiler.new_if(_dbg):start()
 
-    -- Faction-relation gate. Skips friendly fire, neutrals, and same-community hits.
-    -- Accidental shots on friendly NPCs never accumulate or disclose.
     local tmr_gate = xprofiler.new_if(_dbg):start()
     local is_enemy = _shooter_is_combat_enemy(npc, who)
     tmr_gate:stop()
@@ -172,27 +195,23 @@ local function _on_hit(npc, amount, _local_direction, who, _bone_index)
         return
     end
 
-    local record = at_squad_memory.get(squad.id)
-    local who_id = who:id()
-    local now    = xtime.game_sec()
+    local squad_id = squad.id
+    local who_id   = who:id()
+    local now      = xtime.game_sec()
 
-    -- Refresh per-shooter last-hit timestamp. Decay tick prunes stale entries on TTL.
-    record.per_shooter[who_id] = now
+    if not _disclosed[squad_id] then _disclosed[squad_id] = {} end
+    local first_hit = _disclosed[squad_id][who_id] == nil
+    _disclosed[squad_id][who_id] = now
 
-    -- Idempotency guard: once we have disclosed this shooter to this squad, do
-    -- not re-write goodwill / re-register every subsequent hit. The 3-API combo
-    -- is sticky; calling it again is harmless but log-spammy. disclosed_shooters
-    -- clears only when the squad or shooter despawns (server_entity_on_unregister).
-    if record.disclosed_shooters[who_id] then
+    if not first_hit then
         tmr_total:stop()
         if _dbg then
-            log.debug("[HIT] squad=%d shooter=%d (already disclosed) [gate=%.2fms total=%.2fms]",
-                squad.id, who_id, tmr_gate:get_ms(), tmr_total:get_ms())
+            log.debug("[HIT] squad=%d shooter=%d (refreshed) [gate=%.2fms total=%.2fms]",
+                squad_id, who_id, tmr_gate:get_ms(), tmr_total:get_ms())
         end
         return
     end
 
-    record.disclosed_shooters[who_id] = true
     local tmr_disclose = xprofiler.new_if(_dbg):start()
     local disclosed_to = _disclose(squad, who)
     tmr_disclose:stop()
@@ -200,30 +219,109 @@ local function _on_hit(npc, amount, _local_direction, who, _bone_index)
 
     if _dbg then
         log.debug("[DISCLOSURE] squad=%d shooter=%d disclosed_to=%d members [gate=%.2fms disclose=%.2fms total=%.2fms]",
-            squad.id, who_id, disclosed_to, tmr_gate:get_ms(), tmr_disclose:get_ms(), tmr_total:get_ms())
+            squad_id, who_id, disclosed_to, tmr_gate:get_ms(), tmr_disclose:get_ms(), tmr_total:get_ms())
     end
+end
+
+-- ==================== SPAWN HANDLER ====================
+
+local function _inherit_one(npc, shooter_id, npc_id)
+    if shooter_id == npc_id then return false end
+    local who = level.object_by_id(shooter_id)
+    if not who then return false end
+    _disclose_to_member(npc, who, IsStalker(who))
+    return true
+end
+
+local function _inherit_from_squad(npc, npc_id, squad_id, squad_map)
+    local inherited = 0
+    for shooter_id in pairs(squad_map) do
+        if _inherit_one(npc, shooter_id, npc_id) then
+            inherited = inherited + 1
+        end
+    end
+    if _dbg and inherited > 0 then
+        log.debug("[INHERIT] npc=%d squad=%d shooters=%d", npc_id, squad_id, inherited)
+    end
+end
+
+local function _redisclose_member(mem_npc, who, who_is_human, shooter_id)
+    if not mem_npc then return false end
+    if mem_npc:id() == shooter_id then return false end
+    return _disclose_to_member(mem_npc, who, who_is_human)
+end
+
+local function _redisclose_squad(squad_id, who, who_is_human, shooter_id)
+    local sq = alife_object(squad_id)
+    if not sq or not sq.squad_members then return 0 end
+    if sq:npc_count() == 0 then return 0 end
+    local count = 0
+    for member in sq:squad_members() do
+        if _redisclose_member(level.object_by_id(member.id), who, who_is_human, shooter_id) then
+            count = count + 1
+        end
+    end
+    return count
+end
+
+local function _on_shooter_online(npc, npc_id)
+    local who_is_human = IsStalker(npc)
+    local total = 0
+    for squad_id, map in pairs(_disclosed) do
+        if map[npc_id] then
+            total = total + _redisclose_squad(squad_id, npc, who_is_human, npc_id)
+        end
+    end
+    if _dbg and total > 0 then
+        log.debug("[REDISCLOSE] shooter=%d members=%d", npc_id, total)
+    end
+end
+
+local function _on_net_spawn(npc)
+    if not npc then return end
+    local npc_id = npc:id()
+    local squad = get_object_squad(npc)
+    if squad then
+        local squad_map = _disclosed[squad.id]
+        if squad_map then _inherit_from_squad(npc, npc_id, squad.id, squad_map) end
+    end
+    _on_shooter_online(npc, npc_id)
 end
 
 -- ==================== LIFECYCLE ====================
 
 local function _refresh_log()
-    if at_mcm and at_mcm.get_config then
-        local level_str = at_mcm.get_config("log_level") or "WARN"
-        log.set_level(level_str)
-        _dbg = log.get_level() >= 5
-    end
+    log.set_level(at_mcm.get_config("log_level") or "WARN")
+    _dbg = log.get_level() >= 5
 end
 
 local function _on_first_update()
+    _disclosed = {}
     _refresh_log()
-    log.info("Squad Memory: hit disclosure initialized (enabled=%s, dbg=%s)",
-        _is_enabled() and "true" or "false", _dbg and "true" or "false")
+    RemoveTimeEvent(TIMER_EV, TIMER_DECAY)
+    CreateTimeEvent(TIMER_EV, TIMER_DECAY, DECAY_INTERVAL_SEC, _decay_tick)
+    log.info("Hit disclosure initialized (enabled=%s, retention=%dmin, dbg=%s)",
+        cfg.hit_share_enabled and "true" or "false",
+        cfg.hit_share_retention_min,
+        _dbg and "true" or "false")
+end
+
+-- ==================== PUBLIC ====================
+
+--- Walk every (squad_id, shooter_count) pair
+function iterate_disclosed(fn)
+    for squad_id, map in pairs(_disclosed) do
+        local count = 0
+        for _ in pairs(map) do count = count + 1 end
+        fn(squad_id, count)
+    end
 end
 
 function on_game_start()
-    RegisterScriptCallback("npc_on_hit_callback", _on_hit)
+    RegisterScriptCallback("npc_on_hit_callback",        _on_hit)
+    RegisterScriptCallback("npc_on_net_spawn",           _on_net_spawn)
     RegisterScriptCallback("server_entity_on_unregister", _on_entity_unregister)
-    RegisterScriptCallback("actor_on_first_update", _on_first_update)
-    RegisterScriptCallback("on_option_change", _refresh_log)
+    RegisterScriptCallback("actor_on_first_update",      _on_first_update)
+    RegisterScriptCallback("on_option_change",           _refresh_log)
     RegisterScriptCallback("mcm_option_restore_default", _refresh_log)
 end

@@ -26,7 +26,7 @@
   </string>
   <!-- ==================== HIT SHARING TAB ==================== -->
   <string id="ui_mcm_at_hit_share_desc">
-    <text>When a faction-enemy hits any member of a squad, the entire squad is force-disclosed to the shooter on hit #1: each online squadmate gets the shooter pinned as hostile in their relation registry, has their memory of the shooter enabled, and is flagged as combat-active so the engine propagates the shooter into their visual/sound/hit memory. Extends the engine's audio-range squad disclosure to distant patrol members and suppressed-weapon victims.</text>
+    <text>A hit on any squad member alerts every squadmate to the shooter on the first hit. Earshot, line of sight, and suppressor use do not block the alert. Vanilla relies on each squadmate hearing the shot, which is unreliable at best and useless against suppressors or long-range fire.</text>
   </string>
   <string id="ui_mcm_at_hit_share_hit_share_enabled">
     <text>Enable Hit Sharing</text>
@@ -35,13 +35,13 @@
     <text>Master toggle. When off, the hit handler skips entirely: no squad disclosure, no per-shooter hostility pin, no combat-mask flip. Vanilla engine behavior runs unmodified (audio-range squadmates still propagate hit memory through the engine's own pipeline; distant patrol members do not). The squad-memory substrate stays available for other systems to read. Default: on.</text>
   </string>
   <string id="ui_mcm_at_hdr_retention">
-    <text>Memory Retention</text>
+    <text>Retention</text>
   </string>
-  <string id="ui_mcm_at_hit_share_substrate_retention_sec">
-    <text>Per-shooter retention (s)</text>
+  <string id="ui_mcm_at_hit_share_hit_share_retention_min">
+    <text>Forget shooter after (game min)</text>
   </string>
-  <string id="ui_mcm_at_hit_share_substrate_retention_sec_desc">
-    <text>How long a per-shooter entry stays in the squad's combat memory after the last hit from that shooter. Lower = squads forget snipers quickly. Higher = sustained pressure keeps disclosed shooters in memory. Default: 60.</text>
+  <string id="ui_mcm_at_hit_share_hit_share_retention_min_desc">
+    <text>Game minutes without new hits before the squad's pin on a given shooter expires. The next hit re-fires the full-squad alert. Game time, not real time. Default: 2.</text>
   </string>
   <!-- ==================== HEALING TAB ==================== -->
   <string id="ui_mcm_at_health_desc">
@@ -126,53 +126,53 @@
   <string id="ui_mcm_at_hdr_accuracy_curve">
     <text>Rank Curve</text>
   </string>
-  <string id="ui_mcm_at_accuracy_acc_mult_novice">
-    <text>Novice multiplier</text>
+  <string id="ui_mcm_at_accuracy_acc_disp_novice">
+    <text>Novice dispersion</text>
   </string>
-  <string id="ui_mcm_at_accuracy_acc_mult_novice_desc">
-    <text>Dispersion for novice-rank stalkers. Lower = tighter shot cone = more lethal. 1.00 matches vanilla engine baseline. Default: 1.00.</text>
+  <string id="ui_mcm_at_accuracy_acc_disp_novice_desc">
+    <text>Shot cone width for novice-rank stalkers. Lower = tighter cone = more lethal. 1.00 matches vanilla engine baseline. Default: 1.00.</text>
   </string>
-  <string id="ui_mcm_at_accuracy_acc_mult_trainee">
-    <text>Trainee multiplier</text>
+  <string id="ui_mcm_at_accuracy_acc_disp_trainee">
+    <text>Trainee dispersion</text>
   </string>
-  <string id="ui_mcm_at_accuracy_acc_mult_trainee_desc">
-    <text>Dispersion for trainee-rank stalkers. Default: 0.90.</text>
+  <string id="ui_mcm_at_accuracy_acc_disp_trainee_desc">
+    <text>Shot cone width for trainee-rank stalkers. Lower = tighter cone = more lethal. Default: 0.90.</text>
   </string>
-  <string id="ui_mcm_at_accuracy_acc_mult_experienced">
-    <text>Experienced multiplier</text>
+  <string id="ui_mcm_at_accuracy_acc_disp_experienced">
+    <text>Experienced dispersion</text>
   </string>
-  <string id="ui_mcm_at_accuracy_acc_mult_experienced_desc">
-    <text>Dispersion for experienced-rank stalkers. Default: 0.80.</text>
+  <string id="ui_mcm_at_accuracy_acc_disp_experienced_desc">
+    <text>Shot cone width for experienced-rank stalkers. Lower = tighter cone = more lethal. Default: 0.80.</text>
   </string>
-  <string id="ui_mcm_at_accuracy_acc_mult_professional">
-    <text>Professional multiplier</text>
+  <string id="ui_mcm_at_accuracy_acc_disp_professional">
+    <text>Professional dispersion</text>
   </string>
-  <string id="ui_mcm_at_accuracy_acc_mult_professional_desc">
-    <text>Dispersion for professional-rank stalkers. Default: 0.70.</text>
+  <string id="ui_mcm_at_accuracy_acc_disp_professional_desc">
+    <text>Shot cone width for professional-rank stalkers. Lower = tighter cone = more lethal. Default: 0.70.</text>
   </string>
-  <string id="ui_mcm_at_accuracy_acc_mult_veteran">
-    <text>Veteran multiplier</text>
+  <string id="ui_mcm_at_accuracy_acc_disp_veteran">
+    <text>Veteran dispersion</text>
   </string>
-  <string id="ui_mcm_at_accuracy_acc_mult_veteran_desc">
-    <text>Dispersion for veteran-rank stalkers. Default: 0.60.</text>
+  <string id="ui_mcm_at_accuracy_acc_disp_veteran_desc">
+    <text>Shot cone width for veteran-rank stalkers. Lower = tighter cone = more lethal. Default: 0.60.</text>
   </string>
-  <string id="ui_mcm_at_accuracy_acc_mult_expert">
-    <text>Expert multiplier</text>
+  <string id="ui_mcm_at_accuracy_acc_disp_expert">
+    <text>Expert dispersion</text>
   </string>
-  <string id="ui_mcm_at_accuracy_acc_mult_expert_desc">
-    <text>Dispersion for expert-rank stalkers. Default: 0.52.</text>
+  <string id="ui_mcm_at_accuracy_acc_disp_expert_desc">
+    <text>Shot cone width for expert-rank stalkers. Lower = tighter cone = more lethal. Default: 0.52.</text>
   </string>
-  <string id="ui_mcm_at_accuracy_acc_mult_master">
-    <text>Master multiplier</text>
+  <string id="ui_mcm_at_accuracy_acc_disp_master">
+    <text>Master dispersion</text>
   </string>
-  <string id="ui_mcm_at_accuracy_acc_mult_master_desc">
-    <text>Dispersion for master-rank stalkers. Default: 0.45.</text>
+  <string id="ui_mcm_at_accuracy_acc_disp_master_desc">
+    <text>Shot cone width for master-rank stalkers. Lower = tighter cone = more lethal. Default: 0.45.</text>
   </string>
-  <string id="ui_mcm_at_accuracy_acc_mult_legend">
-    <text>Legend multiplier</text>
+  <string id="ui_mcm_at_accuracy_acc_disp_legend">
+    <text>Legend dispersion</text>
   </string>
-  <string id="ui_mcm_at_accuracy_acc_mult_legend_desc">
-    <text>Dispersion for legend-rank stalkers (max tier). Default: 0.38.</text>
+  <string id="ui_mcm_at_accuracy_acc_disp_legend_desc">
+    <text>Shot cone width for legend-rank stalkers (highest rank). Lower = tighter cone = more lethal. Default: 0.38.</text>
   </string>
   <!-- ==================== STANCE SWITCH TAB ==================== -->
   <string id="ui_mcm_at_stance_desc">

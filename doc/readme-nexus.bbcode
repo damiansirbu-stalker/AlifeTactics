@@ -37,7 +37,7 @@ Visual cues (cosmetic, MCM-toggleable):
 
 [size=3][b]NPC weapon accuracy[/b][/size]
 In vanilla every stalker fires with the same dispersion regardless of rank. The engine has a rank-based accuracy curve but it is broken on Anomaly's data: every non-novice stalker clamps to the same value, so a master shoots no tighter than a trainee. The rank dispersion knob in the engine is a dead knob.
-AlifeTactics replaces that curve script-side. On every NPC shot the rank is read and a per-tier multiplier is applied to the engine's computed cone. Defaults run from novice at the vanilla baseline down to legend at roughly a third the cone width. Eight tier sliders in MCM tune each rank independently.
+AlifeTactics replaces that curve script-side. On every NPC shot the rank is read and a per-tier dispersion factor is applied to the engine's computed cone. Defaults run from novice at the vanilla baseline down to legend at roughly a third the cone width. Eight tier sliders in MCM tune each rank independently.
 Master stalkers shoot noticeably tighter than novices. The spread between ranks is configurable per tier, so you can flatten the curve, exaggerate it, or set extremes (laser masters, hopeless rookies).
 
 [size=3][b]Combat crouch[/b][/size]
@@ -46,13 +46,13 @@ AlifeTactics tells snipers and rocket-launcher carriers to crouch when the engin
 Other weapons keep vanilla stance. Riflemen, pistoleers, shotgunners, and SMG carriers stand up to move and fire normally. The crouch is meaningful: it marks the squad's fire base by weapon type alone, no role taxonomy needed.
 
 [size=3][b]MCM[/b][/size]
-Five tabs, each with a master toggle. Hit Sharing: master toggle, per-shooter memory retention. Healing: master toggle, heal-rate multiplier, four per-rank charge-chance sliders, limping toggle + threshold, heal-cue animation toggle. Accuracy: master toggle, per-tier dispersion sliders for the eight rank tiers. Stance Switch: master toggle. Development: log level, reset-to-defaults button.
+Five tabs, each with a master toggle. Hit Sharing: master toggle, forget-shooter timer in game minutes. Healing: master toggle, heal-rate multiplier, four per-rank charge-chance sliders, limping toggle + threshold, heal-cue animation toggle. Accuracy: master toggle, per-tier dispersion sliders for the eight rank tiers. Stance Switch: master toggle. Development: log level, reset-to-defaults button.
 
 [size=3][b]Backlog[/b][/size]
 Tactical flee, danger memory persistence, combat scheme selection, NPC weapon bias. The backlog file on GitHub tracks each.
 
 [size=3][b]Performance[/b][/size]
-Squad-aware behaviors scale with squad count. Per-NPC behaviors (Accuracy, Healing, Stance Switch) fire on their natural engine events. None of them iterate the NPC list every frame. One periodic cleanup tick (substrate decay, every 5 game seconds).
+Hit Sharing fires on the engine hit callback and scales with shots fired against squads. Per-NPC behaviors (Accuracy, Healing, Stance Switch) fire on their natural engine events. None of them iterate the NPC list every frame. One periodic cleanup tick (disclosure decay, every 5 real seconds) walks tracked squads and prunes expired shooter entries.
 
 [size=3][b]Compatibility[/b][/size]
 Tested with vanilla Anomaly 1.5.3 and GAMMA.

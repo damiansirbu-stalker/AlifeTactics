@@ -1,9 +1,6 @@
---- at_test: Console commands for AlifeTactics development
--- Spawns enemy squads in front of the actor to exercise hit disclosure, stance,
--- accuracy, and healing systems without finding a real spawn point in-world. Mirrors
--- the pattern of ap_ext_test.script (@export console annotations -> console commands).
+--- at_test: Console commands for AlifeTactics development (squad spawn + substrate dump)
 
-local pairs, tostring, string_format = pairs, tostring, string.format
+local tostring, string_format = tostring, string.format
 
 local log = xlog.get_logger("AT.TEST", { outfile = "alifetactics.log" })
 
@@ -95,11 +92,9 @@ end
 function at_dump()
     if not db.actor then return end
     local count = 0
-    at_squad_memory.iterate(function(squad_id, record)
+    at_hitresponse.iterate_disclosed(function(squad_id, shooter_count)
         count = count + 1
-        local per_shooter_n = 0
-        for _ in pairs(record.per_shooter) do per_shooter_n = per_shooter_n + 1 end
-        log.info("[DUMP] squad=%d per_shooter=%d", squad_id, per_shooter_n)
+        log.info("[DUMP] squad=%d shooters=%d", squad_id, shooter_count)
     end)
-    _tip(string_format("AT.TEST: %d substrate records (see alifetactics.log)", count))
+    _tip(string_format("AT.TEST: %d disclosed-squad records (see alifetactics.log)", count))
 end

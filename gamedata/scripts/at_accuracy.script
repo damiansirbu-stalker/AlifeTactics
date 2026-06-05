@@ -1,29 +1,14 @@
 --- at_accuracy: Per-NPC rank-aware weapon dispersion
--- Subscribes to the vanilla npc_shot_dispersion callback (_g.script:1213-1217 forwarder,
--- dispatched from CAI_Stalker::GetWeaponAccuracy at ai_stalker_fire.cpp:135-139). Vanilla
--- writes the engine's computed dispersion into temp_disp.dispersion, fires the callback,
--- and returns the (possibly modified) value to the engine. Subscribers compose by reading
--- temp_disp.dispersion (upstream value) and writing back.
---
--- Why this matters: the engine's built-in rank curve is dead in Anomaly. clamp(rank,0,100)
--- at ai_stalker.cpp:761 collapses every modded NPC (rank intervals run to 26999 in vanilla
--- creatures/game_relations.ltx:8 and 49999 in GAMMA's overrides) to rank_k=1.0, fixing
--- m_fRankDisperison at the constant expirienced_rank_dispersion = 0.8. So master stalkers
--- shoot with the same dispersion as trainees. We restore the curve script-side: divide
--- out the engine's 0.8 bake-in, multiply by our per-tier coefficient.
---
--- Per-shot frequency, NOT per-frame: WeaponFire.cpp:117 calls GetFireDispersion once per
--- bullet (shotgun pellets reuse the same value, ai_stalker_fire.cpp:124-126). Hot path
--- ~1.5us per call when DEBUG off; only 2 luabind crossings (character_rank, clsid via
--- ranks.get_obj_rank_name); xprofiler and log fully gated by _dbg upvalue.
---
--- NOT a direct _g.X assignment: that would OVERRIDE the vanilla forwarder and silently
--- break any other mod subscribing to npc_shot_dispersion. Subscribing composes correctly.
+--- Subscribes to npc_shot_dispersion and applies a per-rank dispersion factor on
+--- top of the engine's computed cone. The engine's built-in rank curve is dead at
+--- Anomaly rank values (every non-novice clamps to the same constant); this restores
+--- per-tier scaling. See architecture.md Accuracy section for engine-call detail.
 
 local RegisterScriptCallback = RegisterScriptCallback
 
 local log = xlog.get_logger("AT.ACC", { outfile = "alifetactics.log" })
 local _dbg = false
+local cfg = at_mcm.cfg
 
 -- ==================== CONSTANTS ====================
 
@@ -36,8 +21,7 @@ local ENGINE_RANK_BAKE_IN = 0.8
 
 -- ==================== STATE ====================
 
-local _enabled = true
-local _mults = {
+local _disp = {
     novice       = 1.00,
     trainee      = 0.90,
     experienced  = 0.80,
@@ -61,7 +45,7 @@ local _get_obj_rank_name = ranks.get_obj_rank_name
 -- write back to modify. Early-return without writing leaves the upstream value
 -- (or engine base if no upstream) intact - equivalent to vanilla behavior.
 local function _on_npc_shot_dispersion(obj, wpn, body_state, move_type, temp_disp)
-    if not _enabled then return end
+    if not cfg.accuracy_enabled then return end
     if not obj or not temp_disp then return end
 
     local tier = _get_obj_rank_name(obj)
@@ -69,48 +53,42 @@ local function _on_npc_shot_dispersion(obj, wpn, body_state, move_type, temp_dis
     -- Empty tier means rank lookup failed; leave temp_disp.dispersion alone (vanilla).
     if not tier or tier == "" then return end
 
-    local mult = _mults[tier]
-    if not mult then return end
+    local disp = _disp[tier]
+    if not disp then return end
 
     local tmr  = xprofiler.new_if(_dbg):start()
     local base = temp_disp.dispersion
     if not base then tmr:stop() return end
-    local out  = (base / ENGINE_RANK_BAKE_IN) * mult
+    local out  = (base / ENGINE_RANK_BAKE_IN) * disp
     temp_disp.dispersion = out
     tmr:stop()
 
     if _dbg then
-        log.debug("[ACC] id=%d tier=%s base=%.5f mult=%.2f out=%.5f [%.3fms]",
-            obj:id(), tier, base, mult, out, tmr:get_ms())
+        log.debug("[ACC] id=%d tier=%s base=%.5f disp=%.2f out=%.5f [%.3fms]",
+            obj:id(), tier, base, disp, out, tmr:get_ms())
     end
 end
 
 -- ==================== LIFECYCLE ====================
 
 local function _refresh_config()
-    if not (at_mcm and at_mcm.get_config) then return end
-
-    local level_str = at_mcm.get_config("log_level") or "WARN"
-    log.set_level(level_str)
+    log.set_level(at_mcm.get_config("log_level") or "WARN")
     _dbg = log.get_level() >= 5
 
-    local v = at_mcm.get_config("accuracy_enabled")
-    if v ~= nil then _enabled = v end
-
-    _mults.novice       = at_mcm.get_config("acc_mult_novice")       or _mults.novice
-    _mults.trainee      = at_mcm.get_config("acc_mult_trainee")      or _mults.trainee
-    _mults.experienced  = at_mcm.get_config("acc_mult_experienced")  or _mults.experienced
-    _mults.professional = at_mcm.get_config("acc_mult_professional") or _mults.professional
-    _mults.veteran      = at_mcm.get_config("acc_mult_veteran")      or _mults.veteran
-    _mults.expert       = at_mcm.get_config("acc_mult_expert")       or _mults.expert
-    _mults.master       = at_mcm.get_config("acc_mult_master")       or _mults.master
-    _mults.legend       = at_mcm.get_config("acc_mult_legend")       or _mults.legend
+    _disp.novice       = at_mcm.get_config("acc_disp_novice")       or _disp.novice
+    _disp.trainee      = at_mcm.get_config("acc_disp_trainee")      or _disp.trainee
+    _disp.experienced  = at_mcm.get_config("acc_disp_experienced")  or _disp.experienced
+    _disp.professional = at_mcm.get_config("acc_disp_professional") or _disp.professional
+    _disp.veteran      = at_mcm.get_config("acc_disp_veteran")      or _disp.veteran
+    _disp.expert       = at_mcm.get_config("acc_disp_expert")       or _disp.expert
+    _disp.master       = at_mcm.get_config("acc_disp_master")       or _disp.master
+    _disp.legend       = at_mcm.get_config("acc_disp_legend")       or _disp.legend
 end
 
 local function _on_first_update()
     _refresh_config()
     log.info("Accuracy hook initialized (enabled=%s, dbg=%s)",
-        _enabled and "true" or "false", _dbg and "true" or "false")
+        cfg.accuracy_enabled and "true" or "false", _dbg and "true" or "false")
 end
 
 function on_game_start()

@@ -1,28 +1,10 @@
---- at_health: per-NPC health behavior controls.
--- Two layers of runtime tuning on top of vanilla xr_eat_medkit:
---
---  1. Heal rate multiplier. Replaces xr_eat_medkit.heal_hp with a version
---     that scales the per-tick change_health by an MCM multiplier. Vanilla
---     does change_health(0.05) every level.get_time_factor() seconds for
---     13 ticks (left=15..3, exits at left=2 because nextl=1 fails nextl>1).
---     Multiplier scales the per-tick amount; total recovery from vanilla
---     is 13 * 0.05 = 0.65 HP. The replacement reschedules itself via
---     xr_eat_medkit.heal_hp (which resolves to our patched function at call
---     time, so recursion is stable).
---
---  2. Per-rank healing-charge probability. Vanilla rolls a single 50% chance
---     at server-entity register and grants healing_charge=true on success.
---     We override on npc_on_net_spawn (first time the game_object comes
---     online): read rank, map to tier, roll MCM-configured chance for that
---     tier, set healing_charge=true|false unconditionally. Persists via
---     se_save_var; per-NPC "at_charge_processed" flag prevents re-rolling
---     across offline/online transitions or save/load.
---
--- Why direct assignment for heal_hp (not xevent.hook): we replace the body
--- entirely rather than wrap. xevent.hook is for stacking wrappers around
--- existing behavior; here we substitute the per-tick math, no chain needed.
+--- at_health: Per-NPC healing tuning and visual cues
+--- Patches xr_eat_medkit.heal_hp / heal_bleed to scale per-tick recovery by an
+--- MCM multiplier, overrides vanilla's flat 50% healing_charge roll with per-rank
+--- probabilities, and drives optional limp + heal-gesture animations.
+--- See architecture.md Healing section for engine-call detail.
 
-local math_random, tonumber = math.random, tonumber
+local math_random = math.random
 local se_save_var, se_load_var = se_save_var, se_load_var
 local RegisterScriptCallback, time_global = RegisterScriptCallback, time_global
 local IsStalker, IsWounded = IsStalker, IsWounded
@@ -75,11 +57,7 @@ end
 local log = xlog.get_logger("AT.HEALTH", { outfile = "alifetactics.log" })
 local _dbg = false
 local _heal_active = false
-
--- Cached MCM value, refreshed via _refresh_log on on_option_change / restore_default.
--- _on_npc_update reads this every motivator tick before any throttle, so the cache
--- saves ~1500 string allocations/sec at 50 online stalkers (path_builder concat).
-local _limping_enabled_cached = true
+local cfg = at_mcm.cfg
 
 -- Vanilla rank names from game_relations.ltx [game_relations] rating folded into
 -- the four MCM tiers. ranks.get_obj_rank_name resolves the numeric rank against
@@ -99,45 +77,6 @@ local function _rank_tier(npc)
     return _RANK_TO_TIER[ranks.get_obj_rank_name(npc)] or "novice"
 end
 
--- ==================== MCM READERS ====================
-
-local function _is_enabled()
-    if at_mcm and at_mcm.get_config then
-        local v = at_mcm.get_config("healing_enabled")
-        if v ~= nil then return v end
-    end
-    return true
-end
-
-local function _heal_rate_mult()
-    if at_mcm and at_mcm.get_config then
-        return tonumber(at_mcm.get_config("heal_rate_multiplier")) or 1.0
-    end
-    return 1.0
-end
-
-local function _charge_chance_pct(tier)
-    if at_mcm and at_mcm.get_config then
-        return tonumber(at_mcm.get_config("charge_chance_" .. tier)) or 50
-    end
-    return 50
-end
-
-local function _limping_threshold()
-    if at_mcm and at_mcm.get_config then
-        return tonumber(at_mcm.get_config("limping_health_threshold")) or 0.65
-    end
-    return 0.65
-end
-
-local function _healing_anim_enabled()
-    if at_mcm and at_mcm.get_config then
-        local v = at_mcm.get_config("healing_anim_enabled")
-        if v ~= nil then return v end
-    end
-    return true
-end
-
 -- ==================== PATCH: HEAL_HP MULTIPLIER ====================
 
 -- Mirrors vanilla xr_eat_medkit.heal_hp (script:188-201) logic but scales
@@ -152,17 +91,10 @@ local function _patched_heal_hp(id, left)
     local npc = level.object_by_id(id)
     if npc and npc:alive() and nextl > 1 then
         _healing_active[id] = time_global() + HEAL_ACTIVE_EXPIRY_MS
-        local mult = _heal_rate_mult()
+        local mult = cfg.heal_rate_multiplier
         npc:change_health(0.05 * mult)
         npc.bleeding = 0.01
-        -- Heal gesture only at cycle start AND only if NPC is stationary. The
-        -- gesture anim covers full body so it floats during locomotion. If the
-        -- NPC is moving when the cycle kicks off, skip the visual entirely;
-        -- heal_hp keeps ticking silently, no float.
-        -- Staged sequence at cycle start: stop NPC, wound-clutch pose for 3s,
-        -- swap to medkit gesture for 3s, restore movement. Driven by
-        -- _on_npc_update which checks stage timing on every motivator tick.
-        if left == HEAL_TICK_FIRST and _healing_anim_enabled() then
+        if left == HEAL_TICK_FIRST and cfg.healing_anim_enabled then
             npc:movement_enabled(false)
             npc:set_desired_position()
             npc:clear_animations()
@@ -214,7 +146,7 @@ local function _patched_heal_bleed(id, left)
     if npc and npc:alive() and nextl > 1 then
         _healing_active[id] = time_global() + HEAL_ACTIVE_EXPIRY_MS
         npc.bleeding = 0.07
-        if left == HEAL_TICK_FIRST and _healing_anim_enabled() then
+        if left == HEAL_TICK_FIRST and cfg.healing_anim_enabled then
             npc:movement_enabled(false)
             npc:set_desired_position()
             npc:clear_animations()
@@ -284,7 +216,7 @@ local function _on_net_spawn(npc, _se_obj)
     _safe_save(id, name, "at_charge_processed", true)
 
     local tier = _rank_tier(npc)
-    local chance = _charge_chance_pct(tier) / 100
+    local chance = (cfg["charge_chance_" .. tier] or 50) / 100
     local rolled = math_random()
     local granted = rolled < chance
     _safe_save(id, name, "healing_charge", granted)
@@ -356,7 +288,7 @@ local function _on_npc_update(npc, st)
 
     _drive_heal_sequence(npc, id, tg)
 
-    if not _limping_enabled_cached then return end
+    if not cfg.limping_anim_enabled then return end
     if st._at_limp_next_check_ms and tg < st._at_limp_next_check_ms then return end
     st._at_limp_next_check_ms = tg + LIMP_ELIGIBILITY_CHECK_MS
     local active = _healing_active[id]
@@ -364,7 +296,7 @@ local function _on_npc_update(npc, st)
         and npc:alive()
         and not (active and tg < active)
         and not npc:in_smart_cover()
-        and npc.health < _limping_threshold()
+        and npc.health < cfg.limping_health_threshold
         and npc:mental_state() == anim.free
         and npc:body_state() == move.standing
         and npc:character_community() ~= "zombied"
@@ -401,42 +333,35 @@ end
 -- ==================== LIFECYCLE ====================
 
 local function _refresh_log()
-    if not (at_mcm and at_mcm.get_config) then return end
-    local level_str = at_mcm.get_config("log_level") or "WARN"
-    log.set_level(level_str)
+    log.set_level(at_mcm.get_config("log_level") or "WARN")
     _dbg = log.get_level() >= 5
-    local v = at_mcm.get_config("limping_anim_enabled")
-    if v ~= nil then _limping_enabled_cached = v end
 end
 
 local function _on_actor_first_update()
     _refresh_log()
+    if not _heal_active then return end
     log.info("Health module initialized (heal_mult=%.2f tiers novice=%d%% experienced=%d%% veteran=%d%% master=%d%%)",
-        _heal_rate_mult(),
-        _charge_chance_pct("novice"),
-        _charge_chance_pct("experienced"),
-        _charge_chance_pct("veteran"),
-        _charge_chance_pct("master"))
+        cfg.heal_rate_multiplier,
+        cfg.charge_chance_novice,
+        cfg.charge_chance_experienced,
+        cfg.charge_chance_veteran,
+        cfg.charge_chance_master)
 end
 
 function on_game_start()
-    -- Limping is independent of the healing master toggle (purely cosmetic, no
-    -- heal patch needed). Always register; gated at runtime by _limping_enabled_cached.
     RegisterScriptCallback("npc_on_update",              _on_npc_update)
     RegisterScriptCallback("server_entity_on_unregister", _on_entity_unregister)
-
-    -- Master toggle. Disabled = no heal_hp/heal_bleed patch, no per-rank charge override.
-    -- Vanilla xr_eat_medkit behavior runs unmodified. Runtime toggle requires game restart.
-    if not _is_enabled() then
-        log.info("Stalker Healing disabled at boot; vanilla xr_eat_medkit behavior in effect")
-        RegisterScriptCallback("actor_on_first_update",     _on_actor_first_update)
-        RegisterScriptCallback("on_option_change",          _refresh_log)
-        RegisterScriptCallback("mcm_option_restore_default", _refresh_log)
-        return
-    end
-    _install_heal_patch()
-    RegisterScriptCallback("npc_on_net_spawn",          _on_net_spawn)
     RegisterScriptCallback("actor_on_first_update",     _on_actor_first_update)
     RegisterScriptCallback("on_option_change",          _refresh_log)
     RegisterScriptCallback("mcm_option_restore_default", _refresh_log)
+
+    -- Read via get_config (always fresh from ui_mcm.get); cfg.healing_enabled
+    -- would be the default at this point because at_mcm.on_game_start has not
+    -- yet called load_config() (at_health < at_mcm alphabetically).
+    if at_mcm.get_config("healing_enabled") == false then
+        log.info("Stalker Healing disabled at boot; vanilla xr_eat_medkit behavior in effect")
+        return
+    end
+    _install_heal_patch()
+    RegisterScriptCallback("npc_on_net_spawn", _on_net_spawn)
 end

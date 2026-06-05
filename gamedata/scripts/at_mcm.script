@@ -3,13 +3,11 @@
 local log = xlog.get_logger("AT.MCM", { outfile = "alifetactics.log" })
 
 -- ==================== DEFAULTS ====================
--- Squad Memory is internal core (substrate + decay), no MCM toggle.
--- Each user-facing system has its own tab and its own master toggle.
 
 local defaults = {
     -- Hit Sharing
-    hit_share_enabled        = true,
-    substrate_retention_sec  = 60,
+    hit_share_enabled         = true,
+    hit_share_retention_min   = 2,
     -- Healing
     healing_enabled           = true,
     heal_rate_multiplier      = 1.0,
@@ -22,14 +20,14 @@ local defaults = {
     healing_anim_enabled      = true,
     -- Accuracy
     accuracy_enabled       = true,
-    acc_mult_novice        = 1.00,
-    acc_mult_trainee       = 0.90,
-    acc_mult_experienced   = 0.80,
-    acc_mult_professional  = 0.70,
-    acc_mult_veteran       = 0.60,
-    acc_mult_expert        = 0.52,
-    acc_mult_master        = 0.45,
-    acc_mult_legend        = 0.38,
+    acc_disp_novice        = 1.00,
+    acc_disp_trainee       = 0.90,
+    acc_disp_experienced   = 0.80,
+    acc_disp_professional  = 0.70,
+    acc_disp_veteran       = 0.60,
+    acc_disp_expert        = 0.52,
+    acc_disp_master        = 0.45,
+    acc_disp_legend        = 0.38,
     -- Stance Switch
     stance_enabled = true,
     -- Development
@@ -43,7 +41,7 @@ local RegisterScriptCallback = RegisterScriptCallback
 local _key_to_tab = {
     -- Hit Sharing
     hit_share_enabled         = "hit_share",
-    substrate_retention_sec   = "hit_share",
+    hit_share_retention_min   = "hit_share",
     -- Healing
     healing_enabled           = "health",
     heal_rate_multiplier      = "health",
@@ -56,14 +54,14 @@ local _key_to_tab = {
     healing_anim_enabled      = "health",
     -- Accuracy
     accuracy_enabled       = "accuracy",
-    acc_mult_novice        = "accuracy",
-    acc_mult_trainee       = "accuracy",
-    acc_mult_experienced   = "accuracy",
-    acc_mult_professional  = "accuracy",
-    acc_mult_veteran       = "accuracy",
-    acc_mult_expert        = "accuracy",
-    acc_mult_master        = "accuracy",
-    acc_mult_legend        = "accuracy",
+    acc_disp_novice        = "accuracy",
+    acc_disp_trainee       = "accuracy",
+    acc_disp_experienced   = "accuracy",
+    acc_disp_professional  = "accuracy",
+    acc_disp_veteran       = "accuracy",
+    acc_disp_expert        = "accuracy",
+    acc_disp_master        = "accuracy",
+    acc_disp_legend        = "accuracy",
     -- Stance Switch
     stance_enabled = "stance",
     -- Development
@@ -75,8 +73,7 @@ local function path_builder(key)
     return "at/" .. (_key_to_tab[key] or "development") .. "/" .. key
 end
 
-local _cfg
-_cfg, get_config, load_config = xmcm.create_config("at", defaults, path_builder)
+cfg, get_config, load_config = xmcm.create_config("at", defaults, path_builder)
 
 -- ==================== BUTTON HANDLERS ====================
 
@@ -95,6 +92,8 @@ local function _apply_defaults(gui, msg)
     end
     config:save()
     load_config()
+    -- Without this, consumer-local caches (log level, _disp lookup) stay stale.
+    SendScriptCallback("mcm_option_restore_default")
     if gui then
         if gui.owner and gui.owner.SetMsg then
             gui.owner:SetMsg(msg, 5)
@@ -133,10 +132,10 @@ function on_mcm_load()
                     { id = "desc", type = "desc", text = "ui_mcm_at_hit_share_desc" },
                     { id = "hit_share_enabled", type = "check", val = 1, def = true },
 
-                    -- Substrate retention
+                    -- Retention
                     { id = "div_retention", type = "line" },
                     { id = "hdr_retention", type = "desc", text = "ui_mcm_at_hdr_retention", clr = {255, 200, 200, 200} },
-                    { id = "substrate_retention_sec", type = "track", val = 2, min = 10, max = 600, step = 5, def = 60 },
+                    { id = "hit_share_retention_min", type = "track", val = 0, min = 1, max = 30, step = 1, def = 2 },
 
                     -- Version footer
                     { id = "div_version", type = "line" },
@@ -193,14 +192,14 @@ function on_mcm_load()
                     -- Rank Curve
                     { id = "div_accuracy_curve", type = "line" },
                     { id = "hdr_accuracy_curve", type = "desc", text = "ui_mcm_at_hdr_accuracy_curve", clr = {255, 200, 200, 200} },
-                    { id = "acc_mult_novice",       type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 1.00 },
-                    { id = "acc_mult_trainee",      type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 0.90 },
-                    { id = "acc_mult_experienced",  type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 0.80 },
-                    { id = "acc_mult_professional", type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 0.70 },
-                    { id = "acc_mult_veteran",      type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 0.60 },
-                    { id = "acc_mult_expert",       type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 0.52 },
-                    { id = "acc_mult_master",       type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 0.45 },
-                    { id = "acc_mult_legend",       type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 0.38 },
+                    { id = "acc_disp_novice",       type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 1.00 },
+                    { id = "acc_disp_trainee",      type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 0.90 },
+                    { id = "acc_disp_experienced",  type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 0.80 },
+                    { id = "acc_disp_professional", type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 0.70 },
+                    { id = "acc_disp_veteran",      type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 0.60 },
+                    { id = "acc_disp_expert",       type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 0.52 },
+                    { id = "acc_disp_master",       type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 0.45 },
+                    { id = "acc_disp_legend",       type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 0.38 },
 
                     -- Version footer
                     { id = "div_version", type = "line" },
