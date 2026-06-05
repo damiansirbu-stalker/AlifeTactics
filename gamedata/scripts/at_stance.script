@@ -32,24 +32,18 @@ local CROUCH_KINDS = {
 local BS_CROUCH = 0
 local BS_STAND  = 1
 
--- EWorldOperators values per stalker_decision_space.h:104+ enum order
--- (eWorldOperatorDead=0; values listed below counted from there). Only STATIC fire
--- operators are overridden - the NPC is in cover and firing, not moving. Doctrine
--- says movers stand and run for speed under fire; static fire bases crouch for low
--- silhouette and stable aim. So TakeCover (moving to cover) and SuddenAttack
--- (distance-driven, engine knows better) are intentionally left vanilla.
-local OP_KILL_ENEMY    = 19
+-- EWorldOperators that actually reach this functor via body_state_combat_override
+-- in stalker_combat_actions.cpp. Of the static-cover firing operators, only LookOut
+-- and HoldPosition call the override; KillEnemy / WaitInCover / HoldAmbushLocation
+-- inherit body_state from the previous action, so once we have returned crouch on a
+-- LookOut or HoldPosition tick, those subsequent actions stay crouched without our
+-- involvement.
 local OP_LOOKOUT       = 22
 local OP_HOLD_POSITION = 23
-local OP_WAIT_IN_COVER = 41
-local OP_HOLD_AMBUSH   = 44
 
 local OVERRIDE_OPS = {
-    [OP_KILL_ENEMY]    = true,
     [OP_LOOKOUT]       = true,
     [OP_HOLD_POSITION] = true,
-    [OP_WAIT_IN_COVER] = true,
-    [OP_HOLD_AMBUSH]   = true,
 }
 
 -- ==================== STATE ====================

@@ -77,7 +77,7 @@ Each system has its own file, its own MCM tab, and one master toggle. Plus one i
 | Accuracy | `at_accuracy.script` | Accuracy | `accuracy_enabled` |
 | Stance Switch | `at_stance.script` | Stance Switch | `stance_enabled` |
 
-Plus `at_squad_memory.script` — internal core. No MCM exposure. Always on.
+Plus `at_squad_memory.script`: internal core. No MCM exposure. Always on.
 
 ---
 
@@ -89,11 +89,10 @@ Record schema:
 
 | Field | Type | Written by | Read by | Description |
 |---|---|---|---|---|
-| `per_shooter[shooter_id]` | record | hit_share | dynamic_combat | `{ count, last_hit_time, total_damage }` — accumulated hits per shooter against this squad |
-| `disclosed_shooters[shooter_id]` | bool | hit_share | hit_share | session-persistent idempotency guard |
-| `engaged_until` | number | hit_share | dynamic_combat | xtime.game_sec when active combat ends; set to `now + ENGAGED_WINDOW_SEC` on every kept hit |
+| `per_shooter[shooter_id]` | number | hit_share | decay tick | last-hit timestamp (xtime.game_sec); set on every kept hit |
+| `disclosed_shooters[shooter_id]` | bool | hit_share | hit_share | session-persistent idempotency guard; cleared on shooter or squad despawn |
 
-Decay tick (every 5s) prunes `per_shooter` entries older than `substrate_retention_sec` (MCM-tunable, default 60s).
+Decay tick (every 5s) prunes `per_shooter` entries whose timestamp is older than `substrate_retention_sec` (MCM-tunable, default 60s).
 
 The substrate has no on/off toggle. The DTO is always available; if hit_share is disabled, nothing writes to it, but consumers can still call `get()` safely (record will be empty).
 
@@ -119,20 +118,19 @@ Hooks `npc_on_hit_callback`. When a faction-enemy hits any squad member, the ent
 1. Sanity guards: `amount > 0`, `who` exists, not self-hit.
 2. **Faction-relation gate** via `game_relations.is_factions_enemies(npc_community, shooter_community)`. Same-community hits rejected. Mirrors the engine's friendly-fire skip at our hook entry so substrate is never polluted by accidental hits.
 3. Resolve squad via `get_object_squad(npc)`; skip solo NPCs.
-4. Substrate writes: increment `record.per_shooter[shooter_id].count`, refresh `last_hit_time`, accumulate `total_damage`.
-5. Write `record.engaged_until = now + ENGAGED_WINDOW_SEC` — marks the squad as in active combat for the next window.
-6. Idempotency check: if `record.disclosed_shooters[shooter_id]` is set, return.
-7. Otherwise, set the flag and call `_disclose(squad, who)` — three engine APIs per online squadmate:
+4. Substrate write: `record.per_shooter[shooter_id] = now`. Used by the decay tick for TTL pruning.
+5. Idempotency check: if `record.disclosed_shooters[shooter_id]` is set, return.
+6. Otherwise, set the flag and call `_disclose(squad, who)`. Three engine APIs per online squadmate:
 
-   - **`force_set_goodwill(-2000, who)`** — writes RELATION_REGISTRY personal goodwill (`relation_registry.cpp:161-179`). `CAI_Stalker::tfGetRelationType` routes through RELATION_REGISTRY for stalkers so this drives every downstream `is_relation_enemy` check. Gated on `IsStalker(who)`: `ForceSetGoodwill` smart_casts both ids to `CSE_ALifeTraderAbstract` and logs an error for mutants. For mutant / helicopter / anomaly shooters, the goodwill write is skipped.
-   - **`enable_memory_object(who, true)`** — toggles `m_enabled` on existing visual/sound/hit memory entries (`memory_manager.cpp:151-156`). No-op when no prior entry; cheap insurance otherwise. Works for any shooter type.
-   - **`register_in_combat()`** — sets the member's squad_mask bit in `CAgentMemberManager::m_combat_mask` (`agent_member_manager.cpp:114-132`). This is the unlock for engine-native squad memory propagation: with the whole squad's bits set, the next `agent_memory_manager` tick ORs the full combat_mask into the victim's hit-memory entry's `m_squad_mask`, propagating memory of the shooter across every member including distant patrols.
+   - **`force_set_goodwill(-2000, who)`**: writes RELATION_REGISTRY personal goodwill (`relation_registry.cpp:161-179`). `CAI_Stalker::tfGetRelationType` routes through RELATION_REGISTRY for stalkers so this drives every downstream `is_relation_enemy` check. Gated on `IsStalker(who)`: `ForceSetGoodwill` smart_casts both ids to `CSE_ALifeTraderAbstract` and logs an error for mutants. For mutant / helicopter / anomaly shooters, the goodwill write is skipped.
+   - **`enable_memory_object(who, true)`**: toggles `m_enabled` on existing visual/sound/hit memory entries (`memory_manager.cpp:151-156`). No-op when no prior entry. Works for any shooter type.
+   - **`register_in_combat()`**: sets the member's squad_mask bit in `CAgentMemberManager::m_combat_mask` (`agent_member_manager.cpp:114-132`). This is the unlock for engine-native squad memory propagation. With the whole squad's bits set, the next `agent_memory_manager` tick ORs the full combat_mask into the victim's hit-memory entry's `m_squad_mask`, propagating memory of the shooter across every member including distant patrols.
 
 ### Net behavior
 
 - Engine handles audio-range squadmates on hit #1 (free, automatic).
 - Our hook handles distant patrol squadmates on hit #1 by forcing them into combat_mask, letting the engine's own propagation pipe carry the memory.
-- Hostility for the shooter is pinned at -2000 personal goodwill on every squadmate — survives community-relation drift, lasts the session.
+- Hostility for the shooter is pinned at -2000 personal goodwill on every squadmate. The override survives community-relation drift and lasts the session.
 - Subsequent hits from the same shooter against the same squad no-op via `disclosed_shooters`.
 
 ---
@@ -157,16 +155,16 @@ Per-NPC self-healing. Vanilla `xr_eat_medkit.script` has a working stage machine
 
 ### Visual layer (Path 1 script-queue overlay)
 
-Two cosmetic cues using `npc:add_animation` directly. No state_mgr, no GOAP, no `state_lib` changes. See `doc/library/modding/state-lib-animations.md` "Path 1 -- script-queue overlay" for the mechanism.
+Two cosmetic cues using `npc:add_animation` directly. No state_mgr, no GOAP, no `state_lib` changes. See `doc/library/modding/state-lib-animations.md` for the Path 1 script-queue overlay mechanism.
 
 | Cue | Trigger | Animation(s) |
 |---|---|---|
-| Limping | `npc_on_update` per-NPC throttled to 1s; eligibility = `health < threshold` AND `mental_state() == anim.free` AND `body_state() == move.standing` AND not zombied AND not wounded AND not in smart_cover. Re-arms every 20s | `dmg_norm_torso_1_idle_0` (torso overlay; layers over engine-driven locomotion, legs stay attached to ground) |
+| Limping | `npc_on_update` per-NPC throttled to 1s; eligibility = `health < threshold` AND `mental_state() == anim.free` AND `body_state() == move.standing` AND not zombied AND not wounded AND not in smart_cover. Re-arms every 5s | `dmg_norm_torso_1_idle_0` (torso overlay; layers over engine-driven locomotion, legs stay attached to ground) |
 | Heal anim | First tick of `_patched_heal_hp` / `_patched_heal_bleed` (`left == 15`); engine drains the queue naturally after | `dmg_norm_torso_11_attack_0` (medkit) / `norm_torso_12_attack_0` (bandage) |
 
 Limping is independent of the healing master toggle (its callback registers unconditionally; gated at runtime by `limping_anim_enabled`). Heal cue is gated by `healing_anim_enabled` AND the master toggle (it lives inside the heal_hp/heal_bleed patches that only install when healing is enabled).
 
-Combat NPCs are excluded by the `mental_state == anim.free` gate -- state_mgr drives mental to `anim.danger` in combat states (`state_lib.script:326-340` hide_fire / threat). Adapted from NPC_Limping_and_Healing by Vodoxleb (the source mod's `axr_light_wound.script` pattern); the source mod's `axr_otheal.script` (out-of-combat instant heal) and its state_mgr state definitions are NOT adopted -- our heal flow already runs via vanilla `xr_eat_medkit`.
+Combat NPCs are excluded by the `mental_state == anim.free` gate. state_mgr drives mental to `anim.danger` in combat states (`state_lib.script:326-340` hide_fire / threat). Adapted from NPC_Limping_and_Healing by Vodoxleb (the source mod's `axr_light_wound.script` pattern). The source mod's `axr_otheal.script` (out-of-combat instant heal) and its state_mgr state definitions are NOT adopted. Our heal flow already runs via vanilla `xr_eat_medkit`.
 
 ---
 
@@ -174,9 +172,9 @@ Combat NPCs are excluded by the `mental_state == anim.free` gate -- state_mgr dr
 
 Rank-aware NPC dispersion in script. `at_accuracy.script` subscribes to the vanilla `npc_shot_dispersion` callback (declared in `axr_main.script:126`, dispatched from `_g.CAI_Stalker__GetWeaponAccuracy` at `_g.script:1213-1217`).
 
-Why script and not cvars: the engine rank curve degenerates on Anomaly gamedata. `Rank()` clamps to `[0, 100]` at `ai_stalker.cpp:761`, but vanilla `<rank>` intervals run to 26999 (game_relations.ltx:8). All Anomaly NPCs end up at `rank_k = 1.0`, so `m_fRankDisperison` collapses to the constant `dispersion_experienced_k = 0.8`. Cvar tuning is a dead knob.
+Why script and not cvars: the engine rank curve degenerates on Anomaly gamedata. `Rank()` clamps to `[0, 100]` at `ai_stalker.cpp:764`, but vanilla `<rank>` intervals run to 26999 (game_relations.ltx:8). All Anomaly NPCs end up at `rank_k = 1.0`, so `m_fRankDisperison` collapses to the constant `dispersion_experienced_k = 0.8`. Cvar tuning is a dead knob.
 
-Math: `out = (base / 0.8) * mult` — divides out the engine's baked-in rank step, applies our per-tier multiplier.
+Math: `out = (base / 0.8) * mult`. Divides out the engine's baked-in rank step, applies our per-tier multiplier.
 
 8 tiers (novice / trainee / experienced / professional / veteran / expert / master / legend) with defaults from 1.00 down to 0.38.
 
@@ -196,15 +194,12 @@ The functor fires from `body_state_combat_override` calls in `stalker_combat_act
 
 ```
 OVERRIDE_OPS = {
-    [OP_KILL_ENEMY]    = true,  -- 19
     [OP_LOOKOUT]       = true,  -- 22
     [OP_HOLD_POSITION] = true,  -- 23
-    [OP_WAIT_IN_COVER] = true,  -- 41
-    [OP_HOLD_AMBUSH]   = true,  -- 44
 }
 ```
 
-These are the static-cover firing ops. Once crouched on entry to one of them, subsequent actions inherit body_state until the engine calls `set_body_state` again for a transient operator.
+These are the two static-cover firing operators that actually call `body_state_combat_override` in `stalker_combat_actions.cpp`. Once the functor returns crouch on a LookOut or HoldPosition tick, subsequent KillEnemy, WaitInCover, and HoldAmbushLocation actions inherit the crouched body_state without re-entering the functor.
 
 ### Composition chain
 
@@ -235,13 +230,13 @@ The engine then runs its own combat detection (property_enemy, m_combat_mask, ag
 
 Each module owns its own `xlog.get_logger("AT.X", { outfile = "alifetactics.log" })` facade. All write to `alifetactics.log` with distinct prefixes:
 
-- `AT.MCM` — MCM configuration
-- `AT.MEM` — Squad Memory DTO + decay
-- `AT.HIT` — Hit Sharing
-- `AT.HEALTH` — Healing
-- `AT.ACC` — Accuracy
-- `AT.STANCE` — Stance Switch
-- `AT.TEST` — console test harness
+- `AT.MCM`: MCM configuration
+- `AT.MEM`: Squad Memory DTO + decay
+- `AT.HIT`: Hit Sharing
+- `AT.HEALTH`: Healing
+- `AT.ACC`: Accuracy
+- `AT.STANCE`: Stance Switch
+- `AT.TEST`: console test harness
 
 MCM `log_level` (ERROR/WARN/INFO/DEBUG) controls verbosity. Each module subscribes to `on_option_change` and `mcm_option_restore_default` to refresh its level and derived `_dbg` flag.
 
@@ -249,16 +244,19 @@ MCM `log_level` (ERROR/WARN/INFO/DEBUG) controls verbosity. Each module subscrib
 
 ### Key debug events
 
-- `[DECAY]` — substrate decay tick stats
-- `[CLEAR]` — substrate clear on entity unregister
-- `[HIT]` — hit handler reject reasons or already-disclosed cases (includes `engaged_until`)
-- `[DISCLOSURE]` — full-squad disclosure with member count and `engaged_until`
-- `[UNREGISTER]` — substrate cleanup on entity despawn
-- `[HEAL]` `hp_tick`, `complete`, `bleed_tick`, `bleed_complete`
-- `[CHARGE]` — healing charge rolls
-- `[PATCH]` — install messages for xr_eat_medkit patches
-- `[ACC]` — per-shot accuracy calculation
-- `[STANCE]` — body_state override fires
+- `[DECAY]`: substrate decay tick stats
+- `[CLEAR]`: substrate clear on entity unregister
+- `[HIT]`: hit handler reject reasons or already-disclosed cases
+- `[DISCLOSURE]`: full-squad disclosure with member count
+- `[UNREGISTER]`: substrate cleanup on entity despawn
+- `[HEAL]`: `seq_start`, `seq_gesture`, `seq_end`, `seq_abort`, `hp_tick`, `complete`, `bleed_tick`, `bleed_complete`
+- `[CHARGE]`: healing charge rolls per NPC
+- `[LIMP]`: limp gained / lost / anim queued per NPC
+- `[PATCH]`: install messages for xr_eat_medkit patches
+- `[ACC]`: per-shot accuracy calculation
+- `[STANCE]`: body_state override fires
+- `[SPAWN]`: at_test squad spawn
+- `[DUMP]`: at_test substrate dump
 
 ---
 
@@ -266,11 +264,11 @@ MCM `log_level` (ERROR/WARN/INFO/DEBUG) controls verbosity. Each module subscrib
 
 `at_test.script` provides console commands invoked via `run_string at_test.<func>()`:
 
-- `at_spawn()` — spawn `bandit_sim_squad_novice` 50m ahead
-- `at_spawn_veteran()` — `bandit_sim_squad_veteran` 50m ahead
-- `at_spawn_master()` — `bandit_sim_squad_alpha` 50m ahead
-- `at_spawn_far()` — novice 100m ahead
-- `at_dump()` — log all substrate records (squad_id, engaged state, per_shooter count, engaged_until)
+- `at_spawn()`: spawn `bandit_sim_squad_novice` 50m ahead
+- `at_spawn_veteran()`: `bandit_sim_squad_veteran` 50m ahead
+- `at_spawn_master()`: `bandit_sim_squad_alpha` 50m ahead
+- `at_spawn_far()`: novice 100m ahead
+- `at_dump()`: log all substrate records (squad_id, per_shooter count)
 
 ---
 
