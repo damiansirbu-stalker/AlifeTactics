@@ -1,3 +1,8 @@
+next
+  Summary: moddb url
+
+  - Linked AlifeTactics ModDB URL in Alife Collection block.
+
 1.0.0
   Summary: First release, hit sharing, NPC self-healing fix, per-rank accuracy, sniper and launcher crouch
   First release. NPC combat AI organised around a shared per-squad memory substrate.
