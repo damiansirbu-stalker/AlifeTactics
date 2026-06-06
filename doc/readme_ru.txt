@@ -9,7 +9,7 @@ English: https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/readm
 AlifePlus: https://www.moddb.com/mods/stalker-anomaly/addons/alifeplus-v1-0-01
 AlifeBalance: https://www.moddb.com/mods/stalker-anomaly/addons/alifebalance
 AlifeGuard: https://www.moddb.com/mods/stalker-anomaly/addons/alifeguard-1001
-AlifeTactics: TBD
+AlifeTactics: https://www.moddb.com/mods/stalker-anomaly/addons/alifetactics
 
 ! Сбросьте настройки MCM при обновлении до новой версии !
 
