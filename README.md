@@ -4,7 +4,7 @@ A collection of fixes and systems focused on NPC combat behavior in STALKER Anom
 
 [ModDB](TBD) | [Nexus](TBD) | [Releases](https://github.com/damiansirbu-stalker/AlifeTactics/releases) | [Bugs, suggestions](https://github.com/damiansirbu-stalker/AlifeTactics/issues)
 
-Requires: Anomaly 1.5.3, [demonized 20260601+](https://github.com/themrdemonized/xray-monolith), [xlibs 1.5.2](https://www.moddb.com/mods/stalker-anomaly/addons/xlibs-1001), MCM
+Requires: Anomaly 1.5.3, [demonized 20260601+](https://github.com/themrdemonized/xray-monolith), [xlibs 1.7.6](https://www.moddb.com/mods/stalker-anomaly/addons/xlibs-1001), MCM
 
 Alife Collection:
 - [AlifePlus](https://www.moddb.com/mods/stalker-anomaly/addons/alifeplus-v1-0-01)

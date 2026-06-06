@@ -1,5 +1,5 @@
 AlifeTactics: Боевое поведение NPC для STALKER Anomaly, автор Damian
-Версия: 1.0.0 (xlibs 1.5.2, demonized 20260601)
+Версия: 1.0.0 (xlibs 1.7.6, demonized 20260601)
 GitHub: https://github.com/damiansirbu-stalker/AlifeTactics
 Список изменений: https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/changelog
 English: https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/readme.txt
@@ -52,6 +52,7 @@ AlifeTactics хукает коллбэки движка и применяет ф
 
 Сталкеры приседают или встают, когда боевой планировщик движка выбирает действие стрельбы из статичного укрытия или выглядывания.
 Поза переносится в операторы убийства, ожидания в укрытии и засады через наследование body-state движка.
+Движок вызывает функтор позы AT на 11 различных боевых действиях. Только 2 из них (look out, hold position) -- это действия стрельбы из статичного укрытия, где приседание имеет смысл. AT переопределяет эти 2, остальные 9 проходят без изменений.
 Система также учитывает экипированное оружие, поэтому снайперы и стрелки дальнего боя приседают чаще, а стрелки ближнего боя -- реже.
 
 Производительность (Performance):

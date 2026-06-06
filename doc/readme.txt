@@ -1,5 +1,5 @@
 AlifeTactics: NPC combat behavior for STALKER Anomaly, by Damian
-Version: 1.0.0 (xlibs 1.5.2, demonized 20260601)
+Version: 1.0.0 (xlibs 1.7.6, demonized 20260601)
 GitHub: https://github.com/damiansirbu-stalker/AlifeTactics
 Changelog: https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/changelog
 Russian / Na russkom: https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/readme_ru.txt
@@ -50,8 +50,9 @@ Masters shoot tighter than novices, and the full spread is configurable per tier
 
 Stance Switch:
 
-Stalkers crouch or stand when the engine combat planner picks a static-cover firing or peek action. 
+Stalkers crouch or stand when the engine combat planner picks a static-cover firing or peek action.
 The stance carries into killing, waiting in cover, and ambush operators through the engine's body-state inheritance.
+The engine calls AT's stance functor on 11 different combat actions. Only 2 of them (look out, hold position) are static-cover firing ops where crouching makes sense. AT overrides those 2, the other 9 pass through unchanged.
 The system also considers equipped weapon, so snipers and long range shooters will crouch more, and short range shooters will do it less.
 
 Performance:
