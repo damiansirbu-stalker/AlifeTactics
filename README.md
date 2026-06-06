@@ -1,8 +1,6 @@
 # AlifeTactics: NPC combat behavior for STALKER Anomaly
 
-Vanilla squads do not share hit awareness past audio range. A suppressed shot or a hit on a distant patrolman stays a private problem of one stalker while the rest keep walking. Vanilla stalkers also carry medkits they never use, because the engine ships the consumption config with an empty item list.
-
-AlifeTactics is a combat AI mod with squad-scope and per-stalker behaviors. The squad-scope layer shares hit awareness: on the first faction-enemy hit, the entire squad is force-disclosed to the shooter and engages, regardless of audio range. Two per-stalker layers sit alongside. One restores the broken medkit consumption path and tunes heal rate plus per-rank healing-charge probability. The other applies a per-rank weapon accuracy curve so master stalkers shoot noticeably tighter than novices (the vanilla engine rank knob is dead on Anomaly's rank values).
+A collection of fixes and systems focused on NPC combat behavior in STALKER Anomaly. Fixes vanilla bugs in NPC self-healing and accuracy, applies per-rank dispersion, adds squad-level alarm on hit, and weapon-aware crouch for snipers and rocket-launcher carriers.
 
 [ModDB](TBD) | [Nexus](TBD) | [Releases](https://github.com/damiansirbu-stalker/AlifeTactics/releases) | [Bugs, suggestions](https://github.com/damiansirbu-stalker/AlifeTactics/issues)
 
@@ -17,7 +15,7 @@ Alife Collection:
 ## Documentation
 
 - [readme.txt](doc/readme.txt): full description, features
-- [architecture.md](doc/architecture.md): substrate-based combat AI architecture
+- [architecture.md](doc/architecture.md): combat AI architecture
 - [changelog](doc/changelog): version history
 
 ## License
