@@ -13,63 +13,78 @@ AlifeTactics: TBD
 
 ! Reset MCM settings to defaults after updating !
 
-AlifeTactics is a mod composed of several systems, that gives NPC squads coordinated combat behavior.
+AlifeTactics is a collection of fixes and systems focused on NPC combat behavior in STALKER Anomaly. 
+Defaults match vanilla so the fixes apply on their own with no behavior shift you don't want.
 
-Squad alarm on hit:
-  Vanilla shares hit memory across squadmates within earshot. A suppressor breaks the share. A patrol member thirty meters off the line falls outside its range. The hit stays a private problem of whoever took it.
-  On the first faction-enemy hit, AlifeTactics writes the shooter into every squadmate's memory as hostile, audio range or not. The engine combat planner then handles target selection, cover, and return fire on the new information.
-  Shooting one stalker from cover or with a suppressor no longer leaves his squad standing around. They turn and engage on the first hit, including the ones who did not see or hear it.
+Hit Sharing:
 
-NPC self-healing (medkits AND bandages):
-  Vanilla has a working code path for NPCs to consume medkits and bandages from their inventory, but ships the underlying configuration with an empty item list. The consumption loop never iterates, and only a once-per-life fallback ever heals. NPCs carry full medkits and bandages and die clutching them.
-  AlifeTactics restores BOTH item lists through a configuration overlay covering the six vanilla medkit sections (medkit, medkit_army, medkit_scientic, medkit_ai1/2/3) and the vanilla bandage. MCM controls on top: heal-rate multiplier, four per-rank charge-chance sliders for the lifetime fallback (novice, experienced, veteran, master) replacing vanilla's flat 50%, and toggles for limping and the heal-cue animation. Defaults match vanilla behavior, so out of the box you only get the fix.
-  What actually happens now:
-    - Wounded stalkers below 50% HP use medkits to heal up.
-    - Bleeding stalkers above the wound threshold use bandages to stop the bleed.
-    - Stalkers without either fall back to the lifetime healing charge if their rank rolls allow.
-  Visual cues (cosmetic, MCM-toggleable):
-    - Stalkers below 65% HP visibly limp when out of combat. A torso slump overlay (visible whether standing or walking; engine drives the legs normally). Re-armed every 5 seconds per NPC.
-    - Stalkers play a medkit-injection or bandage-application torso animation when they start a heal cycle. One-shot cue per cycle.
-    - Combat NPCs are excluded from limping (mental state changes to danger in combat). Heal cues play in or out of combat.
+On the first faction-enemy hit, AlifeTactics arms every online squadmate against the shooter, audio range or not. \
+Every member's personal goodwill toward the shooter is forced to hostile, the shooter is registered in every member's memory, and the squad's combat-mask bit
+is set so the engine's own memory propagation carries the hit across the rest of the squad. 
+New squad members spawned mid-fight inherit the squad's active disclosures, and previously offline shooters coming back online get re-disclosed
+to the squads tracking them, so engagement state stays consistent across spawn churn.
+After 2 game minutes of no further hits from that shooter the squad's pin expires and the next hit re-fires the alert.
 
-NPC weapon accuracy:
-  In vanilla every stalker fires with the same dispersion regardless of rank. The engine has a rank-based accuracy curve but it is broken on Anomaly's data: every non-novice stalker clamps to the same value, so a master shoots no tighter than a trainee. The rank dispersion knob in the engine is a dead knob.
-  AlifeTactics replaces that curve script-side. On every NPC shot the rank is read and a per-tier dispersion factor is applied to the engine's computed cone. Defaults run from novice at the vanilla baseline down to legend at roughly a third the cone width. Eight tier sliders in MCM tune each rank independently.
-  Master stalkers shoot noticeably tighter than novices. The spread between ranks is configurable per tier, so you can flatten the curve, exaggerate it, or set extremes (laser masters, hopeless rookies).
+Healing:
 
-Combat crouch:
-  Vanilla NPC stance during combat is inherited from current state. A stalker that walked to cover standing stays standing in cover, and gets headshot through the chest-high crate they thought was protecting them.
-  AlifeTactics tells snipers and rocket-launcher carriers to crouch when the engine combat planner selects a static-cover firing or peek action (LookOut, HoldPosition). The crouch carries forward into KillEnemy, WaitInCover, and HoldAmbushLocation through the engine's body_state inheritance. These weapons are long-range sustained-fire tools; crouching gives low silhouette and stable sustained shooting.
-  Other weapons keep vanilla stance. Riflemen, pistoleers, shotgunners, and SMG carriers stand up to move and fire normally. The crouch is meaningful: it marks the squad's fire base by weapon type alone, no role taxonomy needed.
+NPCs in vanilla never consume the medkits or bandages they carry.
+AlifeTactics fixes Anomaly's broken configuration letting the working vanilla code do its job.
 
-MCM:
-  Five tabs, each with a master toggle. Hit Sharing: master toggle, forget-shooter timer in game minutes. Healing: master toggle, heal-rate multiplier, four per-rank charge-chance sliders, limping toggle + threshold, heal-cue animation toggle. Accuracy: master toggle, per-tier dispersion sliders for the eight rank tiers. Stance Switch: master toggle. Development: log level, reset-to-defaults button.
+Anomaly has a "once per lifetime" 50% chance that every NPC gets a free medkit, but it's broken. 
+Instead of once per lifetime it's once per save reload. AlifeTactics fixes the above and makes it configurable.
 
-Backlog:
-  Tactical flee, danger memory persistence, combat scheme selection, NPC weapon bias. The backlog file on GitHub tracks each.
+Wounded stalkers below 50% HP consume medkits from their inventory. Bleeding stalkers above the wound threshold consume bandages. 
+Stalkers carrying neither fall back to a per-rank lifetime healing charge. The heal rate is MCM-tunable.
+
+Animation also were fixed and are toggleable in MCM. 
+Stalkers below 65% HP visibly limp when out of combat through a torso overlay the engine layers over normal locomotion, re-armed every 5 seconds per NPC. 
+A medkit-injection or bandage-application torso animation plays as a one-shot cue when a stalker starts a heal cycle.
+
+Accuracy:
+
+The engine's rank-based accuracy curve is dead on Anomaly's rank values, making all stalker ranks equal in practice.
+AlifeTactics hooks engine internals and allows that to function, while also making it configurable.
+
+AlifeTactics hooks the engine callbacks and applies a per-rank dispersion factor to every NPC shot, MCM configurable.
+Masters shoot tighter than novices, and the full spread is configurable per tier. 
+
+Stance Switch:
+
+Stalkers crouch or stand when the engine combat planner picks a static-cover firing or peek action. 
+The stance carries into killing, waiting in cover, and ambush operators through the engine's body-state inheritance.
+The system also considers equipped weapon, so snipers and long range shooters will crouch more, and short range shooters will do it less.
 
 Performance:
-  Hit Sharing fires on the engine hit callback and scales with shots fired against squads. Per-NPC behaviors (Accuracy, Healing, Stance Switch) fire on their natural engine events: accuracy per bullet, stance per body-state set, healing tick per time-factor. None of these iterate the NPC list every frame. One periodic cleanup tick (disclosure decay, every 5 real seconds) walks tracked squads and prunes expired shooter entries.
+
+Most systems above hook on engine callbacks but are throttled and situational.
+All operations are done through xlibs which encapsulates best practices in workign with the engine and what Anomaly uses internally.
+Also all operations are traced for performance and duration and can be checked if debug logging is activated.
+Tests showed the perfromance impact is almost nonexistent.
 
 Compatibility:
-  Tested with vanilla Anomaly 1.5.3 and GAMMA.
-  No base script edits. No engine patches.
-  Mid-save install works. Mid-save uninstall is safe.
-  Friendly fire and same-community hits are rejected at the faction-relation gate before any squad-memory write or disclosure. Story NPCs, companions, and traders go through the same gate as every other stalker. A bandit hitting a friendly stalker still arms that stalker's squad against the bandit; the friendly stalker hitting their own squadmate is ignored.
+
+Tested with vanilla Anomaly 1.5.3 and GAMMA. No base script edits, no engine patches. Mid-save install and uninstall both work. Friendly fire
+and same-community hits are filtered at the faction-relation gate, so story NPCs, companions, traders, and squadmates are never armed against
+their own faction.
 
 Disable before installing AlifeTactics:
 
-  Redundant with engine settings:
-    Dynamic AI Aim Settings, DLTX_JURASZKA Worse NPC vision and accuracy. Demonized PR #523 exposes the underlying ai_aim_* / ai_vision_speed_boost / ai_search_inertia_time cvars in the engine Settings > Stalkers menu. AlifeTactics's accuracy hook also writes per-shot dispersion via the npc_shot_dispersion callback. Either path stacks on the other.
+Redundant with engine settings: Dynamic AI Aim Settings, DLTX_JURASZKA Worse NPC vision and accuracy. PR #523 exposes the aim, vision, and
+search-inertia cvars in engine Settings, and AT's accuracy curve also writes per-shot dispersion. Either path stacks on the other.
 
-  Forced-movement schemes (stuck-NPC risk):
-    Wuut AI Extension. Grafts a forced-movement precondition onto the engine combat planner; includes its own stuck-detection because forced movement during combat can leave NPCs stuck.
-    NPC_Fleeing. Squad flee via forced movement; same stuck risk, includes its own stuck-detection.
+Forced-movement schemes with stuck-NPC risk: Wuut AI Extension, NPC_Fleeing. Both graft forced movement onto the combat planner.
+
+NPC self-heal overlaps: NPC Limping and Healing (Vodoxleb), Animated NPC Healing, NPC Animation Overhaul Part 1. Parallel heal schemes
+double-heal, full-file animation overrides conflict, combat planners gated on the heal evaluator can freeze NPCs after combat.
 
 Compatible today, will overlap once the per-NPC camper scheme is added:
-  AI more cover (Mora). Assigns the vanilla camper combat scheme via global default_custom_data.ltx [combat] combat_type. Engine-documented machinery. AlifeTactics's planned per-NPC camper writes script_combat_type from a binder; two writers on the same field.
-  G.A.M.M.A. AI Rework. Layered scheme selector on Mora's pattern with rank-weighted dispatch. Overrides xr_combat_camper, xr_conditions, xr_danger, schemes_ai_gamma. The xr_combat_camper override removes action_look_around, which AlifeTactics's planned camper depends on to scan when sight breaks. The xr_danger override file-replaces a script AlifeTactics will surgically monkey-patch.
-  ReDone Combat AI. Copies Mora's pattern; overrides 12 vanilla scripts. Much of its logic is 1.5.2-gated and skipped on 1.5.3.
+
+AI more cover (Mora): assigns the vanilla camper scheme globally. AT's planned per-NPC camper writes the same field from a binder.
+
+G.A.M.M.A. AI Rework: layered selector on Mora's pattern. Overrides combat-camper, conditions, danger. The camper override drops look-around
+which AT's planned camper needs.
+
+ReDone Combat AI: copies Mora, overrides 12 scripts. Much is 1.5.2-gated and skipped on 1.5.3.
 
 Requirements:
 Anomaly 1.5.3
