@@ -1,0 +1,18 @@
+--- zzz_at_health_patch: Anomaly xr_eat_medkit.on_register bugfix.
+---
+--- Vanilla xr_eat_medkit.script:36-44 rolls math.random() > 0.5 to write healing_charge=true
+--- on every server_entity_on_register fire. alife_storage_manager.cpp:160-161 re-fires
+--- on_register for every restored entity on save load, so vanilla re-rolls per save load.
+--- Consumed charges (cleared at xr_eat_medkit.script:223) can also get re-granted.
+---
+--- Unregister vanilla's callback. healing_charge is owned by at_health._on_net_spawn.
+---
+--- zzz_ filename so this on_game_start runs after xr_eat_medkit.on_game_start.
+
+function on_game_start()
+    if at_mcm.get_config("healing_enabled") == false then return end
+    if not xr_eat_medkit or not xr_eat_medkit.on_register then return end
+    UnregisterScriptCallback("server_entity_on_register", xr_eat_medkit.on_register)
+    xlog.get_logger("AT.HEALTH", { outfile = "alifetactics.log" })
+        .info("[PATCH] xr_eat_medkit.on_register suppressed (vanilla save-load re-roll bug)")
+end

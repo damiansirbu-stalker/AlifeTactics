@@ -1,48 +1,32 @@
---- at_health: Per-NPC healing tuning and visual cues
---- Patches xr_eat_medkit.heal_hp / heal_bleed to scale per-tick recovery by an
---- MCM multiplier, overrides vanilla's flat 50% healing_charge roll with per-rank
---- probabilities, and drives optional limp + heal-gesture animations.
---- See architecture.md Healing section for engine-call detail.
+--- at_health: Heal-rate scaling, per-rank healing charge, limp + heal animations
 
 local math_random = math.random
 local se_save_var, se_load_var = se_save_var, se_load_var
 local RegisterScriptCallback, time_global = RegisterScriptCallback, time_global
 local IsStalker, IsWounded = IsStalker, IsWounded
 
--- ==================== VISUAL LAYER CONSTANTS ====================
-
 local LIMP_ELIGIBILITY_CHECK_MS = 1000
--- Min ms between successive limp anim queues; lower stalls locomotion.
 local LIMP_REARM_MS             = 5000
--- xr_eat_medkit.consume_medkit calls heal_hp/heal_bleed with left=15.
-local HEAL_TICK_FIRST          = 15
--- _healing_active auto-expires after this (covers save/load + offline edge cases).
-local HEAL_ACTIVE_EXPIRY_MS    = 30000
+-- xr_eat_medkit.consume_medkit schedules heal_hp/heal_bleed with left=15.
+local HEAL_TICK_FIRST           = 15
+local HEAL_ACTIVE_EXPIRY_MS     = 30000
 
--- Torso-layer limp variants from vanilla stalker OMF. The "torso_N_*" naming
--- encodes (damage character N, gait). Bone mask is torso-only so engine drives
--- legs/root normally -> NPC walks/stands without floating. Distinct from the
--- full-body "dmg_norm_walk_fwd_0" (locomotion replacement, Path 2 only).
+-- Slot-0/1 hardcoded; per-slot pick is TODO (see todo-alifetactics-next). Script anim
+-- plays on torso AND legs partitions (mask = all-except-head, stalker_animation_pair.cpp:60-92);
+-- non-fist NPCs get wrong arm pose during the override window, bounded by LIMP_REARM_MS gap.
 local LIMP_ANIM_IDLE    = "dmg_norm_torso_1_idle_0"
 local LIMP_ANIM_WALK    = "dmg_norm_torso_0_walk_0"
 local LIMP_ANIM_RUN     = "dmg_norm_torso_0_run_0"
 local HEAL_ANIM_MEDKIT  = "dmg_norm_torso_11_attack_0"
 local HEAL_ANIM_BANDAGE = "norm_torso_12_attack_0"
 
--- [npc_id] = { next_add_ms } limp anim queue scheduler state per NPC
 local _limping = {}
--- [npc_id] = expiry_ms while heal_hp or heal_bleed cycle is running (gates limp)
 local _healing_active = {}
--- Heal sequence: [id] = { stage = "clutch"|"gesture", until_ms, gesture_anim }
--- At heal cycle start: stop NPC, play wound-clutch pose for CLUTCH_MS, then
--- swap to medkit/bandage gesture for GESTURE_MS, then restore movement.
 local _heal_seq = {}
 local HEAL_CLUTCH_MS  = 3000
 local HEAL_GESTURE_MS = 3000
 
--- pstor wrappers with nil-key guard. Both functions accept (id, name, key[, val]); if
--- name is nil, vanilla pstor silently writes to a wrong key (and reads back nil), so
--- guard explicitly. Callers can pass npc:name() without their own pre-check.
+-- Vanilla pstor writes to a wrong key when name is nil. Guard explicitly.
 local function _safe_save(id, name, key, val)
     if not name then return end
     se_save_var(id, name, key, val)
@@ -51,17 +35,14 @@ local function _safe_load(id, name, key)
     if not name then return nil end
     return se_load_var(id, name, key)
 end
--- CreateTimeEvent is NOT cached at module load: demonized_time_events replaces this
--- global at runtime, so capturing the upvalue would pin the original (vanilla) impl.
 
 local log = xlog.get_logger("AT.HEALTH", { outfile = "alifetactics.log" })
 local _dbg = false
 local _heal_active = false
 local cfg = at_mcm.cfg
 
--- Vanilla rank names from game_relations.ltx [game_relations] rating folded into
--- the four MCM tiers. ranks.get_obj_rank_name resolves the numeric rank against
--- the same source so any mod that reshapes the rating intervals keeps working.
+-- Vanilla rank intervals (game_relations.ltx [game_relations] rating) folded
+-- into MCM tiers via ranks.get_obj_rank_name.
 local _RANK_TO_TIER = {
     novice       = "novice",
     trainee      = "novice",
@@ -77,14 +58,8 @@ local function _rank_tier(npc)
     return _RANK_TO_TIER[ranks.get_obj_rank_name(npc)] or "novice"
 end
 
--- ==================== PATCH: HEAL_HP MULTIPLIER ====================
-
--- Mirrors vanilla xr_eat_medkit.heal_hp (script:188-201) logic but scales
--- the per-tick heal by the current MCM multiplier. Recursive scheduling
--- captures xr_eat_medkit.heal_hp (our function after install) so the chain
--- propagates the multiplier through all 13 ticks. xprofiler.new_if(_dbg)
--- is a no-op singleton when debug logging is off, real profile_timer when
--- on -- timing appears in the [HEAL] debug line at zero cost otherwise.
+-- Vanilla xr_eat_medkit.heal_hp (script:188-201) with MCM rate multiplier.
+-- Reschedules via xr_eat_medkit.heal_hp lookup so the chain stays on the patched function.
 local function _patched_heal_hp(id, left)
     local tmr = xprofiler.new_if(_dbg):start()
     local nextl = left - 1
@@ -128,17 +103,8 @@ local function _patched_heal_hp(id, left)
     return true
 end
 
--- ==================== PATCH: HEAL_BLEED LOG ====================
-
--- Mirrors vanilla xr_eat_medkit.heal_bleed (script:203-215). No behavior
--- change: vanilla sets npc.bleeding = 0.07 per tick for 13 ticks (left=15..3,
--- exits at left=2). The replacement only adds [HEAL] bleed_tick / bleed_complete
--- log lines and xprofiler timing so bandage consumption is observable end-to-end,
--- matching the heal_hp pattern. Recursive scheduling captures xr_eat_medkit
--- .heal_bleed (our function after install) so the chain stays on the patched
--- function through all 13 ticks. No MCM-tunable multiplier because the engine
--- field is a hard set, not a delta -- a multiplier on a target value would be
--- unintuitive.
+-- Vanilla xr_eat_medkit.heal_bleed (script:203-215) with logging only.
+-- Engine bleeding field is a hard set per tick, not a delta -- no multiplier.
 local function _patched_heal_bleed(id, left)
     local tmr = xprofiler.new_if(_dbg):start()
     local nextl = left - 1
@@ -192,14 +158,8 @@ local function _install_heal_patch()
     log.info("[PATCH] xr_eat_medkit.heal_bleed replaced with logged version")
 end
 
--- ==================== CALLBACK: PER-RANK HEALING CHARGE ====================
-
--- Fires when an NPC game_object first becomes online (npc_on_net_spawn).
--- Vanilla server-entity on_register has already fired by now and may have
--- set healing_charge=true on a 50% roll. We override unconditionally with
--- our per-rank roll: every stalker, every spawn, exactly one resolution.
--- at_charge_processed flag is persisted via se_save_var so subsequent
--- offline/online transitions (or save/load cycles) skip the re-roll.
+-- Per-rank charge override of vanilla's flat 50% roll at xr_eat_medkit.script:36-44.
+-- Vanilla's bug (re-roll on every save load) is suppressed in zzz_at_health_patch.script.
 local function _on_net_spawn(npc, _se_obj)
     if not _heal_active then return end
     if not npc or not IsStalker(npc) or not npc:alive() then return end
@@ -227,8 +187,6 @@ local function _on_net_spawn(npc, _se_obj)
     end
 end
 
--- ==================== CALLBACK: LIMPING VISUAL ====================
-
 local function _pick_limp_anim(npc)
     local mt = npc:movement_type()
     if mt == move.walk then return LIMP_ANIM_WALK end
@@ -236,23 +194,19 @@ local function _pick_limp_anim(npc)
     return LIMP_ANIM_IDLE
 end
 
--- End the staged heal sequence: restore movement, clear anim, drop the entry.
--- Called when the gesture stage completes or when damage aborts the sequence.
 local function _end_heal_sequence(npc, id)
     _heal_seq[id] = nil
     npc:movement_enabled(true)
     npc:clear_animations()
 end
 
--- Drive one tick of the staged heal sequence (clutch -> gesture -> restore).
--- Returns early when no sequence is active. Aborts on incoming damage so NPC
--- can defend themselves instead of standing helpless during combat.
+-- clutch (NPC frozen with wound pose) -> gesture (medkit/bandage anim) -> end.
+-- Net HP drop > 0.02 between drives aborts so NPC can defend.
 local function _drive_heal_sequence(npc, id, tg)
     local seq = _heal_seq[id]
     if not seq then return end
     if not npc:alive() then _heal_seq[id] = nil; return end
     if seq.last_hp and npc.health < seq.last_hp - 0.02 then
-        -- Net HP drop while frozen -> NPC under attack -> abort
         if _dbg then
             log.debug("[HEAL] seq_abort id=%d reason=damage hp=%.2f->%.2f", id, seq.last_hp, npc.health)
         end
@@ -275,12 +229,6 @@ local function _drive_heal_sequence(npc, id, tg)
     seq.last_hp = npc.health
 end
 
--- npc_on_update fires every motivator binder tick (~30-60 Hz per online stalker
--- from xr_motivator.script:486). Throttled per-NPC to LIMP_ELIGIBILITY_CHECK_MS
--- via storage table; eligibility -> pick the gait-matching torso overlay
--- (idle/walk/run) and re-queue whenever the script-animation queue is empty.
--- Continuous visual coverage without stacking (count==0 gate). Engine pops the
--- anim after each playthrough; our next eligibility tick refills the queue.
 local function _on_npc_update(npc, st)
     if not st then return end
     local id = npc:id()
@@ -330,8 +278,6 @@ local function _on_entity_unregister(se_obj)
     _heal_seq[se_obj.id] = nil
 end
 
--- ==================== LIFECYCLE ====================
-
 local function _refresh_log()
     log.set_level(at_mcm.get_config("log_level") or "WARN")
     _dbg = log.get_level() >= 5
@@ -355,9 +301,7 @@ function on_game_start()
     RegisterScriptCallback("on_option_change",          _refresh_log)
     RegisterScriptCallback("mcm_option_restore_default", _refresh_log)
 
-    -- Read via get_config (always fresh from ui_mcm.get); cfg.healing_enabled
-    -- would be the default at this point because at_mcm.on_game_start has not
-    -- yet called load_config() (at_health < at_mcm alphabetically).
+    -- get_config (closure) bypasses cfg cache, safe before at_mcm.on_game_start runs.
     if at_mcm.get_config("healing_enabled") == false then
         log.info("Stalker Healing disabled at boot; vanilla xr_eat_medkit behavior in effect")
         return

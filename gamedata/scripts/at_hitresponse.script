@@ -1,41 +1,22 @@
---- at_hitresponse: Squad-aware hit disclosure
---- Hooks npc_on_hit_callback. On the first faction-enemy hit against a squad,
---- discloses the shooter to every online squadmate regardless of audible range,
---- extending the engine's earshot-bounded propagation to distant patrol members
---- and suppressed-weapon victims. Decay reverses the disclosure after the MCM
---- retention window so re-engagement re-fires the full pipeline.
+--- at_hitresponse: Force-disclose shooter to whole squad on first faction-enemy hit
 
 local pairs, tostring, RegisterScriptCallback, IsStalker, alife_object = pairs, tostring, RegisterScriptCallback, IsStalker, alife_object
--- DO NOT cache CreateTimeEvent / ResetTimeEvent / RemoveTimeEvent as locals.
--- demonized_time_events.script replaces them; cached locals capture the dead
--- originals and timers never fire. See doc/library/xray/internals/globals.md:208-219.
+-- CreateTimeEvent / ResetTimeEvent / RemoveTimeEvent not cached: demonized_time_events
+-- replaces them at runtime; cached locals would pin the dead originals.
 
 local log = xlog.get_logger("AT.HIT", { outfile = "alifetactics.log" })
 local _dbg = false
 local cfg = at_mcm.cfg
-
--- ==================== CONSTANTS ====================
 
 local GOODWILL_HOSTILE   = -2000
 local TIMER_EV           = "at_hitresponse"
 local TIMER_DECAY        = "decay"
 local DECAY_INTERVAL_SEC = 5
 
--- ==================== STATE ====================
-
 local _disclosed = {}
 
--- Returns true only when shooter's faction is community-level enemy of victim's.
--- This is the substrate-update gate: accidental hits on friendly/neutral NPCs do not
--- accumulate. Same-community hits are rejected as friendly fire.
---
--- character_community(obj) is the anomaly global wrapper (_g.script:2425-2433). For
--- stalkers and the actor it returns obj:character_community(). For anything else
--- (mutants, helicopters, anomalies) it returns the literal string "monster". Mutant
--- shooters therefore PASS this gate because is_factions_enemies(<stalker>, "monster")
--- is true, which is correct: mutant attacks are real combat events worth tracking in
--- substrate and the state machine. The mutant-specific restriction (goodwill writes
--- only for human shooters) lives in _disclose.
+-- character_community(_g.script:2425-2433) returns "monster" for non-stalkers, so
+-- mutant-vs-stalker hits pass via is_factions_enemies(<faction>, "monster").
 local function _shooter_is_combat_enemy(npc, who)
     local npc_comm = character_community(npc)
     if not npc_comm or npc_comm == "" or npc_comm == "none" then return false end
@@ -45,54 +26,12 @@ local function _shooter_is_combat_enemy(npc, who)
     return game_relations.is_factions_enemies(npc_comm, who_comm)
 end
 
--- Walk squad members, force-disclose the shooter to every online one. Offline
--- members are skipped (no game_object). Three writes per member, all independent
--- mechanisms verified against engine source:
---
---   1. force_set_goodwill(-2000, who)
---      RELATION_REGISTRY personal goodwill override; subtracts community baseline
---      so final relation = exactly -2000 (relation_registry.cpp:161-179).
---      CAI_Stalker::tfGetRelationType (ai_stalker_misc.cpp:92-105) routes through
---      RELATION_REGISTRY.GetRelationType -> GetAttitude (relation_registry_inline.h:69-93),
---      which sums personal + reputation + rank + community_to_obj + community_to_community.
---      Net: final attitude = -2000 + reputation + rank, well below enemy threshold.
---      The squadmate treats the shooter as hostile in every is_relation_enemy() check.
---
---   2. enable_memory_object(who, true)
---      Toggles m_enabled on existing visual/sound/hit memory entries
---      (visual_memory_manager.cpp:245-251, sound_memory_manager.cpp:115-121,
---       hit_memory_manager.cpp:240-247). No-op when no prior entry. Cheap
---      insurance for squadmates that already heard/saw/got-hit-by the shooter.
---
---   3. register_in_combat()
---      Sets squad_mask bit on CAgentMemberManager::m_combat_mask
---      (agent_member_manager.cpp:114-132). This bit is the GATE for engine-native
---      squad memory propagation at agent_memory_manager.cpp:33-34: memory entries
---      with m_squad_mask intersecting combat_mask get spread across all combat-active
---      members each tick. Calling this on patrolling squadmates flips them combat-
---      active, and the next agent_manager update propagates the victim's hit-memory
---      of the shooter across the whole engaged squad. This is the engine's own
---      squad-memory-sharing mechanism; we just unlock it.
---
--- Safety: this function is only reached after _shooter_is_combat_enemy passed
--- (faction-relation already enemy). force_set_goodwill cannot flip a friendly
--- squad hostile because the gate at hit handler entry rejects friendly-fire
--- scenarios. set_relation(enemy) and set_enemy() are intentionally NOT called:
--- set_relation == SetGoodwill(goodwill_enemy_config) so it is redundant with
--- force_set_goodwill (relation_registry_inline.h:25-44); set_enemy is a bloodsucker-
--- only API that logs an error for stalkers (script_game_object_use2.cpp:231-243).
---
--- Mutant / helicopter / anomaly shooters: force_set_goodwill gated on IsStalker(who).
--- Mutant squadmates (e.g. mutant-vs-mutant or mutant-victim of stalker shooter):
--- gated on IsStalker(mem_npc). RELATION_REGISTRY::ForceSetGoodwill
--- (relation_registry.cpp:165-172) smart_casts BOTH ids to CSE_ALifeTraderAbstract
--- and bails with "cannot convert obj to CSE_ALifeTraderAbstract!" if either side
--- is non-stalker; mutants are CSE_ALifeMonsterAbstract so any mutant ID fails the
--- cast. enable_memory_object (script_game_object2.cpp:260-268) and
--- register_in_combat (agent_member_manager.cpp:114-132) work for any actor type so
--- they always run. Distant patrol squadmates still learn the squad is engaged with
--- the mutant via combat_mask propagation, matching vanilla xr_danger.script:132 which
--- escalates alertness regardless of shooter community.
+-- Goodwill gated by IsStalker pair: RELATION_REGISTRY::ForceSetGoodwill
+-- (relation_registry.cpp:161-172) smart_casts both ids to CSE_ALifeTraderAbstract.
+-- register_in_combat requires CAI_Stalker receiver
+-- (script_game_object_inventory_owner.cpp:1945-1955); safe here because mem_npc
+-- comes from a stalker squad's members (npc_on_hit_callback fires only via
+-- motivator_binder, never generic_object_binder).
 local function _disclose_to_member(mem_npc, who, who_is_human)
     if not mem_npc then return false end
     if who_is_human and IsStalker(mem_npc) then
@@ -164,8 +103,6 @@ local function _decay_tick()
     end
 end
 
--- ==================== HIT HANDLER ====================
-
 local function _on_hit(npc, amount, _local_direction, who, _bone_index)
     if not cfg.hit_share_enabled then return end
     if not amount or amount <= 0 then return end
@@ -222,8 +159,6 @@ local function _on_hit(npc, amount, _local_direction, who, _bone_index)
             squad_id, who_id, disclosed_to, tmr_gate:get_ms(), tmr_disclose:get_ms(), tmr_total:get_ms())
     end
 end
-
--- ==================== SPAWN HANDLER ====================
 
 local function _inherit_one(npc, shooter_id, npc_id)
     if shooter_id == npc_id then return false end
@@ -288,8 +223,6 @@ local function _on_net_spawn(npc)
     _on_shooter_online(npc, npc_id)
 end
 
--- ==================== LIFECYCLE ====================
-
 local function _refresh_log()
     log.set_level(at_mcm.get_config("log_level") or "WARN")
     _dbg = log.get_level() >= 5
@@ -305,8 +238,6 @@ local function _on_first_update()
         cfg.hit_share_retention_min,
         _dbg and "true" or "false")
 end
-
--- ==================== PUBLIC ====================
 
 --- Walk every (squad_id, shooter_count) pair
 function iterate_disclosed(fn)

@@ -1,4 +1,4 @@
---- at_test: Console commands for AlifeTactics development (squad spawn + substrate dump)
+--- at_test: Console commands for AlifeTactics (squad spawn, substrate dump)
 
 local tostring, string_format = tostring, string.format
 
@@ -12,9 +12,8 @@ local function _tip(msg)
     if db.actor then news_manager.send_tip(db.actor, msg, nil, nil, 5000) end
 end
 
--- Spawn a squad at the actor's vertex, then teleport it to `distance` meters
--- in front of the actor's facing direction. If the target vertex is off-map,
--- the squad stays at the actor (still spawned, just not relocated).
+-- Spawn at actor vertex then teleport to `distance` meters along facing direction.
+-- Off-map target vertex -> stay at actor.
 local function _spawn(section, distance)
     section  = section or DEFAULT_SECTION
     distance = distance or DEFAULT_DISTANCE
@@ -65,8 +64,6 @@ local function _spawn(section, distance)
         section, squad.id,
         on_map and (distance .. "m ahead") or "at actor (off-map)"))
 end
-
--- ==================== CONSOLE COMMANDS ====================
 
 --- @export console
 function at_spawn()

@@ -1,14 +1,10 @@
---- at_mcm: MCM configuration for AlifeTactics combat AI
+--- at_mcm: MCM configuration for AlifeTactics
 
 local log = xlog.get_logger("AT.MCM", { outfile = "alifetactics.log" })
 
--- ==================== DEFAULTS ====================
-
 local defaults = {
-    -- Hit Sharing
     hit_share_enabled         = true,
     hit_share_retention_min   = 2,
-    -- Healing
     healing_enabled           = true,
     heal_rate_multiplier      = 1.0,
     charge_chance_novice      = 50,
@@ -18,7 +14,6 @@ local defaults = {
     limping_anim_enabled      = true,
     limping_health_threshold  = 0.65,
     healing_anim_enabled      = true,
-    -- Accuracy
     accuracy_enabled       = true,
     acc_disp_novice        = 1.00,
     acc_disp_trainee       = 0.90,
@@ -28,21 +23,15 @@ local defaults = {
     acc_disp_expert        = 0.52,
     acc_disp_master        = 0.45,
     acc_disp_legend        = 0.38,
-    -- Stance Switch
     stance_enabled = true,
-    -- Development
     log_level = "WARN",
 }
-
--- ==================== CONFIG ====================
 
 local RegisterScriptCallback = RegisterScriptCallback
 
 local _key_to_tab = {
-    -- Hit Sharing
     hit_share_enabled         = "hit_share",
     hit_share_retention_min   = "hit_share",
-    -- Healing
     healing_enabled           = "health",
     heal_rate_multiplier      = "health",
     charge_chance_novice      = "health",
@@ -52,7 +41,6 @@ local _key_to_tab = {
     limping_anim_enabled      = "health",
     limping_health_threshold  = "health",
     healing_anim_enabled      = "health",
-    -- Accuracy
     accuracy_enabled       = "accuracy",
     acc_disp_novice        = "accuracy",
     acc_disp_trainee       = "accuracy",
@@ -62,9 +50,7 @@ local _key_to_tab = {
     acc_disp_expert        = "accuracy",
     acc_disp_master        = "accuracy",
     acc_disp_legend        = "accuracy",
-    -- Stance Switch
     stance_enabled = "stance",
-    -- Development
     log_level     = "development",
     btn_reset_all = "development",
 }
@@ -75,16 +61,13 @@ end
 
 cfg, get_config, load_config = xmcm.create_config("at", defaults, path_builder)
 
--- ==================== BUTTON HANDLERS ====================
-
 -- functor_ui receives the UI_MCM instance as trailing arg (ui_mcm.script:1435).
--- functor would receive nothing. MCM 1.7.2fix leaves the file-local GUI nil on fresh opens
--- (only Open_to sets it, and Reset_last_opt skips Open_to when last_path is nil), so
--- ui_mcm.get_gui() returns nil. functor_ui sidesteps that bug.
--- MCM keeps file-local opt_temp (pending widget edits) at ui_mcm.script:175. Any widget
--- the user touched before clicking the reset button is still there, and On_Accept at
--- ui_mcm.script:2393 writes opt_temp AFTER our config writes, partially un-applying the
--- reset. The warning desc above the button instructs the user to save or discard first.
+-- functor would receive nothing. MCM 1.7.2fix leaves file-local GUI nil on fresh
+-- opens (only Open_to sets it, Reset_last_opt skips Open_to when last_path is nil),
+-- so ui_mcm.get_gui() returns nil. functor_ui sidesteps that bug.
+-- MCM keeps file-local opt_temp (pending widget edits) at ui_mcm.script:175. On_Accept
+-- at ui_mcm.script:2393 writes opt_temp AFTER our config writes, partially un-applying
+-- the reset. The warning desc above the button instructs the user to save or discard first.
 local function _apply_defaults(gui, msg)
     local config = axr_main.config
     for k, v in pairs(defaults) do
@@ -92,17 +75,15 @@ local function _apply_defaults(gui, msg)
     end
     config:save()
     load_config()
-    -- Without this, consumer-local caches (log level, _disp lookup) stay stale.
     SendScriptCallback("mcm_option_restore_default")
     if gui then
         if gui.owner and gui.owner.SetMsg then
             gui.owner:SetMsg(msg, 5)
         end
-        -- Close via On_Cancel, not On_Discard. On_Discard calls Reset_opt -> scroll_opt:Clear
-        -- at ui_mcm.script:949, which destroys the btn_reset_all button while its click
-        -- handler is still on the stack; C++ dispatcher returns into the freed control and
-        -- SEH-fires on some exe builds. On_Cancel only calls HideDialog + Unregister_UI;
-        -- scroll_opt children stay alive long enough for the handler to unwind.
+        -- Close via On_Cancel: On_Discard calls Reset_opt -> scroll_opt:Clear at
+        -- ui_mcm.script:949, which destroys btn_reset_all while its click handler is
+        -- still on the stack; C++ dispatcher returns into the freed control and
+        -- SEH-fires on some exe builds. On_Cancel only calls HideDialog + Unregister_UI.
         if gui.On_Cancel then
             gui:On_Cancel()
         end
@@ -116,13 +97,10 @@ function btn_reset_all(gui)
     _apply_defaults(gui, "AlifeTactics: all settings restored to defaults.")
 end
 
--- ==================== MCM DEFINITION ====================
-
 function on_mcm_load()
     return {
         id = "at",
         gr = {
-            -- ============ HIT SHARING TAB ============
             {
                 id = "hit_share",
                 sh = true,
@@ -132,18 +110,15 @@ function on_mcm_load()
                     { id = "desc", type = "desc", text = "ui_mcm_at_hit_share_desc" },
                     { id = "hit_share_enabled", type = "check", val = 1, def = true },
 
-                    -- Retention
                     { id = "div_retention", type = "line" },
                     { id = "hdr_retention", type = "desc", text = "ui_mcm_at_hdr_retention", clr = {255, 200, 200, 200} },
-                    { id = "hit_share_retention_min", type = "track", val = 0, min = 1, max = 30, step = 1, def = 2 },
+                    { id = "hit_share_retention_min", type = "track", val = 2, min = 1, max = 30, step = 1, def = 2 },
 
-                    -- Version footer
                     { id = "div_version", type = "line" },
                     { id = "version", type = "desc", text = "ui_mcm_at_title",
                         ui_hook_functor = { set_version_text }, clr = {255, 212, 201, 168} },
                 },
             },
-            -- ============ HEALING TAB ============
             {
                 id = "health",
                 sh = true,
@@ -153,12 +128,10 @@ function on_mcm_load()
                     { id = "desc", type = "desc", text = "ui_mcm_at_health_desc" },
                     { id = "healing_enabled", type = "check", val = 1, def = true },
 
-                    -- Heal Rate
                     { id = "div_heal_rate", type = "line" },
                     { id = "hdr_heal_rate", type = "desc", text = "ui_mcm_at_hdr_heal_rate", clr = {255, 200, 200, 200} },
                     { id = "heal_rate_multiplier", type = "track", val = 2, min = 0.5, max = 3.0, step = 0.1, def = 1.0 },
 
-                    -- Healing Charge
                     { id = "div_healing_charge", type = "line" },
                     { id = "hdr_healing_charge", type = "desc", text = "ui_mcm_at_hdr_healing_charge", clr = {255, 200, 200, 200} },
                     { id = "charge_chance_novice",      type = "track", val = 2, min = 0, max = 100, step = 5, def = 50 },
@@ -166,20 +139,17 @@ function on_mcm_load()
                     { id = "charge_chance_veteran",     type = "track", val = 2, min = 0, max = 100, step = 5, def = 50 },
                     { id = "charge_chance_master",      type = "track", val = 2, min = 0, max = 100, step = 5, def = 50 },
 
-                    -- Visual Layer
                     { id = "div_visuals", type = "line" },
                     { id = "hdr_visuals", type = "desc", text = "ui_mcm_at_hdr_visuals", clr = {255, 200, 200, 200} },
                     { id = "limping_anim_enabled",     type = "check", val = 1, def = true },
                     { id = "limping_health_threshold", type = "track", val = 2, min = 0.30, max = 1.00, step = 0.05, def = 0.65 },
                     { id = "healing_anim_enabled",     type = "check", val = 1, def = true },
 
-                    -- Version footer
                     { id = "div_version", type = "line" },
                     { id = "version", type = "desc", text = "ui_mcm_at_title",
                         ui_hook_functor = { set_version_text }, clr = {255, 212, 201, 168} },
                 },
             },
-            -- ============ ACCURACY TAB ============
             {
                 id = "accuracy",
                 sh = true,
@@ -189,7 +159,6 @@ function on_mcm_load()
                     { id = "desc", type = "desc", text = "ui_mcm_at_accuracy_desc" },
                     { id = "accuracy_enabled", type = "check", val = 1, def = true },
 
-                    -- Rank Curve
                     { id = "div_accuracy_curve", type = "line" },
                     { id = "hdr_accuracy_curve", type = "desc", text = "ui_mcm_at_hdr_accuracy_curve", clr = {255, 200, 200, 200} },
                     { id = "acc_disp_novice",       type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 1.00 },
@@ -201,13 +170,11 @@ function on_mcm_load()
                     { id = "acc_disp_master",       type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 0.45 },
                     { id = "acc_disp_legend",       type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 0.38 },
 
-                    -- Version footer
                     { id = "div_version", type = "line" },
                     { id = "version", type = "desc", text = "ui_mcm_at_title",
                         ui_hook_functor = { set_version_text }, clr = {255, 212, 201, 168} },
                 },
             },
-            -- ============ STANCE SWITCH TAB ============
             {
                 id = "stance",
                 sh = true,
@@ -217,13 +184,11 @@ function on_mcm_load()
                     { id = "desc", type = "desc", text = "ui_mcm_at_stance_desc" },
                     { id = "stance_enabled", type = "check", val = 1, def = true },
 
-                    -- Version footer
                     { id = "div_version", type = "line" },
                     { id = "version", type = "desc", text = "ui_mcm_at_title",
                         ui_hook_functor = { set_version_text }, clr = {255, 212, 201, 168} },
                 },
             },
-            -- ============ DEVELOPMENT TAB ============
             {
                 id = "development",
                 sh = true,
@@ -232,7 +197,6 @@ function on_mcm_load()
                         text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
                     { id = "desc", type = "desc", text = "ui_mcm_at_development_desc" },
 
-                    -- Logging
                     { id = "div_logging", type = "line" },
                     { id = "hdr_logging", type = "desc", text = "ui_mcm_at_hdr_logging", clr = {255, 200, 200, 200} },
                     { id = "log_level", type = "list", val = 0, def = "WARN",
@@ -244,12 +208,10 @@ function on_mcm_load()
                         },
                     },
 
-                    -- Reset
                     { id = "div_reset", type = "line" },
                     { id = "warn_reset", type = "desc", text = "ui_mcm_at_development_reset_warning", clr = {255, 240, 200, 80} },
                     { id = "btn_reset_all", type = "button", functor_ui = { btn_reset_all } },
 
-                    -- Version footer
                     { id = "div_version", type = "line" },
                     { id = "version", type = "desc", text = "ui_mcm_at_title",
                         ui_hook_functor = { set_version_text }, clr = {255, 212, 201, 168} },

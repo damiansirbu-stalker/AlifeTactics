@@ -1,8 +1,4 @@
---- at_stance: Crouch override for sniper / launcher carriers in static-cover ops
---- Installs the modded-exe _G.CAI_Stalker__CombatSetBodyState functor and returns
---- eBodyStateCrouch when the engine selected Stand for LookOut or HoldPosition.
---- Composes via _prev_functor chain so other mods at the same seam stack instead
---- of silently overriding. See architecture.md Stance Switch section.
+--- at_stance: Crouch override for sniper / launcher carriers on static-cover firing ops
 
 local RegisterScriptCallback = RegisterScriptCallback
 
@@ -10,26 +6,19 @@ local log = xlog.get_logger("AT.STANCE", { outfile = "alifetactics.log" })
 local _dbg = false
 local cfg = at_mcm.cfg
 
--- Weapon kinds that crouch in static-cover ops. Sniper and launcher are
--- long-range, sustained-fire weapons; crouch gives low silhouette + stable
--- aim. Other kinds (pistol/shotgun/SMG/rifle/knife) keep vanilla stand.
 local CROUCH_KINDS = {
     w_sniper   = true,
     w_launcher = true,
 }
 
--- ==================== CONSTANTS ====================
-
 -- EBodyState (ai_monster_space.h)
 local BS_CROUCH = 0
 local BS_STAND  = 1
 
--- EWorldOperators that actually reach this functor via body_state_combat_override
--- in stalker_combat_actions.cpp. Of the static-cover firing operators, only LookOut
--- and HoldPosition call the override; KillEnemy / WaitInCover / HoldAmbushLocation
--- inherit body_state from the previous action, so once we have returned crouch on a
--- LookOut or HoldPosition tick, those subsequent actions stay crouched without our
--- involvement.
+-- Of all EWorldOperators that call body_state_combat_override in stalker_combat_actions.cpp,
+-- only LookOut and HoldPosition are static-cover firing ops. Subsequent KillEnemy,
+-- WaitInCover, HoldAmbushLocation inherit body_state without re-entering the functor
+-- (stalker_combat_actions.cpp:442-459 KillEnemy::initialize does not call set_body_state).
 local OP_LOOKOUT       = 22
 local OP_HOLD_POSITION = 23
 
@@ -38,44 +27,37 @@ local OVERRIDE_OPS = {
     [OP_HOLD_POSITION] = true,
 }
 
--- ==================== STATE ====================
-
--- Composition chain: if another mod installed a functor before us, call it and use its
--- return as the input to our decision.
+-- Capture any prior installer so we compose instead of silently overriding.
 local _prev_functor = nil
 
--- ==================== HOT PATH ====================
-
--- Engine calls this with (npc, wo, body_state) per stalker_movement_manager_base_inline.h:56.
--- Returns the EBodyState to apply.
+-- Engine calls with (npc, wo, body_state) per stalker_movement_manager_base_inline.h:51-59.
 local function _on_combat_set_body_state(npc, wo, body_state)
+    local tmr = xprofiler.new_if(_dbg):start()
+
     if _prev_functor then
         local prev_result = _prev_functor(npc, wo, body_state)
         if prev_result ~= nil then body_state = prev_result end
     end
 
-    if not cfg.stance_enabled then return body_state end
-    if not OVERRIDE_OPS[wo] then return body_state end
-    if body_state ~= BS_STAND then return body_state end
-    if not npc then return body_state end
+    if not cfg.stance_enabled then tmr:stop(); return body_state end
+    if not OVERRIDE_OPS[wo] then tmr:stop(); return body_state end
+    if body_state ~= BS_STAND then tmr:stop(); return body_state end
+    if not npc then tmr:stop(); return body_state end
 
-    -- Weapon-kind gate: sniper/launcher carriers crouch in static-cover ops
-    -- (base of fire, sustained-fire doctrine). Other weapon kinds keep
-    -- vanilla stand. Pure active_item read, no substrate dependency.
     local wpn = npc:active_item()
-    if not wpn then return body_state end
+    if not wpn then tmr:stop(); return body_state end
     local section = wpn:section()
-    if not section then return body_state end
+    if not section then tmr:stop(); return body_state end
     local kind = ini_sys:r_string_ex(section, "kind")
-    if not kind or not CROUCH_KINDS[kind] then return body_state end
+    if not kind or not CROUCH_KINDS[kind] then tmr:stop(); return body_state end
 
+    tmr:stop()
     if _dbg then
-        log.debug("[STANCE] id=%d op=%d kind=%s stand->crouch", npc:id(), wo, kind)
+        log.debug("[STANCE] id=%d op=%d kind=%s stand->crouch [%.3fms]",
+            npc:id(), wo, kind, tmr:get_ms())
     end
     return BS_CROUCH
 end
-
--- ==================== LIFECYCLE ====================
 
 local function _refresh_config()
     log.set_level(at_mcm.get_config("log_level") or "WARN")
@@ -89,7 +71,6 @@ local function _on_first_update()
 end
 
 function on_game_start()
-    -- Capture any prior installer so we compose instead of silently overriding.
     if _G.CAI_Stalker__CombatSetBodyState
         and _G.CAI_Stalker__CombatSetBodyState ~= _on_combat_set_body_state then
         _prev_functor = _G.CAI_Stalker__CombatSetBodyState
