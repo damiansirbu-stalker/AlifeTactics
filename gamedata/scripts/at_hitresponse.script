@@ -14,6 +14,7 @@ local TIMER_DECAY        = "decay"
 local DECAY_INTERVAL_SEC = 5
 
 local _disclosed = {}
+local _pending_seq = 0
 
 -- character_community(_g.script:2425-2433) returns "monster" for non-stalkers, so
 -- mutant-vs-stalker hits pass via is_factions_enemies(<faction>, "monster").
@@ -103,8 +104,49 @@ local function _decay_tick()
     end
 end
 
-local function _on_hit(npc, amount, _local_direction, who, _bone_index)
+-- Survivor gate: one-frame deferred resolver. Re-reads victim alive state; if the hit
+-- killed the victim, drops the disclosure. Registration moves into the resolver so
+-- a suppressed kill does NOT block a later real disclosure from the same shooter.
+local function _resolve_pending(squad_id, who_id, victim_id, gate_ms, total_ms)
+    local victim = level.object_by_id(victim_id)
+    if not victim or not victim:alive() then
+        if _dbg then
+            log.debug("[HIT] suppressed reason=victim_died squad=%d shooter=%d victim=%d [gate=%.2fms total=%.2fms]",
+                squad_id, who_id, victim_id, gate_ms, total_ms)
+        end
+        return
+    end
+
+    if not _disclosed[squad_id] then _disclosed[squad_id] = {} end
+    local first_hit = _disclosed[squad_id][who_id] == nil
+    _disclosed[squad_id][who_id] = xtime.game_sec()
+
+    if not first_hit then
+        if _dbg then
+            log.debug("[HIT] squad=%d shooter=%d (refreshed deferred) [gate=%.2fms total=%.2fms]",
+                squad_id, who_id, gate_ms, total_ms)
+        end
+        return
+    end
+
+    local squad = alife_object(squad_id)
+    if not squad or not squad.squad_members then return end
+    local who = level.object_by_id(who_id)
+    if not who then return end
+
+    local tmr_disclose = xprofiler.new_if(_dbg):start()
+    local disclosed_to = _disclose(squad, who)
+    tmr_disclose:stop()
+
+    if _dbg then
+        log.debug("[DISCLOSURE] squad=%d shooter=%d disclosed_to=%d members [gate=%.2fms disclose=%.2fms total=%.2fms]",
+            squad_id, who_id, disclosed_to, gate_ms, tmr_disclose:get_ms(), total_ms + tmr_disclose:get_ms())
+    end
+end
+
+local function _on_hit(npc, amount, _local_direction, who, bone_index)
     if not cfg.hit_share_enabled then return end
+    if bone_index == "from_death_callback" then return end
     if not amount or amount <= 0 then return end
     if not who or not npc then return end
     if who:id() == npc:id() then return end
@@ -134,8 +176,22 @@ local function _on_hit(npc, amount, _local_direction, who, _bone_index)
 
     local squad_id = squad.id
     local who_id   = who:id()
-    local now      = xtime.game_sec()
+    local gate_ms  = tmr_gate:get_ms()
 
+    if cfg.hit_share_survivor_gate then
+        tmr_total:stop()
+        _pending_seq = _pending_seq + 1
+        local victim_id = npc:id()
+        local total_ms = tmr_total:get_ms()
+        local seq = _pending_seq
+        CreateTimeEvent(TIMER_EV, "pending_" .. seq, 0, function()
+            _resolve_pending(squad_id, who_id, victim_id, gate_ms, total_ms)
+            return true
+        end)
+        return
+    end
+
+    local now = xtime.game_sec()
     if not _disclosed[squad_id] then _disclosed[squad_id] = {} end
     local first_hit = _disclosed[squad_id][who_id] == nil
     _disclosed[squad_id][who_id] = now
@@ -144,7 +200,7 @@ local function _on_hit(npc, amount, _local_direction, who, _bone_index)
         tmr_total:stop()
         if _dbg then
             log.debug("[HIT] squad=%d shooter=%d (refreshed) [gate=%.2fms total=%.2fms]",
-                squad_id, who_id, tmr_gate:get_ms(), tmr_total:get_ms())
+                squad_id, who_id, gate_ms, tmr_total:get_ms())
         end
         return
     end
@@ -156,7 +212,7 @@ local function _on_hit(npc, amount, _local_direction, who, _bone_index)
 
     if _dbg then
         log.debug("[DISCLOSURE] squad=%d shooter=%d disclosed_to=%d members [gate=%.2fms disclose=%.2fms total=%.2fms]",
-            squad_id, who_id, disclosed_to, tmr_gate:get_ms(), tmr_disclose:get_ms(), tmr_total:get_ms())
+            squad_id, who_id, disclosed_to, gate_ms, tmr_disclose:get_ms(), tmr_total:get_ms())
     end
 end
 

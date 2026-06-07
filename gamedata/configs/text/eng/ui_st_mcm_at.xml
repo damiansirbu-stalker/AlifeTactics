@@ -37,6 +37,15 @@
   <string id="ui_mcm_at_hit_share_hit_share_enabled_desc">
     <text>Master toggle. When off, the hit handler skips entirely: no squad disclosure, no per-shooter hostility pin, no combat-mask flip. Vanilla engine behavior runs unmodified (audio-range squadmates still propagate hit memory through the engine's own pipeline; distant patrol members do not). The squad-memory substrate stays available for other systems to read. Default: on.</text>
   </string>
+  <string id="ui_mcm_at_hit_share_hdr_survivor">
+    <text>Stealth</text>
+  </string>
+  <string id="ui_mcm_at_hit_share_hit_share_survivor_gate">
+    <text>Suppress disclosure on kill</text>
+  </string>
+  <string id="ui_mcm_at_hit_share_hit_share_survivor_gate_desc">
+    <text>When the hit kills the victim, do not propagate the shooter to the squad. The dying victim never gets to radio it in. Squadmates still learn through the normal vanilla paths (engine sound propagation, corpse discovery via xr_motivator death_by_id writeback, line of sight). When the hit only wounds the victim, disclosure fires as today. Frame-deferred check costs ~16-33ms which is imperceptible. Default: on.</text>
+  </string>
   <string id="ui_mcm_at_hdr_retention">
     <text>Retention</text>
   </string>

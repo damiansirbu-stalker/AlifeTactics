@@ -5,6 +5,7 @@ local log = xlog.get_logger("AT.MCM", { outfile = "alifetactics.log" })
 local defaults = {
     hit_share_enabled         = true,
     hit_share_retention_min   = 2,
+    hit_share_survivor_gate   = true,
     healing_enabled           = true,
     heal_rate_multiplier      = 1.0,
     charge_chance_novice      = 50,
@@ -32,6 +33,7 @@ local RegisterScriptCallback = RegisterScriptCallback
 local _key_to_tab = {
     hit_share_enabled         = "hit_share",
     hit_share_retention_min   = "hit_share",
+    hit_share_survivor_gate   = "hit_share",
     healing_enabled           = "health",
     heal_rate_multiplier      = "health",
     charge_chance_novice      = "health",
@@ -109,6 +111,10 @@ function on_mcm_load()
                         text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
                     { id = "desc", type = "desc", text = "ui_mcm_at_hit_share_desc" },
                     { id = "hit_share_enabled", type = "check", val = 1, def = true },
+
+                    { id = "div_survivor", type = "line" },
+                    { id = "hdr_survivor", type = "desc", text = "ui_mcm_at_hit_share_hdr_survivor", clr = {255, 200, 200, 200} },
+                    { id = "hit_share_survivor_gate", type = "check", val = 1, def = true },
 
                     { id = "div_retention", type = "line" },
                     { id = "hdr_retention", type = "desc", text = "ui_mcm_at_hdr_retention", clr = {255, 200, 200, 200} },
