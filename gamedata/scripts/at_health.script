@@ -11,12 +11,31 @@ local LIMP_REARM_MS             = 5000
 local HEAL_TICK_FIRST           = 15
 local HEAL_ACTIVE_EXPIRY_MS     = 30000
 
--- Slot-0/1 hardcoded; per-slot pick is TODO (see todo-alifetactics-next). Script anim
--- plays on torso AND legs partitions (mask = all-except-head, stalker_animation_pair.cpp:60-92);
--- non-fist NPCs get wrong arm pose during the override window, bounded by LIMP_REARM_MS gap.
-local LIMP_ANIM_IDLE    = "dmg_norm_torso_1_idle_0"
-local LIMP_ANIM_WALK    = "dmg_norm_torso_0_walk_0"
-local LIMP_ANIM_RUN     = "dmg_norm_torso_0_run_0"
+-- Posture-slot table per Vodoxleb's limping_anims.script:44-67 (damaged_walk/damaged_run).
+-- Engine indexes torso anims by weapon posture slot, not inventory slot. Missing entries fall
+-- through to slot 0 (fist). Slots 5, 7 not present in vanilla OMF.
+local LIMP_IDLE_BY_SLOT = {
+    [0] = "dmg_norm_torso_0_idle_0", [1] = "dmg_norm_torso_1_idle_0",
+    [2] = "dmg_norm_torso_2_idle_0", [3] = "dmg_norm_torso_3_idle_0",
+    [4] = "dmg_norm_torso_4_idle_0", [6] = "dmg_norm_torso_6_idle_0",
+    [8] = "dmg_norm_torso_8_idle_0", [9] = "dmg_norm_torso_9_idle_0",
+    [10] = "dmg_norm_torso_10_idle_0",
+}
+local LIMP_WALK_BY_SLOT = {
+    [0] = "dmg_norm_torso_0_walk_0", [1] = "dmg_norm_torso_1_walk_0",
+    [2] = "dmg_norm_torso_2_walk_0", [3] = "dmg_norm_torso_3_walk_0",
+    [4] = "dmg_norm_torso_4_walk_0", [6] = "dmg_norm_torso_6_walk_0",
+    [8] = "dmg_norm_torso_8_walk_0", [9] = "dmg_norm_torso_9_walk_0",
+    [10] = "dmg_norm_torso_10_walk_0",
+}
+local LIMP_RUN_BY_SLOT = {
+    [0] = "dmg_norm_torso_0_run_0", [1] = "dmg_norm_torso_1_run_0",
+    [2] = "dmg_norm_torso_2_run_0", [3] = "dmg_norm_torso_3_run_0",
+    [4] = "dmg_norm_torso_4_run_0", [6] = "dmg_norm_torso_6_run_0",
+    [8] = "dmg_norm_torso_8_run_0", [9] = "dmg_norm_torso_9_run_0",
+    [10] = "dmg_norm_torso_10_run_0",
+}
+local HEAL_CLUTCH_POSE  = LIMP_IDLE_BY_SLOT[1]
 local HEAL_ANIM_MEDKIT  = "dmg_norm_torso_11_attack_0"
 local HEAL_ANIM_BANDAGE = "norm_torso_12_attack_0"
 
@@ -73,7 +92,7 @@ local function _patched_heal_hp(id, left)
             npc:movement_enabled(false)
             npc:set_desired_position()
             npc:clear_animations()
-            utils_obj.add_anim(npc, LIMP_ANIM_IDLE)
+            utils_obj.add_anim(npc, HEAL_CLUTCH_POSE)
             _heal_seq[id] = {
                 stage      = "clutch",
                 until_ms   = time_global() + HEAL_CLUTCH_MS,
@@ -116,7 +135,7 @@ local function _patched_heal_bleed(id, left)
             npc:movement_enabled(false)
             npc:set_desired_position()
             npc:clear_animations()
-            utils_obj.add_anim(npc, LIMP_ANIM_IDLE)
+            utils_obj.add_anim(npc, HEAL_CLUTCH_POSE)
             _heal_seq[id] = {
                 stage      = "clutch",
                 until_ms   = time_global() + HEAL_CLUTCH_MS,
@@ -188,10 +207,12 @@ local function _on_net_spawn(npc, _se_obj)
 end
 
 local function _pick_limp_anim(npc)
-    local mt = npc:movement_type()
-    if mt == move.walk then return LIMP_ANIM_WALK end
-    if mt == move.run  then return LIMP_ANIM_RUN  end
-    return LIMP_ANIM_IDLE
+    local slot = npc:active_slot()
+    local mt   = npc:movement_type()
+    local tbl  = (mt == move.walk and LIMP_WALK_BY_SLOT)
+              or (mt == move.run  and LIMP_RUN_BY_SLOT)
+              or LIMP_IDLE_BY_SLOT
+    return tbl[slot] or tbl[0]
 end
 
 local function _end_heal_sequence(npc, id)
@@ -201,7 +222,7 @@ local function _end_heal_sequence(npc, id)
 end
 
 -- clutch (NPC frozen with wound pose) -> gesture (medkit/bandage anim) -> end.
--- Net HP drop > 0.02 between drives aborts so NPC can defend.
+-- Net HP drop > 0.02 OR enemy appearance aborts so NPC can defend.
 local function _drive_heal_sequence(npc, id, tg)
     local seq = _heal_seq[id]
     if not seq then return end
@@ -210,6 +231,12 @@ local function _drive_heal_sequence(npc, id, tg)
         if _dbg then
             log.debug("[HEAL] seq_abort id=%d reason=damage hp=%.2f->%.2f", id, seq.last_hp, npc.health)
         end
+        _end_heal_sequence(npc, id)
+        return
+    end
+    local be = npc:best_enemy()
+    if be and npc:see(be) then
+        if _dbg then log.debug("[HEAL] seq_abort id=%d reason=enemy_visible", id) end
         _end_heal_sequence(npc, id)
         return
     end
@@ -253,6 +280,7 @@ local function _on_npc_update(npc, st)
     if not eligible then
         if not _limping[id] then return end
         _limping[id] = nil
+        npc:clear_animations()
         if _dbg then log.debug("[LIMP] lost id=%d hp=%.2f", id, npc.health) end
         return
     end
@@ -268,7 +296,13 @@ local function _on_npc_update(npc, st)
     local anim_name = _pick_limp_anim(npc)
     utils_obj.add_anim(npc, anim_name)
     rec.next_add_ms = tg + LIMP_REARM_MS
-    if _dbg then log.debug("[LIMP] anim id=%d name=%s hp=%.2f", id, anim_name, npc.health) end
+    if _dbg then
+        local slot = npc:active_slot()
+        local wpn  = npc:active_item()
+        local sect = wpn and wpn:section() or "none"
+        log.debug("[LIMP] anim id=%d name=%s slot=%d section=%s hp=%.2f",
+            id, anim_name, slot, sect, npc.health)
+    end
 end
 
 local function _on_entity_unregister(se_obj)
