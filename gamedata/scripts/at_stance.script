@@ -1,14 +1,17 @@
---- at_stance: Crouch override for sniper / launcher carriers on static-cover firing ops
+--- at_stance: Crouch override for sniper-class weapon carriers on static-cover firing ops
 
-local RegisterScriptCallback = RegisterScriptCallback
+local RegisterScriptCallback, tonumber = RegisterScriptCallback, tonumber
 
 local log = xlog.get_logger("AT.STANCE", { outfile = "alifetactics.log" })
 local _dbg = false
 local cfg = at_mcm.cfg
 
+-- kind=w_sniper LTX classifier matches all designated-marksman and bolt-action rifles in
+-- vanilla (SKS, Mosin, SVT40, K98, SVD, SR25, etc, ~19 files) plus GAMMA additions. Vanilla
+-- ships zero LTX files with kind=w_launcher; RPG/GP-25 are kind=w_explosive. Sniper-class
+-- doctrine (static crouched fire) covers this set.
 local CROUCH_KINDS = {
-    w_sniper   = true,
-    w_launcher = true,
+    w_sniper = true,
 }
 
 -- EBodyState (ai_monster_space.h)
@@ -41,7 +44,16 @@ local function _on_combat_set_body_state(npc, wo, body_state)
 
     if not cfg.stance_enabled then tmr:stop(); return body_state end
     if not OVERRIDE_OPS[wo] then tmr:stop(); return body_state end
-    if body_state ~= BS_STAND then tmr:stop(); return body_state end
+    if body_state ~= BS_STAND then
+        tmr:stop()
+        if _dbg then
+            local wpn_ec = npc and npc:active_item() or nil
+            local sect_ec = wpn_ec and wpn_ec:section() or "none"
+            log.debug("[STANCE] ENGINE_CROUCH id=%d op=%d section=%s body_state=%d",
+                npc and npc:id() or 0, wo, sect_ec, body_state)
+        end
+        return body_state
+    end
     if not npc then tmr:stop(); return body_state end
 
     local wpn = npc:active_item()
@@ -53,8 +65,12 @@ local function _on_combat_set_body_state(npc, wo, body_state)
 
     tmr:stop()
     if _dbg then
-        log.debug("[STANCE] id=%d op=%d kind=%s stand->crouch [%.3fms]",
-            npc:id(), wo, kind, tmr:get_ms())
+        local weapon_class = ini_sys:r_string_ex(section, "weapon_class") or "nil"
+        local scope_status = tonumber(ini_sys:r_string_ex(section, "scope_status")) or -1
+        local silenc       = tonumber(ini_sys:r_string_ex(section, "silencer_status")) or -1
+        local rank         = ranks.get_obj_rank_name(npc) or "none"
+        log.debug("[STANCE] FLIP id=%d op=%d section=%s kind=%s wclass=%s scope=%d silenc=%d rank=%s stand->crouch [%.3fms]",
+            npc:id(), wo, section, kind, weapon_class, scope_status, silenc, rank, tmr:get_ms())
     end
     return BS_CROUCH
 end
