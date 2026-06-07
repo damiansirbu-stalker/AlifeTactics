@@ -53,6 +53,9 @@ local _key_to_tab = {
     acc_disp_master        = "accuracy",
     acc_disp_legend        = "accuracy",
     stance_enabled = "stance",
+    danger_hit_bypass   = "danger",
+    danger_attack_sound = "danger",
+    danger_actor_tables = "danger",
     log_level     = "development",
     btn_reset_all = "development",
 }
