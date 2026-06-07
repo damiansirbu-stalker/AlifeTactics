@@ -743,7 +743,7 @@ end
 
 local function script_action_danger_alert(npc, st, bd, best_danger_object, dependent_object, bd_type)
 	local bdo = dependent_object or best_danger_object
-	if not bdo then return end
+	if not bdo or not bdo:alive() then return end
 
 	local npc_pos = npc:position()
 	local bdo_pos = bdo:position()
