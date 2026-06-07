@@ -1,5 +1,5 @@
 next
-  Summary: danger rework, stealth kills
+  Summary: danger rework, stealth kills, limp/heal fixes
 
   - Fixed Anomaly's xr_danger with a full-file script override and paired ltx.
     Hits, ricochets, and nearby gunshots each use their own config row (vanilla collapsed all three).
@@ -7,16 +7,19 @@ next
     Danger MCM tab: 3 toggles (combat_ignore override, gunshot disclosure, actor-source weighting).
   - Corpses stay dangerous for 15 minutes (was 12 seconds), ricochets for 10, weather affects range.
   - Added stealth-kill suppression to Hit Sharing (default on, MCM Stealth toggle).
-    Silenced shots, sniper headshots, and backstabs no longer auto-disclose the shooter to the squad.
+    Silenced shots, scoped-rifle headshots, and backstabs no longer auto-disclose the shooter to the squad.
     Squadmates still learn through gunshot sound, corpse discovery, and line of sight.
+  - Fixed limping animation to match the NPC's active weapon. NPCs with rifles, shotguns, or SMGs no longer get a fist-pose torso during the limp overlay.
+  - Fixed NPCs staying stuck in a limp pose after their HP recovers. The looped animation now flushes when limp tracking ends.
+  - Fixed healing NPCs not reacting to enemies. They now break the heal sequence when an enemy appears mid-clutch or mid-gesture.
+  - Fixed crash on torn-down attacker reference during the attack-sound danger dispatch.
 
 1.0.0
-  Summary: First release, hit sharing, NPC self-healing fix, per-rank accuracy, sniper and launcher crouch
-  First release. NPC combat AI organised around a shared per-squad memory substrate.
-  Four user-facing systems on top of one internal core. Full MCM configuration.
+  Summary: First release, hit sharing, NPC self-healing fix, per-rank accuracy, long-range rifle crouch
+  First release. Four independent systems on top of one internal core. Full MCM configuration.
   Added: Hit Sharing - on first faction-enemy hit, force-disclose shooter to every online squadmate (force_set_goodwill, enable_memory_object, register_in_combat). Distant patrols and suppressor victims now engage on hit 1. Disclosure decays after the configured retention (default 2 game minutes of no further hits from that shooter), then re-fires on the next hit. New squad members inherit existing disclosures on spawn. Previously-offline shooters coming back online replay disclosure to every member of the squads tracking them.
   Added: NPC Self-Healing - DLTX overlay restores vanilla medkit and bandage item lists in xr_eat_medkit. Heal rate multiplier, per-rank healing-charge probability (novice, experienced, veteran, master), limping overlay, heal animation.
   Added: Accuracy - per-shot, per-rank NPC dispersion curve replacing the engine's broken rank curve. 8 per-tier dispersion sliders (novice 1.00 to legend 0.38).
-  Added: Stance Switch - sniper and launcher carriers crouch when engine selects LookOut or HoldPosition, crouch carries forward into KillEnemy, WaitInCover, HoldAmbushLocation through body_state inheritance.
+  Added: Stance Switch - long-range rifle carriers (DMRs, battle rifles, bolt-actions: SVD, Mosin, SVT40, SKS, M82 and the rest of the kind=w_sniper LTX class) crouch when engine selects LookOut or HoldPosition. Crouch carries forward into KillEnemy, WaitInCover, HoldAmbushLocation through body_state inheritance.
   Added: MCM reset-to-defaults button (Development tab).
   Added: console test commands at_spawn, at_spawn_veteran, at_spawn_master, at_spawn_far, at_dump.

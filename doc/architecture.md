@@ -1,6 +1,6 @@
 # AlifeTactics Architecture
 
-Combat AI mod for STALKER Anomaly. Built around a shared per-squad memory DTO that user-facing systems consume. Four user-facing systems sit on top of one internal core.
+Combat AI mod for STALKER Anomaly. Five user-facing systems, each independent: a hit-share force-disclosure, a self-heal data + animation layer, a per-rank weapon accuracy curve, a long-range rifle stance crouch (`kind=w_sniper` LTX class: DMRs, battle rifles, bolt-actions), and a full-file xr_danger override with bug fixes and three toggleable improvements. No shared substrate.
 
 Built on xlibs (xsquad, xttltable, xtime, xprofiler, xlog, xmcm, xslice, xcreature).
 
@@ -21,7 +21,10 @@ Version 1.0.0.
 | `at_health.script` | feature | done |
 | `at_accuracy.script` | feature | done |
 | `at_stance.script` | feature | done |
+| `xr_danger.script` | feature | done (full-file override) |
+| `zzz_at_health_patch.script` | feature | done (vanilla xr_eat_medkit re-roll suppressor) |
 | `configs/ai_tweaks/mod_xr_eat_medkit_at.ltx` | data | done |
+| `configs/ai_tweaks/xr_danger.ltx` | data | done |
 
 Backlog (not built):
 - Tactical flee (per-squad retreat to friendly smart under power imbalance)
@@ -45,7 +48,8 @@ AlifeTactics/
 ├── gamedata/
 │   ├── configs/
 │   │   ├── ai_tweaks/
-│   │   │   └── mod_xr_eat_medkit_at.ltx       # DLTX overlay: vanilla medkit/bandage lists
+│   │   │   ├── mod_xr_eat_medkit_at.ltx       # DLTX overlay: vanilla medkit/bandage lists
+│   │   │   └── xr_danger.ltx                  # paired with xr_danger override
 │   │   └── text/eng/ui_st_mcm_at.xml          # English MCM strings
 │   ├── scripts/
 │   │   ├── _at_deps.script                    # dependency gate
@@ -54,6 +58,8 @@ AlifeTactics/
 │   │   ├── at_health.script                   # Healing system
 │   │   ├── at_accuracy.script                 # Accuracy system
 │   │   ├── at_stance.script                   # Stance Switch system
+│   │   ├── xr_danger.script                   # full-file override (Danger system)
+│   │   ├── zzz_at_health_patch.script         # vanilla xr_eat_medkit re-roll suppressor
 │   │   └── at_test.script                     # console test commands
 │   └── textures/
 │       └── at_mcm_banner.dds                  # MCM banner
@@ -65,7 +71,7 @@ Namespace: `at_*` (parallel to `ap_*` for AlifePlus, `ag_*` for AlifeGuard, `x*`
 
 ---
 
-## Four user-facing systems
+## Five user-facing systems
 
 Each system has its own file, its own MCM tab, and one master toggle.
 
@@ -75,6 +81,7 @@ Each system has its own file, its own MCM tab, and one master toggle.
 | Healing | `at_health.script` | Healing | `healing_enabled` |
 | Accuracy | `at_accuracy.script` | Accuracy | `accuracy_enabled` |
 | Stance Switch | `at_stance.script` | Stance Switch | `stance_enabled` |
+| Danger | `xr_danger.script` (full-file override) | Danger | bug fixes always-on; three toggleable improvements |
 
 ---
 
@@ -184,7 +191,7 @@ Per-shot hot path. Cost ~1.5μs per call when DEBUG off (2 luabind crossings via
 
 ## Stance Switch
 
-Hooks the modded-exe `_G.CAI_Stalker__CombatSetBodyState(npc, wo, body_state)` functor at `stalker_movement_manager_base_inline.h:51-59`. Returns `eBodyStateCrouch` for sniper and launcher carriers when the engine selected Stand for one of the override operators.
+Hooks the modded-exe `_G.CAI_Stalker__CombatSetBodyState(npc, wo, body_state)` functor at `stalker_movement_manager_base_inline.h:51-59`. Returns `eBodyStateCrouch` for long-range rifle carriers (LTX `kind=w_sniper`: covers DMRs, battle rifles, bolt-action rifles) when the engine selected Stand for one of the override operators. Engine independently selects crouch for any weapon kind at low cover via `level.high_cover_in_direction` reads; our functor passes that through unchanged.
 
 ### Engine call sites
 
@@ -199,7 +206,7 @@ OVERRIDE_OPS = {
 }
 ```
 
-These are the two static-cover firing operators that actually call `body_state_combat_override` in `stalker_combat_actions.cpp`. Once the functor returns crouch on a LookOut or HoldPosition tick, subsequent KillEnemy, WaitInCover, and HoldAmbushLocation actions inherit the crouched body_state without re-entering the functor.
+These are the two static-cover firing operators where precision-rifle doctrine calls for crouched fire from cover. Once the functor returns crouch on a LookOut or HoldPosition tick, subsequent KillEnemy, WaitInCover, and HoldAmbushLocation actions inherit the crouched body_state without re-entering the functor.
 
 ### Composition chain
 
@@ -207,7 +214,42 @@ These are the two static-cover firing operators that actually call `body_state_c
 
 ### Weapon-kind gate
 
-Reads `kind` from the NPC's `active_item():section()` via `ini_sys:r_string_ex(section, "kind")`. Crouches when `kind == "w_sniper"` or `kind == "w_launcher"`. All other weapon kinds (including `w_rifle`, `w_pistol`, `w_shotgun`, `w_smg`, `w_knife`) and NPCs without an active item pass through with the engine's chosen body_state. No squad-memory dependency, no role taxonomy.
+Reads `kind` from the NPC's `active_item():section()` via `ini_sys:r_string_ex(section, "kind")`. Crouches when `kind == "w_sniper"`. The `w_sniper` LTX classifier is broader than the colloquial "sniper": it covers long-range rifles including DMRs (SVD, SVU, SR25), battle rifles (SVT40, G43), bolt-actions (Mosin, K98), service carbines (SKS), and dedicated sniper rifles (M82, VSSK, M24, SV98, L96A1, TRG, WA2000, M98B, Sig550, Remington700, Gauss). 19 vanilla files plus ~134 GAMMA-stack additions. Other weapon kinds (`w_rifle`, `w_pistol`, `w_shotgun`, `w_smg`, `w_explosive`, `w_knife`) and NPCs without an active item pass through with the engine's chosen body_state. No squad-memory dependency, no role taxonomy. The `w_launcher` kind does not exist in any vanilla or GAMMA LTX file; RPG-7 and GP-25 are `w_explosive`.
+
+Vanilla playtest data validates the gate: 55 FLIP events across {Mosin 46, SKS 5, SVT40 2, SV98 2}, all `weapon_class=sniper_rifle`, scope_status 1 or 2. Engine independently selected crouch for 12+ other weapon kinds (BM-16 shotgun, AEK rifle, PPSh-41 SMG, Fort-500 pistol, etc) at low cover, passed through unchanged.
+
+---
+
+## Danger
+
+Full-file override of vanilla `xr_danger.script` (Alundaio). Six vanilla bug fixes always-on. Three toggleable improvements behind MCM. Paired LTX (`configs/ai_tweaks/xr_danger.ltx`) with weather-conditional distances and actor-source variant tables.
+
+### Vanilla bugs fixed (always-on)
+
+1. `bd_types` name collision: three perceive-type names overwrite enum values, causing three danger categories to read wrong config sections.
+2. `get_danger_time` crashes on mutant corpse: vanilla calls `corpse_object:death_time()` without `IsStalker` guard; trader interface absent on mutants.
+3. `eval_danger` nil-NPC guard missing: vanilla crashes when called on a torn-down NPC reference.
+4. `eval_danger` non-numeric `danger_time` check missing: vanilla type-asserts on bad return.
+5. `danger_intertion_time` condlist param typo: vanilla reads `danger_intertion_time` while LTX section is `[danger_inertion]`; entire actor/distance condlist evaluation was a no-op in vanilla.
+6. `npc_on_hit_callback` referenced undefined `who_id` variable: vanilla wrote nil shooter id into `script_danger`. Vanilla callback unregistered entirely; danger pipeline now driven by `npc_on_hear_callback` and `npc_on_death_callback`.
+
+### Improvements (MCM Danger tab, default on)
+
+- `danger_hit_bypass`: direct hits bypass the combat-ignore distance gate. Sniped NPCs respond regardless of attacker distance.
+- `danger_attack_sound`: script_action_danger_alert dispatch for `attack_sound` danger type. Includes actor-aim gate (dot product > 0.7) so actors walking past with rifle out do not trigger cover-seek. Vanilla had no script handler for this danger type.
+- `danger_actor_tables`: read separate inertion and ignore tables from `[danger_inertion_actor]` and `[danger_object_actor]` when danger source is the actor. Tune player encounters independently of NPC-vs-NPC.
+
+### Paired LTX
+
+`configs/ai_tweaks/xr_danger.ltx` ships:
+- 15 game-minute corpse inertion (vanilla 12 seconds)
+- 10 minute bullet-ricochet inertion
+- Weather-conditional ignore distances (rain/storm reduces detection)
+- Separate actor-source tables that respond to `actor_enemy` condition
+
+### Composition
+
+The override is marked `-- @override` so the validator skips inherited vanilla style warnings. Conflicts with mods that override `xr_danger.script` (ReDone Combat AI, GAMMA AI Rework). MCM Danger tab describes always-on fixes and the three improvement toggles.
 
 ---
 
@@ -221,6 +263,7 @@ The architecture principle is to feed engine memory and state, not fight it. Per
 | Healing | NPC health field, bleeding field, `healing_charge` se_var | `change_health`, direct `bleeding =` write, `se_save_var` |
 | Accuracy | Per-shot dispersion radius via callback return | (subscribes to `npc_shot_dispersion`) |
 | Stance Switch | NPC body_state via functor return | (functor at `_G.CAI_Stalker__CombatSetBodyState`) |
+| Danger | NPC danger evaluator/action graft, `script_danger` per-id table for sound-source dispatch | Engine callbacks `npc_on_hear_callback`, `npc_on_death_callback`, GOAP planner graft (evaid/actid 188113) |
 
 The engine then runs its own combat detection (property_enemy, m_combat_mask, agent_memory propagation) on the state we wrote. No system reimplements engine behavior; each one nudges engine state to produce the desired outcome.
 
@@ -235,6 +278,7 @@ Each module owns its own `xlog.get_logger("AT.X", { outfile = "alifetactics.log"
 - `AT.HEALTH`: Healing
 - `AT.ACC`: Accuracy
 - `AT.STANCE`: Stance Switch
+- `AT.DANGER`: Danger override
 - `AT.TEST`: console test harness
 
 MCM `log_level` (ERROR/WARN/INFO/DEBUG) controls verbosity. Each module subscribes to `on_option_change` and `mcm_option_restore_default` to refresh its level and derived `_dbg` flag.
@@ -254,7 +298,9 @@ MCM `log_level` (ERROR/WARN/INFO/DEBUG) controls verbosity. Each module subscrib
 - `[LIMP]`: limp gained / lost / anim queued per NPC
 - `[PATCH]`: install messages for xr_eat_medkit patches
 - `[ACC]`: per-shot accuracy calculation
-- `[STANCE]`: body_state override fires
+- `[STANCE] FLIP`: long-range rifle carrier (kind=w_sniper) flipped Stand to Crouch on LookOut/HoldPosition (logs section, weapon_class, scope_status, silencer_status, rank)
+- `[STANCE] ENGINE_CROUCH`: engine pre-selected crouch on LookOut/HoldPosition (logs section); proves vanilla doctrine independent of our functor
+- `hit-type bypass`, `attack_sound dispatch`, `mutant corpse death_time`, `non-numeric danger_time`: xr_danger improvement and fix events
 - `[SPAWN]`: at_test squad spawn
 - `[DUMP]`: at_test disclosed-squad dump
 

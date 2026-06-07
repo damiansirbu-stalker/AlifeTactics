@@ -28,7 +28,7 @@ to the squads tracking them, so engagement state stays consistent across spawn c
 After 2 game minutes of no further hits from that shooter the squad's pin expires and the next hit re-fires the alert.
 
 The Stealth toggle (MCM, default on) suppresses the squad alert when the hit kills the victim.
-Silenced shots, sniper headshots, and backstabs no longer disclose the shooter to the surviving squadmates.
+Silenced shots, scoped-rifle headshots, and backstabs no longer disclose the shooter to the surviving squadmates.
 Squadmates still learn through gunshot sound, corpse discovery, and line of sight.
 
 Healing:
@@ -59,7 +59,7 @@ Stance Switch:
 Stalkers crouch or stand when the engine combat planner picks a static-cover firing or peek action.
 The stance carries into killing, waiting in cover, and ambush operators through the engine's body-state inheritance.
 The engine calls AT's stance functor on 11 different combat actions. Only 2 of them (look out, hold position) are static-cover firing ops where crouching makes sense. AT overrides those 2, the other 9 pass through unchanged.
-The system also considers equipped weapon, so snipers and long range shooters will crouch more, and short range shooters will do it less.
+The system also considers equipped weapon. Long-range rifle carriers (DMRs, battle rifles, bolt-actions like SVD, SVT40, Mosin, SKS, M82) crouch in cover; short-range carriers pass through with whatever stance the engine picked.
 
 Danger:
 

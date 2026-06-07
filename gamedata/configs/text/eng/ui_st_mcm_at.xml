@@ -35,7 +35,7 @@
     <text>Enable Hit Sharing</text>
   </string>
   <string id="ui_mcm_at_hit_share_hit_share_enabled_desc">
-    <text>Master toggle. When off, the hit handler skips entirely: no squad disclosure, no per-shooter hostility pin, no combat-mask flip. Vanilla engine behavior runs unmodified (audio-range squadmates still propagate hit memory through the engine's own pipeline; distant patrol members do not). The squad-memory substrate stays available for other systems to read. Default: on.</text>
+    <text>Master toggle. When off, the hit handler skips entirely: no squad disclosure, no per-shooter hostility pin, no combat-mask flip. Vanilla engine behavior runs unmodified (audio-range squadmates still propagate hit memory through the engine's own pipeline; distant patrol members do not). Default: on.</text>
   </string>
   <string id="ui_mcm_at_hit_share_hdr_survivor">
     <text>Stealth</text>
@@ -188,7 +188,7 @@
   </string>
   <!-- ==================== STANCE SWITCH TAB ==================== -->
   <string id="ui_mcm_at_stance_desc">
-    <text>Forces sniper and launcher carriers to crouch when the engine combat planner selects a static-cover firing or peek action (LookOut, HoldPosition). The crouch persists into subsequent KillEnemy, WaitInCover, and HoldAmbushLocation actions because the engine inherits body_state across those operators. Lower silhouette, tighter dispersion, stable firing position from cover. Other weapon kinds (rifle, pistol, shotgun, SMG, knife) keep vanilla stance. The weapon check reads the active item's "kind" field directly: w_sniper and w_launcher crouch, everything else passes through.</text>
+    <text>Forces long-range rifle carriers (DMRs, battle rifles, bolt-actions: SVD, SVU, SVT40, Mosin, SKS, K98, SR25, M82, M24, SV98, and the rest of the kind=w_sniper LTX class) to crouch when the engine combat planner selects a static-cover firing or peek action (LookOut, HoldPosition). The crouch persists into subsequent KillEnemy, WaitInCover, and HoldAmbushLocation actions because the engine inherits body_state across those operators. Lower silhouette, tighter dispersion, stable firing position from cover. Other weapon kinds (assault rifle, pistol, shotgun, SMG, knife, grenade launcher) keep vanilla stance. The engine independently selects crouch for any weapon at low cover via high_cover_in_direction reads; the override only kicks in when the engine selected Stand.</text>
   </string>
   <string id="ui_mcm_at_stance_stance_enabled">
     <text>Enable Stance Switch</text>
