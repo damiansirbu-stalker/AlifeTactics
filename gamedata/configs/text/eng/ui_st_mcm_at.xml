@@ -17,6 +17,9 @@
   <string id="ui_mcm_menu_stance">
     <text>Stance Switch</text>
   </string>
+  <string id="ui_mcm_menu_danger">
+    <text>Danger</text>
+  </string>
   <string id="ui_mcm_menu_development">
     <text>Development</text>
   </string>
@@ -183,6 +186,37 @@
   </string>
   <string id="ui_mcm_at_stance_stance_enabled_desc">
     <text>Master toggle. When off, the engine's chosen body state passes through unchanged. Default: on.</text>
+  </string>
+  <!-- ==================== DANGER TAB ==================== -->
+  <string id="ui_mcm_at_danger_desc">
+    <text>Vanilla xr_danger.script (Alundaio) with bug fixes and three optional improvements. Bug fixes are always on. Improvements toggle individually below.</text>
+  </string>
+  <string id="ui_mcm_at_danger_hdr_improvements">
+    <text>Improvements</text>
+  </string>
+  <string id="ui_mcm_at_danger_danger_hit_bypass">
+    <text>Hit-type bypass</text>
+  </string>
+  <string id="ui_mcm_at_danger_danger_hit_bypass_desc">
+    <text>When NPC is directly hit, danger response fires regardless of distance to attacker. Vanilla gates hit response by combat-ignore radius, so a sniped NPC at 200m ignores the shooter. Default: on.</text>
+  </string>
+  <string id="ui_mcm_at_danger_danger_attack_sound">
+    <text>Attack-sound dispatch</text>
+  </string>
+  <string id="ui_mcm_at_danger_danger_attack_sound_desc">
+    <text>NPCs hearing nearby gunfire react with cover-seeking and threat poses. Vanilla has no script handler for attack-sound danger; NPCs got no scripted response. Includes actor-aiming gate so NPCs only dive for cover when the actor is roughly aiming at them, not just walking past with a rifle out. Default: on.</text>
+  </string>
+  <string id="ui_mcm_at_danger_danger_actor_tables">
+    <text>Actor-source tables</text>
+  </string>
+  <string id="ui_mcm_at_danger_danger_actor_tables_desc">
+    <text>Read separate inertion and ignore-distance tables when the danger source is the actor (danger_inertion_actor and danger_object_actor sections in xr_danger.ltx). Tune player encounters independently of NPC-vs-NPC. Default: on.</text>
+  </string>
+  <string id="ui_mcm_at_danger_hdr_fixes">
+    <text>Always-on bug fixes (not toggleable)</text>
+  </string>
+  <string id="ui_mcm_at_danger_fixes_list">
+    <text>Mutant corpse death_time safety. Nil-NPC eval guard. Non-numeric danger_time check. Animstate reset on state transitions. Vanilla npc_on_hit_callback unregistered (referenced undefined variable, corrupted script_danger). bd_types name-collision fix (three danger categories were reading wrong config). Dead helpers removed (get_danger_name, get_rand_vertex). Fast pose transitions on danger state change. These prevent crashes or apply trivially in all cases.</text>
   </string>
   <!-- ==================== DEVELOPMENT TAB ==================== -->
   <string id="ui_mcm_at_development_desc">

@@ -190,6 +190,29 @@ function on_mcm_load()
                 },
             },
             {
+                id = "danger",
+                sh = true,
+                gr = {
+                    { id = "title", type = "slide", link = "at_mcm_banner",
+                        text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
+                    { id = "desc", type = "desc", text = "ui_mcm_at_danger_desc" },
+
+                    { id = "div_improvements", type = "line" },
+                    { id = "hdr_improvements", type = "desc", text = "ui_mcm_at_danger_hdr_improvements", clr = {255, 200, 200, 200} },
+                    { id = "danger_hit_bypass",    type = "check", val = 1, def = true },
+                    { id = "danger_attack_sound",  type = "check", val = 1, def = true },
+                    { id = "danger_actor_tables",  type = "check", val = 1, def = true },
+
+                    { id = "div_fixes", type = "line" },
+                    { id = "hdr_fixes", type = "desc", text = "ui_mcm_at_danger_hdr_fixes", clr = {255, 200, 200, 200} },
+                    { id = "fixes_list", type = "desc", text = "ui_mcm_at_danger_fixes_list" },
+
+                    { id = "div_version", type = "line" },
+                    { id = "version", type = "desc", text = "ui_mcm_at_title",
+                        ui_hook_functor = { set_version_text }, clr = {255, 212, 201, 168} },
+                },
+            },
+            {
                 id = "development",
                 sh = true,
                 gr = {

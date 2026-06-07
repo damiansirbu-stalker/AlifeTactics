@@ -13,7 +13,9 @@ AlifeTactics: https://www.moddb.com/mods/stalker-anomaly/addons/alifetactics
 
 ! Reset MCM settings to defaults after updating !
 
-AlifeTactics is a collection of fixes and systems focused on NPC combat behavior in STALKER Anomaly. 
+https://www.youtube.com/watch?v=eKpzbmFOFC8
+
+AlifeTactics is a collection of fixes and systems focused on NPC combat behavior in STALKER Anomaly.
 Defaults match vanilla so the fixes apply on their own with no behavior shift you don't want.
 
 Hit Sharing:
@@ -64,9 +66,9 @@ Tests showed the perfromance impact is almost nonexistent.
 
 Compatibility:
 
-Tested with vanilla Anomaly 1.5.3 and GAMMA. No base script edits, no engine patches. Mid-save install and uninstall both work. Friendly fire
-and same-community hits are filtered at the faction-relation gate, so story NPCs, companions, traders, and squadmates are never armed against
-their own faction.
+Tested with vanilla Anomaly 1.5.3 and GAMMA. One base script override: xr_danger.script (vanilla file with bug fixes and three toggleable
+improvements; see MCM > Danger). No engine patches. Mid-save install and uninstall both work. Friendly fire and same-community hits are
+filtered at the faction-relation gate, so story NPCs, companions, traders, and squadmates are never armed against their own faction.
 
 Disable before installing AlifeTactics:
 
@@ -78,12 +80,17 @@ Forced-movement schemes with stuck-NPC risk: Wuut AI Extension, NPC_Fleeing. Bot
 NPC self-heal overlaps: NPC Limping and Healing (Vodoxleb), Animated NPC Healing, NPC Animation Overhaul Part 1. Parallel heal schemes
 double-heal, full-file animation overrides conflict, combat planners gated on the heal evaluator can freeze NPCs after combat.
 
+G.A.M.M.A. AI Rework: ships its own xr_danger.script and xr_danger.ltx overrides. GAMMA AI Rework cannot be cleanly disabled in current GAMMA
+builds (removal crashes), so the recommended setup is to load AlifeTactics AFTER GAMMA AI Rework in MO2. Our xr_danger files win the overlay,
+GAMMA's other AI rework files (xr_combat_camper, xr_conditions, schemes_ai_gamma, default_custom_data.ltx) continue to run unchanged. Net:
+AlifeTactics's xr_danger fixes + GAMMA's other AI tactics. Tested working with this load order.
+
 Compatible today, will overlap once the per-NPC camper scheme is added:
 
 AI more cover (Mora): assigns the vanilla camper scheme globally. AT's planned per-NPC camper writes the same field from a binder.
 
-G.A.M.M.A. AI Rework: layered selector on Mora's pattern. Overrides combat-camper, conditions, danger. The camper override drops look-around
-which AT's planned camper needs.
+G.A.M.M.A. AI Rework (the camper side): layered selector on Mora's pattern. Once AT ships the per-NPC camper, both systems will write
+script_combat_type and race. AT will MCM-gate the camper to detect and defer when GAMMA AI Rework is present.
 
 ReDone Combat AI: copies Mora, overrides 12 scripts. Much is 1.5.2-gated and skipped on 1.5.3.
 

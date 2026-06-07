@@ -1,0 +1,43 @@
+;Note: Ignore distance is only checked if danger was produced by game_object.enemy with the exception of grenade and ent. corpse
+;Inertion values are in milliseconds. Distance values in [danger_object*] are SQUARED meters.
+;Section keys are EDangerType names (danger_object.h:16-27). PerceiveType names (hit/sound/visual) are NOT keys — they collide with bullet_ricochet/attack_sound/entity_attacked enum values and would overwrite them in vanilla bd_types.
+
+[danger_inertion] ;May use condlists from xr_condition
+grenade         = 45000
+entity_corpse   = 900000
+entity_attacked = 60000
+attacked        = 120000
+bullet_ricochet = 600000
+enemy_sound     = 45000
+attack_sound    = 60000
+entity_death    = 30000
+
+[danger_object] ;Ignore distances squared; weather-conditional
+grenade         = 6400
+entity_corpse   = 2500
+entity_attacked = {=is_dark_night} 1600, {=is_heavy_rain} 900, {=is_rain} 2500, 5625
+attacked        = 22500
+bullet_ricochet = 2500
+enemy_sound     = {=is_heavy_rain} 1600, {=is_rain} 4900, 10000
+attack_sound    = {=is_heavy_rain} 2500, {=is_rain} 6400, 14400
+entity_death    = {=is_heavy_rain} 400, {=is_rain} 900, 2500
+
+[danger_inertion_actor] ;When the danger source is the actor
+grenade         = 45000
+entity_corpse   = 900000
+entity_attacked = 60000
+attacked        = 120000
+bullet_ricochet = 600000
+enemy_sound     = 45000
+attack_sound    = {=actor_enemy} 60000, 15000
+entity_death    = 30000
+
+[danger_object_actor] ;When the danger source is the actor
+grenade         = 6400
+entity_corpse   = 2500
+entity_attacked = {=is_dark_night} 1600, {=is_heavy_rain} 900, {=is_rain} 2500, 5625
+attacked        = 22500
+bullet_ricochet = {=actor_enemy} 10000, 2500
+enemy_sound     = {=is_heavy_rain} 1600, {=is_rain} 4900, 10000
+attack_sound    = {=is_heavy_rain} 2500, {=is_rain} 6400, 14400
+entity_death    = {=is_heavy_rain} 400, {=is_rain} 900, 2500
