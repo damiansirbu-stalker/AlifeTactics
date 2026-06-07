@@ -44,8 +44,9 @@ local function _on_npc_shot_dispersion(obj, wpn, body_state, move_type, temp_dis
     tmr:stop()
 
     if _dbg then
-        log.debug("[ACC] id=%d tier=%s base=%.5f disp=%.2f out=%.5f [%.3fms]",
-            obj:id(), tier, base, disp, out, tmr:get_ms())
+        local sect = (wpn and wpn:section()) or "none"
+        log.debug("[ACC] id=%d tier=%s section=%s bs=%d mt=%d base=%.5f disp=%.2f out=%.5f [%.3fms]",
+            obj:id(), tier, sect, body_state, move_type, base, disp, out, tmr:get_ms())
     end
 end
 
