@@ -1,7 +1,14 @@
 next
-  Summary: moddb url
+  Summary: danger rework, stealth kills
 
-  - Linked AlifeTactics ModDB URL in Alife Collection block.
+  - Fixed Anomaly's xr_danger with a full-file script override and paired ltx.
+    Hits, ricochets, and nearby gunshots each use their own config row (vanilla collapsed all three).
+    Crashes near mutant bodies and stale animation across danger transitions are gone.
+    Danger MCM tab: 3 toggles (combat_ignore override, gunshot disclosure, actor-source weighting).
+  - Corpses stay dangerous for 15 minutes (was 12 seconds), ricochets for 10, weather affects range.
+  - Added stealth-kill suppression to Hit Sharing (default on, MCM Stealth toggle).
+    Silenced shots, sniper headshots, and backstabs no longer auto-disclose the shooter to the squad.
+    Squadmates still learn through gunshot sound, corpse discovery, and line of sight.
 
 1.0.0
   Summary: First release, hit sharing, NPC self-healing fix, per-rank accuracy, sniper and launcher crouch

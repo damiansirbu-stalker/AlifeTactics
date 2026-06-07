@@ -27,6 +27,10 @@ New squad members spawned mid-fight inherit the squad's active disclosures, and 
 to the squads tracking them, so engagement state stays consistent across spawn churn.
 After 2 game minutes of no further hits from that shooter the squad's pin expires and the next hit re-fires the alert.
 
+The Stealth toggle (MCM, default on) suppresses the squad alert when the hit kills the victim.
+Silenced shots, sniper headshots, and backstabs no longer disclose the shooter to the surviving squadmates.
+Squadmates still learn through gunshot sound, corpse discovery, and line of sight.
+
 Healing:
 
 NPCs in vanilla never consume the medkits or bandages they carry.
@@ -56,6 +60,28 @@ Stalkers crouch or stand when the engine combat planner picks a static-cover fir
 The stance carries into killing, waiting in cover, and ambush operators through the engine's body-state inheritance.
 The engine calls AT's stance functor on 11 different combat actions. Only 2 of them (look out, hold position) are static-cover firing ops where crouching makes sense. AT overrides those 2, the other 9 pass through unchanged.
 The system also considers equipped weapon, so snipers and long range shooters will crouch more, and short range shooters will do it less.
+
+Danger:
+
+A full-file override of Anomaly's xr_danger.script with bug fixes always-on and three improvements toggleable in MCM > Danger.
+
+Six bug fixes are always on.
+Three danger categories (direct hit, bullet ricochet, attacked nearby) were silently reading the wrong config row and reacting identically.
+Mutant corpses crashed the evaluation on death-time reads.
+The evaluator crashed when called on a torn-down NPC reference.
+The evaluator also crashed when corpse death-time returned a non-numeric value.
+Danger-state transitions reset only the upper-body animation tier and left a stale lower-body pose visible across the change.
+The hit callback referenced an undefined variable and silently dropped responses on every hit.
+
+Danger-state transitions snap into place instead of soft-blending so the reaction delay across state changes is gone.
+
+The paired xr_danger.ltx widens corpse inertion to 15 game minutes (vanilla 12 seconds) and ricochet inertion to 10 minutes.
+Detection distances respond to weather so stalkers see less in storms.
+
+MCM-toggleable improvements (default on).
+Hits override combat_ignore so allies of allies still get a danger response.
+Gunshot reports register through the script danger pipeline gated on whether the actor is aiming.
+Actor-sourced danger uses its own inertion and ignore tables so encounters with the player tune independently of NPC-vs-NPC.
 
 Performance:
 
