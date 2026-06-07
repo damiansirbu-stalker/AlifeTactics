@@ -1,6 +1,6 @@
 --- at_hitresponse: Force-disclose shooter to whole squad on first faction-enemy hit
 
-local pairs, tostring, RegisterScriptCallback, IsStalker, alife_object = pairs, tostring, RegisterScriptCallback, IsStalker, alife_object
+local pairs, tostring, tonumber, RegisterScriptCallback, IsStalker, alife_object = pairs, tostring, tonumber, RegisterScriptCallback, IsStalker, alife_object
 -- CreateTimeEvent / ResetTimeEvent / RemoveTimeEvent not cached: demonized_time_events
 -- replaces them at runtime; cached locals would pin the dead originals.
 
@@ -53,6 +53,18 @@ local function _disclose(squad, who)
         end
     end
     return count
+end
+
+local function _log_disclosure(opts)
+    local who      = opts.who
+    local wpn_d    = who:active_item()
+    local sect_d   = wpn_d and wpn_d:section() or "none"
+    local silenc_d = sect_d ~= "none" and (tonumber(ini_sys:r_string_ex(sect_d, "silencer_status")) or -1) or -1
+    local victim   = opts.victim
+    local dist_d   = victim and victim:position():distance_to(who:position()) or -1
+    log.debug("[DISCLOSURE] squad=%d shooter=%d disclosed_to=%d section=%s silenc=%d dist=%.1f [gate=%.2fms disclose=%.2fms total=%.2fms]",
+        opts.squad_id, opts.who_id, opts.disclosed_to, sect_d, silenc_d, dist_d,
+        opts.gate_ms, opts.disclose_ms, opts.total_ms)
 end
 
 local function _collect_expired(map, now, threshold)
@@ -139,8 +151,12 @@ local function _resolve_pending(squad_id, who_id, victim_id, gate_ms, total_ms)
     tmr_disclose:stop()
 
     if _dbg then
-        log.debug("[DISCLOSURE] squad=%d shooter=%d disclosed_to=%d members [gate=%.2fms disclose=%.2fms total=%.2fms]",
-            squad_id, who_id, disclosed_to, gate_ms, tmr_disclose:get_ms(), total_ms + tmr_disclose:get_ms())
+        _log_disclosure({
+            squad_id = squad_id, who_id = who_id, disclosed_to = disclosed_to,
+            who = who, victim = victim,
+            gate_ms = gate_ms, disclose_ms = tmr_disclose:get_ms(),
+            total_ms = total_ms + tmr_disclose:get_ms(),
+        })
     end
 end
 
@@ -211,8 +227,12 @@ local function _on_hit(npc, amount, _local_direction, who, bone_index)
     tmr_total:stop()
 
     if _dbg then
-        log.debug("[DISCLOSURE] squad=%d shooter=%d disclosed_to=%d members [gate=%.2fms disclose=%.2fms total=%.2fms]",
-            squad_id, who_id, disclosed_to, gate_ms, tmr_disclose:get_ms(), tmr_total:get_ms())
+        _log_disclosure({
+            squad_id = squad_id, who_id = who_id, disclosed_to = disclosed_to,
+            who = who, victim = npc,
+            gate_ms = gate_ms, disclose_ms = tmr_disclose:get_ms(),
+            total_ms = tmr_total:get_ms(),
+        })
     end
 end
 
