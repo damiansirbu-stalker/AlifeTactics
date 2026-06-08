@@ -1,6 +1,6 @@
---- at_test: Console commands for AlifeTactics (squad spawn, substrate dump)
+--- at_test: Console commands for AlifeTactics (squad spawn, dumps)
 
-local tostring, string_format = tostring, string.format
+local tostring, string_format, math_rad, math_cos, math_sin = tostring, string.format, math.rad, math.cos, math.sin
 
 local log = xlog.get_logger("AT.TEST", { outfile = "alifetactics.log" })
 
@@ -12,11 +12,21 @@ local function _tip(msg)
     if db.actor then news_manager.send_tip(db.actor, msg, nil, nil, 5000) end
 end
 
--- Spawn at actor vertex then teleport to `distance` meters along facing direction.
+-- Rotate a forward vector by angle_deg around Y (right-handed, Y up).
+-- 0 = forward, 90 = right, -90 = left, 180 = behind.
+local function _rotate_y(dir, angle_deg)
+    local rad = math_rad(angle_deg)
+    local cos_a = math_cos(rad)
+    local sin_a = math_sin(rad)
+    return vector():set(dir.x * cos_a + dir.z * sin_a, dir.y, -dir.x * sin_a + dir.z * cos_a)
+end
+
+-- Spawn at actor vertex then teleport to `distance` meters along (actor facing rotated by angle).
 -- Off-map target vertex -> stay at actor.
-local function _spawn(section, distance)
-    section  = section or DEFAULT_SECTION
-    distance = distance or DEFAULT_DISTANCE
+local function _spawn(section, distance, angle_deg)
+    section   = section   or DEFAULT_SECTION
+    distance  = distance  or DEFAULT_DISTANCE
+    angle_deg = angle_deg or 0
     if not db.actor then
         _tip("AT.TEST: not in game")
         return
@@ -46,7 +56,7 @@ local function _spawn(section, distance)
         end
     end
 
-    local dir         = actor:direction()
+    local dir         = _rotate_y(actor:direction(), angle_deg)
     local target_pos  = vector():set(
         actor_pos.x + dir.x * distance,
         actor_pos.y,
@@ -58,32 +68,156 @@ local function _spawn(section, distance)
         TeleportSquad(squad, target_pos, target_lvid, actor_gvid)
     end
 
-    log.info("[SPAWN] section=%s squad_id=%d distance=%dm on_map=%s",
-        section, squad.id, distance, tostring(on_map))
-    _tip(string_format("AT.TEST: spawned %s id=%d %s",
+    log.info("[SPAWN] section=%s squad_id=%d distance=%dm angle=%ddeg on_map=%s",
+        section, squad.id, distance, angle_deg, tostring(on_map))
+    _tip(string_format("AT.TEST: %s id=%d %s",
         section, squad.id,
-        on_map and (distance .. "m ahead") or "at actor (off-map)"))
+        on_map and (distance .. "m @" .. angle_deg .. "deg") or "at actor (off-map)"))
 end
+
+-- Spawn N squads in one call. Each entry: { section, distance, angle_deg }.
+local function _spawn_set(label, entries)
+    for i = 1, #entries do
+        local entry = entries[i]
+        _spawn(entry[1], entry[2], entry[3])
+    end
+    log.info("[SPAWN] set=%s count=%d", label, #entries)
+end
+
+--------------------------------------------------------------------------------
+-- Single squad, varied distance / direction / faction
+--------------------------------------------------------------------------------
 
 --- @export console
 function at_spawn()
-    _spawn(DEFAULT_SECTION, DEFAULT_DISTANCE)
+    _spawn(DEFAULT_SECTION, DEFAULT_DISTANCE, 0)
 end
 
 --- @export console
-function at_spawn_master()
-    _spawn("bandit_sim_squad_alpha", DEFAULT_DISTANCE)
+function at_spawn_near()
+    _spawn(DEFAULT_SECTION, 20, 0)
 end
 
 --- @export console
-function at_spawn_veteran()
-    _spawn("bandit_sim_squad_veteran", DEFAULT_DISTANCE)
+function at_spawn_mid()
+    _spawn(DEFAULT_SECTION, 40, 0)
 end
 
 --- @export console
 function at_spawn_far()
-    _spawn(DEFAULT_SECTION, 100)
+    _spawn(DEFAULT_SECTION, 100, 0)
 end
+
+--- @export console
+function at_spawn_very_far()
+    _spawn(DEFAULT_SECTION, 150, 0)
+end
+
+--- @export console
+function at_spawn_behind()
+    _spawn(DEFAULT_SECTION, 50, 180)
+end
+
+--- @export console
+function at_spawn_left()
+    _spawn(DEFAULT_SECTION, 50, -90)
+end
+
+--- @export console
+function at_spawn_right()
+    _spawn(DEFAULT_SECTION, 50, 90)
+end
+
+--- @export console
+function at_spawn_veteran()
+    _spawn("bandit_sim_squad_veteran", DEFAULT_DISTANCE, 0)
+end
+
+--- @export console
+function at_spawn_master()
+    _spawn("bandit_sim_squad_alpha", DEFAULT_DISTANCE, 0)
+end
+
+--- @export console
+function at_spawn_mil()
+    _spawn("military_sim_squad_novice", 60, 0)
+end
+
+--- @export console
+function at_spawn_mono()
+    _spawn("monolith_sim_squad_novice", 60, 0)
+end
+
+--- @export console
+function at_spawn_merc()
+    _spawn("merc_sim_squad_novice", 50, 0)
+end
+
+--- @export console
+function at_spawn_duty()
+    _spawn("duty_sim_squad_novice", 50, 0)
+end
+
+--- @export console
+function at_spawn_freedom()
+    _spawn("freedom_sim_squad_novice", 50, 0)
+end
+
+--- @export console
+function at_spawn_zomb()
+    _spawn("zombied_sim_squad_novice", 40, 0)
+end
+
+--------------------------------------------------------------------------------
+-- Multi-squad scenarios (combat planner stress tests)
+--------------------------------------------------------------------------------
+
+-- 3 bandit squads in a line ahead. Tests mode progression as NPCs close to floor.
+--- @export console
+function at_spawn_horde()
+    _spawn_set("horde", {
+        { "bandit_sim_squad_novice", 30,  0 },
+        { "bandit_sim_squad_novice", 60,  0 },
+        { "bandit_sim_squad_novice", 100, 0 },
+    })
+end
+
+-- 2 squads on opposite flanks. Tests multi-direction reservation + mode-per-NPC.
+--- @export console
+function at_spawn_pincer()
+    _spawn_set("pincer", {
+        { "bandit_sim_squad_novice", 60, -90 },
+        { "bandit_sim_squad_novice", 60,  90 },
+    })
+end
+
+-- 4 squads in a circle around actor. Cover convergence stress (many NPCs picking
+-- cover in same area). Validates db.used_level_vertex_ids reservation.
+--- @export console
+function at_spawn_swarm()
+    _spawn_set("swarm", {
+        { "bandit_sim_squad_novice", 50,    0 },
+        { "bandit_sim_squad_novice", 50,   90 },
+        { "bandit_sim_squad_novice", 50,  180 },
+        { "bandit_sim_squad_novice", 50,  -90 },
+    })
+end
+
+-- Mixed faction wave: bandits ahead, military flank, monolith behind. Tests
+-- different communities (monolith excluded from at_combat via community gate),
+-- different weapon loadouts, simultaneous mode tracking.
+--- @export console
+function at_spawn_mixed()
+    _spawn_set("mixed", {
+        { "bandit_sim_squad_novice",    60,    0 },
+        { "military_sim_squad_novice",  70,   60 },
+        { "monolith_sim_squad_novice",  80, -120 },
+    })
+end
+
+--------------------------------------------------------------------------------
+-- Dumps
+--------------------------------------------------------------------------------
 
 --- @export console
 function at_dump()
