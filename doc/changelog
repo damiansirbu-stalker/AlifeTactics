@@ -1,5 +1,5 @@
 next
-  Summary: danger rework, stealth kills, limp/heal fixes
+  Summary: danger rework, stealth kills, limp/heal fixes, AOEngine compatibility
 
   - Fixed Anomaly's xr_danger with a full-file script override and paired ltx.
     Hits, ricochets, and nearby gunshots each use their own config row (vanilla collapsed all three).
@@ -13,6 +13,7 @@ next
   - Fixed NPCs staying stuck in a limp pose after their HP recovers. The looped animation now flushes when limp tracking ends.
   - Fixed healing NPCs not reacting to enemies. They now break the heal sequence when an enemy appears mid-clutch or mid-gesture.
   - Fixed crash on torn-down attacker reference during the attack-sound danger dispatch.
+  - Added AOEngine v0.55+ support.
 
 1.0.0
   Summary: First release, hit sharing, NPC self-healing fix, per-rank accuracy, long-range rifle crouch
