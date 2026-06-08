@@ -437,7 +437,9 @@ local function _on_net_spawn(npc)
     _install(npc)
 end
 
-local function _on_entity_unregister(_, id)
+local function _on_entity_unregister(se_obj)
+    if not se_obj then return end
+    local id = se_obj.id
     _installed[id]   = nil
     _last_eval[id]   = nil
     _last_reason[id] = nil
