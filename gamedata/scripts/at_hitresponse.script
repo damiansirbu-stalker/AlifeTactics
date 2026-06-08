@@ -57,7 +57,7 @@ end
 
 local function _log_disclosure(opts)
     local who      = opts.who
-    local wpn_d    = who:active_item()
+    local wpn_d    = IsStalker(who) and who:active_item() or nil
     local sect_d   = wpn_d and wpn_d:section() or "none"
     local silenc_d = sect_d ~= "none" and (tonumber(ini_sys:r_string_ex(sect_d, "silencer_status")) or -1) or -1
     local victim   = opts.victim
