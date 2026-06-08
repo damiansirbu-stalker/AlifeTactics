@@ -25,6 +25,8 @@ local defaults = {
     acc_disp_master        = 0.45,
     acc_disp_legend        = 0.38,
     stance_enabled = true,
+    shuffle_enabled = true,
+    shuffle_ratio   = 0.50,
     log_level = "WARN",
 }
 
@@ -56,6 +58,8 @@ local _key_to_tab = {
     danger_hit_bypass   = "danger",
     danger_attack_sound = "danger",
     danger_actor_tables = "danger",
+    shuffle_enabled = "camper",
+    shuffle_ratio   = "camper",
     log_level     = "development",
     btn_reset_all = "development",
 }
@@ -215,6 +219,24 @@ function on_mcm_load()
                     { id = "div_fixes", type = "line" },
                     { id = "hdr_fixes", type = "desc", text = "ui_mcm_at_danger_hdr_fixes", clr = {255, 200, 200, 200} },
                     { id = "fixes_list", type = "desc", text = "ui_mcm_at_danger_fixes_list" },
+
+                    { id = "div_version", type = "line" },
+                    { id = "version", type = "desc", text = "ui_mcm_at_title",
+                        ui_hook_functor = { set_version_text }, clr = {255, 212, 201, 168} },
+                },
+            },
+            {
+                id = "camper",
+                sh = true,
+                gr = {
+                    { id = "title", type = "slide", link = "at_mcm_banner",
+                        text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
+                    { id = "desc", type = "desc", text = "ui_mcm_at_camper_desc" },
+                    { id = "shuffle_enabled", type = "check", val = 1, def = true },
+
+                    { id = "div_share", type = "line" },
+                    { id = "hdr_share", type = "desc", text = "ui_mcm_at_camper_hdr_share", clr = {255, 200, 200, 200} },
+                    { id = "shuffle_ratio", type = "track", val = 2, min = 0.1, max = 0.9, step = 0.05, def = 0.50 },
 
                     { id = "div_version", type = "line" },
                     { id = "version", type = "desc", text = "ui_mcm_at_title",

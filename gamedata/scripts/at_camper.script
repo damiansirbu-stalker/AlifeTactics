@@ -1,0 +1,274 @@
+--- at_camper: Per-NPC camper assignment via combat_type condlist predicate (no timer, no state)
+
+local RegisterScriptCallback, IsStalker, tostring, math_sqrt =
+      RegisterScriptCallback, IsStalker, tostring, math.sqrt
+
+local log = xlog.get_logger("AT.CAMPER", { outfile = "alifetactics.log" })
+local _dbg = false
+
+-- Cached MCM refs refreshed in _refresh_config; the 500ms motivator loop reads these
+-- via the predicate, so per-call cost is one global lookup per NPC.
+local _enabled = true
+local _share   = 0.50
+
+-- Minimum squared distance to enemy for camping to be allowed. Below this, NPCs that
+-- would otherwise be camper fall through to vanilla planner instead. Reason: at point-blank
+-- range, a stalker planted in cover is a sitting duck to flanking; vanilla's chaotic-but-
+-- reactive combat cycle is better there. Default ~25m real (625 m^2). MCM-exposable later
+-- if tuning is needed.
+local CAMPER_MIN_DIST_SQR = 625
+
+-- LOS hysteresis: at the engine's 500ms cadence, raw npc:see() flips off briefly when the
+-- enemy steps behind cover or the NPC turns. A single false read flipping camper->vanilla
+-- aborts state_mgr's traversal toward "hide_fire" (state_lib.script:326) before it can
+-- reach act_state_mgr_bodystate_crouch (state_mgr_bodystate.script:54-59). That's the
+-- "tumbling" visual: state_mgr starts hide_fire animations, gets interrupted by vanilla
+-- combat planner's LookOut/HoldPosition, restarts on the next camper entry. Hysteresis
+-- requires this many consecutive false reads (= LOS_HYSTERESIS_MAX * 500ms) before flipping
+-- out of camper for an NPC that was previously camper.
+local LOS_HYSTERESIS_MAX = 3
+
+-- Weapon kinds that should NEVER camp regardless of hash threshold. Pistols, SMGs, and
+-- shotguns want to close distance, not plant in cover. Sniper-class is the inverse (always
+-- camps when other gates pass). Rifles fall through to hash (default behavior).
+local NEVER_CAMP_KINDS = {
+    w_pistol  = true,
+    w_smg     = true,
+    w_shotgun = true,
+}
+
+-- Last decision / body / LOS-miss-count per NPC. Off-DEBUG _last_decision and _last_body
+-- stay empty (gated below); _los_misses is needed off-DEBUG too because the hysteresis is
+-- a functional behavior, not just logging.
+local _last_decision = {}
+local _last_body     = {}
+local _los_misses    = {}
+
+-- Per-section weapon kind cache. ini_sys:r_string_ex is a luabind crossing on every call;
+-- with 100 online stalkers calling the predicate every 500ms that's 200 calls/sec just to
+-- look up a static LTX field. A weapon section's kind doesn't change at runtime so we
+-- memoize. `false` is the sentinel for "looked up, no kind found" so we can distinguish
+-- uncached from absent.
+local _kind_cache = {}
+
+-- Decoded action IDs for log readability. combat_camper_base from xr_actions_id.script:72
+-- (= chugai_actions + 130, = action_script + 2398, = 2490 in vanilla). action_combat_planner
+-- is the C++ outer combat planner (= eWorldOperatorCombatPlanner = 89 per stalker_decision_space.h).
+-- Resolved lazily because the engine globals (xr_actions_id, stalker_ids) aren't bound when
+-- this module loads under the validator's stub harness.
+local _act_shoot, _act_look_around, _act_combat_planner
+
+local function _kind_for(section)
+    if not section then return nil end
+    local cached = _kind_cache[section]
+    if cached ~= nil then return cached or nil end
+    local k = ini_sys:r_string_ex(section, "kind")
+    _kind_cache[section] = k or false
+    return k
+end
+
+local function _action_name(id)
+    if id == nil then return "nil" end
+    if id == _act_shoot          then return "act_shoot"          end
+    if id == _act_look_around    then return "act_look_around"    end
+    if id == _act_combat_planner then return "combat_planner"     end
+    return tostring(id)
+end
+
+-- Predicate decision. Returns (result, reason, miss_count). Reason tags and miss_count are
+-- only consumed by the debug log wrapper; the engine just sees the boolean result.
+local function _decide(npc)
+    if not _enabled then return false, "disabled", 0 end
+    if not npc or not npc:alive() then return false, "no_npc", 0 end
+
+    local id = npc:id()
+    local be = npc:best_enemy()
+    if not be or not be:alive() then
+        _los_misses[id] = nil
+        return false, "no_enemy", 0
+    end
+
+    if not npc:see(be) then
+        local prev = _last_decision[id]
+        if not prev then return false, "no_los", 0 end
+        local misses = (_los_misses[id] or 0) + 1
+        _los_misses[id] = misses
+        if misses < LOS_HYSTERESIS_MAX then return true, "los_hyst", misses end
+        return false, "no_los", misses
+    end
+    _los_misses[id] = nil
+
+    if npc:position():distance_to_sqr(be:position()) < CAMPER_MIN_DIST_SQR then
+        return false, "too_close", 0
+    end
+
+    local kind
+    local wpn = npc:active_item()
+    if wpn then kind = _kind_for(wpn:section()) end
+
+    if kind == "w_sniper"        then return true,  "sniper",       0 end
+    if NEVER_CAMP_KINDS[kind]    then return false, "close_weapon", 0 end
+    if (id % 1000) < (_share * 1000) then return true, "hash_in",   0 end
+    return false, "hash_out", 0
+end
+
+local function _body_name(body)
+    if body == 0 then return "crouch" end
+    if body == 1 then return "stand" end
+    return tostring(body)
+end
+
+local function _anim_marker(track)
+    return track and track.states and track.states.anim_marker
+end
+
+local function _planner_action(p)
+    if p and p:initialized() then return p:current_action_id() end
+    return nil
+end
+
+local function _npc_kind(npc)
+    local wpn = npc:active_item()
+    if not wpn then return "none" end
+    return _kind_for(wpn:section()) or "none"
+end
+
+local function _enemy_snapshot(npc)
+    local be = npc:best_enemy()
+    if not be or not be:alive() then return -1, "none", -1, false end
+    local dist = math_sqrt(npc:position():distance_to_sqr(be:position()))
+    return be:id(), be:name() or "?", dist, npc:see(be) or false
+end
+
+-- Snapshot state_mgr internals + enemy state + outer planner action for a camper NPC.
+-- Reads only; no writes. Fires on decision transitions and on body-state changes while
+-- still camper, both gated on DEBUG. Field cites: state_mgr.script:358/402 (target_state),
+-- :362 (combat), :363 (alife), :88 (mgr cache), state_mgr_animation.script:47 (anim_marker),
+-- state_mgr.script:459/484 (planner).
+local function _diag(npc, where, reason, misses, ms)
+    local id = npc:id()
+    local sm = db.storage[id] and db.storage[id].state_mgr
+    if not sm then
+        log.debug("[CAMPER] diag npc=%d where=%s sm=nil", id, where)
+        return
+    end
+    local enemy_id, enemy_nm, dist, sees = _enemy_snapshot(npc)
+    local mgr = sm.mgr or npc:motivation_action_manager()
+    log.debug("[CAMPER] diag npc=%d name=%s where=%s reason=%s miss=%d kind=%s " ..
+              "target=%s anim_m=%s astate_m=%s combat=%s alife=%s " ..
+              "plan_act=%s mgr_act=%s enemy_id=%d enemy=%s dist=%.1fm see=%s t=%.3fms",
+        id, npc:name() or "?", where, reason, misses, _npc_kind(npc),
+        tostring(sm.target_state),
+        tostring(_anim_marker(sm.animation)), tostring(_anim_marker(sm.animstate)),
+        tostring(sm.combat), tostring(sm.alife),
+        _action_name(_planner_action(sm.planner)),
+        _action_name(_planner_action(mgr)),
+        enemy_id, enemy_nm, dist, tostring(sees), ms)
+end
+
+local function _log_transition(id, prev, result, reason, body, misses, ms)
+    if prev == result then return end
+    _last_decision[id] = result
+    log.debug("[CAMPER] transition npc=%d %s->%s reason=%s body=%s miss=%d t=%.3fms",
+        id,
+        prev == nil and "nil" or (prev and "camper" or "vanilla"),
+        result and "camper" or "vanilla",
+        reason, _body_name(body), misses, ms)
+end
+
+-- Body-state evolution while NPC stays camper. Reveals whether state_mgr's "hide_fire"
+-- target reaches act_state_mgr_bodystate_crouch in practice (state_mgr_bodystate.script:54)
+-- vs staying stand. Logs only on body change. Caller gates on result == camper.
+local function _log_body(id, body)
+    if _last_body[id] == body then return end
+    _last_body[id] = body
+    log.debug("[CAMPER] body npc=%d body=%s", id, _body_name(body))
+end
+
+-- The condlist machinery (xr_logic.script:425-426) looks up condlist predicates as
+-- `xr_conditions[name]`, NOT as global functions. The function must be registered into
+-- xr_conditions for `{=at_cond_camper()}` in our condlist string to resolve. Otherwise
+-- pick_section_from_condlist logs `pick_section_from_condlist xr_conditions fail!` per call
+-- and returns nil (no match), and the engine writes nil to script_combat_type for everyone.
+local function _at_cond_camper(_enemy, npc, _params)
+    if not _dbg then return (_decide(npc)) end
+    local tmr = xprofiler.new_if(_dbg):start()
+    local result, reason, misses = _decide(npc)
+    tmr:stop()
+    if npc then
+        local id   = npc:id()
+        local body = npc:target_body_state()
+        local prev = _last_decision[id]
+        local transitioned = prev ~= result
+        local ms = tmr:get_ms()
+        _log_transition(id, prev, result, reason, body, misses, ms)
+        if not result then return result end
+        local body_changed = _last_body[id] ~= body
+        _log_body(id, body)
+        if transitioned then _diag(npc, "trans", reason, misses, ms)
+        elseif body_changed then _diag(npc, "bodych", reason, misses, ms) end
+    end
+    return result
+end
+
+-- Install our condlist into db.storage[id].combat.combat_type. Vanilla install has no [combat]
+-- section in default_custom_data.ltx so the field is nil; we set it. GAMMA AI Rework / Mora
+-- installs already populate it; we overwrite. When disabled in MCM, _enabled gates the predicate
+-- to false so set_combat_type writes nil and vanilla planner runs.
+local function _install_condlist(npc, _se_obj)
+    if not npc or not IsStalker(npc) then return end
+    local store = db.storage[npc:id()]
+    if not store or not store.combat then return end
+    if not (xr_logic and xr_logic.parse_condlist) then return end
+    store.combat.combat_type = {
+        name = "combat_type",
+        condlist = xr_logic.parse_condlist(npc, "logic", "combat_type",
+            "{=at_cond_camper()} camper"),
+    }
+    if _dbg then
+        log.debug("[CAMPER] install npc=%d", npc:id())
+    end
+end
+
+local function _on_entity_unregister(se_obj)
+    if not se_obj then return end
+    _last_decision[se_obj.id] = nil
+    _last_body[se_obj.id]     = nil
+    _los_misses[se_obj.id]    = nil
+end
+
+local function _refresh_config()
+    log.set_level(at_mcm.get_config("log_level") or "WARN")
+    _dbg = log.get_level() >= 5
+    local enabled = at_mcm.get_config("shuffle_enabled")
+    _enabled = enabled ~= false
+    _share   = at_mcm.get_config("shuffle_ratio") or 0.50
+end
+
+local function _on_option_change()
+    _refresh_config()
+    log.info("[CAMPER] config enabled=%s share=%.2f",
+        _enabled and "true" or "false", _share)
+end
+
+local function _on_first_update()
+    _refresh_config()
+    log.info("[CAMPER] init enabled=%s share=%.2f (predicate-driven, no timer, hysteresis=%d)",
+        _enabled and "true" or "false", _share, LOS_HYSTERESIS_MAX)
+end
+
+function on_game_start()
+    if xr_actions_id then
+        _act_shoot       = xr_actions_id.combat_camper_base + 0
+        _act_look_around = xr_actions_id.combat_camper_base + 1
+    end
+    if stalker_ids then
+        _act_combat_planner = stalker_ids.action_combat_planner
+    end
+    xr_conditions.at_cond_camper = _at_cond_camper
+    RegisterScriptCallback("npc_on_net_spawn",            _install_condlist)
+    RegisterScriptCallback("server_entity_on_unregister", _on_entity_unregister)
+    RegisterScriptCallback("actor_on_first_update",       _on_first_update)
+    RegisterScriptCallback("on_option_change",            _on_option_change)
+    RegisterScriptCallback("mcm_option_restore_default",  _on_option_change)
+end

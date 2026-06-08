@@ -33,18 +33,20 @@ Squadmates still learn through gunshot sound, corpse discovery, and line of sigh
 
 Healing:
 
-NPCs in vanilla never consume the medkits or bandages they carry.
-AlifeTactics fixes Anomaly's broken configuration letting the working vanilla code do its job.
+Vanilla and most modpacks rely on a magic medkit use that triggers unreliably, and bandages don't work at
+all. About half of NPCs get a one-shot flag at register that lets them heal HP once without consuming any
+item, and the flag re-rolls on every save load. Bandages have no equivalent fallback, so bleeding NPCs
+in vanilla bleed out unless they happen to have a bandage AND the inventory list is populated. Vanilla
+doesn't populate it. AlifeTactics fixes both.
 
-Anomaly has a "once per lifetime" 50% chance that every NPC gets a free medkit, but it's broken. 
-Instead of once per lifetime it's once per save reload. AlifeTactics fixes the above and makes it configurable.
+Wounded stalkers below 50% HP consume medkits from their inventory. Bleeding stalkers above the wound
+threshold consume bandages. Stalkers carrying neither fall back to a per-rank lifetime healing charge.
+The heal rate is MCM-tunable.
 
-Wounded stalkers below 50% HP consume medkits from their inventory. Bleeding stalkers above the wound threshold consume bandages. 
-Stalkers carrying neither fall back to a per-rank lifetime healing charge. The heal rate is MCM-tunable.
-
-Animation also were fixed and are toggleable in MCM. 
-Stalkers below 65% HP visibly limp when out of combat through a torso overlay the engine layers over normal locomotion, re-armed every 5 seconds per NPC. 
-A medkit-injection or bandage-application torso animation plays as a one-shot cue when a stalker starts a heal cycle.
+Animations were also fixed and are toggleable in MCM. Stalkers below 65% HP visibly limp when out of combat
+through a torso overlay the engine layers over normal locomotion, re-armed every 5 seconds per NPC. A
+medkit-injection or bandage-application torso animation plays as a one-shot cue when a stalker starts a
+heal cycle.
 
 Accuracy:
 
@@ -60,6 +62,26 @@ Stalkers crouch or stand when the engine combat planner picks a static-cover fir
 The stance carries into killing, waiting in cover, and ambush operators through the engine's body-state inheritance.
 The engine calls AT's stance functor on 11 different combat actions. Only 2 of them (look out, hold position) are static-cover firing ops where crouching makes sense. AT overrides those 2, the other 9 pass through unchanged.
 The system also considers equipped weapon. Long-range rifle carriers (DMRs, battle rifles, bolt-actions like SVD, SVT40, Mosin, SKS, M82) crouch in cover; short-range carriers pass through with whatever stance the engine picked.
+
+Squad Camper:
+
+Long-range rifle carriers (DMRs, battle rifles, bolt-actions like SVD, SVT40, Mosin, SKS, M82, SR25, and the rest of the kind=w_sniper LTX class) hold cover and fire continuously while they see you, instead of running the standard combat cycle.
+A configurable share of other stalkers also holds cover; the rest run the vanilla cycle (take cover, peek, hold, detour, kill).
+Pistol, SMG, and shotgun carriers never hold cover regardless of the slider — those weapons are meant to close distance, not plant.
+The result is a mix of pinners holding cover (long-range rifle + share of mid-range carriers) and movers advancing on you (close-range weapon carriers + the rest).
+
+Three gates keep the cover-fire behavior in the situations where it makes sense:
+Below about 25 meters the cover-fire role is disabled and the NPC runs the vanilla cycle. Planting in cover at point-blank range is exploitable by flanking; vanilla's reactive movement handles short range better.
+When a camper loses line of sight to the enemy, the role drops within half a second and the NPC moves to re-acquire instead of rotating in place or freezing in cover.
+When the engine's enemy memory expires (no recent sight, sound, or hit), the camper role drops and the NPC returns to idle.
+
+MCM Squad Camper tab: master toggle and camper share slider (0.1-0.9, default 0.50).
+At default 0.50 about half of non-sniper stalkers hold cover at qualifying ranges, the other half run the vanilla cycle.
+Lower the camper share for aggressive squads (most NPCs advance), raise it for defensive squads (most NPCs plant).
+Sniper-class carriers ignore this slider but still respect the line-of-sight and distance gates.
+
+The system drives the vanilla xr_combat_camper sub-scheme that ships with Anomaly but is dormant by default.
+Compatible with GAMMA AI Rework and AI more cover (Mora). Both install their own per-NPC condlist into the same engine seam; AlifeTactics installs its own predicate per stalker, overriding theirs. When AlifeTactics is disabled in MCM, the predicate returns false and the vanilla planner runs.
 
 Danger:
 
@@ -111,12 +133,14 @@ builds (removal crashes), so the recommended setup is to load AlifeTactics AFTER
 GAMMA's other AI rework files (xr_combat_camper, xr_conditions, schemes_ai_gamma, default_custom_data.ltx) continue to run unchanged. Net:
 AlifeTactics's xr_danger fixes + GAMMA's other AI tactics. Tested working with this load order.
 
-Compatible today, will overlap once the per-NPC camper scheme is added:
+Compatible but overlapping with AT Squad Camper:
 
-AI more cover (Mora): assigns the vanilla camper scheme globally. AT's planned per-NPC camper writes the same field from a binder.
+AI more cover (Mora): installs its own condlist into the vanilla combat_type seam. AT installs its predicate into the same seam on each
+stalker net-spawn and overrides Mora's. Mora's behavior is replaced; uninstall AT to restore.
 
-G.A.M.M.A. AI Rework (the camper side): layered selector on Mora's pattern. Once AT ships the per-NPC camper, both systems will write
-script_combat_type and race. AT will MCM-gate the camper to detect and defer when GAMMA AI Rework is present.
+G.A.M.M.A. AI Rework (the camper side): same seam, same overlap. AT's predicate per stalker replaces theirs. When AT is disabled in MCM,
+the predicate returns false and the vanilla planner runs (GAMMA's condlist is not restored mid-session, but the engine returns to vanilla
+behavior).
 
 ReDone Combat AI: copies Mora, overrides 12 scripts. Much is 1.5.2-gated and skipped on 1.5.3.
 

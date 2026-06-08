@@ -1,6 +1,6 @@
 # AlifeTactics Architecture
 
-Combat AI mod for STALKER Anomaly. Five user-facing systems, each independent: a hit-share force-disclosure, a self-heal data + animation layer, a per-rank weapon accuracy curve, a long-range rifle stance crouch (`kind=w_sniper` LTX class: DMRs, battle rifles, bolt-actions), and a full-file xr_danger override with bug fixes and three toggleable improvements. No shared substrate.
+Combat AI mod for STALKER Anomaly. Independent user-facing systems: a hit-share force-disclosure, a self-heal data + animation layer, a per-rank weapon accuracy curve, a long-range rifle stance crouch (`kind=w_sniper` LTX class: DMRs, battle rifles, bolt-actions), a full-file xr_danger override with bug fixes and three toggleable improvements, and a per-NPC squad camper assignment that drives the dormant `xr_combat_camper` sub-scheme via a `combat_type` condlist predicate. No shared substrate.
 
 Built on xlibs (xsquad, xttltable, xtime, xprofiler, xlog, xmcm, xslice, xcreature).
 
@@ -22,6 +22,7 @@ Version 1.0.0.
 | `at_accuracy.script` | feature | done |
 | `at_stance.script` | feature | done |
 | `xr_danger.script` | feature | done (full-file override) |
+| `at_camper.script` | feature | done |
 | `zzz_at_health_patch.script` | feature | done (vanilla xr_eat_medkit re-roll suppressor) |
 | `configs/ai_tweaks/mod_xr_eat_medkit_at.ltx` | data | done |
 | `configs/ai_tweaks/xr_danger.ltx` | data | done |
@@ -59,6 +60,7 @@ AlifeTactics/
 │   │   ├── at_accuracy.script                 # Accuracy system
 │   │   ├── at_stance.script                   # Stance Switch system
 │   │   ├── xr_danger.script                   # full-file override (Danger system)
+│   │   ├── at_camper.script                   # Squad Camper system
 │   │   ├── zzz_at_health_patch.script         # vanilla xr_eat_medkit re-roll suppressor
 │   │   └── at_test.script                     # console test commands
 │   └── textures/
@@ -71,7 +73,7 @@ Namespace: `at_*` (parallel to `ap_*` for AlifePlus, `ag_*` for AlifeGuard, `x*`
 
 ---
 
-## Five user-facing systems
+## User-facing systems
 
 Each system has its own file, its own MCM tab, and one master toggle.
 
@@ -82,6 +84,7 @@ Each system has its own file, its own MCM tab, and one master toggle.
 | Accuracy | `at_accuracy.script` | Accuracy | `accuracy_enabled` |
 | Stance Switch | `at_stance.script` | Stance Switch | `stance_enabled` |
 | Danger | `xr_danger.script` (full-file override) | Danger | bug fixes always-on; three toggleable improvements |
+| Squad Camper | `at_camper.script` | Squad Camper | `shuffle_enabled` |
 
 ---
 
@@ -253,6 +256,47 @@ The override is marked `-- @override` so the validator skips inherited vanilla s
 
 ---
 
+## Squad Camper
+
+Per-NPC stable assignment that activates the dormant `xr_combat_camper` sub-scheme. Long-range rifle carriers (LTX `kind=w_sniper` class: DMRs, battle rifles, bolt-actions) always camp from cover. Other carriers split by a per-id stable hash against the MCM `camper_share` slider (default 0.50). Decision is stable per NPC for the entire engagement — same NPC, same role for the fight. No periodic Lua timer; the engine's own 500ms `motivator_binder:update` loop drives our predicate.
+
+### Mechanism
+
+`xr_combat.set_combat_type` (xr_combat.script:5-23) is the engine's intended writer for `script_combat_type`. It evaluates the condlist stored at `db.storage[id].combat.combat_type` and writes the result to BOTH storage locations: `db.storage[id].script_combat_type` (top-level, read by `xr_combat_camper.script:23 evaluator_combat_camper` and `xr_combat_monolith.script:26 evaluator_combat_monolith` for sub-scheme selection) AND `db.storage[id].combat.script_combat_type` (per-scheme, read by `xr_combat.script:44 evaluator_check_combat` for the gate that lets any sub-scheme win the planner). Both must be set for `action_shoot`'s `world_property(script_combat, true)` precondition to fire.
+
+`set_combat_type` is NOT bind-only. `motivator_binder:update` (xr_motivator.script:441-521) runs every frame, throttled to 500ms (`self.__tmr = tg + 500` at line 496), and unconditionally calls `xr_combat.set_combat_type(object, db.actor, self.st.combat)` at line 520 whenever `active_scheme` + combat scheme storage exist. The 500ms call is the intended driver, not an obstacle.
+
+`at_camper.script` installs ONE condlist into `db.storage[id].combat.combat_type` per stalker at `npc_on_net_spawn`, referencing one predicate `at_cond_camper(_enemy, npc, _actor)`. The engine's 500ms loop then re-evaluates the condlist, calls our predicate, and writes the result for us. We never touch `script_combat_type` directly and never patch the engine's writer.
+
+Predicate decision logic, top to bottom (first match wins):
+
+| Rule | Returns | Reason tag |
+|---|---|---|
+| MCM disabled | false | `disabled` |
+| `npc:best_enemy()` is nil | false | `no_enemy` |
+| `not npc:see(best_enemy)` (LOS gate) | false | `no_los` |
+| `position():distance_to_sqr() < 625` (~25m, distance gate) | false | `too_close` |
+| `kind=w_sniper` on active weapon | true | `sniper` |
+| `kind` in `NEVER_CAMP_KINDS` (w_pistol, w_smg, w_shotgun) | false | `close_weapon` |
+| `(npc:id() % 1000) < (share * 1000)` (stable hash) | true | `hash_in` |
+| otherwise | false | `hash_out` |
+
+The two gates between the trivial checks and the role rules — LOS and distance — keep the cover-fire behavior in the situations where it makes sense. Without the LOS gate, a camper who loses sight stays rooted in cover (vanilla `action_look_around` rotates head, GAMMA's overlay leaves them frozen since that action isn't registered); both feel wrong. With the gate, the predicate returns false on lost LOS, the engine writes nil within 500ms, vanilla combat planner takes over, NPC moves to re-acquire. Without the distance gate, a camper marked at 5m from the player is exploitable to flanking; vanilla's reactive cycle handles point-blank better. The 25m threshold is a constant (`CAMPER_MIN_DIST_SQR = 625`) — MCM-exposable in a future evolution if playtest needs tuning.
+
+When the predicate returns true, the engine writes `"camper"` to both storage locations; `evaluator_combat_camper` and `evaluator_check_combat` open, `xr_combat_camper.action_shoot` runs while LOS holds (`state_mgr.set_state(npc, "hide_fire", { look_object = best_enemy })`). The LOS gate in the predicate means we never actually reach `action_look_around` in practice — we drop out of camper mode at the source instead. When the predicate returns false, the engine writes nil and the vanilla combat planner takes over (TakeCover -> LookOut -> HoldPosition -> DetourEnemy -> KillEnemy).
+
+### Compatibility with other combat condlist consumers
+
+Other mods that own the same seam (GAMMA AI Rework's `cond_scheme_camper`, Mora's equivalent) install their own predicates into the same `combat_type` condlist. We overwrite their condlist at `npc_on_net_spawn` with ours. Composition is possible by parsing their condlist string, prepending our entry, and re-parsing — but currently we replace. When MCM toggle is off, `_enabled` gates our predicate to false; the engine writes nil; the vanilla planner runs (their condlist is not restored mid-session; user can re-load to get it back, OR we could compose at install time).
+
+### Performance
+
+Predicate runs twice per second per online stalker (the engine's existing 500ms `motivator_binder:update` loop). Cost per call: best_enemy lookup (luabind trivial, returns cached pointer or nil), `see()` check, two position reads + `distance_to_sqr` (pure math), `ini_sys:r_string_ex` for kind (luabind heavy on cache miss, trivial on hit), modulo, comparison. At 100 online stalkers that's 200 predicate calls per second total — well under 0.1ms cumulative per second of wall clock.
+
+No periodic Lua timer, no `_squads` tracking set, no Fisher-Yates, no monkey-patch of `xr_combat.set_combat_type`, no direct writes to `db.storage[id].script_combat_type`. The previous shuffle-based implementation (replaced) ran a 3-second TimeEvent + dual-storage writes + monkey-patch suppression and cost 0.48-1.71ms per tick.
+
+---
+
 ## What the engine does and what we feed it
 
 The architecture principle is to feed engine memory and state, not fight it. Per-system summary:
@@ -264,6 +308,7 @@ The architecture principle is to feed engine memory and state, not fight it. Per
 | Accuracy | Per-shot dispersion radius via callback return | (subscribes to `npc_shot_dispersion`) |
 | Stance Switch | NPC body_state via functor return | (functor at `_G.CAI_Stalker__CombatSetBodyState`) |
 | Danger | NPC danger evaluator/action graft, `script_danger` per-id table for sound-source dispatch | Engine callbacks `npc_on_hear_callback`, `npc_on_death_callback`, GOAP planner graft (evaid/actid 188113) |
+| Squad Camper | `combat_type` condlist installed on per-NPC scheme storage; engine's 500ms `motivator_binder:update` calls our predicate and writes `script_combat_type` for us | (drives vanilla `xr_combat_camper` sub-scheme via field reads at `xr_combat.script:44` and `xr_combat_camper.script:23`; predicate in `at_camper.script` decides "camper" or nil per NPC) |
 
 The engine then runs its own combat detection (property_enemy, m_combat_mask, agent_memory propagation) on the state we wrote. No system reimplements engine behavior; each one nudges engine state to produce the desired outcome.
 
@@ -279,6 +324,7 @@ Each module owns its own `xlog.get_logger("AT.X", { outfile = "alifetactics.log"
 - `AT.ACC`: Accuracy
 - `AT.STANCE`: Stance Switch
 - `AT.DANGER`: Danger override
+- `AT.CAMPER`: Squad Camper
 - `AT.TEST`: console test harness
 
 MCM `log_level` (ERROR/WARN/INFO/DEBUG) controls verbosity. Each module subscribes to `on_option_change` and `mcm_option_restore_default` to refresh its level and derived `_dbg` flag.
@@ -301,6 +347,10 @@ MCM `log_level` (ERROR/WARN/INFO/DEBUG) controls verbosity. Each module subscrib
 - `[STANCE] FLIP`: long-range rifle carrier (kind=w_sniper) flipped Stand to Crouch on LookOut/HoldPosition (logs section, weapon_class, scope_status, silencer_status, rank)
 - `[STANCE] ENGINE_CROUCH`: engine pre-selected crouch on LookOut/HoldPosition (logs section); proves vanilla doctrine independent of our functor
 - `hit-type bypass`, `attack_sound dispatch`, `mutant corpse death_time`, `non-numeric danger_time`: xr_danger improvement and fix events
+- `[CAMPER] init`: module init with enabled/share (predicate-driven, no timer)
+- `[CAMPER] config`: MCM refresh with new enabled/share
+- `[CAMPER] install`: condlist installed for one NPC at net_spawn (DEBUG only)
+- `[CAMPER] transition`: per-NPC decision flipped (DEBUG only). Reason tags: `disabled`, `no_npc`, `no_enemy`, `no_los`, `too_close`, `sniper`, `close_weapon`, `hash_in`, `hash_out`
 - `[SPAWN]`: at_test squad spawn
 - `[DUMP]`: at_test disclosed-squad dump
 

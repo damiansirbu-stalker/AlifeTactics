@@ -20,6 +20,9 @@
   <string id="ui_mcm_menu_danger">
     <text>Danger</text>
   </string>
+  <string id="ui_mcm_menu_camper">
+    <text>Squad Camper</text>
+  </string>
   <string id="ui_mcm_menu_development">
     <text>Development</text>
   </string>
@@ -226,6 +229,25 @@
   </string>
   <string id="ui_mcm_at_danger_fixes_list">
     <text>Mutant corpse death_time safety. Nil-NPC eval guard. Non-numeric danger_time check. Animstate reset on state transitions. Vanilla npc_on_hit_callback unregistered (referenced undefined variable, corrupted script_danger). bd_types name-collision fix (three danger categories were reading wrong config). Dead helpers removed (get_danger_name, get_rand_vertex). Fast pose transitions on danger state change. These prevent crashes or apply trivially in all cases.</text>
+  </string>
+  <!-- ==================== SQUAD CAMPER TAB ==================== -->
+  <string id="ui_mcm_at_camper_desc">
+    <text>Drives the vanilla xr_combat_camper sub-scheme (dormant by default) per stalker. Long-range rifle carriers (kind=w_sniper LTX class: DMRs, battle rifles, bolt-actions) always camp from cover. Other carriers split by the Camper share slider below. Campers fire from cover while line of sight holds; engine handles transitions when LOS is lost. Assignment is stable per NPC for the engagement.</text>
+  </string>
+  <string id="ui_mcm_at_camper_shuffle_enabled">
+    <text>Enable Squad Camper</text>
+  </string>
+  <string id="ui_mcm_at_camper_shuffle_enabled_desc">
+    <text>Master toggle. When off, the predicate returns nil and the engine writes nil to script_combat_type. NPCs run the vanilla combat cycle unmodified (or whatever your other mods' combat_type predicate assigns). Default: on.</text>
+  </string>
+  <string id="ui_mcm_at_camper_hdr_share">
+    <text>Camper Share</text>
+  </string>
+  <string id="ui_mcm_at_camper_shuffle_ratio">
+    <text>Camper share (non-sniper)</text>
+  </string>
+  <string id="ui_mcm_at_camper_shuffle_ratio_desc">
+    <text>Fraction of non-sniper stalkers assigned the camper role. 0.50 = half camp, half run vanilla cycle. Lower values send more NPCs into the maneuver role (aggressive squads); higher values lock more into cover (defensive squads). Decision is stable per NPC (based on object id), so each individual keeps the same role across the fight. Sniper-class carriers always camp regardless of this value. Default: 0.50.</text>
   </string>
   <!-- ==================== DEVELOPMENT TAB ==================== -->
   <string id="ui_mcm_at_development_desc">
