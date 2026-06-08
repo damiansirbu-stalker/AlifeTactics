@@ -201,7 +201,7 @@ local function _on_pick_fail(id)
     return streak
 end
 
-function action_at_combat:_apply_state(plan)
+function action_at_combat:_apply_state(plan, inputs)
     local npc = self.object
     if plan.state ~= self.last_state then
         if _dbg then
@@ -209,7 +209,7 @@ function action_at_combat:_apply_state(plan)
                 npc:id(), tostring(self.last_state), tostring(plan.state))
         end
         state_mgr.set_state(npc, plan.state, nil, nil,
-            { look_object = npc:best_enemy() }, { fast_set = true })
+            { look_object = inputs.enemy }, { fast_set = true })
         self.last_state = plan.state
     end
     if plan.body ~= self.last_body then
@@ -352,7 +352,7 @@ function action_at_combat:execute()
 
     local apply_tmr = xprofiler.new_if(_dbg):start()
     local state_was = self.last_state
-    self:_apply_state(plan)
+    self:_apply_state(plan, inputs)
     apply_tmr:stop()
     local state_changed = (state_was ~= self.last_state)
 
