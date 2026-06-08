@@ -251,6 +251,7 @@ function action_at_combat:_repick(plan, inputs)
     end
     _fail_streak[id] = 0
     if new_lvid == self.target_lvid then
+        self._next_pick = time_global() + math_random(KEEP_POINT_MIN, KEEP_POINT_MAX)
         tmr:stop()
         return tmr:get_ms()
     end
