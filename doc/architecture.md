@@ -21,7 +21,7 @@ Version 1.0.0.
 | `at_health.script` | feature | done |
 | `at_accuracy.script` | feature | done |
 | `at_stance.script` | feature | done |
-| `at_combat.script` | feature | done Phase 1 (Pattern B planner takeover, ADVANCE mode only; t55 phases 2-5 pending) |
+| `at_combat.script` | feature | Pattern B planner takeover; only ADVANCE mode wired in the decide tree so far |
 | `at_advance.script.bak` | feature | superseded by at_combat (preserved as .bak, doesn't auto-load) |
 | `xr_danger.script` | feature | done (full-file override) |
 | `zzz_at_health_patch.script` | feature | done (vanilla xr_eat_medkit re-roll suppressor) |
@@ -226,7 +226,7 @@ Vanilla playtest data validates the gate: 55 FLIP events across {Mosin 46, SKS 5
 
 ## Combat
 
-Pattern B planner takeover per `doc/library/modding/goap-injection.md:427-447`. Single scheme owns vanilla `action_combat_planner` for a configurable share of NPCs and runs an internal mode state machine. Replaces at_advance entirely (which proved Pattern B works in principle but only had one mode). Phase 1 of t55: ADVANCE mode only; phases 2-5 add TAKE_COVER / RETREAT / SNIPE / FIRE_FROM_COVER / CLOSE_ASSAULT / FIRE_HOLD.
+Pattern B planner takeover per `doc/library/modding/goap-injection.md:427-447`. Single scheme owns vanilla `action_combat_planner` for a configurable share of NPCs and runs an internal mode state machine. Replaces at_advance entirely. ADVANCE is the only mode the decide tree currently returns; TAKE_COVER, RETREAT, SNIPE, FIRE_FROM_COVER, CLOSE_ASSAULT, FIRE_HOLD are declared as MODE_PLANS rows but unreached.
 
 ### Product framing: inject not replace
 
@@ -264,24 +264,24 @@ Fast-fail chain, in order:
 
 Returns `(true, "in_range")` on full pass, else `(false, "<reason>")`. All filters dynamic — MCM toggles take effect on next eval. Hash stable per id.
 
-### Action: 5-phase tick
+### Action: 5-step tick
 
 `action_at_combat:execute()` runs per scheduled-update tick (variable 1-50Hz per NPC per engine scheduler, typically 10-20Hz for active combat NPCs near actor):
 
-**Phase 1: gather (`_gather_inputs`)** — one luabind round per tick. Reads `npc:position`, `npc:level_vertex_id`, `npc.health`, `best_enemy`, `enemy:position`, `npc:see(enemy)`, `enemy:see(npc)`, computes `dist`, `dx`, `dz`. Cached for the tick. No re-reads in later phases.
+**gather (`_gather_inputs`)** — one luabind round per tick. Reads `npc:position`, `npc:level_vertex_id`, `npc.health`, `best_enemy`, `enemy:position`, `npc:see(enemy)`, `enemy:see(npc)`, computes `dist`, `dx`, `dz`. Cached for the tick. No re-reads in later steps.
 
-**Phase 2: decide (`_decide_mode`)** — pure function returning a mode constant. Flat priority tree, top-down, first match wins, max 2 nesting. Phase 1 implementation: `if not enemy then NONE; if dist < min_dist then NONE; else ADVANCE`. Phases 2-5 add more branches.
+**decide (`_decide_mode`)** — pure function returning a mode constant. Flat priority tree, top-down, first match wins, max 2 nesting. Current implementation: `if not enemy then NONE; if dist < min_dist then NONE; else ADVANCE`. Other branches not yet wired.
 
-**Phase 3: apply (`_apply_state`)** — `MODE_PLANS[mode]` returns `{state, body, mvt, target_kind}`. Each engine write is gated by change detection:
+**apply (`_apply_state`)** — `MODE_PLANS[mode]` returns `{state, body, mvt, target_kind}`. Each engine write is gated by change detection:
 - `if plan.state ~= self.last_state` then `state_mgr.set_state(npc, plan.state, ..., {fast_set=true})`
 - `if plan.body  ~= self.last_body`  then `npc:set_body_state(move[plan.body])`
 - `if plan.mvt   ~= self.last_mvt`   then `npc:set_movement_type(move[plan.mvt])`
 
 Zero engine writes when stable. Avoids the state_mgr churn that killed SQUAD_CAMPER's vanilla sub-scheme.
 
-**Phase 4: movement (`_repick`)** — only fires if `tg > self._next_pick` OR another NPC stole our cover (`db.used_level_vertex_ids[target_lvid] ~= npc:id()`). Resolves target via `TARGET_RESOLVERS[plan.target_kind]` (Phase 1: `cover_step_fwd` and `hold`). Cover reservation via `_claim_cover` — if another NPC owns the lvid, our pick fails and we push `_next_pick` out 1.5-3.5s to throttle retry. After successful claim: release old lvid, claim new lvid, `set_dest_level_vertex_id(new_lvid)`, `_next_pick = tg + math_random(1500, 3500)`. Same as RCAI's `__keep_point_until` adapted.
+**movement (`_repick`)** — only fires if `tg > self._next_pick` OR another NPC stole our cover (`db.used_level_vertex_ids[target_lvid] ~= npc:id()`). Resolves target via `TARGET_RESOLVERS[plan.target_kind]` (currently `cover_step_fwd` and `hold`). Cover reservation via `_claim_cover` — if another NPC owns the lvid, our pick fails and we push `_next_pick` out 1.5-3.5s to throttle retry. After successful claim: release old lvid, claim new lvid, `set_dest_level_vertex_id(new_lvid)`, `_next_pick = tg + math_random(1500, 3500)`. Same as RCAI's `__keep_point_until` adapted.
 
-**Phase 5: fire** — one `npc:set_sight(look.fire_point, ene_pos + 1.5y)` per tick. Engine fire dispatch runs from `mental_state = danger` + valid sight + LOS + active weapon. No explicit fire call needed.
+**fire** — one `npc:set_sight(look.fire_point, ene_pos + 1.5y)` per tick. Engine fire dispatch runs from `mental_state = danger` + valid sight + LOS + active weapon. No explicit fire call needed.
 
 ### MODE_PLANS table
 
@@ -289,13 +289,13 @@ Data-driven. Each mode maps to a plan. Adding a new behavior = add a constant + 
 
 | Mode | State | Body | Mvt | Target |
 |---|---|---|---|---|
-| RETREAT (phase 3) | panic_in_threat | standing | run | step_away |
-| SNIPE (phase 4) | hide_sniper_fire | crouch | stand | hold |
-| TAKE_COVER (phase 2) | hide_na | crouch | run | cover_nearest |
-| ADVANCE (phase 1) | assault_fire | standing | run | cover_step_fwd |
-| CLOSE_ASSAULT (phase 5) | threat_fire | standing | walk | hold |
-| FIRE_FROM_COVER (phase 4) | threat_fire | standing | stand | hold |
-| FIRE_HOLD (phase 5) | hide_fire | crouch | stand | hold |
+| RETREAT | panic_in_threat | standing | run | step_away |
+| SNIPE | hide_sniper_fire | crouch | stand | hold |
+| TAKE_COVER | hide_na | crouch | run | cover_nearest |
+| ADVANCE | assault_fire | standing | run | cover_step_fwd |
+| CLOSE_ASSAULT | threat_fire | standing | walk | hold |
+| FIRE_FROM_COVER | threat_fire | standing | stand | hold |
+| FIRE_HOLD | hide_fire | crouch | stand | hold |
 
 body/mvt stored as string keys (`"standing"`, `"crouch"`, `"run"`, etc.), resolved at apply time via `move[name]`. Lets MODE_PLANS construct at module load before engine `move` enum is bound.
 
@@ -352,13 +352,7 @@ When evaluator returns false (NPC died, enemy lost, NPC closed within distance f
 | `combat_share` | track 0.0-1.0 step 0.05 | 0.5 | Fraction of eligible NPCs using our combat AI. 0 = pure vanilla. 1 = full takeover. Stable per-id hash |
 | `min_dist` | track 5-15 step 1 | 8 | Close-combat handoff distance. When owned NPC closes within this, eval returns false and vanilla resumes |
 
-Phases 2-5 will add `retreat_hp` and `advance_dist` (per t55 spec).
-
-### Instrumentation
-
-Every event logged when DEBUG on, gated by `if _dbg then`. xprofiler timer per phase using `xprofiler.new_if(_dbg):start()` pattern (fresh timer per call to avoid cumulative ms — the bug initially shipped and fixed). All log lines end with `[%.3fms]` or wrap multi-phase timings in `[gather=... decide=... apply=... pick=... fire=... total=...]` brackets matching `at_hitresponse` style.
-
-DEBUG-off zero cost: xprofiler null singleton means start/stop/get_ms are noops, no luabind crossings. `_dbg` guard prevents string formatting and table lookups for log args.
+Additional knobs (`retreat_hp`, `advance_dist`) pending the other modes.
 
 ---
 
@@ -410,74 +404,6 @@ The architecture principle is to feed engine memory and state, not fight it. Per
 | Danger | NPC danger evaluator/action graft, `script_danger` per-id table for sound-source dispatch | Engine callbacks `npc_on_hear_callback`, `npc_on_death_callback`, GOAP planner graft (evaid/actid 188113) |
 
 The engine then runs its own combat detection (property_enemy, m_combat_mask, agent_memory propagation) on the state we wrote. No system reimplements engine behavior; each one nudges engine state to produce the desired outcome.
-
----
-
-## Logging
-
-Each module owns its own `xlog.get_logger("AT.X", { outfile = "alifetactics.log" })` facade. All write to `alifetactics.log` with distinct prefixes:
-
-- `AT.MCM`: MCM configuration
-- `AT.HIT`: Hit Sharing
-- `AT.HEALTH`: Healing
-- `AT.ACC`: Accuracy
-- `AT.STANCE`: Stance Switch
-- `AT.COMBAT`: Combat
-- `AT.DANGER`: Danger override
-- `AT.TEST`: console test harness
-
-MCM `log_level` (ERROR/WARN/INFO/DEBUG) controls verbosity. Each module subscribes to `on_option_change` and `mcm_option_restore_default` to refresh its level and derived `_dbg` flag.
-
-`xprofiler.new_if(_dbg)` wraps profile-relevant code paths. Null singleton when DEBUG off (zero luabind); real `profile_timer` when on. All `log.debug` calls gated by `if _dbg then` so format strings are never built when off.
-
-### Key debug events
-
-- `[HIT]`: hit handler reject reasons or refreshed-disclosure cases
-- `[DISCLOSURE]`: full-squad disclosure with member count
-- `[INHERIT]`: new squad member inherits disclosed shooters on spawn
-- `[REDISCLOSE]`: previously-offline shooter came back online, replayed disclosure to tracked squads
-- `[DECAY]`: decay tick pruned entries past retention threshold
-- `[UNREGISTER]`: disclosure cleanup on entity despawn
-- `[HEAL]`: `seq_start`, `seq_gesture`, `seq_end`, `seq_abort`, `hp_tick`, `complete`, `bleed_tick`, `bleed_complete`
-- `[CHARGE]`: healing charge rolls per NPC
-- `[LIMP]`: limp gained / lost / anim queued per NPC
-- `[PATCH]`: install messages for xr_eat_medkit patches
-- `[ACC]`: per-shot accuracy calculation
-- `[STANCE] FLIP`: long-range rifle carrier (kind=w_sniper) flipped Stand to Crouch on LookOut/HoldPosition (logs section, weapon_class, scope_status, silencer_status, rank)
-- `[STANCE] ENGINE_CROUCH`: engine pre-selected crouch on LookOut/HoldPosition (logs section); proves vanilla doctrine independent of our functor
-- `Combat module initialized`: actor_on_first_update banner (INFO; logs enabled/share/min_dist/dbg). No event tag because xlog already prefixes with `[AT.COMBAT]`
-- `[COMBAT] config`: MCM refresh fired (DEBUG; logs enabled/share/min_dist)
-- `[COMBAT] install`: per-NPC install at npc_on_net_spawn (DEBUG; logs community + install timing)
-- `[COMBAT] eval`: evaluator decision flipped for this NPC (DEBUG; transition only). Reason tags: `disabled`, `dead`, `wounded`, `community`, `hash_out`, `fail_backoff`, `no_enemy`, `too_close`, `in_range`
-- `[COMBAT] action_init`: action_at_combat:initialize fired (DEBUG; logs init timing)
-- `[COMBAT] action_fin`: action_at_combat:finalize fired (DEBUG; logs last eval_reason + timing)
-- `[COMBAT] mode`: mode transition (DEBUG; logs prev->next + dist). Modes: `none`, `retreat`, `snipe`, `take_cover`, `advance`, `close_assault`, `fire_from_cover`, `fire_hold`
-- `[COMBAT] state`: state_mgr.set_state called (DEBUG; logs prev->next state name)
-- `[COMBAT] body`: set_body_state called (DEBUG; logs prev->next: standing/crouch)
-- `[COMBAT] mvt`: set_movement_type called (DEBUG; logs prev->next: run/walk/stand)
-- `[COMBAT] pick`: cover lvid picked (DEBUG; logs target_kind + lvid + dist + ms)
-- `[COMBAT] pick_fail`: best_cover AND vertex_in_direction both returned nothing (DEBUG; logs streak + ms)
-- `[COMBAT] reserve_fail`: target_lvid already owned by another NPC (DEBUG; logs lvid + owner_id + ms). Sets `_next_pick` window to throttle retry
-- `[COMBAT] tick`: per-tick phase breakdown (DEBUG; fires on mode/state/pick change OR 2s heartbeat). Format: `[gather=Xms decide=Xms apply=Xms pick=Xms fire=Xms total=Xms]`
-- `hit-type bypass`, `attack_sound dispatch`, `mutant corpse death_time`, `non-numeric danger_time`: xr_danger improvement and fix events
-- `[CAMPER] init`: module init with enabled/share (predicate-driven, no timer)
-- `[CAMPER] config`: MCM refresh with new enabled/share
-- `[CAMPER] install`: condlist installed for one NPC at net_spawn (DEBUG only)
-- `[CAMPER] transition`: per-NPC decision flipped (DEBUG only). Reason tags: `disabled`, `no_npc`, `no_enemy`, `no_los`, `too_close`, `sniper`, `close_weapon`, `hash_in`, `hash_out`
-- `[SPAWN]`: at_test squad spawn
-- `[DUMP]`: at_test disclosed-squad dump
-
----
-
-## Test infrastructure
-
-`at_test.script` provides console commands invoked via `run_string at_test.<func>()`:
-
-- `at_spawn()`: spawn `bandit_sim_squad_novice` 50m ahead
-- `at_spawn_veteran()`: `bandit_sim_squad_veteran` 50m ahead
-- `at_spawn_master()`: `bandit_sim_squad_alpha` 50m ahead
-- `at_spawn_far()`: novice 100m ahead
-- `at_dump()`: log all disclosed-squad records (squad_id, shooter count)
 
 ---
 
