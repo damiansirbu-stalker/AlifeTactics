@@ -28,6 +28,9 @@ local defaults = {
     combat_enabled = true,
     combat_share   = 0.5,
     min_dist       = 8,
+    danger_hit_bypass   = true,
+    danger_attack_sound = true,
+    danger_actor_tables = true,
     log_level = "WARN",
 }
 
