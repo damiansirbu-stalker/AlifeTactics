@@ -148,11 +148,11 @@ end
 
 local function _decide_eval(npc, id)
     if not cfg.combat_enabled then return false, "disabled" end
+    if (id % 1000) >= (cfg.combat_share * 1000) then return false, "hash_out" end
     if not npc:alive() then return false, "dead" end
     if IsWounded(npc) then return false, "wounded" end
     local community = character_community(npc)
     if community == "zombied" or community == "monolith" then return false, "community" end
-    if (id % 1000) >= (cfg.combat_share * 1000) then return false, "hash_out" end
     local until_ms = _fail_until[id]
     if until_ms and time_global() < until_ms then return false, "fail_backoff" end
     local be = npc:best_enemy()
