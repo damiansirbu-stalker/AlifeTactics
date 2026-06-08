@@ -1,10 +1,6 @@
 next
-  Summary: danger rework, stealth kills, squad camper, limp/heal fixes
+  Summary: danger rework, stealth kills, limp/heal fixes
 
-  - Added Squad Camper: long-range rifle carriers (DMRs, battle rifles, bolt-actions) now hold cover and fire continuously instead of running the standard combat cycle.
-    A configurable share of other stalkers also holds cover; the rest run the vanilla cycle, peek, reposition.
-    The role each NPC gets is stable for the fight and biased by weapon class so the squad has a coherent mix of pinners and movers.
-    MCM Squad Camper tab: master toggle, camper share (0.1-0.9, default 0.50).
   - Fixed Anomaly's xr_danger with a full-file script override and paired ltx.
     Hits, ricochets, and nearby gunshots each use their own config row (vanilla collapsed all three).
     Crashes near mutant bodies and stale animation across danger transitions are gone.

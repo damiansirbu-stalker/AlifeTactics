@@ -63,26 +63,6 @@ The stance carries into killing, waiting in cover, and ambush operators through 
 The engine calls AT's stance functor on 11 different combat actions. Only 2 of them (look out, hold position) are static-cover firing ops where crouching makes sense. AT overrides those 2, the other 9 pass through unchanged.
 The system also considers equipped weapon. Long-range rifle carriers (DMRs, battle rifles, bolt-actions like SVD, SVT40, Mosin, SKS, M82) crouch in cover; short-range carriers pass through with whatever stance the engine picked.
 
-Squad Camper:
-
-Long-range rifle carriers (DMRs, battle rifles, bolt-actions like SVD, SVT40, Mosin, SKS, M82, SR25, and the rest of the kind=w_sniper LTX class) hold cover and fire continuously while they see you, instead of running the standard combat cycle.
-A configurable share of other stalkers also holds cover; the rest run the vanilla cycle (take cover, peek, hold, detour, kill).
-Pistol, SMG, and shotgun carriers never hold cover regardless of the slider — those weapons are meant to close distance, not plant.
-The result is a mix of pinners holding cover (long-range rifle + share of mid-range carriers) and movers advancing on you (close-range weapon carriers + the rest).
-
-Three gates keep the cover-fire behavior in the situations where it makes sense:
-Below about 25 meters the cover-fire role is disabled and the NPC runs the vanilla cycle. Planting in cover at point-blank range is exploitable by flanking; vanilla's reactive movement handles short range better.
-When a camper loses line of sight to the enemy, the role drops within half a second and the NPC moves to re-acquire instead of rotating in place or freezing in cover.
-When the engine's enemy memory expires (no recent sight, sound, or hit), the camper role drops and the NPC returns to idle.
-
-MCM Squad Camper tab: master toggle and camper share slider (0.1-0.9, default 0.50).
-At default 0.50 about half of non-sniper stalkers hold cover at qualifying ranges, the other half run the vanilla cycle.
-Lower the camper share for aggressive squads (most NPCs advance), raise it for defensive squads (most NPCs plant).
-Sniper-class carriers ignore this slider but still respect the line-of-sight and distance gates.
-
-The system drives the vanilla xr_combat_camper sub-scheme that ships with Anomaly but is dormant by default.
-Compatible with GAMMA AI Rework and AI more cover (Mora). Both install their own per-NPC condlist into the same engine seam; AlifeTactics installs its own predicate per stalker, overriding theirs. When AlifeTactics is disabled in MCM, the predicate returns false and the vanilla planner runs.
-
 Danger:
 
 A full-file override of Anomaly's xr_danger.script with bug fixes always-on and three improvements toggleable in MCM > Danger.
@@ -128,19 +108,9 @@ Forced-movement schemes with stuck-NPC risk: Wuut AI Extension, NPC_Fleeing. Bot
 NPC self-heal overlaps: NPC Limping and Healing (Vodoxleb), Animated NPC Healing, NPC Animation Overhaul Part 1. Parallel heal schemes
 double-heal, full-file animation overrides conflict, combat planners gated on the heal evaluator can freeze NPCs after combat.
 
-G.A.M.M.A. AI Rework: ships its own xr_danger.script and xr_danger.ltx overrides. GAMMA AI Rework cannot be cleanly disabled in current GAMMA
-builds (removal crashes), so the recommended setup is to load AlifeTactics AFTER GAMMA AI Rework in MO2. Our xr_danger files win the overlay,
-GAMMA's other AI rework files (xr_combat_camper, xr_conditions, schemes_ai_gamma, default_custom_data.ltx) continue to run unchanged. Net:
-AlifeTactics's xr_danger fixes + GAMMA's other AI tactics. Tested working with this load order.
-
-Compatible but overlapping with AT Squad Camper:
-
-AI more cover (Mora): installs its own condlist into the vanilla combat_type seam. AT installs its predicate into the same seam on each
-stalker net-spawn and overrides Mora's. Mora's behavior is replaced; uninstall AT to restore.
-
-G.A.M.M.A. AI Rework (the camper side): same seam, same overlap. AT's predicate per stalker replaces theirs. When AT is disabled in MCM,
-the predicate returns false and the vanilla planner runs (GAMMA's condlist is not restored mid-session, but the engine returns to vanilla
-behavior).
+G.A.M.M.A. AI Rework: ships its own xr_danger.script and xr_danger.ltx. Load AlifeTactics after GAMMA AI Rework in MO2 if you want our
+xr_danger fixes; otherwise leave the GAMMA load order and our xr_danger sits unused. The two mods cover overlapping ground in different
+ways and run side-by-side without issues.
 
 ReDone Combat AI: copies Mora, overrides 12 scripts. Much is 1.5.2-gated and skipped on 1.5.3.
 
