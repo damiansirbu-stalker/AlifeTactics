@@ -757,7 +757,7 @@ local function script_action_danger_alert(npc, st, bd, best_danger_object, depen
 			if not actor_wpn then return end
 			local dir_to_npc = vector():set(npc_pos):sub(db.actor:position()):normalize()
 			local actor_dir = db.actor:direction()
-			if actor_dir:dotproduct(dir_to_npc) < 0.7 then return end
+			if actor_dir:dotproduct(dir_to_npc) < 0.85 then return end
 		end
 	end
 

@@ -236,7 +236,7 @@ Full-file override of vanilla `xr_danger.script` (Alundaio). Six vanilla bug fix
 ### Improvements (MCM Danger tab, default on)
 
 - `danger_hit_bypass`: direct hits bypass the combat-ignore distance gate. Sniped NPCs respond regardless of attacker distance.
-- `danger_attack_sound`: script_action_danger_alert dispatch for `attack_sound` danger type. Includes actor-aim gate (dot product > 0.7) so actors walking past with rifle out do not trigger cover-seek. Vanilla had no script handler for this danger type.
+- `danger_attack_sound`: script_action_danger_alert dispatch for `attack_sound` danger type. Includes actor-aim gate (dot product > 0.85) so actors walking past with rifle out do not trigger cover-seek. Vanilla had no script handler for this danger type.
 - `danger_actor_tables`: read separate inertion and ignore tables from `[danger_inertion_actor]` and `[danger_object_actor]` when danger source is the actor. Tune player encounters independently of NPC-vs-NPC.
 
 ### Paired LTX
