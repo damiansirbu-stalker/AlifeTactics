@@ -318,6 +318,9 @@ local function _refresh_log()
 end
 
 local function _on_actor_first_update()
+    _limping = {}
+    _healing_active = {}
+    _heal_seq = {}
     _refresh_log()
     if not _heal_active then return end
     log.info("Health module initialized (heal_mult=%.2f tiers novice=%d%% experienced=%d%% veteran=%d%% master=%d%%)",
