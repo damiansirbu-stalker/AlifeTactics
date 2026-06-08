@@ -17,6 +17,9 @@
   <string id="ui_mcm_menu_stance">
     <text>Stance Switch</text>
   </string>
+  <string id="ui_mcm_menu_combat">
+    <text>Combat</text>
+  </string>
   <string id="ui_mcm_menu_danger">
     <text>Danger</text>
   </string>
@@ -195,6 +198,34 @@
   </string>
   <string id="ui_mcm_at_stance_stance_enabled_desc">
     <text>Master toggle. When off, the engine's chosen body state passes through unchanged. Default: on.</text>
+  </string>
+  <!-- ==================== COMBAT TAB ==================== -->
+  <string id="ui_mcm_at_combat_desc">
+    <text>AlifeTactics injects an alternative combat AI on a configurable share of NPCs. Slider at 0% = pure vanilla / GAMMA / whatever modpack combat you already have. 50% = half the NPCs use ours, half use what they had (side-by-side comparison in the same engagement). 100% = full takeover for every eligible NPC. Per-NPC stable hash decides which side each NPC lands on; same NPC always lands the same side across save / load. Zero vanilla file overrides — we add preconditions on top of whatever vanilla / AI Rework / ReDone Combat AI / GAMMA installed. For NPCs outside our share, their combat AI runs untouched. NPCs with community = zombied or monolith are always excluded (they ship with their own combat sub-schemes).</text>
+  </string>
+  <string id="ui_mcm_at_combat_combat_enabled">
+    <text>Enable Combat AI injection</text>
+  </string>
+  <string id="ui_mcm_at_combat_combat_enabled_desc">
+    <text>Master toggle. When off, no NPC runs our combat planner; vanilla combat AI runs unmodified for everyone. Effective on next eval tick, no restart needed. Default: on.</text>
+  </string>
+  <string id="ui_mcm_at_combat_hdr_share">
+    <text>Participation share</text>
+  </string>
+  <string id="ui_mcm_at_combat_combat_share">
+    <text>Share of NPCs running AlifeTactics combat</text>
+  </string>
+  <string id="ui_mcm_at_combat_combat_share_desc">
+    <text>Fraction of NPCs that use our combat AI instead of vanilla / modpack. 0.0 = none (pure vanilla / GAMMA). 0.5 = half. 1.0 = every eligible NPC. Decided by stable hash on NPC id, so the same NPC always lands the same side. In-squad A / B testing possible: different NPCs in the same squad may land different sides. Default: 0.5.</text>
+  </string>
+  <string id="ui_mcm_at_combat_hdr_dist">
+    <text>Close-combat handoff distance</text>
+  </string>
+  <string id="ui_mcm_at_combat_min_dist">
+    <text>Hand back to vanilla within (meters)</text>
+  </string>
+  <string id="ui_mcm_at_combat_min_dist_desc">
+    <text>When an owned NPC closes within this distance to the enemy, our evaluator returns false and vanilla close-combat behavior resumes. Prevents our action from charging into the enemy when contact is imminent. Default: 8.</text>
   </string>
   <!-- ==================== DANGER TAB ==================== -->
   <string id="ui_mcm_at_danger_desc">

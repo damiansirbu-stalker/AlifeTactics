@@ -25,6 +25,9 @@ local defaults = {
     acc_disp_master        = 0.45,
     acc_disp_legend        = 0.38,
     stance_enabled = true,
+    combat_enabled = true,
+    combat_share   = 0.5,
+    min_dist       = 8,
     log_level = "WARN",
 }
 
@@ -53,6 +56,9 @@ local _key_to_tab = {
     acc_disp_master        = "accuracy",
     acc_disp_legend        = "accuracy",
     stance_enabled = "stance",
+    combat_enabled = "combat",
+    combat_share   = "combat",
+    min_dist       = "combat",
     danger_hit_bypass   = "danger",
     danger_attack_sound = "danger",
     danger_actor_tables = "danger",
@@ -192,6 +198,28 @@ function on_mcm_load()
                         text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
                     { id = "desc", type = "desc", text = "ui_mcm_at_stance_desc" },
                     { id = "stance_enabled", type = "check", val = 1, def = true },
+
+                    { id = "div_version", type = "line" },
+                    { id = "version", type = "desc", text = "ui_mcm_at_title",
+                        ui_hook_functor = { set_version_text }, clr = {255, 212, 201, 168} },
+                },
+            },
+            {
+                id = "combat",
+                sh = true,
+                gr = {
+                    { id = "title", type = "slide", link = "at_mcm_banner",
+                        text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
+                    { id = "desc", type = "desc", text = "ui_mcm_at_combat_desc" },
+                    { id = "combat_enabled", type = "check", val = 1, def = true },
+
+                    { id = "div_share", type = "line" },
+                    { id = "hdr_share", type = "desc", text = "ui_mcm_at_combat_hdr_share", clr = {255, 200, 200, 200} },
+                    { id = "combat_share", type = "track", val = 2, min = 0.0, max = 1.0, step = 0.05, def = 0.5 },
+
+                    { id = "div_dist", type = "line" },
+                    { id = "hdr_dist", type = "desc", text = "ui_mcm_at_combat_hdr_dist", clr = {255, 200, 200, 200} },
+                    { id = "min_dist", type = "track", val = 2, min = 5, max = 15, step = 1, def = 8 },
 
                     { id = "div_version", type = "line" },
                     { id = "version", type = "desc", text = "ui_mcm_at_title",

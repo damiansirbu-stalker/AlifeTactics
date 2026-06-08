@@ -1,6 +1,6 @@
 # AlifeTactics Architecture
 
-Combat AI mod for STALKER Anomaly. Independent user-facing systems: a hit-share force-disclosure, a self-heal data + animation layer, a per-rank weapon accuracy curve, a long-range rifle stance crouch (`kind=w_sniper` LTX class: DMRs, battle rifles, bolt-actions), and a full-file xr_danger override with bug fixes and three toggleable improvements. No shared substrate.
+Combat AI mod for STALKER Anomaly. Independent user-facing systems: a hit-share force-disclosure, a self-heal data + animation layer, a per-rank weapon accuracy curve, a long-range rifle stance crouch (`kind=w_sniper` LTX class: DMRs, battle rifles, bolt-actions), a full-file xr_danger override with bug fixes and three toggleable improvements, and a Pattern B planner takeover that injects an alternative combat AI on a configurable share of NPCs (slider, default 50% — coexists with vanilla / GAMMA / AI Rework / RCAI / Useful Idiots / Mora, zero vanilla file overrides). No shared substrate.
 
 Built on xlibs (xsquad, xttltable, xtime, xprofiler, xlog, xmcm, xslice, xcreature).
 
@@ -21,6 +21,8 @@ Version 1.0.0.
 | `at_health.script` | feature | done |
 | `at_accuracy.script` | feature | done |
 | `at_stance.script` | feature | done |
+| `at_combat.script` | feature | done Phase 1 (Pattern B planner takeover, ADVANCE mode only; t55 phases 2-5 pending) |
+| `at_advance.script.bak` | feature | superseded by at_combat (preserved as .bak, doesn't auto-load) |
 | `xr_danger.script` | feature | done (full-file override) |
 | `zzz_at_health_patch.script` | feature | done (vanilla xr_eat_medkit re-roll suppressor) |
 | `configs/ai_tweaks/mod_xr_eat_medkit_at.ltx` | data | done |
@@ -58,6 +60,7 @@ AlifeTactics/
 │   │   ├── at_health.script                   # Healing system
 │   │   ├── at_accuracy.script                 # Accuracy system
 │   │   ├── at_stance.script                   # Stance Switch system
+│   │   ├── at_combat.script                   # Combat system (Pattern B planner takeover)
 │   │   ├── xr_danger.script                   # full-file override (Danger system)
 │   │   ├── zzz_at_health_patch.script         # vanilla xr_eat_medkit re-roll suppressor
 │   │   └── at_test.script                     # console test commands
@@ -81,6 +84,7 @@ Each system has its own file, its own MCM tab, and one master toggle.
 | Healing | `at_health.script` | Healing | `healing_enabled` |
 | Accuracy | `at_accuracy.script` | Accuracy | `accuracy_enabled` |
 | Stance Switch | `at_stance.script` | Stance Switch | `stance_enabled` |
+| Combat | `at_combat.script` | Combat | `combat_enabled` |
 | Danger | `xr_danger.script` (full-file override) | Danger | bug fixes always-on; three toggleable improvements |
 
 ---
@@ -220,6 +224,144 @@ Vanilla playtest data validates the gate: 55 FLIP events across {Mosin 46, SKS 5
 
 ---
 
+## Combat
+
+Pattern B planner takeover per `doc/library/modding/goap-injection.md:427-447`. Single scheme owns vanilla `action_combat_planner` for a configurable share of NPCs and runs an internal mode state machine. Replaces at_advance entirely (which proved Pattern B works in principle but only had one mode). Phase 1 of t55: ADVANCE mode only; phases 2-5 add TAKE_COVER / RETREAT / SNIPE / FIRE_FROM_COVER / CLOSE_ASSAULT / FIRE_HOLD.
+
+### Product framing: inject not replace
+
+- Single MCM slider `combat_share` (0-100%, default 50%) gates participation per NPC via stable hash `(npc:id() % 1000) < (share * 1000)`. 0% = pure vanilla / GAMMA / whatever modpack combat the user already has. 100% = full takeover.
+- Zero vanilla file overrides beyond xr_danger (separate system). Pattern B preconditions land on top of whatever the user's stack already has.
+- Coexists with vanilla, GAMMA, AI Rework, ReDone Combat AI, Useful Idiots, Mora. Their `xr_combat` / `xr_combat_camper` / condlist `script_combat_type` assignments still run; for NPCs outside our share they drive vanilla behavior. For NPCs in our share, vanilla planner is blocked via precondition; their condlist writes still execute every 500ms via `motivator_binder:update` but have no effect because vanilla planner is not running.
+- Per-NPC hash deterministic across saves. Same NPC always lands the same side. In-squad A/B testing possible.
+
+### Why Pattern B over the sub-scheme route
+
+SQUAD_CAMPER (commit 3fac38f, deferred at d613386) routed through vanilla `xr_combat_camper` via `script_combat_type` condlist. Two races killed it. **Outer**: vanilla `action_combat_planner` only gated by `xr_evaluators_id.script_combat = false`; predicate momentarily flipping nil let vanilla run one tick of `LookOut`/`HoldPosition`, interrupting state_mgr. **Inner**: vanilla `xr_combat_camper` ships two actions (`action_shoot`, `action_look_around`) that toggle on LOS, each calling `state_mgr.set_state` with different args; LOS flips churned state_mgr inside the sub-scheme.
+
+Pattern B blocks vanilla `action_combat_planner` via precondition `world_property(EVAL_ID, false)`, NOT a flippable gate. The planner re-evaluates preconditions when it re-plans; our eval stays stable across the engagement. One action under our control means no internal toggle. State_mgr is touched only on actual mode transitions, never on every tick.
+
+### Install
+
+Install runs at `npc_on_net_spawn` for every stalker. Adds evaluator + action + Pattern B preconditions to that NPC's `motivation_action_manager`. The `_installed[id]` sentinel prevents duplicate registration on net_spawn re-fires; cleared in `server_entity_on_unregister`. Mutants skipped (`IsStalker` filter) — they have no `action_combat_planner`.
+
+Pattern B preconditions block five vanilla actions when our eval returns true: `stalker_ids.action_combat_planner`, `stalker_ids.action_danger_planner`, `xr_danger.actid`, `xr_actions_id.state_mgr + 2`, `xr_actions_id.alife`. Match `axr_stalker_panic.script:521`.
+
+No per-NPC eligibility flag in storage. Eligibility is decided entirely by the evaluator.
+
+### Evaluator (`_decide_eval`)
+
+Fast-fail chain, in order:
+
+1. `cfg.combat_enabled` master toggle
+2. `npc:alive()`
+3. `IsWounded(npc)`
+4. `character_community(npc)` not "zombied", not "monolith" (those ship their own sub-schemes)
+5. Stable per-id hash: `(npc:id() % 1000) < (cfg.combat_share * 1000)` (default 0.5)
+6. Pick-fail backoff window expired (set by `_repick` after 3 consecutive failures, 10s backoff)
+7. `npc:best_enemy()` exists and is alive
+8. Distance to enemy >= `cfg.min_dist` meters (default 8m)
+
+Returns `(true, "in_range")` on full pass, else `(false, "<reason>")`. All filters dynamic — MCM toggles take effect on next eval. Hash stable per id.
+
+### Action: 5-phase tick
+
+`action_at_combat:execute()` runs per scheduled-update tick (variable 1-50Hz per NPC per engine scheduler, typically 10-20Hz for active combat NPCs near actor):
+
+**Phase 1: gather (`_gather_inputs`)** — one luabind round per tick. Reads `npc:position`, `npc:level_vertex_id`, `npc.health`, `best_enemy`, `enemy:position`, `npc:see(enemy)`, `enemy:see(npc)`, computes `dist`, `dx`, `dz`. Cached for the tick. No re-reads in later phases.
+
+**Phase 2: decide (`_decide_mode`)** — pure function returning a mode constant. Flat priority tree, top-down, first match wins, max 2 nesting. Phase 1 implementation: `if not enemy then NONE; if dist < min_dist then NONE; else ADVANCE`. Phases 2-5 add more branches.
+
+**Phase 3: apply (`_apply_state`)** — `MODE_PLANS[mode]` returns `{state, body, mvt, target_kind}`. Each engine write is gated by change detection:
+- `if plan.state ~= self.last_state` then `state_mgr.set_state(npc, plan.state, ..., {fast_set=true})`
+- `if plan.body  ~= self.last_body`  then `npc:set_body_state(move[plan.body])`
+- `if plan.mvt   ~= self.last_mvt`   then `npc:set_movement_type(move[plan.mvt])`
+
+Zero engine writes when stable. Avoids the state_mgr churn that killed SQUAD_CAMPER's vanilla sub-scheme.
+
+**Phase 4: movement (`_repick`)** — only fires if `tg > self._next_pick` OR another NPC stole our cover (`db.used_level_vertex_ids[target_lvid] ~= npc:id()`). Resolves target via `TARGET_RESOLVERS[plan.target_kind]` (Phase 1: `cover_step_fwd` and `hold`). Cover reservation via `_claim_cover` — if another NPC owns the lvid, our pick fails and we push `_next_pick` out 1.5-3.5s to throttle retry. After successful claim: release old lvid, claim new lvid, `set_dest_level_vertex_id(new_lvid)`, `_next_pick = tg + math_random(1500, 3500)`. Same as RCAI's `__keep_point_until` adapted.
+
+**Phase 5: fire** — one `npc:set_sight(look.fire_point, ene_pos + 1.5y)` per tick. Engine fire dispatch runs from `mental_state = danger` + valid sight + LOS + active weapon. No explicit fire call needed.
+
+### MODE_PLANS table
+
+Data-driven. Each mode maps to a plan. Adding a new behavior = add a constant + a row + a decide-tree branch. No new function bodies.
+
+| Mode | State | Body | Mvt | Target |
+|---|---|---|---|---|
+| RETREAT (phase 3) | panic_in_threat | standing | run | step_away |
+| SNIPE (phase 4) | hide_sniper_fire | crouch | stand | hold |
+| TAKE_COVER (phase 2) | hide_na | crouch | run | cover_nearest |
+| ADVANCE (phase 1) | assault_fire | standing | run | cover_step_fwd |
+| CLOSE_ASSAULT (phase 5) | threat_fire | standing | walk | hold |
+| FIRE_FROM_COVER (phase 4) | threat_fire | standing | stand | hold |
+| FIRE_HOLD (phase 5) | hide_fire | crouch | stand | hold |
+
+body/mvt stored as string keys (`"standing"`, `"crouch"`, `"run"`, etc.), resolved at apply time via `move[name]`. Lets MODE_PLANS construct at module load before engine `move` enum is bound.
+
+### Cover selection: the architectural lever
+
+`npc:best_cover(search_pos, enemy_pos, radius, min_dist, max_dist)` is the same engine primitive vanilla `CStalkerActionTakeCover::execute` uses internally (`stalker_combat_actions.cpp:589`, exposed to Lua via `script_game_object3.cpp:66-79`). The function searches the precomputed cover graph (`m_covers` quadtree) for a cover near `search_pos`, scored by how well it hides from `enemy_pos`.
+
+**Critical insight: `search_pos` is OUR architectural lever, not the NPC's position.**
+
+`npc:best_cover` doesn't care where the NPC currently stands. It finds a cover near whatever search center we pass. The NPC then runs to the lvid we picked. So the behavior the NPC exhibits is determined by where WE point the search.
+
+Phase 1 `cover_step_fwd` resolver computes a step point 15m from NPC toward enemy and passes THAT as `search_pos`. Result: cover is found near a position 15m ahead of NPC. NPC advances 15m, takes cover. Each re-pick steps another 15m forward, progressively closing.
+
+If we passed `npc:position()` as `search_pos`, we'd search near the NPC. NPC would find cover near where they already are, take it, stay there. That's camper behavior.
+
+If we passed `enemy:position()` as `search_pos`, we'd search near the enemy. NPC would charge toward enemy's position to take cover at point-blank. That's close-assault.
+
+If we passed `npc:position() + ADVANCE_STEP * -dir_to_enemy`, we'd step backward. That's retreat-with-cover.
+
+So the same engine API drives every mode by varying `search_pos`. The `TARGET_RESOLVERS` table is data-driven for this reason.
+
+**Cover graph quirks** (cover_manager_inline.h:73-81): the evaluator has inertia. Repeated `best_cover` calls with `search_pos` within `3 * radius` of the previously selected cover tend to return the same lvid. This is fine for us — `_next_pick` throttle means consecutive calls happen 1.5-3.5s apart with the NPC having moved, so `search_pos` shifts enough to escape inertia.
+
+We do NOT replicate vanilla's full `cover_evaluator` weighting (which iterates multiple candidates considering exposed angles, line-of-fire to OTHER enemies in the agent_manager, etc.). Simpler heuristic, slightly worse cover quality, deterministic behavior. Acceptable tradeoff.
+
+### Cover reservation (`db.used_level_vertex_ids`)
+
+Shared global table; vanilla TakeCover and RCAI also write to it. Each NPC marks their chosen lvid: `db.used_level_vertex_ids[lvid] = npc:id()`. When picking, `_claim_cover` checks ownership — if another id owns it, claim fails. NPC retries 1.5-3.5s later via `_next_pick`. Prevents multi-NPC convergence on one lvid (the bug that produced the 300894-cluster in at_advance testing).
+
+`_release_cover(lvid, id)` clears the table when we re-pick or finalize. `server_entity_on_unregister` clears on entity despawn.
+
+### Open-terrain fallback
+
+If `best_cover` returns nothing accessible at the step point (terrain dead zone, cover graph sparse), we fall back to `level.vertex_in_direction(npc_lvid, dir, ADVANCE_STEP_M)` for any accessible vertex in that direction. NPC moves in the open instead of standing still. Pattern: `axr_stalker_panic.script:282`.
+
+If both fail 3x consecutively, `_on_pick_fail` sets `_fail_until[id] = tg + 10000`. Evaluator returns false with reason "fail_backoff" until the window expires. Vanilla planner resumes for that NPC.
+
+### Handoff to vanilla
+
+When evaluator returns false (NPC died, enemy lost, NPC closed within distance floor, hp dropped below wounded threshold, share toggled off, fail backoff window active), Pattern B preconditions no longer block vanilla. Vanilla planner resumes from its normal action set. Vanilla properties (`eWorldPropertyInCover`, `eWorldPropertyLookedOut`, etc.) may have stale values from before our takeover but self-correct on first `best_cover_changed` event per `stalker_combat_planner.cpp:60-64`.
+
+### What we don't touch
+
+- `xr_combat.script`, `xr_combat_camper.script`, `xr_combat_monolith.script`, `xr_combat_zombied.script` — vanilla sub-schemes unchanged
+- `xr_combat.set_combat_type` / `motivator_binder:update` 500ms loop — never write `script_combat_type`
+- `xr_cover.script`, `xr_smartcover.script`, `xr_combat_ignore.script`, `visual_memory_manager.script` — vanilla files unchanged (contrast with RCAI which overrides all 6)
+- Smart terrain configs, job XML, LTX — eligibility is runtime per-NPC, not pre-assigned
+
+### MCM
+
+| Key | Type | Default | Effect |
+|---|---|---|---|
+| `combat_enabled` | check | true | Master toggle. Effective on next eval tick, no restart |
+| `combat_share` | track 0.0-1.0 step 0.05 | 0.5 | Fraction of eligible NPCs using our combat AI. 0 = pure vanilla. 1 = full takeover. Stable per-id hash |
+| `min_dist` | track 5-15 step 1 | 8 | Close-combat handoff distance. When owned NPC closes within this, eval returns false and vanilla resumes |
+
+Phases 2-5 will add `retreat_hp` and `advance_dist` (per t55 spec).
+
+### Instrumentation
+
+Every event logged when DEBUG on, gated by `if _dbg then`. xprofiler timer per phase using `xprofiler.new_if(_dbg):start()` pattern (fresh timer per call to avoid cumulative ms — the bug initially shipped and fixed). All log lines end with `[%.3fms]` or wrap multi-phase timings in `[gather=... decide=... apply=... pick=... fire=... total=...]` brackets matching `at_hitresponse` style.
+
+DEBUG-off zero cost: xprofiler null singleton means start/stop/get_ms are noops, no luabind crossings. `_dbg` guard prevents string formatting and table lookups for log args.
+
+---
+
 ## Danger
 
 Full-file override of vanilla `xr_danger.script` (Alundaio). Six vanilla bug fixes always-on. Three toggleable improvements behind MCM. Paired LTX (`configs/ai_tweaks/xr_danger.ltx`) with weather-conditional distances and actor-source variant tables.
@@ -264,6 +406,7 @@ The architecture principle is to feed engine memory and state, not fight it. Per
 | Healing | NPC health field, bleeding field, `healing_charge` se_var | `change_health`, direct `bleeding =` write, `se_save_var` |
 | Accuracy | Per-shot dispersion radius via callback return | (subscribes to `npc_shot_dispersion`) |
 | Stance Switch | NPC body_state via functor return | (functor at `_G.CAI_Stalker__CombatSetBodyState`) |
+| Combat | NPC GOAP action (action_at_combat), Pattern B preconditions on action_combat_planner/action_danger_planner/xr_danger.actid/state_mgr+2/alife, set_dest_level_vertex_id, state_mgr.set_state, set_body_state, set_movement_type, set_sight | GOAP `add_evaluator`/`add_action`/`add_precondition` (evaid/actid 188200), `npc:best_cover`, `level.vertex_in_direction`, `db.used_level_vertex_ids` reservation |
 | Danger | NPC danger evaluator/action graft, `script_danger` per-id table for sound-source dispatch | Engine callbacks `npc_on_hear_callback`, `npc_on_death_callback`, GOAP planner graft (evaid/actid 188113) |
 
 The engine then runs its own combat detection (property_enemy, m_combat_mask, agent_memory propagation) on the state we wrote. No system reimplements engine behavior; each one nudges engine state to produce the desired outcome.
@@ -279,6 +422,7 @@ Each module owns its own `xlog.get_logger("AT.X", { outfile = "alifetactics.log"
 - `AT.HEALTH`: Healing
 - `AT.ACC`: Accuracy
 - `AT.STANCE`: Stance Switch
+- `AT.COMBAT`: Combat
 - `AT.DANGER`: Danger override
 - `AT.TEST`: console test harness
 
@@ -301,6 +445,20 @@ MCM `log_level` (ERROR/WARN/INFO/DEBUG) controls verbosity. Each module subscrib
 - `[ACC]`: per-shot accuracy calculation
 - `[STANCE] FLIP`: long-range rifle carrier (kind=w_sniper) flipped Stand to Crouch on LookOut/HoldPosition (logs section, weapon_class, scope_status, silencer_status, rank)
 - `[STANCE] ENGINE_CROUCH`: engine pre-selected crouch on LookOut/HoldPosition (logs section); proves vanilla doctrine independent of our functor
+- `Combat module initialized`: actor_on_first_update banner (INFO; logs enabled/share/min_dist/dbg). No event tag because xlog already prefixes with `[AT.COMBAT]`
+- `[COMBAT] config`: MCM refresh fired (DEBUG; logs enabled/share/min_dist)
+- `[COMBAT] install`: per-NPC install at npc_on_net_spawn (DEBUG; logs community + install timing)
+- `[COMBAT] eval`: evaluator decision flipped for this NPC (DEBUG; transition only). Reason tags: `disabled`, `dead`, `wounded`, `community`, `hash_out`, `fail_backoff`, `no_enemy`, `too_close`, `in_range`
+- `[COMBAT] action_init`: action_at_combat:initialize fired (DEBUG; logs init timing)
+- `[COMBAT] action_fin`: action_at_combat:finalize fired (DEBUG; logs last eval_reason + timing)
+- `[COMBAT] mode`: mode transition (DEBUG; logs prev->next + dist). Modes: `none`, `retreat`, `snipe`, `take_cover`, `advance`, `close_assault`, `fire_from_cover`, `fire_hold`
+- `[COMBAT] state`: state_mgr.set_state called (DEBUG; logs prev->next state name)
+- `[COMBAT] body`: set_body_state called (DEBUG; logs prev->next: standing/crouch)
+- `[COMBAT] mvt`: set_movement_type called (DEBUG; logs prev->next: run/walk/stand)
+- `[COMBAT] pick`: cover lvid picked (DEBUG; logs target_kind + lvid + dist + ms)
+- `[COMBAT] pick_fail`: best_cover AND vertex_in_direction both returned nothing (DEBUG; logs streak + ms)
+- `[COMBAT] reserve_fail`: target_lvid already owned by another NPC (DEBUG; logs lvid + owner_id + ms). Sets `_next_pick` window to throttle retry
+- `[COMBAT] tick`: per-tick phase breakdown (DEBUG; fires on mode/state/pick change OR 2s heartbeat). Format: `[gather=Xms decide=Xms apply=Xms pick=Xms fire=Xms total=Xms]`
 - `hit-type bypass`, `attack_sound dispatch`, `mutant corpse death_time`, `non-numeric danger_time`: xr_danger improvement and fix events
 - `[CAMPER] init`: module init with enabled/share (predicate-driven, no timer)
 - `[CAMPER] config`: MCM refresh with new enabled/share

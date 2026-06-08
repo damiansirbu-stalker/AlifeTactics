@@ -1,0 +1,479 @@
+--- at_combat: Pattern B planner takeover (goap-injection.md:427-447) with internal mode tree.
+--- Phase 1 of t55: ADVANCE mode only; full 5-phase tick architecture in place.
+
+local RegisterScriptCallback, IsStalker, IsWounded, time_global = RegisterScriptCallback, IsStalker, IsWounded, time_global
+local character_community, tostring, math_sqrt, math_random = character_community, tostring, math.sqrt, math.random
+
+local log = xlog.get_logger("AT.COMBAT", { outfile = "alifetactics.log" })
+local _dbg = false
+local cfg = at_mcm.cfg
+
+local EVAL_ID = 188200
+local ACT_ID  = 188200
+
+local ADVANCE_STEP_M  = 15
+local KEEP_POINT_MIN  = 1500
+local KEEP_POINT_MAX  = 3500
+local FAIL_THRESHOLD  = 3
+local FAIL_BACKOFF_MS = 10000
+
+local _installed    = {}
+local _last_eval    = {}
+local _last_reason  = {}
+local _fail_until   = {}
+local _fail_streak  = {}
+
+-- xprofiler timer cost when _dbg = false: returns null singleton, zero allocation,
+-- :start() / :stop() noops. When _dbg = true, one fresh timer per measurement so
+-- :get_ms() returns elapsed for THIS call, not cumulative (at_health pattern).
+
+local MODE_NONE             = 0
+local MODE_RETREAT          = 1
+local MODE_SNIPE            = 2
+local MODE_TAKE_COVER       = 3
+local MODE_ADVANCE          = 4
+local MODE_CLOSE_ASSAULT    = 5
+local MODE_FIRE_FROM_COVER  = 6
+local MODE_FIRE_HOLD        = 7
+
+local MODE_NAMES = {
+    [MODE_NONE]            = "none",
+    [MODE_RETREAT]         = "retreat",
+    [MODE_SNIPE]           = "snipe",
+    [MODE_TAKE_COVER]      = "take_cover",
+    [MODE_ADVANCE]         = "advance",
+    [MODE_CLOSE_ASSAULT]   = "close_assault",
+    [MODE_FIRE_FROM_COVER] = "fire_from_cover",
+    [MODE_FIRE_HOLD]       = "fire_hold",
+}
+
+-- body / mvt stored as string keys; resolved at apply time via move[name]. Keeps the
+-- table constructible at module load (engine `move` enum may not be bound yet).
+local MODE_PLANS = {
+    [MODE_RETREAT]         = { state = "panic_in_threat",  body = "standing", mvt = "run",   target = "step_away"     },
+    [MODE_SNIPE]           = { state = "hide_sniper_fire", body = "crouch",   mvt = "stand", target = "hold"          },
+    [MODE_TAKE_COVER]      = { state = "hide_na",          body = "crouch",   mvt = "run",   target = "cover_nearest" },
+    [MODE_ADVANCE]         = { state = "assault_fire",     body = "standing", mvt = "run",   target = "cover_step_fwd"},
+    [MODE_CLOSE_ASSAULT]   = { state = "threat_fire",      body = "standing", mvt = "walk",  target = "hold"          },
+    [MODE_FIRE_FROM_COVER] = { state = "threat_fire",      body = "standing", mvt = "stand", target = "hold"          },
+    [MODE_FIRE_HOLD]       = { state = "hide_fire",        body = "crouch",   mvt = "stand", target = "hold"          },
+}
+
+local function _gather_inputs(npc)
+    local inputs = {}
+    inputs.npc_pos  = npc:position()
+    inputs.npc_lvid = npc:level_vertex_id()
+    inputs.hp_frac  = npc.health
+    local enemy = npc:best_enemy()
+    if enemy and enemy:alive() then
+        inputs.enemy   = enemy
+        inputs.ene_pos = enemy:position()
+        inputs.see     = npc:see(enemy)
+        inputs.see_me  = enemy:see(npc)
+        local dx = inputs.ene_pos.x - inputs.npc_pos.x
+        local dz = inputs.ene_pos.z - inputs.npc_pos.z
+        inputs.dx    = dx
+        inputs.dz    = dz
+        inputs.dist  = math_sqrt(dx*dx + dz*dz)
+    end
+    return inputs
+end
+
+local function _decide_mode(inputs)
+    if not inputs.enemy then return MODE_NONE end
+    if inputs.dist < cfg.min_dist then return MODE_NONE end
+    return MODE_ADVANCE
+end
+
+local function _claim_cover(lvid, id)
+    if not lvid or lvid >= 4294967295 then return false end
+    local owner = db.used_level_vertex_ids[lvid]
+    if owner and owner ~= id then return false end
+    db.used_level_vertex_ids[lvid] = id
+    return true
+end
+
+local function _release_cover(lvid, id)
+    if not lvid then return end
+    if db.used_level_vertex_ids[lvid] == id then
+        db.used_level_vertex_ids[lvid] = nil
+    end
+end
+
+local function _reservation_stolen(lvid, id)
+    if not lvid then return false end
+    local owner = db.used_level_vertex_ids[lvid]
+    return owner ~= nil and owner ~= id
+end
+
+-- target_kind = cover_step_fwd: step toward enemy, find cover near step point,
+-- fall back to vertex_in_direction for open terrain.
+local function _resolve_cover_step_fwd(npc, inputs)
+    local step = ADVANCE_STEP_M
+    local target_pos
+    if inputs.dist <= step then
+        target_pos = vector():set(inputs.ene_pos.x, inputs.npc_pos.y, inputs.ene_pos.z)
+    else
+        local k = step / inputs.dist
+        target_pos = vector():set(
+            inputs.npc_pos.x + inputs.dx * k,
+            inputs.npc_pos.y,
+            inputs.npc_pos.z + inputs.dz * k)
+    end
+    local cover = npc:best_cover(target_pos, inputs.ene_pos, 15, 1, 30)
+    local lvid = cover and cover:level_vertex_id()
+    if lvid and lvid < 4294967295 and npc:accessible(lvid) then return lvid end
+    if inputs.dist > 0 then
+        local dir = vector():set(inputs.dx / inputs.dist, 0, inputs.dz / inputs.dist)
+        local fb = level.vertex_in_direction(inputs.npc_lvid, dir, step)
+        if fb and fb < 4294967295 and npc:accessible(fb) and fb ~= inputs.npc_lvid then return fb end
+    end
+    return nil
+end
+
+local function _resolve_hold(_npc, inputs, self)
+    return self.target_lvid or inputs.npc_lvid
+end
+
+local TARGET_RESOLVERS = {
+    cover_step_fwd = _resolve_cover_step_fwd,
+    hold           = _resolve_hold,
+    -- Phase 2+: step_away, cover_nearest, open_step_fwd
+}
+
+class "evaluator_at_combat" ( property_evaluator )
+
+function evaluator_at_combat:__init(name) super (nil, name)
+end
+
+local function _decide_eval(npc, id)
+    if not cfg.combat_enabled then return false, "disabled" end
+    if not npc:alive() then return false, "dead" end
+    if IsWounded(npc) then return false, "wounded" end
+    local community = character_community(npc)
+    if community == "zombied" or community == "monolith" then return false, "community" end
+    if (id % 1000) >= (cfg.combat_share * 1000) then return false, "hash_out" end
+    local until_ms = _fail_until[id]
+    if until_ms and time_global() < until_ms then return false, "fail_backoff" end
+    local be = npc:best_enemy()
+    if not (be and be:alive()) then return false, "no_enemy" end
+    local d2 = npc:position():distance_to_sqr(be:position())
+    if d2 < (cfg.min_dist * cfg.min_dist) then return false, "too_close" end
+    return true, "in_range"
+end
+
+local function _log_eval_transition(id, result, reason, ms)
+    local prev = _last_eval[id]
+    if prev == result then return end
+    _last_eval[id]   = result
+    _last_reason[id] = reason
+    log.debug("[COMBAT] eval npc=%d %s->%s reason=%s [%.3fms]",
+        id,
+        prev == nil and "init" or tostring(prev),
+        tostring(result),
+        reason,
+        ms)
+end
+
+function evaluator_at_combat:evaluate()
+    local tmr = xprofiler.new_if(_dbg):start()
+    local npc = self.object
+    local id = npc:id()
+    local result, reason = _decide_eval(npc, id)
+    tmr:stop()
+    if _dbg then _log_eval_transition(id, result, reason, tmr:get_ms()) end
+    return result
+end
+
+class "action_at_combat" ( action_base )
+
+function action_at_combat:__init(name) super (nil, name)
+end
+
+local function _on_pick_fail(id)
+    local streak = (_fail_streak[id] or 0) + 1
+    if streak >= FAIL_THRESHOLD then
+        _fail_until[id]  = time_global() + FAIL_BACKOFF_MS
+        _fail_streak[id] = 0
+    else
+        _fail_streak[id] = streak
+    end
+    return streak
+end
+
+function action_at_combat:_apply_state(plan)
+    local npc = self.object
+    if plan.state ~= self.last_state then
+        if _dbg then
+            log.debug("[COMBAT] state npc=%d %s->%s",
+                npc:id(), tostring(self.last_state), tostring(plan.state))
+        end
+        state_mgr.set_state(npc, plan.state, nil, nil,
+            { look_object = npc:best_enemy() }, { fast_set = true })
+        self.last_state = plan.state
+    end
+    if plan.body ~= self.last_body then
+        if _dbg then
+            log.debug("[COMBAT] body npc=%d %s->%s",
+                npc:id(), tostring(self.last_body), tostring(plan.body))
+        end
+        npc:set_body_state(move[plan.body])
+        self.last_body = plan.body
+    end
+    if plan.mvt ~= self.last_mvt then
+        if _dbg then
+            log.debug("[COMBAT] mvt npc=%d %s->%s",
+                npc:id(), tostring(self.last_mvt), tostring(plan.mvt))
+        end
+        npc:set_movement_type(move[plan.mvt])
+        self.last_mvt = plan.mvt
+    end
+end
+
+function action_at_combat:_repick(plan, inputs)
+    local tmr = xprofiler.new_if(_dbg):start()
+    local npc = self.object
+    local id = npc:id()
+    local resolver = TARGET_RESOLVERS[plan.target]
+    if not resolver then
+        tmr:stop()
+        return tmr:get_ms()
+    end
+    local new_lvid = resolver(npc, inputs, self)
+    if not new_lvid then
+        local streak = _on_pick_fail(id)
+        tmr:stop()
+        if _dbg then
+            log.debug("[COMBAT] pick_fail npc=%d kind=%s streak=%d [%.3fms]",
+                id, plan.target, streak, tmr:get_ms())
+        end
+        return tmr:get_ms()
+    end
+    _fail_streak[id] = 0
+    if new_lvid == self.target_lvid then
+        tmr:stop()
+        return tmr:get_ms()
+    end
+    if not _claim_cover(new_lvid, id) then
+        -- Throttle next attempt; otherwise reserve_fail logs spam every tick.
+        self._next_pick = time_global() + math_random(KEEP_POINT_MIN, KEEP_POINT_MAX)
+        tmr:stop()
+        if _dbg then
+            log.debug("[COMBAT] reserve_fail npc=%d lvid=%d owner=%s [%.3fms]",
+                id, new_lvid, tostring(db.used_level_vertex_ids[new_lvid]),
+                tmr:get_ms())
+        end
+        return tmr:get_ms()
+    end
+    _release_cover(self.target_lvid, id)
+    self.target_lvid = new_lvid
+    npc:set_dest_level_vertex_id(new_lvid)
+    self._next_pick = time_global() + math_random(KEEP_POINT_MIN, KEEP_POINT_MAX)
+    tmr:stop()
+    if _dbg then
+        log.debug("[COMBAT] pick npc=%d kind=%s lvid=%d dist=%.1fm [%.3fms]",
+            id, plan.target, new_lvid, inputs.dist or 0, tmr:get_ms())
+    end
+    return tmr:get_ms()
+end
+
+function action_at_combat:initialize()
+    local tmr = xprofiler.new_if(_dbg):start()
+    action_base.initialize(self)
+    local npc = self.object
+    npc:set_desired_position()
+    npc:set_desired_direction()
+    npc:set_path_type(game_object.level_path)
+    npc:set_mental_state(anim.danger)
+    self.current_mode  = MODE_NONE
+    self.target_lvid   = nil
+    self._next_pick    = 0
+    self._next_tick_log = 0
+    self.last_state    = nil
+    self.last_body     = nil
+    self.last_mvt      = nil
+    tmr:stop()
+    if _dbg then log.debug("[COMBAT] action_init npc=%d [%.3fms]", npc:id(), tmr:get_ms()) end
+end
+
+function action_at_combat:_log_tick(npc, new_mode, interesting, tg, phase_ms)
+    if not _dbg then return end
+    if not (interesting or tg > (self._next_tick_log or 0)) then return end
+    log.debug("[COMBAT] tick npc=%d mode=%s [gather=%.3fms decide=%.3fms apply=%.3fms pick=%.3fms fire=%.3fms total=%.3fms]",
+        npc:id(),
+        MODE_NAMES[new_mode] or "?",
+        phase_ms.gather,
+        phase_ms.decide,
+        phase_ms.apply,
+        phase_ms.pick,
+        phase_ms.fire,
+        phase_ms.total)
+    self._next_tick_log = tg + 2000
+end
+
+function action_at_combat:_log_mode_change(npc, prev_mode, new_mode, dist)
+    if not _dbg then return end
+    log.debug("[COMBAT] mode npc=%d %s->%s dist=%.1fm",
+        npc:id(),
+        MODE_NAMES[prev_mode] or "init",
+        MODE_NAMES[new_mode] or tostring(new_mode),
+        dist or 0)
+end
+
+function action_at_combat:execute()
+    local exec_tmr = xprofiler.new_if(_dbg):start()
+    action_base.execute(self)
+    local npc = self.object
+
+    local gather_tmr = xprofiler.new_if(_dbg):start()
+    local inputs = _gather_inputs(npc)
+    gather_tmr:stop()
+
+    if not inputs.enemy then
+        exec_tmr:stop()
+        return
+    end
+
+    local decide_tmr = xprofiler.new_if(_dbg):start()
+    local new_mode = _decide_mode(inputs)
+    decide_tmr:stop()
+
+    local mode_changed = (new_mode ~= self.current_mode)
+    if mode_changed then
+        self:_log_mode_change(npc, self.current_mode, new_mode, inputs.dist)
+        self.current_mode = new_mode
+    end
+    local plan = new_mode ~= MODE_NONE and MODE_PLANS[new_mode]
+    if not plan then
+        exec_tmr:stop()
+        return
+    end
+
+    local apply_tmr = xprofiler.new_if(_dbg):start()
+    local state_was = self.last_state
+    self:_apply_state(plan)
+    apply_tmr:stop()
+    local state_changed = (state_was ~= self.last_state)
+
+    local tg = time_global()
+    local target_was = self.target_lvid
+    local pick_ms = 0
+    if tg > self._next_pick or _reservation_stolen(self.target_lvid, npc:id()) then
+        pick_ms = self:_repick(plan, inputs) or 0
+    end
+    local pick_happened = (target_was ~= self.target_lvid)
+
+    local fire_tmr = xprofiler.new_if(_dbg):start()
+    local ene_pos = inputs.ene_pos
+    npc:set_sight(look.fire_point,
+        vector():set(ene_pos.x, ene_pos.y + 1.5, ene_pos.z))
+    fire_tmr:stop()
+
+    exec_tmr:stop()
+    if _dbg then
+        self:_log_tick(npc, new_mode, mode_changed or state_changed or pick_happened, tg, {
+            gather = gather_tmr:get_ms(),
+            decide = decide_tmr:get_ms(),
+            apply  = apply_tmr:get_ms(),
+            pick   = pick_ms,
+            fire   = fire_tmr:get_ms(),
+            total  = exec_tmr:get_ms(),
+        })
+    end
+end
+
+function action_at_combat:finalize()
+    local tmr = xprofiler.new_if(_dbg):start()
+    action_base.finalize(self)
+    local id = self.object:id()
+    _release_cover(self.target_lvid, id)
+    self.target_lvid = nil
+    tmr:stop()
+    if _dbg then
+        log.debug("[COMBAT] action_fin npc=%d eval_reason=%s [%.3fms]",
+            id, _last_reason[id] or "?", tmr:get_ms())
+    end
+end
+
+local function _install(npc)
+    local tmr = xprofiler.new_if(_dbg):start()
+    if not npc then return end
+    if not IsStalker(npc) then return end
+    local id = npc:id()
+    if _installed[id] then return end
+    _installed[id] = true
+
+    local manager = npc:motivation_action_manager()
+    if not manager then return end
+
+    manager:add_evaluator(EVAL_ID, evaluator_at_combat("eva_at_combat"))
+
+    local action = action_at_combat("act_at_combat")
+    action:add_precondition(world_property(stalker_ids.property_alive, true))
+    action:add_precondition(world_property(EVAL_ID, true))
+    action:add_effect(world_property(EVAL_ID, false))
+    manager:add_action(ACT_ID, action)
+
+    local blocked = {
+        stalker_ids.action_combat_planner,
+        stalker_ids.action_danger_planner,
+        xr_danger.actid,
+        xr_actions_id.state_mgr + 2,
+        xr_actions_id.alife,
+    }
+    for i = 1, #blocked do
+        local act = manager:action(blocked[i])
+        if act then act:add_precondition(world_property(EVAL_ID, false)) end
+    end
+
+    tmr:stop()
+    if _dbg then
+        log.debug("[COMBAT] install npc=%d community=%s [%.3fms]",
+            id, character_community(npc) or "?", tmr:get_ms())
+    end
+end
+
+local function _on_net_spawn(npc)
+    _install(npc)
+end
+
+local function _on_entity_unregister(_, id)
+    _installed[id]   = nil
+    _last_eval[id]   = nil
+    _last_reason[id] = nil
+    _fail_until[id]  = nil
+    _fail_streak[id] = nil
+end
+
+local function _refresh_log()
+    log.set_level(at_mcm.get_config("log_level") or "WARN")
+    _dbg = log.get_level() >= 5
+    if _dbg then
+        log.debug("[COMBAT] config enabled=%s share=%.2f min_dist=%dm",
+            cfg.combat_enabled and "true" or "false",
+            cfg.combat_share or 0.5,
+            cfg.min_dist or 8)
+    end
+end
+
+local function _on_first_update()
+    _installed   = {}
+    _last_eval   = {}
+    _last_reason = {}
+    _fail_until  = {}
+    _fail_streak = {}
+    _refresh_log()
+    log.info("Combat module initialized (enabled=%s share=%.2f min_dist=%dm dbg=%s)",
+        cfg.combat_enabled and "true" or "false",
+        cfg.combat_share or 0.5,
+        cfg.min_dist or 8,
+        _dbg and "true" or "false")
+end
+
+function on_game_start()
+    RegisterScriptCallback("npc_on_net_spawn",            _on_net_spawn)
+    RegisterScriptCallback("server_entity_on_unregister", _on_entity_unregister)
+    RegisterScriptCallback("actor_on_first_update",       _on_first_update)
+    RegisterScriptCallback("on_option_change",            _refresh_log)
+    RegisterScriptCallback("mcm_option_restore_default",  _refresh_log)
+end
