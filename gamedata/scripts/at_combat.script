@@ -31,17 +31,15 @@ local _fail_streak  = {}
 
 local MODE_NONE             = 0
 local MODE_RETREAT          = 1
-local MODE_SNIPE            = 2
-local MODE_TAKE_COVER       = 3
-local MODE_ADVANCE          = 4
-local MODE_CLOSE_ASSAULT    = 5
-local MODE_FIRE_FROM_COVER  = 6
-local MODE_FIRE_HOLD        = 7
+local MODE_TAKE_COVER       = 2
+local MODE_ADVANCE          = 3
+local MODE_CLOSE_ASSAULT    = 4
+local MODE_FIRE_FROM_COVER  = 5
+local MODE_FIRE_HOLD        = 6
 
 local MODE_NAMES = {
     [MODE_NONE]            = "none",
     [MODE_RETREAT]         = "retreat",
-    [MODE_SNIPE]           = "snipe",
     [MODE_TAKE_COVER]      = "take_cover",
     [MODE_ADVANCE]         = "advance",
     [MODE_CLOSE_ASSAULT]   = "close_assault",
@@ -59,14 +57,34 @@ local MODE_BYPASSES_HOLD = {
 -- body / mvt stored as string keys; resolved at apply time via move[name]. Keeps the
 -- table constructible at module load (engine `move` enum may not be bound yet).
 local MODE_PLANS = {
-    [MODE_RETREAT]         = { state = "panic",            body = "standing", mvt = "run",   target = "step_away"     },
-    [MODE_SNIPE]           = { state = "hide_sniper_fire", body = "crouch",   mvt = "stand", target = "hold"          },
-    [MODE_TAKE_COVER]      = { state = "hide_na",          body = "crouch",   mvt = "run",   target = "cover_nearest" },
-    [MODE_ADVANCE]         = { state = "assault_fire",     body = "standing", mvt = "run",   target = "cover_step_fwd"},
-    [MODE_CLOSE_ASSAULT]   = { state = "threat_fire",      body = "standing", mvt = "walk",  target = "hold"          },
-    [MODE_FIRE_FROM_COVER] = { state = "threat_fire",      body = "standing", mvt = "stand", target = "hold"          },
-    [MODE_FIRE_HOLD]       = { state = "hide_fire",        body = "crouch",   mvt = "stand", target = "hold"          },
+    [MODE_RETREAT]         = { state = "panic",        body = "standing", mvt = "run",   target = "step_away"     },
+    [MODE_TAKE_COVER]      = { state = "hide_na",      body = "crouch",   mvt = "run",   target = "cover_nearest" },
+    [MODE_ADVANCE]         = { state = "assault_fire", body = "standing", mvt = "run",   target = "cover_step_fwd"},
+    [MODE_CLOSE_ASSAULT]   = { state = "threat_fire",  body = "standing", mvt = "walk",  target = "hold"          },
+    [MODE_FIRE_FROM_COVER] = { state = "threat_fire",  body = "standing", mvt = "stand", target = "hold"          },
+    [MODE_FIRE_HOLD]       = { state = "hide_fire",    body = "crouch",   mvt = "stand", target = "hold"          },
 }
+
+-- For kind=w_sniper carriers, swap to vanilla sniper-fire states in static-fire
+-- modes. The "sniper_fire" weapon mode in state_lib.script:304, 333 triggers the
+-- engine's sniper-aim animation set (head settle, breathing pause, longer hold).
+-- threat_sniper_fire = standing-cover-peek for sniper; hide_sniper_fire =
+-- crouched-fire for sniper. Override sparse-merges over MODE_PLANS at apply time.
+local SNIPER_PLAN_OVERRIDES = {
+    [MODE_FIRE_FROM_COVER] = { state = "threat_sniper_fire", body = "crouch" },
+    [MODE_FIRE_HOLD]       = { state = "hide_sniper_fire" },
+}
+
+local function _resolve_plan(mode, plan, weapon_kind)
+    local ov = weapon_kind == "w_sniper" and SNIPER_PLAN_OVERRIDES[mode]
+    if not ov then return plan end
+    return {
+        state  = ov.state  or plan.state,
+        body   = ov.body   or plan.body,
+        mvt    = ov.mvt    or plan.mvt,
+        target = ov.target or plan.target,
+    }
+end
 
 local function _gather_inputs(npc)
     local inputs = {}
@@ -87,6 +105,11 @@ local function _gather_inputs(npc)
         local dir = vector():set(dx, 0, dz)
         inputs.has_high_cover = level.high_cover_in_direction(inputs.npc_lvid, dir) >= 0.2
     end
+    local wpn = npc:active_item()
+    if wpn then
+        local section = wpn:section()
+        if section then inputs.weapon_kind = ini_sys:r_string_ex(section, "kind") end
+    end
     return inputs
 end
 
@@ -94,7 +117,10 @@ local function _decide_mode(inputs)
     if not inputs.enemy then return MODE_NONE end
     if inputs.dist < cfg.min_dist then return MODE_NONE end
     if inputs.hp_frac < cfg.retreat_hp then return MODE_RETREAT end
+    if inputs.dist > cfg.advance_dist then return MODE_ADVANCE end
     if inputs.see_me and not inputs.has_high_cover then return MODE_TAKE_COVER end
+    if inputs.has_high_cover and inputs.see then return MODE_FIRE_FROM_COVER end
+    if inputs.see then return MODE_FIRE_HOLD end
     return MODE_ADVANCE
 end
 
@@ -414,6 +440,7 @@ function action_at_combat:execute()
         exec_tmr:stop()
         return
     end
+    plan = _resolve_plan(new_mode, plan, inputs.weapon_kind)
 
     local apply_tmr = xprofiler.new_if(_dbg):start()
     local state_was = self.last_state

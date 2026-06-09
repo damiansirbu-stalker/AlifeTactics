@@ -200,7 +200,7 @@
     <text>Behaviors (what the combat AI does)</text>
   </string>
   <string id="ui_mcm_at_combat_behaviors_list">
-    <text>Advance: closes distance through cover, picking the next cover lvid 15m toward the enemy and running there standing. Take cover: when the enemy can see the NPC and the NPC's position has no high cover from the enemy, runs crouched to nearby cover that hides from the enemy. Retreat: when HP drops below the retreat threshold, runs away from the enemy toward backward cover; HP emergency interrupts the 1.5-3.5s mode commit. The NPC commits to a chosen behavior for 1.5-3.5s before the next switch (prevents posture stutter at cover boundaries). When the NPC closes within the handoff distance below, the AI hands the close fight to vanilla. Pending behaviors declared in code but not yet active: sniper hold at long range, stand-and-fire from cover, crouched fire-hold from cover.</text>
+    <text>Advance: at long range or no line of sight, runs through cover toward the enemy 15m at a time. Take cover: when the enemy can see the NPC and the NPC's position has no high cover from the enemy, runs crouched to nearby cover that hides from the enemy. Fire from cover: at mid-range with high cover and line of sight, stands and fires over the cover. Fire hold: with line of sight but no high cover gain, crouches and fires from current position. Retreat: when HP drops below the retreat threshold, runs away from the enemy toward backward cover; HP emergency interrupts the 1.5-3.5s mode commit. Snipers (LTX kind=w_sniper: SVD, SVU, SR25, Mosin, K98, SVT40, SKS, M82, M24, SV98, ~19 vanilla + GAMMA additions) get sniper-aim states in fire-from-cover and fire-hold (different head/breathing animation). The NPC commits to a chosen behavior for 1.5-3.5s before the next switch (prevents posture stutter at cover boundaries). When the NPC closes within the handoff distance, the AI hands the close fight to vanilla. Pending: close-assault dash at very short range.</text>
   </string>
   <string id="ui_mcm_at_combat_hdr_share">
     <text>Participation share</text>
@@ -219,6 +219,15 @@
   </string>
   <string id="ui_mcm_at_combat_min_dist_desc">
     <text>When an owned NPC closes within this distance to the enemy, our evaluator returns false and vanilla close-combat behavior resumes. Prevents our action from charging into the enemy when contact is imminent. Default: 8.</text>
+  </string>
+  <string id="ui_mcm_at_combat_hdr_advance_dist">
+    <text>Advance threshold</text>
+  </string>
+  <string id="ui_mcm_at_combat_advance_dist">
+    <text>Advance when distance exceeds (meters)</text>
+  </string>
+  <string id="ui_mcm_at_combat_advance_dist_desc">
+    <text>Beyond this distance, the NPC always advances (closes the gap) regardless of cover or line of sight. Under this distance, the decide tree picks fire-from-cover, fire-hold, or take-cover based on the situation. Lower = NPCs go static-fire sooner; higher = NPCs push closer before committing to a firing position. Default: 40.</text>
   </string>
   <string id="ui_mcm_at_combat_hdr_retreat_hp">
     <text>Retreat</text>
