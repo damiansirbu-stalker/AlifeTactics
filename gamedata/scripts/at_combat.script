@@ -586,7 +586,9 @@ function action_at_combat:execute()
 
     local behavior_changed = (new_behavior ~= self.current_behavior)
     if behavior_changed then
-        local held_ms = tg - self._behavior_entered_at
+        -- held_ms = 0 on the first entry (no previous behavior to measure).
+        -- Otherwise = time since the previous behavior was entered.
+        local held_ms = self.current_behavior and (tg - self._behavior_entered_at) or 0
         self:_log_behavior_change(npc, self.current_behavior, new_behavior, ctx.dist, held_ms)
         self.current_behavior = new_behavior
         self._behavior_hold_until = tg + math_random(BEHAVIOR_HOLD_MIN, BEHAVIOR_HOLD_MAX)

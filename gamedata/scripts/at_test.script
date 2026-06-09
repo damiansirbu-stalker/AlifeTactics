@@ -140,7 +140,7 @@ end
 
 --- @export console
 function at_spawn_mil()
-    _spawn("military_sim_squad_novice", 60, 0)
+    _spawn("army_sim_squad_novice", 60, 0)
 end
 
 --- @export console
@@ -210,7 +210,7 @@ end
 function at_spawn_mixed()
     _spawn_set("mixed", {
         { "bandit_sim_squad_novice",    60,    0 },
-        { "military_sim_squad_novice",  70,   60 },
+        { "army_sim_squad_novice",      70,   60 },
         { "monolith_sim_squad_novice",  80, -120 },
     })
 end
