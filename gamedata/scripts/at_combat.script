@@ -19,6 +19,16 @@ local MODE_HOLD_MAX   = 3500
 local FAIL_THRESHOLD  = 3
 local FAIL_BACKOFF_MS = 10000
 
+-- Squad spread: per-NPC lateral offset bucket. Stable hash on npc:id() picks
+-- one of N buckets centered on 0; buckets are {-(N-1)/2..(N-1)/2} * step.
+-- Same NPC always lands in the same bucket across save/load so squad members
+-- deterministically fan out across the engagement line. Without spread,
+-- multiple members run best_cover() with near-identical search_pos values
+-- and converge on the same cover edge (cover reservation prevents exact
+-- lvid duplication but adjacent lvids on the same cover object still pile up).
+local SQUAD_LATERAL_BUCKETS = 5
+local SQUAD_LATERAL_STEP_M  = 4
+
 local _installed    = {}
 local _last_eval    = {}
 local _last_reason  = {}
@@ -110,7 +120,18 @@ local function _gather_inputs(npc)
         local section = wpn:section()
         if section then inputs.weapon_kind = ini_sys:r_string_ex(section, "kind") end
     end
+    inputs.bucket = npc:id() % SQUAD_LATERAL_BUCKETS
     return inputs
+end
+
+-- Perpendicular-to-forward offset for squad spread. Rotates (dx, dz) by 90
+-- degrees -> (-dz, dx), scales by bucket signed distance. Returns 0,0 when
+-- dist is missing or zero (degenerate same-position case). Cost: 3 mul, 2
+-- div, 2 sub, no luabind.
+local function _lateral_offset(bucket, dx, dz, dist)
+    if not bucket or not dist or dist <= 0 then return 0, 0 end
+    local lateral_m = (bucket - (SQUAD_LATERAL_BUCKETS - 1) * 0.5) * SQUAD_LATERAL_STEP_M
+    return -dz / dist * lateral_m, dx / dist * lateral_m
 end
 
 local function _decide_mode(inputs)
@@ -146,7 +167,8 @@ local function _reservation_stolen(lvid, id)
 end
 
 -- target_kind = cover_step_fwd: step toward enemy, find cover near step point,
--- fall back to vertex_in_direction for open terrain.
+-- fall back to vertex_in_direction for open terrain. Lateral squad-spread
+-- offset applied to the search center so adjacent squad members fan out.
 local function _resolve_cover_step_fwd(npc, inputs)
     local step = ADVANCE_STEP_M
     local target_pos
@@ -159,6 +181,9 @@ local function _resolve_cover_step_fwd(npc, inputs)
             inputs.npc_pos.y,
             inputs.npc_pos.z + inputs.dz * k)
     end
+    local off_x, off_z = _lateral_offset(inputs.bucket, inputs.dx, inputs.dz, inputs.dist)
+    target_pos.x = target_pos.x + off_x
+    target_pos.z = target_pos.z + off_z
     local cover = npc:best_cover(target_pos, inputs.ene_pos, 15, 1, 30)
     local lvid = cover and cover:level_vertex_id()
     if lvid and lvid < 4294967295 and npc:accessible(lvid) then return lvid end
@@ -176,7 +201,7 @@ end
 
 -- target_kind = step_away: step backward from enemy, find cover near step point,
 -- fall back to vertex_in_direction for open terrain. Mirrors cover_step_fwd with
--- the direction-to-enemy vector negated.
+-- the direction-to-enemy vector negated. Same lateral spread offset.
 local function _resolve_step_away(npc, inputs)
     if inputs.dist <= 0 then return nil end
     local step = STEP_AWAY_M
@@ -185,6 +210,9 @@ local function _resolve_step_away(npc, inputs)
         inputs.npc_pos.x - inputs.dx * k,
         inputs.npc_pos.y,
         inputs.npc_pos.z - inputs.dz * k)
+    local off_x, off_z = _lateral_offset(inputs.bucket, inputs.dx, inputs.dz, inputs.dist)
+    target_pos.x = target_pos.x + off_x
+    target_pos.z = target_pos.z + off_z
     local cover = npc:best_cover(target_pos, inputs.ene_pos, 15, 1, 30)
     local lvid = cover and cover:level_vertex_id()
     if lvid and lvid < 4294967295 and npc:accessible(lvid) then return lvid end
@@ -200,10 +228,15 @@ end
 -- compute_enemy_distances. Returns nil on both tiers failing -> _on_pick_fail
 -- accumulates strike -> vanilla planner resumes via _fail_until backoff.
 local function _resolve_cover_nearest(npc, inputs)
-    local cover = npc:best_cover(inputs.npc_pos, inputs.ene_pos, 10, 1, 20)
+    local off_x, off_z = _lateral_offset(inputs.bucket, inputs.dx, inputs.dz, inputs.dist)
+    local search_pos = vector():set(
+        inputs.npc_pos.x + off_x,
+        inputs.npc_pos.y,
+        inputs.npc_pos.z + off_z)
+    local cover = npc:best_cover(search_pos, inputs.ene_pos, 10, 1, 20)
     local lvid = cover and cover:level_vertex_id()
     if lvid and lvid < 4294967295 and npc:accessible(lvid) then return lvid end
-    cover = npc:best_cover(inputs.npc_pos, inputs.ene_pos, 30, 1, 20)
+    cover = npc:best_cover(search_pos, inputs.ene_pos, 30, 1, 20)
     lvid = cover and cover:level_vertex_id()
     if lvid and lvid < 4294967295 and npc:accessible(lvid) then return lvid end
     return nil
@@ -319,8 +352,8 @@ function action_at_combat:_repick(plan, inputs)
         local streak = _on_pick_fail(id)
         tmr:stop()
         if _dbg then
-            log.debug("[COMBAT] pick_fail npc=%d kind=%s streak=%d [%.3fms]",
-                id, plan.target, streak, tmr:get_ms())
+            log.debug("[COMBAT] pick_fail npc=%d kind=%s bucket=%d streak=%d [%.3fms]",
+                id, plan.target, inputs.bucket or -1, streak, tmr:get_ms())
         end
         return tmr:get_ms()
     end
@@ -335,9 +368,9 @@ function action_at_combat:_repick(plan, inputs)
         self._next_pick = time_global() + math_random(KEEP_POINT_MIN, KEEP_POINT_MAX)
         tmr:stop()
         if _dbg then
-            log.debug("[COMBAT] reserve_fail npc=%d lvid=%d owner=%s [%.3fms]",
-                id, new_lvid, tostring(db.used_level_vertex_ids[new_lvid]),
-                tmr:get_ms())
+            log.debug("[COMBAT] reserve_fail npc=%d lvid=%d bucket=%d owner=%s [%.3fms]",
+                id, new_lvid, inputs.bucket or -1,
+                tostring(db.used_level_vertex_ids[new_lvid]), tmr:get_ms())
         end
         return tmr:get_ms()
     end
@@ -347,8 +380,8 @@ function action_at_combat:_repick(plan, inputs)
     self._next_pick = time_global() + math_random(KEEP_POINT_MIN, KEEP_POINT_MAX)
     tmr:stop()
     if _dbg then
-        log.debug("[COMBAT] pick npc=%d kind=%s lvid=%d dist=%.1fm [%.3fms]",
-            id, plan.target, new_lvid, inputs.dist or 0, tmr:get_ms())
+        log.debug("[COMBAT] pick npc=%d kind=%s lvid=%d dist=%.1fm bucket=%d [%.3fms]",
+            id, plan.target, new_lvid, inputs.dist or 0, inputs.bucket or -1, tmr:get_ms())
     end
     return tmr:get_ms()
 end

@@ -247,7 +247,17 @@ Returns `(true, "in_range")` on full pass, else `(false, "<reason>")`. All filte
 
 Zero engine writes when stable. Avoids the state_mgr churn that killed SQUAD_CAMPER's vanilla sub-scheme.
 
-**movement (`_repick`)** — only fires if `tg > self._next_pick` OR another NPC stole our cover (`db.used_level_vertex_ids[target_lvid] ~= npc:id()`). Resolves target via `TARGET_RESOLVERS[plan.target_kind]` (currently `cover_step_fwd`, `cover_nearest`, `step_away`, and `hold`). Cover reservation via `_claim_cover` — if another NPC owns the lvid, our pick fails and we push `_next_pick` out 1.5-3.5s to throttle retry. After successful claim: release old lvid, claim new lvid, `set_dest_level_vertex_id(new_lvid)`, `_next_pick = tg + math_random(1500, 3500)`. Same as RCAI's `__keep_point_until` adapted. `cover_nearest` runs a two-tier `npc:best_cover(npc_pos, ene_pos, 10|30, 1, 20)` matching vanilla `find_best_cover` (ai_stalker_cover.cpp:141, 150) — radius 10m then 30m, non-sniper enemy-distance defaults. `step_away` mirrors `cover_step_fwd` with the direction-to-enemy vector negated: steps 15m backward, looks for cover near that point, falls back to `vertex_in_direction(-dir, 15)` for open terrain.
+**movement (`_repick`)** — only fires if `tg > self._next_pick` OR another NPC stole our cover (`db.used_level_vertex_ids[target_lvid] ~= npc:id()`). Resolves target via `TARGET_RESOLVERS[plan.target_kind]` (currently `cover_step_fwd`, `cover_nearest`, `step_away`, and `hold`). Cover reservation via `_claim_cover` — if another NPC owns the lvid, our pick fails and we push `_next_pick` out 1.5-3.5s to throttle retry. After successful claim: release old lvid, claim new lvid, `set_dest_level_vertex_id(new_lvid)`, `_next_pick = tg + math_random(1500, 3500)`. Same as RCAI's `__keep_point_until` adapted. `cover_nearest` runs a two-tier `npc:best_cover(search_pos, ene_pos, 10|30, 1, 20)` matching vanilla `find_best_cover` (ai_stalker_cover.cpp:141, 150) — radius 10m then 30m, non-sniper enemy-distance defaults. `step_away` mirrors `cover_step_fwd` with the direction-to-enemy vector negated: steps 15m backward, looks for cover near that point, falls back to `vertex_in_direction(-dir, 15)` for open terrain.
+
+### Squad spread (lateral hash buckets)
+
+Per-NPC lateral offset perpendicular to the npc->enemy vector spreads squad members across the engagement line. `inputs.bucket = npc:id() % SQUAD_LATERAL_BUCKETS` (5 buckets) is computed once in gather. `_lateral_offset(bucket, dx, dz, dist)` returns `(off_x, off_z)` rotated 90° from `(dx, dz)` and scaled by `(bucket - 2) * SQUAD_LATERAL_STEP_M` (4m), producing offsets in `{-8, -4, 0, +4, +8}` meters.
+
+Applied to the `search_pos` passed to `npc:best_cover` in `cover_step_fwd`, `cover_nearest`, `step_away`. `hold` doesn't apply since it returns the existing target_lvid without a best_cover call.
+
+The offset is stable per id, so the same NPC always lands in the same bucket across save/load. In-squad members fan out deterministically; without the spread, members starting within a few meters of each other run best_cover with near-identical search centers, the engine picks the same cover for the first, reservation forces subsequent members to adjacent lvids on the same cover object, and the squad piles up on one cover edge.
+
+At `dist <= 0` the offset is zero (degenerate same-position case). Cost: 3 mul + 2 div + 2 sub per resolver call, no luabind.
 
 **fire** — one `npc:set_sight(look.fire_point, ene_pos + 1.5y)` per tick. Engine fire dispatch runs from `mental_state = danger` + valid sight + LOS + active weapon. No explicit fire call needed.
 
