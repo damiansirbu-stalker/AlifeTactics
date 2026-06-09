@@ -14,6 +14,8 @@ local ACT_ID  = 188200
 local ADVANCE_STEP_M  = 15
 local KEEP_POINT_MIN  = 1500
 local KEEP_POINT_MAX  = 3500
+local MODE_HOLD_MIN   = 1500
+local MODE_HOLD_MAX   = 3500
 local FAIL_THRESHOLD  = 3
 local FAIL_BACKOFF_MS = 10000
 
@@ -75,6 +77,8 @@ local function _gather_inputs(npc)
         inputs.dx    = dx
         inputs.dz    = dz
         inputs.dist  = math_sqrt(dx*dx + dz*dz)
+        local dir = vector():set(dx, 0, dz)
+        inputs.has_high_cover = level.high_cover_in_direction(inputs.npc_lvid, dir) >= 0.2
     end
     return inputs
 end
@@ -82,6 +86,7 @@ end
 local function _decide_mode(inputs)
     if not inputs.enemy then return MODE_NONE end
     if inputs.dist < cfg.min_dist then return MODE_NONE end
+    if inputs.see_me and not inputs.has_high_cover then return MODE_TAKE_COVER end
     return MODE_ADVANCE
 end
 
@@ -135,10 +140,25 @@ local function _resolve_hold(_npc, inputs, self)
     return self.target_lvid or inputs.npc_lvid
 end
 
+-- target_kind = cover_nearest: cover near NPC that hides from enemy. Two-tier
+-- radius (10 then 30) mirrors vanilla find_best_cover (ai_stalker_cover.cpp:141,
+-- 150). min/max enemy distance (1, 20) are vanilla non-sniper defaults from
+-- compute_enemy_distances. Returns nil on both tiers failing -> _on_pick_fail
+-- accumulates strike -> vanilla planner resumes via _fail_until backoff.
+local function _resolve_cover_nearest(npc, inputs)
+    local cover = npc:best_cover(inputs.npc_pos, inputs.ene_pos, 10, 1, 20)
+    local lvid = cover and cover:level_vertex_id()
+    if lvid and lvid < 4294967295 and npc:accessible(lvid) then return lvid end
+    cover = npc:best_cover(inputs.npc_pos, inputs.ene_pos, 30, 1, 20)
+    lvid = cover and cover:level_vertex_id()
+    if lvid and lvid < 4294967295 and npc:accessible(lvid) then return lvid end
+    return nil
+end
+
 local TARGET_RESOLVERS = {
     cover_step_fwd = _resolve_cover_step_fwd,
+    cover_nearest  = _resolve_cover_nearest,
     hold           = _resolve_hold,
-    -- Phase 2+: step_away, cover_nearest, open_step_fwd
 }
 
 class "evaluator_at_combat" ( property_evaluator )
@@ -289,6 +309,7 @@ function action_at_combat:initialize()
     self.current_mode  = MODE_NONE
     self.target_lvid   = nil
     self._next_pick    = 0
+    self._mode_hold_until = 0
     self._next_tick_log = 0
     self.last_state    = nil
     self.last_body     = nil
@@ -339,10 +360,24 @@ function action_at_combat:execute()
     local new_mode = _decide_mode(inputs)
     decide_tmr:stop()
 
+    local tg = time_global()
+    -- Mode hold: after a mode change, commit for 1.5-3.5s before the decide tree
+    -- can flip again. Sub-second oscillation observed in playtest as the NPC moved
+    -- across adjacent vertices whose high_cover_in_direction value straddled 0.20
+    -- (advance->take_cover->advance within the same second). MODE_NONE bypasses the
+    -- gate so terminate paths (no enemy / too close) run unchanged.
+    if new_mode ~= MODE_NONE
+       and self.current_mode ~= MODE_NONE
+       and tg < self._mode_hold_until
+    then
+        new_mode = self.current_mode
+    end
+
     local mode_changed = (new_mode ~= self.current_mode)
     if mode_changed then
         self:_log_mode_change(npc, self.current_mode, new_mode, inputs.dist)
         self.current_mode = new_mode
+        self._mode_hold_until = tg + math_random(MODE_HOLD_MIN, MODE_HOLD_MAX)
     end
     local plan = new_mode ~= MODE_NONE and MODE_PLANS[new_mode]
     if not plan then
@@ -355,8 +390,6 @@ function action_at_combat:execute()
     self:_apply_state(plan, inputs)
     apply_tmr:stop()
     local state_changed = (state_was ~= self.last_state)
-
-    local tg = time_global()
     local target_was = self.target_lvid
     local pick_ms = 0
     if tg > self._next_pick or _reservation_stolen(self.target_lvid, npc:id()) then
