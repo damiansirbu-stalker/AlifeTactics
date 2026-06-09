@@ -1,5 +1,4 @@
 --- at_combat: Pattern B planner takeover (goap-injection.md:427-447) with internal mode tree.
---- Phase 1 of t55: ADVANCE mode only; full 5-phase tick architecture in place.
 
 local RegisterScriptCallback, IsStalker, IsWounded, time_global = RegisterScriptCallback, IsStalker, IsWounded, time_global
 local character_community, tostring, math_sqrt, math_random = character_community, tostring, math.sqrt, math.random
@@ -12,6 +11,7 @@ local EVAL_ID = 188200
 local ACT_ID  = 188200
 
 local ADVANCE_STEP_M  = 15
+local STEP_AWAY_M     = 15
 local KEEP_POINT_MIN  = 1500
 local KEEP_POINT_MAX  = 3500
 local MODE_HOLD_MIN   = 1500
@@ -49,10 +49,17 @@ local MODE_NAMES = {
     [MODE_FIRE_HOLD]       = "fire_hold",
 }
 
+-- Modes that bypass the mode_hold commit gate. NONE = terminate paths run
+-- unchanged. RETREAT = HP emergency must interrupt any in-flight commitment.
+local MODE_BYPASSES_HOLD = {
+    [MODE_NONE]    = true,
+    [MODE_RETREAT] = true,
+}
+
 -- body / mvt stored as string keys; resolved at apply time via move[name]. Keeps the
 -- table constructible at module load (engine `move` enum may not be bound yet).
 local MODE_PLANS = {
-    [MODE_RETREAT]         = { state = "panic_in_threat",  body = "standing", mvt = "run",   target = "step_away"     },
+    [MODE_RETREAT]         = { state = "panic",            body = "standing", mvt = "run",   target = "step_away"     },
     [MODE_SNIPE]           = { state = "hide_sniper_fire", body = "crouch",   mvt = "stand", target = "hold"          },
     [MODE_TAKE_COVER]      = { state = "hide_na",          body = "crouch",   mvt = "run",   target = "cover_nearest" },
     [MODE_ADVANCE]         = { state = "assault_fire",     body = "standing", mvt = "run",   target = "cover_step_fwd"},
@@ -86,6 +93,7 @@ end
 local function _decide_mode(inputs)
     if not inputs.enemy then return MODE_NONE end
     if inputs.dist < cfg.min_dist then return MODE_NONE end
+    if inputs.hp_frac < cfg.retreat_hp then return MODE_RETREAT end
     if inputs.see_me and not inputs.has_high_cover then return MODE_TAKE_COVER end
     return MODE_ADVANCE
 end
@@ -140,6 +148,26 @@ local function _resolve_hold(_npc, inputs, self)
     return self.target_lvid or inputs.npc_lvid
 end
 
+-- target_kind = step_away: step backward from enemy, find cover near step point,
+-- fall back to vertex_in_direction for open terrain. Mirrors cover_step_fwd with
+-- the direction-to-enemy vector negated.
+local function _resolve_step_away(npc, inputs)
+    if inputs.dist <= 0 then return nil end
+    local step = STEP_AWAY_M
+    local k = step / inputs.dist
+    local target_pos = vector():set(
+        inputs.npc_pos.x - inputs.dx * k,
+        inputs.npc_pos.y,
+        inputs.npc_pos.z - inputs.dz * k)
+    local cover = npc:best_cover(target_pos, inputs.ene_pos, 15, 1, 30)
+    local lvid = cover and cover:level_vertex_id()
+    if lvid and lvid < 4294967295 and npc:accessible(lvid) then return lvid end
+    local dir = vector():set(-inputs.dx / inputs.dist, 0, -inputs.dz / inputs.dist)
+    local fb = level.vertex_in_direction(inputs.npc_lvid, dir, step)
+    if fb and fb < 4294967295 and npc:accessible(fb) and fb ~= inputs.npc_lvid then return fb end
+    return nil
+end
+
 -- target_kind = cover_nearest: cover near NPC that hides from enemy. Two-tier
 -- radius (10 then 30) mirrors vanilla find_best_cover (ai_stalker_cover.cpp:141,
 -- 150). min/max enemy distance (1, 20) are vanilla non-sniper defaults from
@@ -158,6 +186,7 @@ end
 local TARGET_RESOLVERS = {
     cover_step_fwd = _resolve_cover_step_fwd,
     cover_nearest  = _resolve_cover_nearest,
+    step_away      = _resolve_step_away,
     hold           = _resolve_hold,
 }
 
@@ -364,9 +393,10 @@ function action_at_combat:execute()
     -- Mode hold: after a mode change, commit for 1.5-3.5s before the decide tree
     -- can flip again. Sub-second oscillation observed in playtest as the NPC moved
     -- across adjacent vertices whose high_cover_in_direction value straddled 0.20
-    -- (advance->take_cover->advance within the same second). MODE_NONE bypasses the
-    -- gate so terminate paths (no enemy / too close) run unchanged.
-    if new_mode ~= MODE_NONE
+    -- (advance->take_cover->advance within the same second). MODE_BYPASSES_HOLD
+    -- modes (NONE, RETREAT) skip the gate so terminate paths and HP emergency
+    -- interrupt any in-flight commitment.
+    if not MODE_BYPASSES_HOLD[new_mode]
        and self.current_mode ~= MODE_NONE
        and tg < self._mode_hold_until
     then

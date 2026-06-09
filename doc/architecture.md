@@ -21,7 +21,7 @@ Version 1.0.0.
 | `at_health.script` | feature | done |
 | `at_accuracy.script` | feature | done |
 | `at_stance.script` | feature | done |
-| `at_combat.script` | feature | Pattern B planner takeover; ADVANCE and TAKE_COVER wired; RETREAT / SNIPE / CLOSE_ASSAULT / FIRE_FROM_COVER / FIRE_HOLD pending |
+| `at_combat.script` | feature | Pattern B planner takeover; ADVANCE, TAKE_COVER, RETREAT wired; SNIPE / CLOSE_ASSAULT / FIRE_FROM_COVER / FIRE_HOLD pending |
 | `at_advance.script.bak` | feature | superseded by at_combat (preserved as .bak, doesn't auto-load) |
 | `xr_danger.script` | feature | done (full-file override) |
 | `zzz_at_health_patch.script` | feature | done (vanilla xr_eat_medkit re-roll suppressor) |
@@ -226,7 +226,7 @@ Vanilla playtest data validates the gate: 55 FLIP events across {Mosin 46, SKS 5
 
 ## Combat
 
-Pattern B planner takeover per `doc/library/modding/goap-injection.md:427-447`. Single scheme owns vanilla `action_combat_planner` for a configurable share of NPCs and runs an internal mode state machine. Replaces at_advance entirely. ADVANCE and TAKE_COVER are wired in the decide tree; RETREAT, SNIPE, CLOSE_ASSAULT, FIRE_FROM_COVER, FIRE_HOLD are declared as MODE_PLANS rows but the decide tree does not yet return them.
+Pattern B planner takeover per `doc/library/modding/goap-injection.md:427-447`. Single scheme owns vanilla `action_combat_planner` for a configurable share of NPCs and runs an internal mode state machine. Replaces at_advance entirely. ADVANCE, TAKE_COVER, RETREAT are wired in the decide tree; SNIPE, CLOSE_ASSAULT, FIRE_FROM_COVER, FIRE_HOLD are declared as MODE_PLANS rows but the decide tree does not yet return them.
 
 ### Product framing: inject not replace
 
@@ -270,9 +270,9 @@ Returns `(true, "in_range")` on full pass, else `(false, "<reason>")`. All filte
 
 **gather (`_gather_inputs`)** — one luabind round per tick. Reads `npc:position`, `npc:level_vertex_id`, `npc.health`, `best_enemy`, `enemy:position`, `npc:see(enemy)`, `enemy:see(npc)`, `level.high_cover_in_direction(npc_lvid, dir_to_enemy)` (used as `has_high_cover = value >= 0.2`, threshold per `axr_stalker_panic.script:399` precedent), computes `dist`, `dx`, `dz`. Cached for the tick. No re-reads in later steps.
 
-**decide (`_decide_mode`)** — pure function returning a mode constant. Flat priority tree, top-down, first match wins, max 2 nesting. Current implementation: `if not enemy then NONE; if dist < min_dist then NONE; if see_me and not has_high_cover then TAKE_COVER; else ADVANCE`. Other branches not yet wired.
+**decide (`_decide_mode`)** — pure function returning a mode constant. Flat priority tree, top-down, first match wins, max 2 nesting. Current implementation: `if not enemy then NONE; if dist < min_dist then NONE; if hp_frac < retreat_hp then RETREAT; if see_me and not has_high_cover then TAKE_COVER; else ADVANCE`. Other branches not yet wired.
 
-**mode hold** — gate between decide and apply. After a mode change, the action commits to that mode for `random(1500, 3500)` ms before the decide tree's output can flip it again. Prevents sub-second oscillation as NPCs move between adjacent vertices whose `high_cover_in_direction` values straddle the 0.2 threshold (advance ↔ take_cover flap observed before the gate landed, eliminated after). MODE_NONE bypasses so terminate paths (no enemy / too close) run unchanged. Implemented via `self._mode_hold_until` on the action; reset in `:initialize`.
+**mode hold** — gate between decide and apply. After a mode change, the action commits to that mode for `random(1500, 3500)` ms before the decide tree's output can flip it again. Prevents sub-second oscillation as NPCs move between adjacent vertices whose `high_cover_in_direction` values straddle the 0.2 threshold (advance ↔ take_cover flap observed before the gate landed, eliminated after). MODE_NONE and MODE_RETREAT bypass: terminate paths (no enemy / too close) run unchanged, and HP emergency must interrupt any in-flight commitment. Implemented via `self._mode_hold_until` on the action; reset in `:initialize`.
 
 **apply (`_apply_state`)** — `MODE_PLANS[mode]` returns `{state, body, mvt, target_kind}`. Each engine write is gated by change detection:
 - `if plan.state ~= self.last_state` then `state_mgr.set_state(npc, plan.state, ..., {fast_set=true})`
@@ -281,7 +281,7 @@ Returns `(true, "in_range")` on full pass, else `(false, "<reason>")`. All filte
 
 Zero engine writes when stable. Avoids the state_mgr churn that killed SQUAD_CAMPER's vanilla sub-scheme.
 
-**movement (`_repick`)** — only fires if `tg > self._next_pick` OR another NPC stole our cover (`db.used_level_vertex_ids[target_lvid] ~= npc:id()`). Resolves target via `TARGET_RESOLVERS[plan.target_kind]` (currently `cover_step_fwd`, `cover_nearest`, and `hold`). Cover reservation via `_claim_cover` — if another NPC owns the lvid, our pick fails and we push `_next_pick` out 1.5-3.5s to throttle retry. After successful claim: release old lvid, claim new lvid, `set_dest_level_vertex_id(new_lvid)`, `_next_pick = tg + math_random(1500, 3500)`. Same as RCAI's `__keep_point_until` adapted. `cover_nearest` runs a two-tier `npc:best_cover(npc_pos, ene_pos, 10|30, 1, 20)` matching vanilla `find_best_cover` (ai_stalker_cover.cpp:141, 150) — radius 10m then 30m, non-sniper enemy-distance defaults.
+**movement (`_repick`)** — only fires if `tg > self._next_pick` OR another NPC stole our cover (`db.used_level_vertex_ids[target_lvid] ~= npc:id()`). Resolves target via `TARGET_RESOLVERS[plan.target_kind]` (currently `cover_step_fwd`, `cover_nearest`, `step_away`, and `hold`). Cover reservation via `_claim_cover` — if another NPC owns the lvid, our pick fails and we push `_next_pick` out 1.5-3.5s to throttle retry. After successful claim: release old lvid, claim new lvid, `set_dest_level_vertex_id(new_lvid)`, `_next_pick = tg + math_random(1500, 3500)`. Same as RCAI's `__keep_point_until` adapted. `cover_nearest` runs a two-tier `npc:best_cover(npc_pos, ene_pos, 10|30, 1, 20)` matching vanilla `find_best_cover` (ai_stalker_cover.cpp:141, 150) — radius 10m then 30m, non-sniper enemy-distance defaults. `step_away` mirrors `cover_step_fwd` with the direction-to-enemy vector negated: steps 15m backward, looks for cover near that point, falls back to `vertex_in_direction(-dir, 15)` for open terrain.
 
 **fire** — one `npc:set_sight(look.fire_point, ene_pos + 1.5y)` per tick. Engine fire dispatch runs from `mental_state = danger` + valid sight + LOS + active weapon. No explicit fire call needed.
 
@@ -291,7 +291,7 @@ Data-driven. Each mode maps to a plan. Adding a new behavior = add a constant + 
 
 | Mode | State | Body | Mvt | Target |
 |---|---|---|---|---|
-| RETREAT | panic_in_threat | standing | run | step_away |
+| RETREAT | panic | standing | run | step_away |
 | SNIPE | hide_sniper_fire | crouch | stand | hold |
 | TAKE_COVER | hide_na | crouch | run | cover_nearest |
 | ADVANCE | assault_fire | standing | run | cover_step_fwd |
@@ -353,8 +353,9 @@ When evaluator returns false (NPC died, enemy lost, NPC closed within distance f
 | `combat_enabled` | check | true | Master toggle. Effective on next eval tick, no restart |
 | `combat_share` | track 0.0-1.0 step 0.05 | 0.5 | Fraction of eligible NPCs using our combat AI. 0 = pure vanilla. 1 = full takeover. Stable per-id hash |
 | `min_dist` | track 5-15 step 1 | 8 | Close-combat handoff distance. When owned NPC closes within this, eval returns false and vanilla resumes |
+| `retreat_hp` | track 0.10-0.50 step 0.05 | 0.30 | HP fraction below which the NPC switches to RETREAT mode (runs to backward cover, bypasses mode_hold) |
 
-Additional knobs (`retreat_hp`, `advance_dist`) pending the other modes.
+Additional knob `advance_dist` pending the other modes.
 
 ---
 

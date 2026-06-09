@@ -213,7 +213,7 @@
     <text>Behaviors (what the combat AI does)</text>
   </string>
   <string id="ui_mcm_at_combat_behaviors_list">
-    <text>Advance: closes distance through cover, picking the next cover lvid 15m toward the enemy and running there standing. Take cover: when the enemy can see the NPC and the NPC's position has no high cover from the enemy, runs crouched to nearby cover that hides from the enemy. The NPC commits to a chosen behavior for 1.5-3.5s before the next switch (prevents posture stutter at cover boundaries). When the NPC closes within the handoff distance below, the AI hands the close fight to vanilla. Pending behaviors declared in code but not yet active: retreat under low HP, sniper hold at long range, stand-and-fire from cover, crouched fire-hold from cover.</text>
+    <text>Advance: closes distance through cover, picking the next cover lvid 15m toward the enemy and running there standing. Take cover: when the enemy can see the NPC and the NPC's position has no high cover from the enemy, runs crouched to nearby cover that hides from the enemy. Retreat: when HP drops below the retreat threshold, runs away from the enemy toward backward cover; HP emergency interrupts the 1.5-3.5s mode commit. The NPC commits to a chosen behavior for 1.5-3.5s before the next switch (prevents posture stutter at cover boundaries). When the NPC closes within the handoff distance below, the AI hands the close fight to vanilla. Pending behaviors declared in code but not yet active: sniper hold at long range, stand-and-fire from cover, crouched fire-hold from cover.</text>
   </string>
   <string id="ui_mcm_at_combat_hdr_share">
     <text>Participation share</text>
@@ -232,6 +232,15 @@
   </string>
   <string id="ui_mcm_at_combat_min_dist_desc">
     <text>When an owned NPC closes within this distance to the enemy, our evaluator returns false and vanilla close-combat behavior resumes. Prevents our action from charging into the enemy when contact is imminent. Default: 8.</text>
+  </string>
+  <string id="ui_mcm_at_combat_hdr_retreat_hp">
+    <text>Retreat</text>
+  </string>
+  <string id="ui_mcm_at_combat_retreat_hp">
+    <text>Retreat when HP drops below</text>
+  </string>
+  <string id="ui_mcm_at_combat_retreat_hp_desc">
+    <text>An NPC at or below this HP fraction stops the current combat behavior and runs to cover away from the enemy. HP emergency interrupts the 1.5-3.5s mode commit gate, so retreat takes effect immediately. Set lower (0.10) for almost-dying retreat only, higher (0.50) for cautious fall-back. Default: 0.30 (30% HP).</text>
   </string>
   <!-- ==================== DANGER TAB ==================== -->
   <string id="ui_mcm_at_danger_desc">
