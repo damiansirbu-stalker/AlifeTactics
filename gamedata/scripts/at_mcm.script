@@ -203,25 +203,9 @@ function on_mcm_load()
                         text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
                     { id = "desc", type = "desc", text = "ui_mcm_at_combat_desc" },
                     { id = "combat_enabled", type = "check", val = 1, def = true },
-
-                    { id = "div_behaviors", type = "line" },
-                    { id = "hdr_behaviors", type = "desc", text = "ui_mcm_at_combat_hdr_behaviors", clr = {255, 200, 200, 200} },
-                    { id = "behaviors_list", type = "desc", text = "ui_mcm_at_combat_behaviors_list" },
-
-                    { id = "div_share", type = "line" },
-                    { id = "hdr_share", type = "desc", text = "ui_mcm_at_combat_hdr_share", clr = {255, 200, 200, 200} },
                     { id = "combat_share", type = "track", val = 2, min = 0.0, max = 1.0, step = 0.05, def = 1.0 },
-
-                    { id = "div_dist", type = "line" },
-                    { id = "hdr_dist", type = "desc", text = "ui_mcm_at_combat_hdr_dist", clr = {255, 200, 200, 200} },
                     { id = "min_dist", type = "track", val = 2, min = 5, max = 15, step = 1, def = 8 },
-
-                    { id = "div_advance_dist", type = "line" },
-                    { id = "hdr_advance_dist", type = "desc", text = "ui_mcm_at_combat_hdr_advance_dist", clr = {255, 200, 200, 200} },
                     { id = "advance_dist", type = "track", val = 2, min = 20, max = 80, step = 5, def = 40 },
-
-                    { id = "div_retreat_hp", type = "line" },
-                    { id = "hdr_retreat_hp", type = "desc", text = "ui_mcm_at_combat_hdr_retreat_hp", clr = {255, 200, 200, 200} },
                     { id = "retreat_hp", type = "track", val = 2, min = 0.10, max = 0.50, step = 0.05, def = 0.25 },
 
                     { id = "div_version", type = "line" },

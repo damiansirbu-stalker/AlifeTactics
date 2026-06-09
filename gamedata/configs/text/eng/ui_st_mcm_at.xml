@@ -188,55 +188,37 @@
   </string>
   <!-- ==================== COMBAT TAB ==================== -->
   <string id="ui_mcm_at_combat_desc">
-    <text>AlifeTactics injects an alternative combat AI on a configurable share of NPCs. Slider at 0% = pure vanilla / GAMMA / whatever modpack combat you already have. 50% = half the NPCs use ours, half use what they had (side-by-side comparison in the same engagement). 100% = full takeover for every eligible NPC. Per-NPC stable hash decides which side each NPC lands on; same NPC always lands the same side across save / load. Zero vanilla file overrides — we add preconditions on top of whatever vanilla / AI Rework / ReDone Combat AI / GAMMA installed. For NPCs outside our share, their combat AI runs untouched. NPCs with community = zombied or monolith are always excluded (they ship with their own combat sub-schemes).</text>
+    <text>AlifeTactics replaces vanilla combat behavior on a share of NPCs. Each NPC picks from 12 combat behaviors per tick. The choice depends on faction doctrine, equipped weapon class, current health, line of sight, and nearby cover. The share slider below decides how much your existing combat AI (vanilla or modpack) stays in charge versus how much of the squad fights with AlifeTactics doctrine.</text>
   </string>
   <string id="ui_mcm_at_combat_combat_enabled">
     <text>Enable Combat AI injection</text>
   </string>
   <string id="ui_mcm_at_combat_combat_enabled_desc">
-    <text>Master toggle. When off, no NPC runs our combat planner; vanilla combat AI runs unmodified for everyone. Effective on next eval tick, no restart needed. Default: on.</text>
-  </string>
-  <string id="ui_mcm_at_combat_hdr_behaviors">
-    <text>Behaviors (what the combat AI does)</text>
-  </string>
-  <string id="ui_mcm_at_combat_behaviors_list">
-    <text>Advance: at long range or no line of sight, runs through cover toward the enemy 15m at a time. Take cover: when the enemy can see the NPC and the NPC's position has no high cover from the enemy, runs crouched to nearby cover that hides from the enemy. Fire from cover: at mid-range with high cover and line of sight, stands and fires over the cover. Fire hold: with line of sight but no high cover gain, crouches and fires from current position. Retreat: when HP drops below the retreat threshold, runs away from the enemy toward backward cover; HP emergency interrupts the 1.5-3.5s mode commit. Snipers (LTX kind=w_sniper: SVD, SVU, SR25, Mosin, K98, SVT40, SKS, M82, M24, SV98, ~19 vanilla + GAMMA additions) get sniper-aim states in fire-from-cover and fire-hold (different head/breathing animation). The NPC commits to a chosen behavior for 1.5-3.5s before the next switch (prevents posture stutter at cover boundaries). When the NPC closes within the handoff distance, the AI hands the close fight to vanilla. Pending: close-assault dash at very short range.</text>
-  </string>
-  <string id="ui_mcm_at_combat_hdr_share">
-    <text>Participation share</text>
+    <text>When off, every NPC keeps the combat AI you had before AlifeTactics. When on, the share slider below decides how many switch.</text>
   </string>
   <string id="ui_mcm_at_combat_combat_share">
     <text>Share of NPCs running AlifeTactics combat</text>
   </string>
   <string id="ui_mcm_at_combat_combat_share_desc">
-    <text>Fraction of NPCs that use our combat AI instead of vanilla / modpack. 0.0 = none (pure vanilla / GAMMA). 0.5 = half. 1.0 = every eligible NPC. Decided by stable hash on NPC id, so the same NPC always lands the same side. In-squad A / B testing possible: different NPCs in the same squad may land different sides. Default: 0.5.</text>
-  </string>
-  <string id="ui_mcm_at_combat_hdr_dist">
-    <text>Close-combat handoff distance</text>
+    <text>Fraction of stalkers that switch to AlifeTactics combat. At 0%, every NPC keeps the combat AI you had. At 50%, half the squad fights with the new doctrine and the other half stays on vanilla, so both run in the same engagement. At 100%, every stalker switches. The choice is per-NPC and stable across save and reload.</text>
   </string>
   <string id="ui_mcm_at_combat_min_dist">
     <text>Hand back to vanilla within (meters)</text>
   </string>
   <string id="ui_mcm_at_combat_min_dist_desc">
-    <text>When an owned NPC closes within this distance to the enemy, our evaluator returns false and vanilla close-combat behavior resumes. Prevents our action from charging into the enemy when contact is imminent. Default: 8.</text>
-  </string>
-  <string id="ui_mcm_at_combat_hdr_advance_dist">
-    <text>Advance threshold</text>
+    <text>Below this range, AlifeTactics releases the NPC to vanilla close combat. Higher value means vanilla takes over sooner. Lower value means AlifeTactics holds the NPC down to point-blank.</text>
   </string>
   <string id="ui_mcm_at_combat_advance_dist">
     <text>Advance when distance exceeds (meters)</text>
   </string>
   <string id="ui_mcm_at_combat_advance_dist_desc">
-    <text>Beyond this distance, the NPC always advances (closes the gap) regardless of cover or line of sight. Under this distance, the decide tree picks fire-from-cover, fire-hold, or take-cover based on the situation. Lower = NPCs go static-fire sooner; higher = NPCs push closer before committing to a firing position. Default: 40.</text>
-  </string>
-  <string id="ui_mcm_at_combat_hdr_retreat_hp">
-    <text>Retreat</text>
+    <text>Past this distance the NPC closes the gap regardless of cover. Inside it, the NPC picks cover, fires from high cover, or holds based on line of sight and faction doctrine.</text>
   </string>
   <string id="ui_mcm_at_combat_retreat_hp">
     <text>Retreat when HP drops below</text>
   </string>
   <string id="ui_mcm_at_combat_retreat_hp_desc">
-    <text>An NPC at or below this HP fraction stops the current combat behavior and runs to cover away from the enemy. HP emergency interrupts the 1.5-3.5s mode commit gate, so retreat takes effect immediately. Set lower (0.10) for almost-dying retreat only, higher (0.50) for cautious fall-back. Default: 0.30 (30% HP).</text>
+    <text>HP fraction below which HP-driven behaviors trigger. Military pulls back firing. Mercs and disorganized squads retreat outright. Ecologs and clear sky flee with weapons strapped. Monolith ignores the threshold and keeps fighting. Higher means squads break sooner. Lower means squads fight nearly to death.</text>
   </string>
   <!-- ==================== DANGER TAB ==================== -->
   <string id="ui_mcm_at_danger_desc">
