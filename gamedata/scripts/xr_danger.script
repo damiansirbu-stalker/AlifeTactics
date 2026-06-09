@@ -319,8 +319,9 @@ local function eval_danger(self)
 	local bd_type = danger:type()
 	local bd_name = bd_types[bd_type]
 	local cur_danger_time = get_danger_time(danger, npc)
+	if type(cur_danger_time) ~= "number" then cur_danger_time = 0 end
 
-	if (self.a.inertion and self.a.danger_time) then
+	if (type(self.a.inertion) == "number" and type(self.a.danger_time) == "number") then
 		if (self.a.type ~= bd_type and cur_danger_time > self.a.danger_time) then
 
 		else
