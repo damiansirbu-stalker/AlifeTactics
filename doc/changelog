@@ -1,10 +1,19 @@
 next
-  Summary: combat AI takeover, sniper aim mode, danger rework, stealth kills, limp/heal fixes, AOEngine compatibility
+  Summary: combat AI takeover, faction doctrines, flank and retreat behaviors, sniper aim mode, monolith combat, zombied shamble, danger rework, stealth kills, limp/heal fixes, AOEngine compatibility
 
   - Added Combat AI takeover on a configurable share of NPCs (slider, default 50%).
     Per-NPC stable hash decides which NPCs use AT combat vs. vanilla / modpack combat. Same NPC always lands the same side across save and load.
-    Each NPC walks a list of allowed behaviors (chosen by HP and weapon) every tick and picks the first one matching the current situation.
+    Each NPC walks a list of allowed behaviors (chosen by community, HP, and weapon) every tick and picks the first one matching the current situation.
     Close-weapon carriers (pistol, shotgun, SMG, knife) charge the enemy. Low-HP NPCs retreat. Others advance through cover, take cover when exposed, fire from cover when peeking is possible, crouch and fire otherwise.
+  - Added Combat AI takeover for monolith and zombied.
+    Monolith use standard behavior selection by HP and weapon, same as other communities.
+    Zombied walk toward the enemy firing, no cover seeking, no retreat.
+  - Added per-faction combat doctrines.
+    Military holds cover, snipes, flanks. Monolith charges with close weapons and never retreats.
+    Bandits panic when hurt. Cowards flee outright. Mercs use military skillset but break under fire.
+    Each NPC's doctrine is stable across save and load.
+  - Added 3 combat behaviors. FLANKING goes around the enemy when line of sight is lost.
+    RETREAT_AND_FIRE pulls back crouched while firing. FLEE sprints away with weapon strapped.
   - Added Sniper aim mode for kind=w_sniper carriers (SVD, SVT40, Mosin, SKS, M82 and the rest of the class).
     When a sniper has line of sight, they crouch and engage the engine sniper-aim flag, which tracks the target head direction instead of the weapon barrel direction. More precise aim at range.
   - Removed Stance Switch as a standalone system. Sniper crouching is now handled inside Combat for in-share NPCs and inherited from the vanilla planner for out-of-share NPCs.

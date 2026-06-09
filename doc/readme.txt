@@ -58,9 +58,9 @@ Masters shoot tighter than novices, and the full spread is configurable per tier
 
 Combat:
 
-AlifeTactics injects its own combat AI on a configurable share of NPCs. The slider in MCM (default 50%) picks which NPCs use AT combat and which stay on vanilla / modpack combat. Per-NPC stable hash so the same NPC always lands the same side across save and load.
+AlifeTactics injects its own combat AI on a configurable share of NPCs. The slider in MCM (default 100%) picks which NPCs use AT combat and which stay on vanilla / modpack combat. Per-NPC stable hash so the same NPC always lands the same side across save and load.
 
-Each NPC picks a behavior every tick from a list chosen by HP and weapon. Below the retreat threshold the list collapses to one behavior (RETREAT). Close-quarters weapons (pistol, shotgun, SMG, knife) go to CLOSE_ASSAULT (charge the enemy). Other weapons run the tactical list (advance through cover, take cover when exposed, fire from cover when peeking is possible, crouch and fire otherwise).
+Each faction has its own behavior list. Military (army, Duty, Freedom, ISG) holds cover, snipes, flanks, and pulls back firing when wounded. Monolith and Sin charge with close-quarters weapons and never retreat. Mercenaries fight like military but break under sustained fire and panic at low HP. Bandits and renegades have no doctrine; they charge with close weapons, advance with rifles, and panic when hurt. Ecologists and Clear Sky are cowards; they hide in cover, never push, and flee outright at low HP with weapon strapped. Zombies walk toward the enemy firing, no cover seeking, no retreat. Loners (the catch-all default) mix tactical movement with panic retreats.
 
 Snipers (LTX kind=w_sniper carriers: SVD, SVT40, Mosin, SKS, M82 and the rest of the class) get their own behavior. When a sniper has line of sight to the enemy they crouch and engage the engine's sniper-aim mode, which aims at the target head direction instead of the weapon barrel direction. More precise aim at range.
 

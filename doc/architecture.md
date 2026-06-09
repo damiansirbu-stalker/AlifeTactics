@@ -20,7 +20,7 @@ Version 1.0.0.
 | `at_hitresponse.script` | feature | done |
 | `at_health.script` | feature | done |
 | `at_accuracy.script` | feature | done |
-| `at_combat.script` | feature | Pattern B planner takeover; BEHAVIORS catalog (ADVANCE, TAKE_COVER, FIRE_FROM_COVER, FIRE_HOLD, RETREAT, CLOSE_ASSAULT, SNIPE); per-NPC list selection by HP/weapon; SNIPE wires the engine `sniper_fire_mode` flag |
+| `at_combat.script` | feature | Pattern B planner takeover; 12 BEHAVIORS (ADVANCE, TAKE_COVER, FIRE_FROM_COVER, FIRE_HOLD, RETREAT, CLOSE_ASSAULT, SNIPE, ZOMBIE_SHAMBLE, FLANKING, RETREAT_AND_FIRE, FLEE, HOLD_STILL); per-faction lists (military / fanatic / merc / disorganized / coward / tactical default / zombie); SNIPE wires the engine `sniper_fire_mode` flag |
 | `at_advance.script.bak` | feature | superseded by at_combat (preserved as .bak, doesn't auto-load) |
 | `xr_danger.script` | feature | done (full-file override) |
 | `zzz_at_health_patch.script` | feature | done (vanilla xr_eat_medkit re-roll suppressor) |
@@ -224,11 +224,12 @@ Fast-fail chain, in order:
 1. `cfg.combat_enabled` master toggle
 2. `npc:alive()`
 3. `IsWounded(npc)`
-4. `character_community(npc)` not "zombied", not "monolith" (those ship their own sub-schemes)
-5. Stable per-id hash: `(npc:id() % 1000) < (cfg.combat_share * 1000)` (default 0.5)
-6. Pick-fail backoff window expired (set by `_repick` after 3 consecutive failures, 10s backoff)
-7. `npc:best_enemy()` exists and is alive
-8. Distance to enemy >= `cfg.min_dist` meters (default 8m)
+4. Stable per-id hash: `(npc:id() % 1000) < (cfg.combat_share * 1000)` (default 0.5)
+5. Pick-fail backoff window expired (linear extension past 3 consecutive failures: 3=10s, 4=20s, 5=30s; resets on successful pick)
+6. `npc:best_enemy()` exists and is alive
+7. Distance to enemy >= `cfg.min_dist` meters (default 8m)
+
+No community gate, no HP gate, no weapon gate. Every stalker flows through `_allowed_for(ctx)` and per-behavior `applies(ctx)` triggers handle gating.
 
 Returns `(true, "in_range")` on full pass, else `(false, "<reason>")`. All filters dynamic — MCM toggles take effect on next eval. Hash stable per id.
 
@@ -238,14 +239,11 @@ Returns `(true, "in_range")` on full pass, else `(false, "<reason>")`. All filte
 
 **gather (`_gather_inputs`)** — one luabind round per tick. Reads `npc:position`, `npc:level_vertex_id`, `npc.health`, `best_enemy`, `enemy:position`, `npc:see(enemy)`, `enemy:see(npc)`, `level.high_cover_in_direction(npc_lvid, dir_to_enemy)` (used as `has_high_cover = value >= 0.2`, threshold per `axr_stalker_panic.script:399` precedent), computes `dist`, `dx`, `dz`. Cached for the tick. No re-reads in later steps.
 
-**decide (`_decide_behavior`)** — early returns on `not ctx.enemy` or `ctx.dist < cfg.min_dist` (both signal handoff). Otherwise `_allowed_for(ctx)` returns the per-NPC list, and the decide loop returns the first behavior whose `applies(ctx)` is true. Returns the behavior NAME (string), or nil for handoff.
+**decide (`_decide_behavior`)** — early returns on `not ctx.enemy` or `ctx.dist < cfg.min_dist` (both signal handoff). Otherwise `_allowed_for(ctx)` returns the per-faction list, and the decide loop returns the first behavior whose `applies(ctx)` is true. Returns the behavior NAME (string), or nil for handoff.
 
-`_allowed_for(ctx)` rules:
-- `hp_frac < cfg.retreat_hp` → `LIST_RETREAT`
-- `weapon_kind in AGGRESSOR_KINDS` → `LIST_AGGRESSOR`
-- else → `LIST_TACTICAL`
+`_allowed_for(ctx)` is a pure lookup: `FACTION_LIST[ctx.community] or LIST_TACTICAL_DEFAULT`. No HP, weapon, or community-special-case branches — those gates moved into each behavior's `applies(ctx)`. See the per-faction lists table below.
 
-**behavior hold** — gate between decide and apply. After a behavior change, the action commits to that name for `random(1500, 3500)` ms before the decide loop's output can flip it again. Prevents sub-second oscillation as NPCs move between adjacent vertices whose `high_cover_in_direction` values straddle the 0.2 threshold. `BYPASSES_HOLD[name]` (currently just `RETREAT`) and nil-handoff skip the gate so HP emergency / terminate paths interrupt any in-flight commitment. Implemented via `self._behavior_hold_until` on the action; reset in `:initialize`. `_should_hold(new, tg)` extracts the conditional out of the execute hot path.
+**behavior hold** — gate between decide and apply. After a behavior change, the action commits to that name for `random(1500, 3500)` ms before the decide loop's output can flip it again. Prevents sub-second oscillation as NPCs move between adjacent vertices whose `high_cover_in_direction` values straddle the 0.2 threshold. `BYPASSES_HOLD[name]` (RETREAT, RETREAT_AND_FIRE, FLEE — all HP-driven) and nil-handoff skip the gate so HP emergency / terminate paths interrupt any in-flight commitment. Implemented via `self._behavior_hold_until` on the action; reset in `:initialize`. `_should_hold(new, tg)` extracts the conditional out of the execute hot path.
 
 **apply (`_apply_state`)** — `behavior.plan` returns `{state, body, mvt, target, sniper_aim?}`. Each engine write is gated by change detection:
 - `if plan.state ~= self.last_state` then `state_mgr.set_state(npc, plan.state, ..., {fast_set=true})`
@@ -255,7 +253,17 @@ Returns `(true, "in_range")` on full pass, else `(false, "<reason>")`. All filte
 
 Zero engine writes when stable. The sniper_aim toggle drives the engine's actual sniper-aim path (m_head.target as aim direction instead of weapon LastFD). Cleared on finalize so vanilla planner resumes without the flag stuck on.
 
-**movement (`_repick`)** — only fires if `tg > self._next_pick` OR another NPC stole our cover (`db.used_level_vertex_ids[target_lvid] ~= npc:id()`). Resolves target via `TARGET_RESOLVERS[plan.target_kind]` (currently `cover_step_fwd`, `cover_nearest`, `step_away`, and `hold`). Cover reservation via `_claim_cover` — if another NPC owns the lvid, our pick fails and we push `_next_pick` out 1.5-3.5s to throttle retry. After successful claim: release old lvid, claim new lvid, `set_dest_level_vertex_id(new_lvid)`, `_next_pick = tg + math_random(1500, 3500)`. Same as RCAI's `__keep_point_until` adapted. `cover_nearest` runs a two-tier `npc:best_cover(search_pos, ene_pos, 10|30, 1, 20)` matching vanilla `find_best_cover` (ai_stalker_cover.cpp:141, 150) — radius 10m then 30m, non-sniper enemy-distance defaults. `step_away` mirrors `cover_step_fwd` with the direction-to-enemy vector negated: steps 15m backward, looks for cover near that point, falls back to `vertex_in_direction(-dir, 15)` for open terrain.
+**movement (`_repick`)** — only fires if `tg > self._next_pick` OR another NPC stole our cover (`db.used_level_vertex_ids[target_lvid] ~= npc:id()`). Resolves target via `TARGET_RESOLVERS[plan.target]` (one of `cover_step_fwd`, `cover_nearest`, `step_away`, `charge_enemy`, `cover_flank`, `flee_far`, `hold`). Cover reservation via `_claim_cover` — if another NPC owns the lvid, our pick fails and we push `_next_pick` out 1.5-3.5s to throttle retry. After successful claim: release old lvid, claim new lvid, `set_dest_level_vertex_id(new_lvid)`, `_next_pick = tg + math_random(1500, 3500)`.
+
+| Resolver | Search point | Cover preference | Notes |
+|---|---|---|---|
+| `cover_step_fwd` | npc + 15m toward enemy | yes (radius 15, dist 1-30 from enemy) | ADVANCE; open-terrain fallback to `vertex_in_direction` |
+| `cover_nearest` | npc + bucket offset | yes (two-tier radius 10 then 30) | TAKE_COVER; matches vanilla `find_best_cover` |
+| `step_away` | npc + 15m AWAY from enemy | yes | RETREAT, RETREAT_AND_FIRE; open-terrain fallback backward |
+| `charge_enemy` | enemy lvid directly | none | CLOSE_ASSAULT, ZOMBIE_SHAMBLE; reservation skipped |
+| `cover_flank` | npc + 20m perpendicular (per-id sign) + 5m forward | yes | FLANKING; perp direction `(-dz, dx)/dist` with sign from `id % 2`; open-terrain fallback to lateral vertex |
+| `flee_far` | — | none | FLEE; pure `vertex_in_direction` backward 30m, no `best_cover` |
+| `hold` | — | — | SNIPE, FIRE_FROM_COVER, FIRE_HOLD, HOLD_STILL; returns existing `target_lvid` or `npc_lvid` |
 
 ### Squad spread (lateral hash buckets)
 
@@ -280,22 +288,53 @@ Data-driven. Each row: `name = { plan, applies(ctx), [sniper_aim] }`. Adding a b
 | SNIPE | hide_sniper_fire | crouch | stand | hold | `weapon_kind == "w_sniper" and see` | **true** |
 | FIRE_FROM_COVER | threat_fire | standing | stand | hold | `has_high_cover and see` | — |
 | FIRE_HOLD | hide_fire | crouch | stand | hold | `see` | — |
-| RETREAT | panic | standing | run | step_away | always | — |
-| CLOSE_ASSAULT | assault_fire | standing | run | charge_enemy | always | — |
+| RETREAT | panic | standing | run | step_away | `hp_frac < cfg.retreat_hp` | — |
+| CLOSE_ASSAULT | assault_fire | standing | run | charge_enemy | `AGGRESSOR_KINDS[weapon_kind]` (pistol, shotgun, SMG, knife) | — |
+| ZOMBIE_SHAMBLE | raid_fire | standing | walk | charge_enemy | always | — |
+| FLANKING | assault_fire | standing | run | cover_flank | `dist > cfg.advance_dist and not see and has_high_cover` | — |
+| RETREAT_AND_FIRE | sneak_fire | crouch | walk | step_away | `hp_frac < cfg.retreat_hp and (id % 10) < 5` | — |
+| FLEE | sprint | standing | run | flee_far | `hp_frac < cfg.retreat_hp` | — |
+| HOLD_STILL | hide_na | crouch | stand | hold | always | — |
 
 body / mvt stored as string keys (`"standing"`, `"crouch"`, `"run"`, etc.), resolved at apply time via `move[name]`. Lets BEHAVIORS construct at module load before engine `move` enum is bound.
 
-### Per-NPC allowed-behavior lists
+### Per-faction lists
 
-Module-level constants. `_allowed_for(ctx)` returns the reference; no per-tick allocation. Order in each list is the priority — earlier entries checked first.
+Module-level constants. `_allowed_for(ctx)` returns the list for the NPC's community from `FACTION_LIST`; unknown communities fall back to `LIST_TACTICAL_DEFAULT`. No per-tick allocation. Order is priority — first applies-true wins.
 
-| List | Behaviors (in priority order) |
-|---|---|
-| LIST_TACTICAL | SNIPE, ADVANCE, TAKE_COVER, FIRE_FROM_COVER, FIRE_HOLD |
-| LIST_AGGRESSOR | CLOSE_ASSAULT |
-| LIST_RETREAT | RETREAT |
+| List | Order (priority) | Communities |
+|---|---|---|
+| `LIST_MILITARY` | RETREAT_AND_FIRE, SNIPE, FLANKING, FIRE_FROM_COVER, TAKE_COVER, FIRE_HOLD, ADVANCE | `army`, `army_npc`, `dolg`, `freedom`, `isg` |
+| `LIST_FANATIC` | CLOSE_ASSAULT, SNIPE, FLANKING, FIRE_FROM_COVER, TAKE_COVER, FIRE_HOLD, ADVANCE | `monolith`, `greh`, `greh_npc` |
+| `LIST_MERC` | RETREAT_AND_FIRE, RETREAT, SNIPE, FLANKING, FIRE_FROM_COVER, TAKE_COVER, FIRE_HOLD, ADVANCE | `killer` |
+| `LIST_DISORGANIZED` | RETREAT_AND_FIRE, RETREAT, CLOSE_ASSAULT, ADVANCE, FIRE_FROM_COVER, FIRE_HOLD | `bandit`, `renegade` |
+| `LIST_COWARD` | RETREAT_AND_FIRE, FLEE, SNIPE, FIRE_FROM_COVER, TAKE_COVER, FIRE_HOLD, HOLD_STILL | `ecolog`, `csky` |
+| `LIST_TACTICAL_DEFAULT` (fallback) | RETREAT_AND_FIRE, RETREAT, SNIPE, ADVANCE, TAKE_COVER, FIRE_FROM_COVER, FIRE_HOLD | `stalker` (loner), any unmapped |
+| `LIST_ZOMBIE` | ZOMBIE_SHAMBLE | `zombied` |
 
-SNIPE is first in LIST_TACTICAL so sniper carriers with LOS preempt ADVANCE (snipers don't close distance, they engage at range). Non-sniper NPCs fall through SNIPE (its applies returns false) into ADVANCE / TAKE_COVER / FIRE_FROM_COVER / FIRE_HOLD.
+Faction signatures (what the player sees):
+
+- **MILITARY** — cover-disciplined, sniping, flanks. Wounded → pulls back firing. Never panics, never charges. Half of low-HP NPCs fight on (RETREAT_AND_FIRE hash-miss, no other HP behavior in list).
+- **FANATIC** — same skill as military, no retreat. Close weapon → charges always. Fights to death.
+- **MERC** — military skillset + breaks. Panic RETREAT at low HP (military doesn't).
+- **DISORGANIZED** — no sniping, no flanking, no cover-seek. Charge with shotguns, advance with rifles, panic when hurt.
+- **COWARD** — never advance, never charge. FLEE outright at low HP (weapon strapped, 30m sprint). HOLD_STILL when LOS lost (crouch in place).
+- **TACTICAL_DEFAULT** — average. Mix of tactical + panic. No flank, no charge.
+- **ZOMBIE** — mindless walk-and-fire.
+
+HP-low (HP < `cfg.retreat_hp`, default 0.25) traces per list:
+
+| List | 50% (id-hash hit) | 50% (id-hash miss) |
+|---|---|---|
+| MILITARY | RETREAT_AND_FIRE | fall through → SNIPE/FLANKING/cover/ADVANCE (fight on) |
+| FANATIC | (no HP-driven behavior in list — fall through immediately) | combat behaviors (fight on) |
+| MERC | RETREAT_AND_FIRE | RETREAT (panic flee to cover) |
+| DISORGANIZED | RETREAT_AND_FIRE | RETREAT |
+| COWARD | RETREAT_AND_FIRE | FLEE (sprint, weapon down) |
+| TACTICAL_DEFAULT | RETREAT_AND_FIRE | RETREAT |
+| ZOMBIE | (no HP gate) | ZOMBIE_SHAMBLE (shamble until dead) |
+
+The 50/50 split comes from RETREAT_AND_FIRE.applies = `hp_frac < cfg.retreat_hp and (id % 10) < 5`. Same NPC always lands the same side across save/load.
 
 ### Sniper behavior: real engine sniper-aim
 
@@ -363,7 +402,7 @@ When evaluator returns false (NPC died, enemy lost, NPC closed within distance f
 | `combat_share` | track 0.0-1.0 step 0.05 | 0.5 | Fraction of eligible NPCs using our combat AI. 0 = pure vanilla. 1 = full takeover. Stable per-id hash |
 | `min_dist` | track 5-15 step 1 | 8 | Close-combat handoff distance. When owned NPC closes within this, eval returns false and vanilla resumes |
 | `advance_dist` | track 20-80 step 5 | 40 | Beyond this distance, decide tree always returns ADVANCE. Under this, falls through to TAKE_COVER / FIRE_FROM_COVER / FIRE_HOLD based on LOS and cover |
-| `retreat_hp` | track 0.10-0.50 step 0.05 | 0.30 | HP fraction below which the NPC switches to RETREAT mode (runs to backward cover, bypasses mode_hold) |
+| `retreat_hp` | track 0.10-0.50 step 0.05 | 0.25 | HP fraction below which HP-driven behaviors fire (RETREAT, RETREAT_AND_FIRE, FLEE). Which one fires depends on faction list. All three bypass behavior_hold. |
 
 ---
 

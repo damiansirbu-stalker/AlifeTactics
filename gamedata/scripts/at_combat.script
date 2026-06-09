@@ -15,6 +15,14 @@ local ACT_ID  = 188200
 local ADVANCE_STEP_M       = 15
 local STEP_AWAY_M          = 15
 local CHARGE_STEP_M        = 20
+local FLANK_LATERAL_M      = 20
+local FLANK_FORWARD_M      = 5
+local FLEE_STEP_M          = 30
+-- best_cover viability: max search radius (15) + max distance to enemy (30) = 45m.
+-- target_pos farther than this from enemy yields no valid cover (engine constraint),
+-- so skip the call and fall straight to the open-terrain branch. Cuts wasted engine
+-- quadtree queries for long-range ADVANCE and FLANKING ticks.
+local COVER_REACH_SQR      = 2025
 local KEEP_POINT_MIN       = 1500
 local KEEP_POINT_MAX       = 3500
 local BEHAVIOR_HOLD_MIN    = 1500
@@ -33,7 +41,7 @@ local EVAL_HYSTERESIS_M    = 2
 local SQUAD_LATERAL_BUCKETS = 5
 local SQUAD_LATERAL_STEP_M  = 4
 
--- Weapon kinds that route to LIST_AGGRESSOR (charge close, skip cover stages).
+-- Weapon kinds that trigger CLOSE_ASSAULT.applies (charge instead of cover work).
 -- These weapons want close-quarters engagement; fire-from-cover at range is
 -- ineffective for them.
 local AGGRESSOR_KINDS = {
@@ -150,9 +158,11 @@ local function _resolve_cover_step_fwd(npc, ctx)
     local off_x, off_z = _lateral_offset(ctx.bucket, ctx.dx, ctx.dz, ctx.dist)
     target_pos.x = target_pos.x + off_x
     target_pos.z = target_pos.z + off_z
-    local cover = npc:best_cover(target_pos, ctx.ene_pos, 15, 1, 30)
-    local lvid = cover and cover:level_vertex_id()
-    if lvid and lvid < 4294967295 and npc:accessible(lvid) then return lvid end
+    if target_pos:distance_to_sqr(ctx.ene_pos) <= COVER_REACH_SQR then
+        local cover = npc:best_cover(target_pos, ctx.ene_pos, 15, 1, 30)
+        local lvid = cover and cover:level_vertex_id()
+        if lvid and lvid < 4294967295 and npc:accessible(lvid) then return lvid end
+    end
     if ctx.dist > 0 then
         local dir = vector():set(ctx.dx / ctx.dist, 0, ctx.dz / ctx.dist)
         local fb = level.vertex_in_direction(ctx.npc_lvid, dir, step)
@@ -190,9 +200,11 @@ local function _resolve_step_away(npc, ctx)
     local off_x, off_z = _lateral_offset(ctx.bucket, ctx.dx, ctx.dz, ctx.dist)
     target_pos.x = target_pos.x + off_x
     target_pos.z = target_pos.z + off_z
-    local cover = npc:best_cover(target_pos, ctx.ene_pos, 15, 1, 30)
-    local lvid = cover and cover:level_vertex_id()
-    if lvid and lvid < 4294967295 and npc:accessible(lvid) then return lvid end
+    if target_pos:distance_to_sqr(ctx.ene_pos) <= COVER_REACH_SQR then
+        local cover = npc:best_cover(target_pos, ctx.ene_pos, 15, 1, 30)
+        local lvid = cover and cover:level_vertex_id()
+        if lvid and lvid < 4294967295 and npc:accessible(lvid) then return lvid end
+    end
     local dir = vector():set(-ctx.dx / ctx.dist, 0, -ctx.dz / ctx.dist)
     local fb = level.vertex_in_direction(ctx.npc_lvid, dir, step)
     if fb and fb < 4294967295 and npc:accessible(fb) and fb ~= ctx.npc_lvid then return fb end
@@ -219,11 +231,48 @@ local function _resolve_hold(_npc, ctx, self)
     return self.target_lvid or ctx.npc_lvid
 end
 
+-- cover_flank: lateral 20m perpendicular to npc->enemy + 5m forward, find cover
+-- near that point. Per-id sign (id % 2) picks left/right; same NPC always flanks
+-- the same side. In a squad, half-and-half split emerges to a natural pincer.
+-- At long ranges the best_cover max_dist=30 constraint usually fails; falls
+-- back to vertex_in_direction along the perpendicular.
+local function _resolve_cover_flank(npc, ctx)
+    if ctx.dist <= 0 then return nil end
+    local sign = (ctx.id % 2 == 0) and 1 or -1
+    local nx, nz = ctx.dx / ctx.dist, ctx.dz / ctx.dist
+    local perp_x, perp_z = -nz * sign, nx * sign
+    local target_pos = vector():set(
+        ctx.npc_pos.x + perp_x * FLANK_LATERAL_M + nx * FLANK_FORWARD_M,
+        ctx.npc_pos.y,
+        ctx.npc_pos.z + perp_z * FLANK_LATERAL_M + nz * FLANK_FORWARD_M)
+    if target_pos:distance_to_sqr(ctx.ene_pos) <= COVER_REACH_SQR then
+        local cover = npc:best_cover(target_pos, ctx.ene_pos, 15, 1, 30)
+        local lvid = cover and cover:level_vertex_id()
+        if lvid and lvid < 4294967295 and npc:accessible(lvid) then return lvid end
+    end
+    local dir = vector():set(perp_x, 0, perp_z)
+    local fb = level.vertex_in_direction(ctx.npc_lvid, dir, FLANK_LATERAL_M)
+    if fb and fb < 4294967295 and npc:accessible(fb) and fb ~= ctx.npc_lvid then return fb end
+    return nil
+end
+
+-- flee_far: pure backward sprint. No cover preference, no lateral spread.
+-- 30m vertex along negated npc->enemy direction.
+local function _resolve_flee_far(npc, ctx)
+    if ctx.dist <= 0 then return nil end
+    local dir = vector():set(-ctx.dx / ctx.dist, 0, -ctx.dz / ctx.dist)
+    local fb = level.vertex_in_direction(ctx.npc_lvid, dir, FLEE_STEP_M)
+    if fb and fb < 4294967295 and npc:accessible(fb) and fb ~= ctx.npc_lvid then return fb end
+    return nil
+end
+
 local TARGET_RESOLVERS = {
     cover_step_fwd = _resolve_cover_step_fwd,
     cover_nearest  = _resolve_cover_nearest,
     step_away      = _resolve_step_away,
     charge_enemy   = _resolve_charge_enemy,
+    cover_flank    = _resolve_cover_flank,
+    flee_far       = _resolve_flee_far,
     hold           = _resolve_hold,
 }
 
@@ -263,10 +312,47 @@ local BEHAVIORS = {
     },
     RETREAT = {
         plan = { state = "panic", body = "standing", mvt = "run", target = "step_away" },
-        applies = _always_applies,
+        applies = function(ctx) return ctx.hp_frac < cfg.retreat_hp end,
     },
     CLOSE_ASSAULT = {
         plan = { state = "assault_fire", body = "standing", mvt = "run", target = "charge_enemy" },
+        applies = function(ctx) return AGGRESSOR_KINDS[ctx.weapon_kind] == true end,
+    },
+    -- Mindless shamble for zombied: walk forward firing (raid_fire = weapon=fire,
+    -- mvt=walk, mental=danger per state_lib.script:135-141). No cover seeking, no
+    -- retreat — they don't think, they walk and shoot.
+    ZOMBIE_SHAMBLE = {
+        plan = { state = "raid_fire", body = "standing", mvt = "walk", target = "charge_enemy" },
+        applies = _always_applies,
+    },
+    -- Lateral approach via cover_flank resolver. Disciplined behavior — used by
+    -- military / monolith / merc when they have cover but no LOS to enemy at range.
+    FLANKING = {
+        plan = { state = "assault_fire", body = "standing", mvt = "run", target = "cover_flank" },
+        applies = function(ctx) return ctx.dist > cfg.advance_dist and not ctx.see and ctx.has_high_cover end,
+    },
+    -- Tactical pullback firing. sneak_fire (state_lib.script:170-177) = weapon=fire,
+    -- crouch, walk, danger. Combined with step_away target = NPC crouch-walks
+    -- backward while engine fire dispatch keeps firing at sight target. HP-driven
+    -- with id-hash gate so squads split (half pull back, half fall through to
+    -- whatever else applies).
+    RETREAT_AND_FIRE = {
+        plan = { state = "sneak_fire", body = "crouch", mvt = "walk", target = "step_away" },
+        applies = function(ctx) return ctx.hp_frac < cfg.retreat_hp and (ctx.id % 10) < 5 end,
+    },
+    -- Real flee. sprint (state_lib.script:99-105) = weapon=strapped, run, panic
+    -- mental. Weapon goes away, NPC sprints backward via flee_far resolver, no
+    -- firing, no cover preference.
+    FLEE = {
+        plan = { state = "sprint", body = "standing", mvt = "run", target = "flee_far" },
+        applies = function(ctx) return ctx.hp_frac < cfg.retreat_hp end,
+    },
+    -- Catch-all for COWARD when NPC has no LOS and no other behavior applies.
+    -- hide_na (state_lib.script:319-325) = weapon unstrapped, crouch, stand,
+    -- danger mental, no animation. NPC stays put crouched silently. Prevents
+    -- the otherwise-frozen NPC stall in coward lists that lack ADVANCE.
+    HOLD_STILL = {
+        plan = { state = "hide_na", body = "crouch", mvt = "stand", target = "hold" },
         applies = _always_applies,
     },
 }
@@ -278,15 +364,43 @@ local BEHAVIORS = {
 -- priority: earlier rows checked first.
 -- =========================================================================
 
-local LIST_TACTICAL  = { "SNIPE", "ADVANCE", "TAKE_COVER", "FIRE_FROM_COVER", "FIRE_HOLD" }
-local LIST_AGGRESSOR = { "CLOSE_ASSAULT" }
-local LIST_RETREAT   = { "RETREAT" }
+-- Per-faction behavior lists. Each list is the priority order the decide loop
+-- walks; first behavior with applies(ctx)==true fires. HP/weapon gating lives
+-- in each behavior's applies, not in list selection — list selection is pure
+-- community lookup.
+--
+-- HP-driven behaviors (RETREAT, RETREAT_AND_FIRE, FLEE) are first in each list
+-- that includes them. RETREAT_AND_FIRE has a 50/50 id-hash gate so squads split
+-- (half pull back firing, half fall through to RETREAT/FLEE or combat).
+local LIST_MILITARY         = { "RETREAT_AND_FIRE", "SNIPE", "FLANKING", "FIRE_FROM_COVER", "TAKE_COVER", "FIRE_HOLD", "ADVANCE" }
+local LIST_FANATIC          = { "CLOSE_ASSAULT", "SNIPE", "FLANKING", "FIRE_FROM_COVER", "TAKE_COVER", "FIRE_HOLD", "ADVANCE" }
+local LIST_MERC             = { "RETREAT_AND_FIRE", "RETREAT", "SNIPE", "FLANKING", "FIRE_FROM_COVER", "TAKE_COVER", "FIRE_HOLD", "ADVANCE" }
+local LIST_DISORGANIZED     = { "RETREAT_AND_FIRE", "RETREAT", "CLOSE_ASSAULT", "ADVANCE", "FIRE_FROM_COVER", "FIRE_HOLD" }
+local LIST_COWARD           = { "RETREAT_AND_FIRE", "FLEE", "SNIPE", "FIRE_FROM_COVER", "TAKE_COVER", "FIRE_HOLD", "HOLD_STILL" }
+local LIST_TACTICAL_DEFAULT = { "RETREAT_AND_FIRE", "RETREAT", "SNIPE", "ADVANCE", "TAKE_COVER", "FIRE_FROM_COVER", "FIRE_HOLD" }
+local LIST_ZOMBIE           = { "ZOMBIE_SHAMBLE" }
 
--- The list this NPC is allowed to pick from, given current factors.
+-- Community → list. Unknown communities fall through to LIST_TACTICAL_DEFAULT.
+-- Community strings are engine-authoritative (game_relations.ltx:26).
+local FACTION_LIST = {
+    army       = LIST_MILITARY,
+    army_npc   = LIST_MILITARY,
+    dolg       = LIST_MILITARY,
+    freedom    = LIST_MILITARY,
+    isg        = LIST_MILITARY,
+    monolith   = LIST_FANATIC,
+    greh       = LIST_FANATIC,
+    greh_npc   = LIST_FANATIC,
+    killer     = LIST_MERC,
+    bandit     = LIST_DISORGANIZED,
+    renegade   = LIST_DISORGANIZED,
+    ecolog     = LIST_COWARD,
+    csky       = LIST_COWARD,
+    zombied    = LIST_ZOMBIE,
+}
+
 local function _allowed_for(ctx)
-    if ctx.hp_frac < cfg.retreat_hp then return LIST_RETREAT end
-    if AGGRESSOR_KINDS[ctx.weapon_kind] then return LIST_AGGRESSOR end
-    return LIST_TACTICAL
+    return FACTION_LIST[ctx.community] or LIST_TACTICAL_DEFAULT
 end
 
 
@@ -316,6 +430,7 @@ local function _gather_inputs(npc, id, tg)
     ctx.weapon_kind = _get_weapon_kind(npc, id, tg)
     ctx.community   = _get_community(npc, id)
     ctx.bucket      = id % SQUAD_LATERAL_BUCKETS
+    ctx.id          = id
     return ctx
 end
 
@@ -336,10 +451,10 @@ local function _decide_behavior(ctx)
     return nil
 end
 
--- Behaviors that bypass the behavior_hold commit gate. RETREAT must
--- interrupt in-flight commitment (HP emergency). nil (handoff) is also a
--- bypass case, handled by the action-side _should_hold check.
-local BYPASSES_HOLD = { RETREAT = true }
+-- HP-driven behaviors that bypass the behavior_hold commit gate. All three
+-- interrupt in-flight commitment when HP drops below retreat_hp. nil (handoff)
+-- is also a bypass case, handled by the action-side _should_hold check.
+local BYPASSES_HOLD = { RETREAT = true, RETREAT_AND_FIRE = true, FLEE = true }
 
 
 -- =========================================================================
@@ -356,8 +471,6 @@ local function _decide_eval(npc, id)
     if (id % 1000) >= (cfg.combat_share * 1000) then return false, "hash_out" end
     if not npc:alive() then return false, "dead" end
     if IsWounded(npc) then return false, "wounded" end
-    local community = _get_community(npc, id)
-    if community == "zombied" or community == "monolith" then return false, "community" end
     local until_ms = _fail_until[id]
     if until_ms and time_global() < until_ms then return false, "fail_backoff" end
     local be = npc:best_enemy()
@@ -404,13 +517,15 @@ class "action_at_combat" ( action_base )
 function action_at_combat:__init(name) super (nil, name)
 end
 
+-- Streak persists past threshold; each fail past threshold extends the backoff
+-- linearly (3 fails = 10s, 4 = 20s, 5 = 30s, ...). Stuck NPCs settle into long
+-- backoffs and stay in vanilla. Streak resets on successful pick at the
+-- _repick site (`_fail_streak[id] = 0`).
 local function _on_pick_fail(id)
     local streak = (_fail_streak[id] or 0) + 1
+    _fail_streak[id] = streak
     if streak >= FAIL_THRESHOLD then
-        _fail_until[id]  = time_global() + FAIL_BACKOFF_MS
-        _fail_streak[id] = 0
-    else
-        _fail_streak[id] = streak
+        _fail_until[id] = time_global() + FAIL_BACKOFF_MS * (streak - FAIL_THRESHOLD + 1)
     end
     return streak
 end
@@ -658,6 +773,9 @@ function action_at_combat:finalize()
     -- Clear the engine sniper aim flag so vanilla planner resumes cleanly.
     if self.last_sniper_mode then
         npc:sniper_fire_mode(false)
+        if _dbg then
+            log.debug("[COMBAT] sniper_aim npc=%d true->false (finalize)", id)
+        end
         self.last_sniper_mode = false
     end
     tmr:stop()
