@@ -1,6 +1,13 @@
 next
-  Summary: danger rework, stealth kills, limp/heal fixes, AOEngine compatibility
+  Summary: combat AI takeover, sniper aim mode, danger rework, stealth kills, limp/heal fixes, AOEngine compatibility
 
+  - Added Combat AI takeover on a configurable share of NPCs (slider, default 50%).
+    Per-NPC stable hash decides which NPCs use AT combat vs. vanilla / modpack combat. Same NPC always lands the same side across save and load.
+    Each NPC walks a list of allowed behaviors (chosen by HP and weapon) every tick and picks the first one matching the current situation.
+    Close-weapon carriers (pistol, shotgun, SMG, knife) charge the enemy. Low-HP NPCs retreat. Others advance through cover, take cover when exposed, fire from cover when peeking is possible, crouch and fire otherwise.
+  - Added Sniper aim mode for kind=w_sniper carriers (SVD, SVT40, Mosin, SKS, M82 and the rest of the class).
+    When a sniper has line of sight, they crouch and engage the engine sniper-aim flag, which tracks the target head direction instead of the weapon barrel direction. More precise aim at range.
+  - Removed Stance Switch as a standalone system. Sniper crouching is now handled inside Combat for in-share NPCs and inherited from the vanilla planner for out-of-share NPCs.
   - Fixed Anomaly's xr_danger with a full-file script override and paired ltx.
     Hits, ricochets, and nearby gunshots each use their own config row (vanilla collapsed all three).
     Crashes near mutant bodies and stale animation across danger transitions are gone.

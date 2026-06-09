@@ -20,7 +20,7 @@ Version 1.0.0.
 | `at_hitresponse.script` | feature | done |
 | `at_health.script` | feature | done |
 | `at_accuracy.script` | feature | done |
-| `at_combat.script` | feature | Pattern B planner takeover; ADVANCE, TAKE_COVER, RETREAT, FIRE_FROM_COVER, FIRE_HOLD wired with sniper-fire state variants; CLOSE_ASSAULT pending |
+| `at_combat.script` | feature | Pattern B planner takeover; BEHAVIORS catalog (ADVANCE, TAKE_COVER, FIRE_FROM_COVER, FIRE_HOLD, RETREAT, CLOSE_ASSAULT, SNIPE); per-NPC list selection by HP/weapon; SNIPE wires the engine `sniper_fire_mode` flag |
 | `at_advance.script.bak` | feature | superseded by at_combat (preserved as .bak, doesn't auto-load) |
 | `xr_danger.script` | feature | done (full-file override) |
 | `zzz_at_health_patch.script` | feature | done (vanilla xr_eat_medkit re-roll suppressor) |
@@ -192,7 +192,9 @@ Per-shot hot path. Cost ~1.5μs per call when DEBUG off (2 luabind crossings via
 
 ## Combat
 
-Pattern B planner takeover per `doc/library/modding/goap-injection.md:427-447`. Single scheme owns vanilla `action_combat_planner` for a configurable share of NPCs and runs an internal mode state machine. Replaces at_advance entirely. ADVANCE, TAKE_COVER, RETREAT, FIRE_FROM_COVER, FIRE_HOLD are wired in the decide tree. Sniper carriers (LTX `kind=w_sniper`) get swapped to vanilla sniper-fire states in the static-fire modes via a sparse override table. CLOSE_ASSAULT is declared as a MODE_PLANS row but the decide tree does not yet return it.
+Pattern B planner takeover per `doc/library/modding/goap-injection.md:427-447`. Single scheme owns vanilla `action_combat_planner` for a configurable share of NPCs.
+
+The behavior catalog (`BEHAVIORS` table) defines each combat behavior as a row of `{ plan, applies(ctx) }`. Each NPC reads from a per-NPC list (`LIST_TACTICAL`, `LIST_AGGRESSOR`, or `LIST_RETREAT`) chosen by HP and weapon kind. The decide phase walks the list in order, returning the first behavior whose `applies(ctx)` matches the current situation. The behavior's `plan` (state, body, mvt, target) drives engine state writes.
 
 ### Product framing: inject not replace
 
@@ -236,16 +238,22 @@ Returns `(true, "in_range")` on full pass, else `(false, "<reason>")`. All filte
 
 **gather (`_gather_inputs`)** — one luabind round per tick. Reads `npc:position`, `npc:level_vertex_id`, `npc.health`, `best_enemy`, `enemy:position`, `npc:see(enemy)`, `enemy:see(npc)`, `level.high_cover_in_direction(npc_lvid, dir_to_enemy)` (used as `has_high_cover = value >= 0.2`, threshold per `axr_stalker_panic.script:399` precedent), computes `dist`, `dx`, `dz`. Cached for the tick. No re-reads in later steps.
 
-**decide (`_decide_mode`)** — pure function returning a mode constant. Flat priority tree, top-down, first match wins. Current implementation: `if not enemy then NONE; if dist < min_dist then NONE; if hp_frac < retreat_hp then RETREAT; if dist > advance_dist then ADVANCE; if see_me and not has_high_cover then TAKE_COVER; if has_high_cover and see then FIRE_FROM_COVER; if see then FIRE_HOLD; else ADVANCE`. CLOSE_ASSAULT branch not yet wired.
+**decide (`_decide_behavior`)** — early returns on `not ctx.enemy` or `ctx.dist < cfg.min_dist` (both signal handoff). Otherwise `_allowed_for(ctx)` returns the per-NPC list, and the decide loop returns the first behavior whose `applies(ctx)` is true. Returns the behavior NAME (string), or nil for handoff.
 
-**mode hold** — gate between decide and apply. After a mode change, the action commits to that mode for `random(1500, 3500)` ms before the decide tree's output can flip it again. Prevents sub-second oscillation as NPCs move between adjacent vertices whose `high_cover_in_direction` values straddle the 0.2 threshold (advance ↔ take_cover flap observed before the gate landed, eliminated after). MODE_NONE and MODE_RETREAT bypass: terminate paths (no enemy / too close) run unchanged, and HP emergency must interrupt any in-flight commitment. Implemented via `self._mode_hold_until` on the action; reset in `:initialize`.
+`_allowed_for(ctx)` rules:
+- `hp_frac < cfg.retreat_hp` → `LIST_RETREAT`
+- `weapon_kind in AGGRESSOR_KINDS` → `LIST_AGGRESSOR`
+- else → `LIST_TACTICAL`
 
-**apply (`_apply_state`)** — `MODE_PLANS[mode]` returns `{state, body, mvt, target_kind}`. Each engine write is gated by change detection:
+**behavior hold** — gate between decide and apply. After a behavior change, the action commits to that name for `random(1500, 3500)` ms before the decide loop's output can flip it again. Prevents sub-second oscillation as NPCs move between adjacent vertices whose `high_cover_in_direction` values straddle the 0.2 threshold. `BYPASSES_HOLD[name]` (currently just `RETREAT`) and nil-handoff skip the gate so HP emergency / terminate paths interrupt any in-flight commitment. Implemented via `self._behavior_hold_until` on the action; reset in `:initialize`. `_should_hold(new, tg)` extracts the conditional out of the execute hot path.
+
+**apply (`_apply_state`)** — `behavior.plan` returns `{state, body, mvt, target, sniper_aim?}`. Each engine write is gated by change detection:
 - `if plan.state ~= self.last_state` then `state_mgr.set_state(npc, plan.state, ..., {fast_set=true})`
 - `if plan.body  ~= self.last_body`  then `npc:set_body_state(move[plan.body])`
 - `if plan.mvt   ~= self.last_mvt`   then `npc:set_movement_type(move[plan.mvt])`
+- `if plan.sniper_aim ~= self.last_sniper_mode` then `npc:sniper_fire_mode(want)` — flips the engine flag at `ai_stalker.h:814` consumed in `ai_stalker_fire.cpp:193, 225, 239`
 
-Zero engine writes when stable. Avoids the state_mgr churn that killed SQUAD_CAMPER's vanilla sub-scheme.
+Zero engine writes when stable. The sniper_aim toggle drives the engine's actual sniper-aim path (m_head.target as aim direction instead of weapon LastFD). Cleared on finalize so vanilla planner resumes without the flag stuck on.
 
 **movement (`_repick`)** — only fires if `tg > self._next_pick` OR another NPC stole our cover (`db.used_level_vertex_ids[target_lvid] ~= npc:id()`). Resolves target via `TARGET_RESOLVERS[plan.target_kind]` (currently `cover_step_fwd`, `cover_nearest`, `step_away`, and `hold`). Cover reservation via `_claim_cover` — if another NPC owns the lvid, our pick fails and we push `_next_pick` out 1.5-3.5s to throttle retry. After successful claim: release old lvid, claim new lvid, `set_dest_level_vertex_id(new_lvid)`, `_next_pick = tg + math_random(1500, 3500)`. Same as RCAI's `__keep_point_until` adapted. `cover_nearest` runs a two-tier `npc:best_cover(search_pos, ene_pos, 10|30, 1, 20)` matching vanilla `find_best_cover` (ai_stalker_cover.cpp:141, 150) — radius 10m then 30m, non-sniper enemy-distance defaults. `step_away` mirrors `cover_step_fwd` with the direction-to-enemy vector negated: steps 15m backward, looks for cover near that point, falls back to `vertex_in_direction(-dir, 15)` for open terrain.
 
@@ -261,33 +269,46 @@ At `dist <= 0` the offset is zero (degenerate same-position case). Cost: 3 mul +
 
 **fire** — one `npc:set_sight(look.fire_point, ene_pos + 1.5y)` per tick. Engine fire dispatch runs from `mental_state = danger` + valid sight + LOS + active weapon. No explicit fire call needed.
 
-### MODE_PLANS table
+### BEHAVIORS catalog
 
-Data-driven. Each mode maps to a plan. Adding a new behavior = add a constant + a row + a decide-tree branch. No new function bodies.
+Data-driven. Each row: `name = { plan, applies(ctx), [sniper_aim] }`. Adding a behavior = add a row + add the name to the relevant list(s). No new function bodies.
 
-| Mode | State | Body | Mvt | Target |
-|---|---|---|---|---|
-| RETREAT | panic | standing | run | step_away |
-| TAKE_COVER | hide_na | crouch | run | cover_nearest |
-| ADVANCE | assault_fire | standing | run | cover_step_fwd |
-| CLOSE_ASSAULT | threat_fire | standing | walk | hold |
-| FIRE_FROM_COVER | threat_fire | standing | stand | hold |
-| FIRE_HOLD | hide_fire | crouch | stand | hold |
+| Behavior | State | Body | Mvt | Target | applies(ctx) | sniper_aim |
+|---|---|---|---|---|---|---|
+| ADVANCE | assault_fire | standing | run | cover_step_fwd | `dist > cfg.advance_dist or not see` | — |
+| TAKE_COVER | hide_na | crouch | run | cover_nearest | `see_me and not has_high_cover` | — |
+| SNIPE | hide_sniper_fire | crouch | stand | hold | `weapon_kind == "w_sniper" and see` | **true** |
+| FIRE_FROM_COVER | threat_fire | standing | stand | hold | `has_high_cover and see` | — |
+| FIRE_HOLD | hide_fire | crouch | stand | hold | `see` | — |
+| RETREAT | panic | standing | run | step_away | always | — |
+| CLOSE_ASSAULT | assault_fire | standing | run | charge_enemy | always | — |
 
-body/mvt stored as string keys (`"standing"`, `"crouch"`, `"run"`, etc.), resolved at apply time via `move[name]`. Lets MODE_PLANS construct at module load before engine `move` enum is bound.
+body / mvt stored as string keys (`"standing"`, `"crouch"`, `"run"`, etc.), resolved at apply time via `move[name]`. Lets BEHAVIORS construct at module load before engine `move` enum is bound.
 
-### Sniper weapon-kind variants
+### Per-NPC allowed-behavior lists
 
-For `kind=w_sniper` carriers, `SNIPER_PLAN_OVERRIDES` swaps the state in static-fire modes to vanilla sniper-fire states (`state_lib.script:304, 333`). The `sniper_fire` weapon mode drives the engine's sniper-aim animation set: head settle, breathing pause, longer aim hold.
+Module-level constants. `_allowed_for(ctx)` returns the reference; no per-tick allocation. Order in each list is the priority — earlier entries checked first.
 
-| Mode | Default state | w_sniper state | Body change |
-|---|---|---|---|
-| FIRE_FROM_COVER | `threat_fire` | `threat_sniper_fire` | standing -> crouch |
-| FIRE_HOLD | `hide_fire` | `hide_sniper_fire` | (already crouch) |
+| List | Behaviors (in priority order) |
+|---|---|
+| LIST_TACTICAL | SNIPE, ADVANCE, TAKE_COVER, FIRE_FROM_COVER, FIRE_HOLD |
+| LIST_AGGRESSOR | CLOSE_ASSAULT |
+| LIST_RETREAT | RETREAT |
 
-The override sparse-merges via `_resolve_plan(mode, plan, weapon_kind)` between MODE_PLANS lookup and `_apply_state`. Non-sniper carriers and non-static modes pass through unchanged. The mechanism is the doctrine-layer pattern: behaviors are axes, weapon-kind (and future faction) variants are layers on top of one MODE row.
+SNIPE is first in LIST_TACTICAL so sniper carriers with LOS preempt ADVANCE (snipers don't close distance, they engage at range). Non-sniper NPCs fall through SNIPE (its applies returns false) into ADVANCE / TAKE_COVER / FIRE_FROM_COVER / FIRE_HOLD.
 
-Replaces the old `at_stance.script` engine-functor approach (dropped 2026-06-09 commit `591b6e0`); the functor was unreachable for in-share NPCs because Pattern B blocks the `action_combat_planner` sub-tree where `body_state_combat_override` is called from.
+### Sniper behavior: real engine sniper-aim
+
+When SNIPE fires, `_apply_state` calls `npc:sniper_fire_mode(true)`. The engine flag at `ai_stalker.h:814` is consumed in `ai_stalker_fire.cpp:193, 225, 239`:
+
+- When the flag is set, the engine swaps the aim direction from `weapon->get_LastFD()` (weapon barrel direction) to `movement().m_head.target.yaw/pitch` (target head direction).
+- Practical effect: the NPC aims where the head IS GOING TO point (target position via state_mgr's `look_object`), not where the weapon currently happens to face. More precise aim, tracks the target rather than the barrel.
+
+When SNIPE exits (transition to any other behavior or finalize), `npc:sniper_fire_mode(false)` is called so the engine flag doesn't persist when vanilla planner resumes.
+
+The flag is the only engine-level sniper mechanism. `weapon="sniper_fire"` in the state def is treated identically to `weapon="fire"` by `state_mgr_weapon` (both pass the `unstrapped or fire or sniper_fire` evaluator the same way). The state-name choice is cosmetic; the engine flag is what changes behavior.
+
+Replaces the old `at_stance.script` functor (dropped 2026-06-09 commit `591b6e0`) which forced crouch on sniper LookOut / HoldPosition. That functor was unreachable for in-share NPCs anyway because Pattern B blocks the `action_combat_planner` sub-tree where `body_state_combat_override` is called from.
 
 ### Cover selection: the architectural lever
 
@@ -389,8 +410,7 @@ The architecture principle is to feed engine memory and state, not fight it. Per
 | Hit Sharing | RELATION_REGISTRY personal goodwill, memory entry m_enabled, agent_member_manager m_combat_mask | `force_set_goodwill`, `enable_memory_object`, `register_in_combat` |
 | Healing | NPC health field, bleeding field, `healing_charge` se_var | `change_health`, direct `bleeding =` write, `se_save_var` |
 | Accuracy | Per-shot dispersion radius via callback return | (subscribes to `npc_shot_dispersion`) |
-| Stance Switch | NPC body_state via functor return | (functor at `_G.CAI_Stalker__CombatSetBodyState`) |
-| Combat | NPC GOAP action (action_at_combat), Pattern B preconditions on action_combat_planner/action_danger_planner/xr_danger.actid/state_mgr+2/alife, set_dest_level_vertex_id, state_mgr.set_state, set_body_state, set_movement_type, set_sight | GOAP `add_evaluator`/`add_action`/`add_precondition` (evaid/actid 188200), `npc:best_cover`, `level.vertex_in_direction`, `db.used_level_vertex_ids` reservation |
+| Combat | NPC GOAP action (action_at_combat), Pattern B preconditions on action_combat_planner/action_danger_planner/xr_danger.actid/state_mgr+2/alife, set_dest_level_vertex_id, state_mgr.set_state, set_body_state, set_movement_type, set_sight, `m_sniper_fire_mode` flag | GOAP `add_evaluator`/`add_action`/`add_precondition` (evaid/actid 188200), `npc:best_cover`, `level.vertex_in_direction`, `npc:sniper_fire_mode`, `db.used_level_vertex_ids` reservation |
 | Danger | NPC danger evaluator/action graft, `script_danger` per-id table for sound-source dispatch | Engine callbacks `npc_on_hear_callback`, `npc_on_death_callback`, GOAP planner graft (evaid/actid 188113) |
 
 The engine then runs its own combat detection (property_enemy, m_combat_mask, agent_memory propagation) on the state we wrote. No system reimplements engine behavior; each one nudges engine state to produce the desired outcome.
