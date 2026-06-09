@@ -308,7 +308,7 @@ Module-level constants. `_allowed_for(ctx)` returns the list for the NPC's commu
 | `LIST_FANATIC` | CLOSE_ASSAULT, SNIPE, FLANKING, FIRE_FROM_COVER, TAKE_COVER, FIRE_HOLD, ADVANCE | `monolith`, `greh`, `greh_npc` |
 | `LIST_MERC` | RETREAT_AND_FIRE, RETREAT, SNIPE, FLANKING, FIRE_FROM_COVER, TAKE_COVER, FIRE_HOLD, ADVANCE | `killer` |
 | `LIST_DISORGANIZED` | RETREAT_AND_FIRE, RETREAT, CLOSE_ASSAULT, ADVANCE, FIRE_FROM_COVER, FIRE_HOLD | `bandit`, `renegade` |
-| `LIST_COWARD` | RETREAT_AND_FIRE, FLEE, SNIPE, FIRE_FROM_COVER, TAKE_COVER, FIRE_HOLD, HOLD_STILL | `ecolog`, `csky` |
+| `LIST_COWARD` | RETREAT_AND_FIRE, FLEE, FIRE_FROM_COVER, TAKE_COVER, FIRE_HOLD, HOLD_STILL | `ecolog`, `csky` |
 | `LIST_TACTICAL_DEFAULT` (fallback) | RETREAT_AND_FIRE, RETREAT, SNIPE, ADVANCE, TAKE_COVER, FIRE_FROM_COVER, FIRE_HOLD | `stalker` (loner), any unmapped |
 | `LIST_ZOMBIE` | ZOMBIE_SHAMBLE | `zombied` |
 
@@ -318,7 +318,7 @@ Faction signatures (what the player sees):
 - **FANATIC** — same skill as military, no retreat. Close weapon → charges always. Fights to death.
 - **MERC** — military skillset + breaks. Panic RETREAT at low HP (military doesn't).
 - **DISORGANIZED** — no sniping, no flanking, no cover-seek. Charge with shotguns, advance with rifles, panic when hurt.
-- **COWARD** — never advance, never charge. FLEE outright at low HP (weapon strapped, 30m sprint). HOLD_STILL when LOS lost (crouch in place).
+- **COWARD** — never advance, never charge, never snipe (untrained, no long-range fire even with a sniper rifle). FLEE outright at low HP (weapon strapped, 30m sprint). HOLD_STILL when LOS lost (crouch in place).
 - **TACTICAL_DEFAULT** — average. Mix of tactical + panic. No flank, no charge.
 - **ZOMBIE** — mindless walk-and-fire.
 
