@@ -14,9 +14,6 @@
   <string id="ui_mcm_menu_accuracy">
     <text>Accuracy</text>
   </string>
-  <string id="ui_mcm_menu_stance">
-    <text>Stance Switch</text>
-  </string>
   <string id="ui_mcm_menu_combat">
     <text>Combat</text>
   </string>
@@ -188,16 +185,6 @@
   </string>
   <string id="ui_mcm_at_accuracy_acc_disp_legend_desc">
     <text>Shot cone width for legend-rank stalkers (highest rank). Lower = tighter cone = more lethal. Default: 0.38.</text>
-  </string>
-  <!-- ==================== STANCE SWITCH TAB ==================== -->
-  <string id="ui_mcm_at_stance_desc">
-    <text>Forces long-range rifle carriers (DMRs, battle rifles, bolt-actions: SVD, SVU, SVT40, Mosin, SKS, K98, SR25, M82, M24, SV98, and the rest of the kind=w_sniper LTX class) to crouch when the engine combat planner selects a static-cover firing or peek action (LookOut, HoldPosition). The crouch persists into subsequent KillEnemy, WaitInCover, and HoldAmbushLocation actions because the engine inherits body_state across those operators. Lower silhouette, tighter dispersion, stable firing position from cover. Other weapon kinds (assault rifle, pistol, shotgun, SMG, knife, grenade launcher) keep vanilla stance. The engine independently selects crouch for any weapon at low cover via high_cover_in_direction reads; the override only kicks in when the engine selected Stand.</text>
-  </string>
-  <string id="ui_mcm_at_stance_stance_enabled">
-    <text>Enable Stance Switch</text>
-  </string>
-  <string id="ui_mcm_at_stance_stance_enabled_desc">
-    <text>Master toggle. When off, the engine's chosen body state passes through unchanged. Default: on.</text>
   </string>
   <!-- ==================== COMBAT TAB ==================== -->
   <string id="ui_mcm_at_combat_desc">

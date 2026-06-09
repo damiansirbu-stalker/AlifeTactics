@@ -1,6 +1,6 @@
 # AlifeTactics Architecture
 
-Combat AI mod for STALKER Anomaly. Independent user-facing systems: a hit-share force-disclosure, a self-heal data + animation layer, a per-rank weapon accuracy curve, a long-range rifle stance crouch (`kind=w_sniper` LTX class: DMRs, battle rifles, bolt-actions), a full-file xr_danger override with bug fixes and three toggleable improvements, and a Pattern B planner takeover that injects an alternative combat AI on a configurable share of NPCs (slider, default 50% — coexists with vanilla / GAMMA / AI Rework / RCAI / Useful Idiots / Mora, zero vanilla file overrides). No shared substrate.
+Combat AI mod for STALKER Anomaly. Independent user-facing systems: a hit-share force-disclosure, a self-heal data + animation layer, a per-rank weapon accuracy curve, a full-file xr_danger override with bug fixes and three toggleable improvements, and a Pattern B planner takeover that injects an alternative combat AI on a configurable share of NPCs (slider, default 50% — coexists with vanilla / GAMMA / AI Rework / RCAI / Useful Idiots / Mora, zero vanilla file overrides). No shared substrate.
 
 Built on xlibs (xsquad, xttltable, xtime, xprofiler, xlog, xmcm, xslice, xcreature).
 
@@ -20,7 +20,6 @@ Version 1.0.0.
 | `at_hitresponse.script` | feature | done |
 | `at_health.script` | feature | done |
 | `at_accuracy.script` | feature | done |
-| `at_stance.script` | feature | done |
 | `at_combat.script` | feature | Pattern B planner takeover; ADVANCE, TAKE_COVER, RETREAT wired; SNIPE / CLOSE_ASSAULT / FIRE_FROM_COVER / FIRE_HOLD pending |
 | `at_advance.script.bak` | feature | superseded by at_combat (preserved as .bak, doesn't auto-load) |
 | `xr_danger.script` | feature | done (full-file override) |
@@ -59,7 +58,6 @@ AlifeTactics/
 │   │   ├── at_hitresponse.script              # Hit Sharing system
 │   │   ├── at_health.script                   # Healing system
 │   │   ├── at_accuracy.script                 # Accuracy system
-│   │   ├── at_stance.script                   # Stance Switch system
 │   │   ├── at_combat.script                   # Combat system (Pattern B planner takeover)
 │   │   ├── xr_danger.script                   # full-file override (Danger system)
 │   │   ├── zzz_at_health_patch.script         # vanilla xr_eat_medkit re-roll suppressor
@@ -83,7 +81,6 @@ Each system has its own file, its own MCM tab, and one master toggle.
 | Hit Sharing | `at_hitresponse.script` | Hit Sharing | `hit_share_enabled` |
 | Healing | `at_health.script` | Healing | `healing_enabled` |
 | Accuracy | `at_accuracy.script` | Accuracy | `accuracy_enabled` |
-| Stance Switch | `at_stance.script` | Stance Switch | `stance_enabled` |
 | Combat | `at_combat.script` | Combat | `combat_enabled` |
 | Danger | `xr_danger.script` (full-file override) | Danger | bug fixes always-on; three toggleable improvements |
 
@@ -190,37 +187,6 @@ Math: `out = base * disp`. The engine already multiplied by `m_fRankDisperison` 
 8 tiers (novice / trainee / experienced / professional / veteran / expert / master / legend) with defaults from 1.00 down to 0.38.
 
 Per-shot hot path. Cost ~1.5μs per call when DEBUG off (2 luabind crossings via `ranks.get_obj_rank_name`, the rest pure Lua).
-
----
-
-## Stance Switch
-
-Hooks the modded-exe `_G.CAI_Stalker__CombatSetBodyState(npc, wo, body_state)` functor at `stalker_movement_manager_base_inline.h:51-59`. Returns `eBodyStateCrouch` for long-range rifle carriers (LTX `kind=w_sniper`: covers DMRs, battle rifles, bolt-action rifles) when the engine selected Stand for one of the override operators. Engine independently selects crouch for any weapon kind at low cover via `level.high_cover_in_direction` reads; our functor passes that through unchanged.
-
-### Engine call sites
-
-The functor fires from `body_state_combat_override` calls in `stalker_combat_actions.cpp`. Enumerated EWorldOperators that reach the functor: `{12, 14, 17, 20, 21, 22, 23, 25, 27, 28, 39}` (GetItemToKill, MakeItemKilling, GetReadyToKill, RetreatFromEnemy, TakeCover, LookOut, HoldPosition, DetourEnemy, HideFromGrenade, SuddenAttack, ThrowGrenade).
-
-### Override set
-
-```
-OVERRIDE_OPS = {
-    [OP_LOOKOUT]       = true,  -- 22
-    [OP_HOLD_POSITION] = true,  -- 23
-}
-```
-
-These are the two static-cover firing operators where precision-rifle doctrine calls for crouched fire from cover. Once the functor returns crouch on a LookOut or HoldPosition tick, subsequent KillEnemy, WaitInCover, and HoldAmbushLocation actions inherit the crouched body_state without re-entering the functor.
-
-### Composition chain
-
-`_prev_functor` captures any prior `_G.CAI_Stalker__CombatSetBodyState` installer at `on_game_start`. The chain composes with any other mod touching this seam instead of silently overriding.
-
-### Weapon-kind gate
-
-Reads `kind` from the NPC's `active_item():section()` via `ini_sys:r_string_ex(section, "kind")`. Crouches when `kind == "w_sniper"`. The `w_sniper` LTX classifier is broader than the colloquial "sniper": it covers long-range rifles including DMRs (SVD, SVU, SR25), battle rifles (SVT40, G43), bolt-actions (Mosin, K98), service carbines (SKS), and dedicated sniper rifles (M82, VSSK, M24, SV98, L96A1, TRG, WA2000, M98B, Sig550, Remington700, Gauss). 19 vanilla files plus ~134 GAMMA-stack additions. Other weapon kinds (`w_rifle`, `w_pistol`, `w_shotgun`, `w_smg`, `w_explosive`, `w_knife`) and NPCs without an active item pass through with the engine's chosen body_state. No squad-memory dependency, no role taxonomy. The `w_launcher` kind does not exist in any vanilla or GAMMA LTX file; RPG-7 and GP-25 are `w_explosive`.
-
-Vanilla playtest data validates the gate: 55 FLIP events across {Mosin 46, SKS 5, SVT40 2, SV98 2}, all `weapon_class=sniper_rifle`, scope_status 1 or 2. Engine independently selected crouch for 12+ other weapon kinds (BM-16 shotgun, AEK rifle, PPSh-41 SMG, Fort-500 pistol, etc) at low cover, passed through unchanged.
 
 ---
 
