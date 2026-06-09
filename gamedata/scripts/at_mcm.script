@@ -216,6 +216,10 @@ function on_mcm_load()
                     { id = "desc", type = "desc", text = "ui_mcm_at_combat_desc" },
                     { id = "combat_enabled", type = "check", val = 1, def = true },
 
+                    { id = "div_behaviors", type = "line" },
+                    { id = "hdr_behaviors", type = "desc", text = "ui_mcm_at_combat_hdr_behaviors", clr = {255, 200, 200, 200} },
+                    { id = "behaviors_list", type = "desc", text = "ui_mcm_at_combat_behaviors_list" },
+
                     { id = "div_share", type = "line" },
                     { id = "hdr_share", type = "desc", text = "ui_mcm_at_combat_hdr_share", clr = {255, 200, 200, 200} },
                     { id = "combat_share", type = "track", val = 2, min = 0.0, max = 1.0, step = 0.05, def = 0.5 },

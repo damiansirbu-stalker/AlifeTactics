@@ -209,6 +209,12 @@
   <string id="ui_mcm_at_combat_combat_enabled_desc">
     <text>Master toggle. When off, no NPC runs our combat planner; vanilla combat AI runs unmodified for everyone. Effective on next eval tick, no restart needed. Default: on.</text>
   </string>
+  <string id="ui_mcm_at_combat_hdr_behaviors">
+    <text>Behaviors (what the combat AI does)</text>
+  </string>
+  <string id="ui_mcm_at_combat_behaviors_list">
+    <text>Advance: closes distance through cover, picking the next cover lvid 15m toward the enemy and running there standing. Take cover: when the enemy can see the NPC and the NPC's position has no high cover from the enemy, runs crouched to nearby cover that hides from the enemy. The NPC commits to a chosen behavior for 1.5-3.5s before the next switch (prevents posture stutter at cover boundaries). When the NPC closes within the handoff distance below, the AI hands the close fight to vanilla. Pending behaviors declared in code but not yet active: retreat under low HP, sniper hold at long range, stand-and-fire from cover, crouched fire-hold from cover.</text>
+  </string>
   <string id="ui_mcm_at_combat_hdr_share">
     <text>Participation share</text>
   </string>
