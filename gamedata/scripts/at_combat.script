@@ -3,7 +3,7 @@
 --- list, first behavior whose applies(ctx) check matches the situation fires.
 
 local RegisterScriptCallback, IsStalker, IsWounded, time_global = RegisterScriptCallback, IsStalker, IsWounded, time_global
-local character_community, tostring, math_sqrt, math_random, math_min = character_community, tostring, math.sqrt, math.random, math.min
+local character_community, tostring, math_sqrt, math_random, math_min, math_max = character_community, tostring, math.sqrt, math.random, math.min, math.max
 
 local log = xlog.get_logger("AT.COMBAT", { outfile = "alifetactics.log" })
 local _dbg = false
@@ -23,6 +23,9 @@ local FAIL_THRESHOLD       = 3
 local FAIL_BACKOFF_MS      = 10000
 local WEAPON_KIND_TTL_MS   = 2000
 
+-- Engaged NPC disengages at (min_dist - this); stops boundary flicker.
+local EVAL_HYSTERESIS_M    = 2
+
 -- Squad spread: per-NPC lateral offset bucket. Stable hash on npc:id() picks
 -- one of N buckets centered on 0; buckets are {-(N-1)/2..(N-1)/2} * step.
 -- Same NPC always lands in the same bucket across save / load so squad
@@ -40,11 +43,12 @@ local AGGRESSOR_KINDS = {
     w_knife   = true,
 }
 
-local _installed   = {}
-local _last_eval   = {}
-local _last_reason = {}
-local _fail_until  = {}
-local _fail_streak = {}
+local _installed        = {}
+local _last_eval        = {}
+local _last_eval_logged = {}
+local _last_reason      = {}
+local _fail_until       = {}
+local _fail_streak      = {}
 
 -- Cached at npc_on_net_spawn. character_community never changes for an NPC.
 local _community   = {}
@@ -359,15 +363,17 @@ local function _decide_eval(npc, id)
     local be = npc:best_enemy()
     if not (be and be:alive()) then return false, "no_enemy" end
     local d2 = npc:position():distance_to_sqr(be:position())
-    if d2 < (cfg.min_dist * cfg.min_dist) then return false, "too_close" end
+    local floor_m = (_last_eval[id] == true)
+        and math_max(cfg.min_dist - EVAL_HYSTERESIS_M, 1)
+        or cfg.min_dist
+    if d2 < (floor_m * floor_m) then return false, "too_close" end
     return true, "in_range"
 end
 
 local function _log_eval_transition(id, result, reason, ms)
-    local prev = _last_eval[id]
+    local prev = _last_eval_logged[id]
     if prev == result then return end
-    _last_eval[id]   = result
-    _last_reason[id] = reason
+    _last_eval_logged[id] = result
     log.debug("[COMBAT] eval npc=%d %s->%s reason=%s [%.3fms]",
         id,
         prev == nil and "init" or tostring(prev),
@@ -381,6 +387,8 @@ function evaluator_at_combat:evaluate()
     local npc = self.object
     local id = npc:id()
     local result, reason = _decide_eval(npc, id)
+    _last_eval[id]   = result
+    _last_reason[id] = reason
     tmr:stop()
     if _dbg then _log_eval_transition(id, result, reason, tmr:get_ms()) end
     return result
@@ -710,13 +718,14 @@ end
 local function _on_entity_unregister(se_obj)
     if not se_obj then return end
     local id = se_obj.id
-    _installed[id]   = nil
-    _last_eval[id]   = nil
-    _last_reason[id] = nil
-    _fail_until[id]  = nil
-    _fail_streak[id] = nil
-    _community[id]   = nil
-    _weapon_kind[id] = nil
+    _installed[id]        = nil
+    _last_eval[id]        = nil
+    _last_eval_logged[id] = nil
+    _last_reason[id]      = nil
+    _fail_until[id]       = nil
+    _fail_streak[id]      = nil
+    _community[id]        = nil
+    _weapon_kind[id]      = nil
 end
 
 local function _refresh_log()
@@ -733,13 +742,14 @@ local function _refresh_log()
 end
 
 local function _on_first_update()
-    _installed   = {}
-    _last_eval   = {}
-    _last_reason = {}
-    _fail_until  = {}
-    _fail_streak = {}
-    _community   = {}
-    _weapon_kind = {}
+    _installed        = {}
+    _last_eval        = {}
+    _last_eval_logged = {}
+    _last_reason      = {}
+    _fail_until       = {}
+    _fail_streak      = {}
+    _community        = {}
+    _weapon_kind      = {}
     _refresh_log()
     log.info("Combat module initialized (enabled=%s share=%.2f min_dist=%dm dbg=%s)",
         cfg.combat_enabled and "true" or "false",
