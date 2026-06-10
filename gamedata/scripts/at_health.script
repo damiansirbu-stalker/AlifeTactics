@@ -272,6 +272,7 @@ local function _on_npc_update(npc, st)
         and not (active and tg < active)
         and not npc:in_smart_cover()
         and npc.health < cfg.limping_health_threshold
+        and not npc:best_enemy()
         and npc:mental_state() == anim.free
         and npc:body_state() == move.standing
         and npc:character_community() ~= "zombied"
