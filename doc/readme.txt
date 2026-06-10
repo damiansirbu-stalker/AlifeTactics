@@ -97,25 +97,33 @@ Tests showed the perfromance impact is almost nonexistent.
 
 Compatibility:
 
-Tested with vanilla Anomaly 1.5.3 and GAMMA. One base script override: xr_danger.script (vanilla file with bug fixes and three toggleable
-improvements; see MCM > Danger). No engine patches. Mid-save install and uninstall both work. Friendly fire and same-community hits are
+Tested with vanilla Anomaly 1.5.3 and GAMMA. Mid-save install and uninstall both work. Friendly fire and same-community hits are
 filtered at the faction-relation gate, so story NPCs, companions, traders, and squadmates are never armed against their own faction.
 
-Disable before installing AlifeTactics:
+AlifeTactics overrides one Anomaly script (xr_danger.script) and hooks engine APIs for self-healing, accuracy, and combat AI. Most
+mods install alongside without issue. The cases below are worth knowing about.
 
-Redundant with engine settings: Dynamic AI Aim Settings, DLTX_JURASZKA Worse NPC vision and accuracy. PR #523 exposes the aim, vision, and
-search-inertia cvars in engine Settings, and AT's accuracy curve also writes per-shot dispersion. Either path stacks on the other.
 
-Forced-movement schemes with stuck-NPC risk: Wuut AI Extension, NPC_Fleeing. Both graft forced movement onto the combat planner.
+Conflicts (pick one - running both breaks both):
 
-NPC self-heal overlaps: NPC Limping and Healing (Vodoxleb), Animated NPC Healing, NPC Animation Overhaul Part 1. Parallel heal schemes
-double-heal, full-file animation overrides conflict, combat planners gated on the heal evaluator can freeze NPCs after combat.
+NPC Limping and Healing (Vodoxleb). Drives the same limp and heal animations AlifeTactics does, through a different system. Both
+running stacks animations and breaks the heal cue.
 
-G.A.M.M.A. AI Rework: ships its own xr_danger.script and xr_danger.ltx. Load AlifeTactics after GAMMA AI Rework in MO2 if you want our
-xr_danger fixes; otherwise leave the GAMMA load order and our xr_danger sits unused. The two mods cover overlapping ground in different
-ways and run side-by-side without issues.
 
-ReDone Combat AI: copies Mora, overrides 12 scripts. Much is 1.5.2-gated and skipped on 1.5.3.
+Load order matters (both safe to install, the one loaded later wins):
+
+ReDone Combat AI, G.A.M.M.A. AI Rework. Both also override xr_danger.script. Put AlifeTactics later in MO2 if you want AlifeTactics's
+xr_danger fixes; put it earlier if you prefer the other mod's xr_danger.
+
+
+May have issues (untested combinations, listed because they touch the same systems):
+
+Animated NPC Healing, NPC Animation Overhaul Part 1. Replace NPC heal/movement animations through different paths. May fight
+AlifeTactics's heal and limp torso cues.
+
+Wuut AI Extension, NPC_Fleeing. Add forced-movement actions to the combat planner. AlifeTactics blocks the vanilla combat planner
+for the NPCs in its share, so these mods may not drive in-share NPCs as their authors intended. Out-of-share NPCs are unaffected.
+If you want full Wuut or NPC_Fleeing behavior, set AlifeTactics's combat share to 0 in MCM.
 
 Requirements:
 Anomaly 1.5.3

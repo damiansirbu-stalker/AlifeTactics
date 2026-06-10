@@ -1,6 +1,6 @@
 # AlifeTactics Architecture
 
-Combat AI mod for STALKER Anomaly. Independent user-facing systems: a hit-share force-disclosure, a self-heal data + animation layer, a per-rank weapon accuracy curve, a full-file xr_danger override with bug fixes and three toggleable improvements, and a Pattern B planner takeover that injects an alternative combat AI on a configurable share of NPCs (slider, default 50% — coexists with vanilla / GAMMA / AI Rework / RCAI / Useful Idiots / Mora, zero vanilla file overrides). No shared substrate.
+Combat AI mod for STALKER Anomaly. Independent user-facing systems: a hit-share force-disclosure, a self-heal data + animation layer, a per-rank weapon accuracy curve, a full-file xr_danger override with bug fixes and three toggleable improvements, and a Pattern B planner takeover that injects an alternative combat AI on a configurable share of NPCs (slider, default 100% — coexists with vanilla / GAMMA / AI Rework / RCAI / Useful Idiots / Mora, zero vanilla file overrides). No shared substrate.
 
 Built on xlibs (xsquad, xttltable, xtime, xprofiler, xlog, xmcm, xslice, xcreature).
 
@@ -21,7 +21,6 @@ Version 1.0.0.
 | `at_health.script` | feature | done |
 | `at_accuracy.script` | feature | done |
 | `at_combat.script` | feature | Pattern B planner takeover; 12 BEHAVIORS (ADVANCE, TAKE_COVER, FIRE_FROM_COVER, FIRE_HOLD, RETREAT, CLOSE_ASSAULT, SNIPE, ZOMBIE_SHAMBLE, FLANKING, RETREAT_AND_FIRE, FLEE, HOLD_STILL); per-faction lists (military / fanatic / merc / disorganized / coward / tactical default / zombie); SNIPE wires the engine `sniper_fire_mode` flag |
-| `at_advance.script.bak` | feature | superseded by at_combat (preserved as .bak, doesn't auto-load) |
 | `xr_danger.script` | feature | done (full-file override) |
 | `zzz_at_health_patch.script` | feature | done (vanilla xr_eat_medkit re-roll suppressor) |
 | `configs/ai_tweaks/mod_xr_eat_medkit_at.ltx` | data | done |
@@ -198,7 +197,7 @@ The behavior catalog (`BEHAVIORS` table) defines each combat behavior as a row o
 
 ### Product framing: inject not replace
 
-- Single MCM slider `combat_share` (0-100%, default 50%) gates participation per NPC via stable hash `(npc:id() % 1000) < (share * 1000)`. 0% = pure vanilla / GAMMA / whatever modpack combat the user already has. 100% = full takeover.
+- Single MCM slider `combat_share` (0-100%, default 100%) gates participation per NPC via stable hash `(npc:id() % 1000) < (share * 1000)`. 0% = pure vanilla / GAMMA / whatever modpack combat the user already has. 100% = full takeover.
 - Zero vanilla file overrides beyond xr_danger (separate system). Pattern B preconditions land on top of whatever the user's stack already has.
 - Coexists with vanilla, GAMMA, AI Rework, ReDone Combat AI, Useful Idiots, Mora. Their `xr_combat` / `xr_combat_camper` / condlist `script_combat_type` assignments still run; for NPCs outside our share they drive vanilla behavior. For NPCs in our share, vanilla planner is blocked via precondition; their condlist writes still execute every 500ms via `motivator_binder:update` but have no effect because vanilla planner is not running.
 - Per-NPC hash deterministic across saves. Same NPC always lands the same side. In-squad A/B testing possible.
@@ -399,7 +398,7 @@ When evaluator returns false (NPC died, enemy lost, NPC closed within distance f
 | Key | Type | Default | Effect |
 |---|---|---|---|
 | `combat_enabled` | check | true | Master toggle. Effective on next eval tick, no restart |
-| `combat_share` | track 0.0-1.0 step 0.05 | 0.5 | Fraction of eligible NPCs using our combat AI. 0 = pure vanilla. 1 = full takeover. Stable per-id hash |
+| `combat_share` | track 0.0-1.0 step 0.05 | 1.0 | Fraction of eligible NPCs using our combat AI. 0 = pure vanilla. 1 = full takeover. Stable per-id hash |
 | `min_dist` | track 5-15 step 1 | 8 | Close-combat handoff distance. When owned NPC closes within this, eval returns false and vanilla resumes |
 | `advance_dist` | track 20-80 step 5 | 40 | Beyond this distance, decide tree always returns ADVANCE. Under this, falls through to TAKE_COVER / FIRE_FROM_COVER / FIRE_HOLD based on LOS and cover |
 | `retreat_hp` | track 0.10-0.50 step 0.05 | 0.25 | HP fraction below which HP-driven behaviors fire (RETREAT, RETREAT_AND_FIRE, FLEE). Which one fires depends on faction list. All three bypass behavior_hold. |
@@ -416,8 +415,8 @@ Full-file override of vanilla `xr_danger.script` (Alundaio). Six vanilla bug fix
 2. `get_danger_time` crashes on mutant corpse: vanilla calls `corpse_object:death_time()` without `IsStalker` guard; trader interface absent on mutants.
 3. `eval_danger` nil-NPC guard missing: vanilla crashes when called on a torn-down NPC reference.
 4. `eval_danger` non-numeric `danger_time` check missing: vanilla type-asserts on bad return.
-5. `danger_intertion_time` condlist param typo: vanilla reads `danger_intertion_time` while LTX section is `[danger_inertion]`; entire actor/distance condlist evaluation was a no-op in vanilla.
-6. `npc_on_hit_callback` referenced undefined `who_id` variable: vanilla wrote nil shooter id into `script_danger`. Vanilla callback unregistered entirely; danger pipeline now driven by `npc_on_hear_callback` and `npc_on_death_callback`.
+5. `npc_on_hit_callback` referenced undefined `who_id` variable: vanilla wrote nil shooter id into `script_danger`. Vanilla callback unregistered entirely; danger pipeline now driven by `npc_on_hear_callback` and `npc_on_death_callback`.
+6. Animstate reset missing on danger-state transitions: vanilla `state_mgr.set_state` calls did not invoke `sm.animstate:set_state(nil, true) + set_control()`, leaving stale lower-body animation visible across the transition. AT calls the reset at every state change site (`xr_danger.script:459-464, 528-534, 805-818`).
 
 ### Improvements (MCM Danger tab, default on)
 
