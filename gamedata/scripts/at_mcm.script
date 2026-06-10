@@ -26,13 +26,16 @@ local defaults = {
     acc_disp_legend        = 0.38,
     combat_enabled = true,
     combat_share   = 1.0,
-    min_dist       = 8,
     advance_dist   = 40,
     retreat_hp     = 0.25,
     danger_hit_bypass   = true,
     danger_attack_sound = true,
     danger_actor_tables = true,
     log_level = "WARN",
+    hud_enabled    = false,
+    hud_position   = "center_right",
+    hud_radius     = 100,
+    hud_show_idle  = true,
 }
 
 local RegisterScriptCallback = RegisterScriptCallback
@@ -61,7 +64,6 @@ local _key_to_tab = {
     acc_disp_legend        = "accuracy",
     combat_enabled = "combat",
     combat_share   = "combat",
-    min_dist       = "combat",
     advance_dist   = "combat",
     retreat_hp     = "combat",
     danger_hit_bypass   = "danger",
@@ -69,6 +71,10 @@ local _key_to_tab = {
     danger_actor_tables = "danger",
     log_level     = "development",
     btn_reset_all = "development",
+    hud_enabled    = "development",
+    hud_position   = "development",
+    hud_radius     = "development",
+    hud_show_idle  = "development",
 }
 
 local function path_builder(key)
@@ -204,7 +210,6 @@ function on_mcm_load()
                     { id = "desc", type = "desc", text = "ui_mcm_at_combat_desc" },
                     { id = "combat_enabled", type = "check", val = 1, def = true },
                     { id = "combat_share", type = "track", val = 2, min = 0.0, max = 1.0, step = 0.05, def = 1.0 },
-                    { id = "min_dist", type = "track", val = 2, min = 5, max = 15, step = 1, def = 8 },
                     { id = "advance_dist", type = "track", val = 2, min = 20, max = 80, step = 5, def = 40 },
                     { id = "retreat_hp", type = "track", val = 2, min = 0.10, max = 0.50, step = 0.05, def = 0.25 },
 
@@ -254,6 +259,22 @@ function on_mcm_load()
                             {"DEBUG", "debug"},
                         },
                     },
+
+                    { id = "div_hud", type = "line" },
+                    { id = "hdr_hud", type = "desc", text = "ui_mcm_at_hdr_hud", clr = {255, 200, 200, 200} },
+                    { id = "hud_enabled", type = "check", val = 1, def = false },
+                    { id = "hud_position", type = "list", val = 0, def = "center_right",
+                        content = {
+                            {"top_left",     "topleft"},
+                            {"top_right",    "topright"},
+                            {"center_left",  "centerleft"},
+                            {"center_right", "centerright"},
+                            {"bottom_left",  "bottomleft"},
+                            {"bottom_right", "bottomright"},
+                        },
+                    },
+                    { id = "hud_radius", type = "track", val = 2, min = 30, max = 200, step = 10, def = 100 },
+                    { id = "hud_show_idle", type = "check", val = 1, def = true },
 
                     { id = "div_reset", type = "line" },
                     { id = "warn_reset", type = "desc", text = "ui_mcm_at_development_reset_warning", clr = {255, 240, 200, 80} },

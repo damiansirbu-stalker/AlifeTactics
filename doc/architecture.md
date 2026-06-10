@@ -223,12 +223,11 @@ Fast-fail chain, in order:
 1. `cfg.combat_enabled` master toggle
 2. `npc:alive()`
 3. `IsWounded(npc)`
-4. Stable per-id hash: `(npc:id() % 1000) < (cfg.combat_share * 1000)` (default 0.5)
+4. Stable per-id hash: `(npc:id() % 1000) < (cfg.combat_share * 1000)` (default 1.0)
 5. Pick-fail backoff window expired (linear extension past 3 consecutive failures: 3=10s, 4=20s, 5=30s; resets on successful pick)
 6. `npc:best_enemy()` exists and is alive
-7. Distance to enemy >= `cfg.min_dist` meters (default 8m)
 
-No community gate, no HP gate, no weapon gate. Every stalker flows through `_allowed_for(ctx)` and per-behavior `applies(ctx)` triggers handle gating.
+No distance gate, no community gate, no HP gate, no weapon gate. Every stalker flows through `_allowed_for(ctx)` and per-behavior `applies(ctx)` triggers handle gating. AT controls combat at all ranges; CLOSE_ASSAULT's own `applies` enforces a stop-charging distance against the enemy (default 10m, tunable via `ai_tweaks/at_combat.ltx`).
 
 Returns `(true, "in_range")` on full pass, else `(false, "<reason>")`. All filters dynamic — MCM toggles take effect on next eval. Hash stable per id.
 
@@ -238,11 +237,11 @@ Returns `(true, "in_range")` on full pass, else `(false, "<reason>")`. All filte
 
 **gather (`_gather_inputs`)** — one luabind round per tick. Reads `npc:position`, `npc:level_vertex_id`, `npc.health`, `best_enemy`, `enemy:position`, `npc:see(enemy)`, `enemy:see(npc)`, `level.high_cover_in_direction(npc_lvid, dir_to_enemy)` (used as `has_high_cover = value >= 0.2`, threshold per `axr_stalker_panic.script:399` precedent), computes `dist`, `dx`, `dz`. Cached for the tick. No re-reads in later steps.
 
-**decide (`_decide_behavior`)** — early returns on `not ctx.enemy` or `ctx.dist < cfg.min_dist` (both signal handoff). Otherwise `_allowed_for(ctx)` returns the per-faction list, and the decide loop returns the first behavior whose `applies(ctx)` is true. Returns the behavior NAME (string), or nil for handoff.
+**decide (`_decide_behavior`)** — early returns on `not ctx.enemy` (signals handoff). Otherwise `_allowed_for(ctx)` returns the per-faction list, and the decide loop returns the first behavior whose `applies(ctx)` is true. Returns the behavior NAME (string), or nil for handoff.
 
 `_allowed_for(ctx)` is a pure lookup: `FACTION_LIST[ctx.community] or LIST_TACTICAL_DEFAULT`. No HP, weapon, or community-special-case branches — those gates moved into each behavior's `applies(ctx)`. See the per-faction lists table below.
 
-**behavior hold** — gate between decide and apply. After a behavior change, the action commits to that name for `random(1500, 3500)` ms before the decide loop's output can flip it again. Prevents sub-second oscillation as NPCs move between adjacent vertices whose `high_cover_in_direction` values straddle the 0.2 threshold. `BYPASSES_HOLD[name]` (RETREAT, RETREAT_AND_FIRE, FLEE — all HP-driven) and nil-handoff skip the gate so HP emergency / terminate paths interrupt any in-flight commitment. Implemented via `self._behavior_hold_until` on the action; reset in `:initialize`. `_should_hold(new, tg)` extracts the conditional out of the execute hot path.
+**behavior hold** — gate between decide and apply. After a behavior change, the action commits to that name for `random(1500, 3500)` ms before the decide loop's output can flip it again. Prevents sub-second oscillation as NPCs move between adjacent vertices whose `high_cover_in_direction` values straddle the 0.2 threshold. `BYPASSES_HOLD[new]` (RETREAT, RETREAT_AND_FIRE, FLEE — all HP-driven) and nil-handoff skip the gate so HP emergency / terminate paths interrupt any in-flight commitment. `BYPASSES_HOLD_FROM[current]` (CLOSE_ASSAULT) lets distance-driven exits transition immediately to FIRE_HOLD when the NPC reaches the gate distance, instead of overshooting during the commit window. Implemented via `self._behavior_hold_until` on the action; reset in `:initialize`. `_should_hold(new, tg)` extracts the conditional out of the execute hot path.
 
 **apply (`_apply_state`)** — `behavior.plan` returns `{state, body, mvt, target, sniper_aim?}`. Each engine write is gated by change detection:
 - `if plan.state ~= self.last_state` then `state_mgr.set_state(npc, plan.state, ..., {fast_set=true})`
@@ -288,7 +287,7 @@ Data-driven. Each row: `name = { plan, applies(ctx), [sniper_aim] }`. Adding a b
 | FIRE_FROM_COVER | threat_fire | standing | stand | hold | `has_high_cover and see` | — |
 | FIRE_HOLD | hide_fire | crouch | stand | hold | `see` | — |
 | RETREAT | panic | standing | run | step_away | `hp_frac < cfg.retreat_hp` | — |
-| CLOSE_ASSAULT | assault_fire | standing | run | charge_enemy | `AGGRESSOR_KINDS[weapon_kind]` (pistol, shotgun, SMG, knife) | — |
+| CLOSE_ASSAULT | assault_fire | standing | run | charge_enemy | `AGGRESSOR_KINDS[weapon_kind]` (pistol, shotgun, SMG, knife) AND `dist > 10` | — |
 | ZOMBIE_SHAMBLE | raid_fire | standing | walk | charge_enemy | always | — |
 | FLANKING | assault_fire | standing | run | cover_flank | `dist > cfg.advance_dist and not see and has_high_cover` | — |
 | RETREAT_AND_FIRE | sneak_fire | crouch | walk | step_away | `hp_frac < cfg.retreat_hp and (id % 10) < 5` | — |
@@ -384,7 +383,7 @@ If both fail 3x consecutively, `_on_pick_fail` sets `_fail_until[id] = tg + 1000
 
 ### Handoff to vanilla
 
-When evaluator returns false (NPC died, enemy lost, NPC closed within distance floor, hp dropped below wounded threshold, share toggled off, fail backoff window active), Pattern B preconditions no longer block vanilla. Vanilla planner resumes from its normal action set. Vanilla properties (`eWorldPropertyInCover`, `eWorldPropertyLookedOut`, etc.) may have stale values from before our takeover but self-correct on first `best_cover_changed` event per `stalker_combat_planner.cpp:60-64`.
+When evaluator returns false (NPC died, enemy lost, hp dropped below wounded threshold, share toggled off, fail backoff window active), Pattern B preconditions no longer block vanilla. Vanilla planner resumes from its normal action set. Vanilla properties (`eWorldPropertyInCover`, `eWorldPropertyLookedOut`, etc.) may have stale values from before our takeover but self-correct on first `best_cover_changed` event per `stalker_combat_planner.cpp:60-64`.
 
 ### What we don't touch
 
@@ -399,7 +398,6 @@ When evaluator returns false (NPC died, enemy lost, NPC closed within distance f
 |---|---|---|---|
 | `combat_enabled` | check | true | Master toggle. Effective on next eval tick, no restart |
 | `combat_share` | track 0.0-1.0 step 0.05 | 1.0 | Fraction of eligible NPCs using our combat AI. 0 = pure vanilla. 1 = full takeover. Stable per-id hash |
-| `min_dist` | track 5-15 step 1 | 8 | Close-combat handoff distance. When owned NPC closes within this, eval returns false and vanilla resumes |
 | `advance_dist` | track 20-80 step 5 | 40 | Beyond this distance, decide tree always returns ADVANCE. Under this, falls through to TAKE_COVER / FIRE_FROM_COVER / FIRE_HOLD based on LOS and cover |
 | `retreat_hp` | track 0.10-0.50 step 0.05 | 0.25 | HP fraction below which HP-driven behaviors fire (RETREAT, RETREAT_AND_FIRE, FLEE). Which one fires depends on faction list. All three bypass behavior_hold. |
 

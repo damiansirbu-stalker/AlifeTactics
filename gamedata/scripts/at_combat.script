@@ -3,7 +3,7 @@
 --- list, first behavior whose applies(ctx) check matches the situation fires.
 
 local RegisterScriptCallback, IsStalker, IsWounded, time_global = RegisterScriptCallback, IsStalker, IsWounded, time_global
-local character_community, tostring, math_sqrt, math_random, math_min, math_max = character_community, tostring, math.sqrt, math.random, math.min, math.max
+local character_community, tostring, math_sqrt, math_random, math_min, math_floor = character_community, tostring, math.sqrt, math.random, math.min, math.floor
 
 local log = xlog.get_logger("AT.COMBAT", { outfile = "alifetactics.log" })
 local _dbg = false
@@ -12,34 +12,45 @@ local cfg = at_mcm.cfg
 local EVAL_ID = 188200
 local ACT_ID  = 188200
 
-local ADVANCE_STEP_M       = 15
-local STEP_AWAY_M          = 15
-local CHARGE_STEP_M        = 20
-local FLANK_LATERAL_M      = 20
-local FLANK_FORWARD_M      = 5
-local FLEE_STEP_M          = 30
--- best_cover viability: max search radius (15) + max distance to enemy (30) = 45m.
--- target_pos farther than this from enemy yields no valid cover (engine constraint),
--- so skip the call and fall straight to the open-terrain branch. Cuts wasted engine
--- quadtree queries for long-range ADVANCE and FLANKING ticks.
-local COVER_REACH_SQR      = 2025
-local KEEP_POINT_MIN       = 1500
-local KEEP_POINT_MAX       = 3500
-local BEHAVIOR_HOLD_MIN    = 1500
-local BEHAVIOR_HOLD_MAX    = 3500
-local FAIL_THRESHOLD       = 3
-local FAIL_BACKOFF_MS      = 10000
-local WEAPON_KIND_TTL_MS   = 2000
+-- Tunables loaded from ai_tweaks/at_combat.ltx at on_game_start (deferred lazy
+-- init; ini_file at module scope is a load-time freeze hazard). Each read has
+-- a script-side fallback default so a missing key or file won't crash. Constants
+-- used by BEHAVIORS / resolvers / hot path read via upvalue at runtime, after
+-- _load_tunables has populated them.
+local LTX_PATH    = "ai_tweaks\\at_combat.ltx"
+local LTX_SECTION = "at_combat"
 
--- Engaged NPC disengages at (min_dist - this); stops boundary flicker.
-local EVAL_HYSTERESIS_M    = 2
+local CLOSE_ASSAULT_MIN_DIST_M, ADVANCE_STEP_M, STEP_AWAY_M, CHARGE_STEP_M
+local FLANK_LATERAL_M, FLANK_FORWARD_M, FLEE_STEP_M, COVER_REACH_SQR
+local SQUAD_LATERAL_BUCKETS, SQUAD_LATERAL_STEP_M
+local KEEP_POINT_MIN, KEEP_POINT_MAX, BEHAVIOR_HOLD_MIN, BEHAVIOR_HOLD_MAX
+local FAIL_BACKOFF_MS, WEAPON_KIND_TTL_MS, FAIL_THRESHOLD
 
--- Squad spread: per-NPC lateral offset bucket. Stable hash on npc:id() picks
--- one of N buckets centered on 0; buckets are {-(N-1)/2..(N-1)/2} * step.
--- Same NPC always lands in the same bucket across save / load so squad
--- members deterministically fan out across the engagement line.
-local SQUAD_LATERAL_BUCKETS = 5
-local SQUAD_LATERAL_STEP_M  = 4
+local function _load_tunables()
+    local ini = ini_file(LTX_PATH)
+    -- Only r_string_ex / r_float_ex / r_bool_ex are defined (in _g.script Lua-side).
+    -- The engine never exposed _ex variants for u32 / s32, so use r_float_ex for
+    -- everything and floor to int where the value is used as an integer.
+    local function f(k, d) return ini:r_float_ex(LTX_SECTION, k) or d end
+    local function i(k, d) local v = ini:r_float_ex(LTX_SECTION, k); return v and math_floor(v) or d end
+    CLOSE_ASSAULT_MIN_DIST_M = f("close_assault_min_dist_m", 10)
+    ADVANCE_STEP_M           = f("advance_step_m",           15)
+    STEP_AWAY_M              = f("step_away_m",              15)
+    CHARGE_STEP_M            = f("charge_step_m",            20)
+    FLANK_LATERAL_M          = f("flank_lateral_m",          20)
+    FLANK_FORWARD_M          = f("flank_forward_m",          5)
+    FLEE_STEP_M              = f("flee_step_m",              30)
+    COVER_REACH_SQR          = f("cover_reach_sqr",          2025)
+    SQUAD_LATERAL_BUCKETS    = i("squad_lateral_buckets",    5)
+    SQUAD_LATERAL_STEP_M     = f("squad_lateral_step_m",     4)
+    KEEP_POINT_MIN           = i("keep_point_min_ms",        1500)
+    KEEP_POINT_MAX           = i("keep_point_max_ms",        3500)
+    BEHAVIOR_HOLD_MIN        = i("behavior_hold_min_ms",     1500)
+    BEHAVIOR_HOLD_MAX        = i("behavior_hold_max_ms",     3500)
+    FAIL_BACKOFF_MS          = i("fail_backoff_ms",          10000)
+    WEAPON_KIND_TTL_MS       = i("weapon_kind_ttl_ms",       2000)
+    FAIL_THRESHOLD           = i("fail_threshold",           3)
+end
 
 -- Weapon kinds that trigger CLOSE_ASSAULT.applies (charge instead of cover work).
 -- These weapons want close-quarters engagement; fire-from-cover at range is
@@ -316,7 +327,10 @@ local BEHAVIORS = {
     },
     CLOSE_ASSAULT = {
         plan = { state = "assault_fire", body = "standing", mvt = "run", target = "charge_enemy" },
-        applies = function(ctx) return AGGRESSOR_KINDS[ctx.weapon_kind] == true end,
+        applies = function(ctx)
+            return AGGRESSOR_KINDS[ctx.weapon_kind] == true
+                and ctx.dist > CLOSE_ASSAULT_MIN_DIST_M
+        end,
     },
     -- Mindless shamble for zombied: walk forward firing (raid_fire = weapon=fire,
     -- mvt=walk, mental=danger per state_lib.script:135-141). No cover seeking, no
@@ -442,7 +456,6 @@ end
 
 local function _decide_behavior(ctx)
     if not ctx.enemy then return nil end
-    if ctx.dist < cfg.min_dist then return nil end
     local list = _allowed_for(ctx)
     for i = 1, #list do
         local behavior = BEHAVIORS[list[i]]
@@ -451,10 +464,15 @@ local function _decide_behavior(ctx)
     return nil
 end
 
--- HP-driven behaviors that bypass the behavior_hold commit gate. All three
--- interrupt in-flight commitment when HP drops below retreat_hp. nil (handoff)
--- is also a bypass case, handled by the action-side _should_hold check.
+-- HP-driven behaviors that bypass the behavior_hold commit gate when chosen as
+-- the NEW behavior. Interrupts in-flight commitment when HP drops below retreat_hp.
 local BYPASSES_HOLD = { RETREAT = true, RETREAT_AND_FIRE = true, FLEE = true }
+
+-- Behaviors that bypass the hold gate when chosen as the CURRENT behavior we're
+-- LEAVING. CLOSE_ASSAULT is distance-driven; once the NPC reaches the gate distance
+-- we want an immediate transition to FIRE_HOLD (crouched stationary fire), not a
+-- 1.5-3.5s overshoot from the commit window.
+local BYPASSES_HOLD_FROM = { CLOSE_ASSAULT = true }
 
 
 -- =========================================================================
@@ -475,11 +493,6 @@ local function _decide_eval(npc, id)
     if until_ms and time_global() < until_ms then return false, "fail_backoff" end
     local be = npc:best_enemy()
     if not (be and be:alive()) then return false, "no_enemy" end
-    local d2 = npc:position():distance_to_sqr(be:position())
-    local floor_m = (_last_eval[id] == true)
-        and math_max(cfg.min_dist - EVAL_HYSTERESIS_M, 1)
-        or cfg.min_dist
-    if d2 < (floor_m * floor_m) then return false, "too_close" end
     return true, "in_range"
 end
 
@@ -661,10 +674,14 @@ function action_at_combat:_log_tick(npc, behavior, interesting, tg, phase_ms)
 end
 
 -- True when we should suppress the new decision and keep the current behavior.
--- nil (handoff) and RETREAT (HP emergency) bypass the commit gate.
+-- nil (handoff) and HP-emergency RETREATs bypass via BYPASSES_HOLD on the new
+-- behavior. CLOSE_ASSAULT bypasses via BYPASSES_HOLD_FROM on the current behavior
+-- so distance-driven exits transition immediately to FIRE_HOLD instead of overshooting
+-- the gate during the commit window.
 function action_at_combat:_should_hold(new_behavior, tg)
     if new_behavior == nil then return false end
     if BYPASSES_HOLD[new_behavior] then return false end
+    if BYPASSES_HOLD_FROM[self.current_behavior] then return false end
     if self.current_behavior == nil then return false end
     return tg < self._behavior_hold_until
 end
@@ -859,10 +876,10 @@ local function _refresh_log()
     log.set_level(at_mcm.get_config("log_level") or "WARN")
     _dbg = log.get_level() >= 5
     if _dbg then
-        log.debug("[COMBAT] config enabled=%s share=%.2f min_dist=%dm advance_dist=%dm retreat_hp=%.2f",
+        log.debug("[COMBAT] config enabled=%s share=%.2f close_assault_stop=%dm advance_dist=%dm retreat_hp=%.2f",
             cfg.combat_enabled and "true" or "false",
             cfg.combat_share or 0.5,
-            cfg.min_dist or 8,
+            CLOSE_ASSAULT_MIN_DIST_M,
             cfg.advance_dist or 40,
             cfg.retreat_hp or 0.30)
     end
@@ -878,14 +895,15 @@ local function _on_first_update()
     _community        = {}
     _weapon_kind      = {}
     _refresh_log()
-    log.info("Combat module initialized (enabled=%s share=%.2f min_dist=%dm dbg=%s)",
+    log.info("Combat module initialized (enabled=%s share=%.2f close_assault_stop=%dm dbg=%s)",
         cfg.combat_enabled and "true" or "false",
         cfg.combat_share or 0.5,
-        cfg.min_dist or 8,
+        CLOSE_ASSAULT_MIN_DIST_M,
         _dbg and "true" or "false")
 end
 
 function on_game_start()
+    _load_tunables()
     RegisterScriptCallback("npc_on_net_spawn",            _on_net_spawn)
     RegisterScriptCallback("npc_on_net_destroy",          _on_net_destroy)
     RegisterScriptCallback("server_entity_on_unregister", _on_entity_unregister)

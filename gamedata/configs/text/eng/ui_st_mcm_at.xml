@@ -202,12 +202,6 @@
   <string id="ui_mcm_at_combat_combat_share_desc">
     <text>Fraction of stalkers that switch to AlifeTactics combat. At 0%, every NPC keeps the combat AI you had. At 50%, half the squad fights with the new doctrine and the other half stays on vanilla, so both run in the same engagement. At 100%, every stalker switches. The choice is per-NPC and stable across save and reload.</text>
   </string>
-  <string id="ui_mcm_at_combat_min_dist">
-    <text>Hand back to vanilla within (meters)</text>
-  </string>
-  <string id="ui_mcm_at_combat_min_dist_desc">
-    <text>Below this range, AlifeTactics releases the NPC to vanilla close combat. Higher value means vanilla takes over sooner. Lower value means AlifeTactics holds the NPC down to point-blank.</text>
-  </string>
   <string id="ui_mcm_at_combat_advance_dist">
     <text>Advance when distance exceeds (meters)</text>
   </string>
@@ -276,6 +270,52 @@
   </string>
   <string id="at_development_log_level_lst_debug">
     <text>Debug</text>
+  </string>
+  <!-- Development - Debug HUD -->
+  <string id="ui_mcm_at_hdr_hud">
+    <text>Debug HUD</text>
+  </string>
+  <string id="ui_mcm_at_development_hud_enabled">
+    <text>Enable Debug HUD</text>
+  </string>
+  <string id="ui_mcm_at_development_hud_enabled_desc">
+    <text>Show a live overlay listing every nearby NPC's name and current behavior. [AT] prefix marks NPCs running the AlifeTactics combat AI; untagged rows are running vanilla or another mod's combat AI. Refreshes every second while visible. Hides automatically when PDA is open. Default: off.</text>
+  </string>
+  <string id="ui_mcm_at_development_hud_position">
+    <text>HUD position</text>
+  </string>
+  <string id="ui_mcm_at_development_hud_position_desc">
+    <text>Screen corner where the HUD anchors. Center positions are vertically centered to the current panel height. Default: Center Right.</text>
+  </string>
+  <string id="at_development_hud_position_lst_topleft">
+    <text>Top Left</text>
+  </string>
+  <string id="at_development_hud_position_lst_topright">
+    <text>Top Right</text>
+  </string>
+  <string id="at_development_hud_position_lst_centerleft">
+    <text>Center Left</text>
+  </string>
+  <string id="at_development_hud_position_lst_centerright">
+    <text>Center Right</text>
+  </string>
+  <string id="at_development_hud_position_lst_bottomleft">
+    <text>Bottom Left</text>
+  </string>
+  <string id="at_development_hud_position_lst_bottomright">
+    <text>Bottom Right</text>
+  </string>
+  <string id="ui_mcm_at_development_hud_radius">
+    <text>Scan radius (m)</text>
+  </string>
+  <string id="ui_mcm_at_development_hud_radius_desc">
+    <text>Distance from the actor within which NPCs are listed. Smaller values reduce the row count for a cleaner display. Default: 100m.</text>
+  </string>
+  <string id="ui_mcm_at_development_hud_show_idle">
+    <text>Show idle NPCs</text>
+  </string>
+  <string id="ui_mcm_at_development_hud_show_idle_desc">
+    <text>Include NPCs that are not currently in combat (sleepers, walkers, smart-terrain workers, etc.). When off, only NPCs with an active combat behavior or vanilla combat state are shown. Default: on.</text>
   </string>
   <!-- Development - Reset -->
   <string id="ui_mcm_at_development_btn_reset_all">

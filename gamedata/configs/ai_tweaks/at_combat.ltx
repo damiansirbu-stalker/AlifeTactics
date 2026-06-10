@@ -1,0 +1,28 @@
+; AlifeTactics combat AI tuning constants. Paired with gamedata/scripts/at_combat.script.
+; All keys have script-side fallback defaults (or N), so missing keys won't crash.
+
+[at_combat]
+; Distance constants (meters)
+close_assault_min_dist_m = 10    ; CLOSE_ASSAULT stops charging at this distance; falls through to FIRE_HOLD
+advance_step_m           = 15    ; ADVANCE/cover_step_fwd lookahead step toward enemy
+step_away_m              = 15    ; RETREAT/RETREAT_AND_FIRE backstep distance from enemy
+charge_step_m            = 20    ; CLOSE_ASSAULT fallback step when enemy lvid inaccessible
+flank_lateral_m          = 20    ; FLANKING perpendicular offset from npc->enemy axis
+flank_forward_m          = 5     ; FLANKING forward offset along npc->enemy axis
+flee_step_m              = 30    ; FLEE backward sprint distance
+cover_reach_sqr          = 2025  ; max (search_pos -> enemy) squared distance for best_cover viability (45m^2)
+
+; Squad spread: per-NPC lateral bucket offset perpendicular to engagement line
+squad_lateral_buckets    = 5
+squad_lateral_step_m     = 4
+
+; Time constants (ms)
+keep_point_min_ms        = 1500  ; min interval between repick attempts
+keep_point_max_ms        = 3500  ; max interval
+behavior_hold_min_ms     = 1500  ; min commit window before a behavior can change
+behavior_hold_max_ms     = 3500  ; max commit window
+fail_backoff_ms          = 10000 ; per-fail penalty multiplier
+weapon_kind_ttl_ms       = 2000  ; weapon kind cache lifetime
+
+; Counters
+fail_threshold           = 3     ; consecutive pick-fails before backoff engages

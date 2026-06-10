@@ -31,6 +31,9 @@ next
   - Fixed crash on torn-down attacker reference during the attack-sound danger dispatch.
   - Fixed Combat AI silently turning off on NPCs that went offline and came back. AT combat now persists across offline cycles for the full lifetime of each NPC.
   - Fixed limping animation playing during combat. NPCs with an enemy in memory no longer limp. The cue is reserved for fully out-of-combat low-HP states.
+  - Changed close-quarters fighters to stop at 10m and fire from there instead of charging into the enemy and handing off to vanilla close combat. AT combat now controls NPCs at all ranges.
+  - Added paired tunables file at configs/ai_tweaks/at_combat.ltx. Distance, time, and counter constants moved out of the script for inline tuning without code edits.
+  - Added live Debug HUD overlay listing nearby NPCs and their current behavior. Toggle in MCM > Development > Debug HUD. AT-controlled NPCs show with [AT] prefix; others show their vanilla state or active scheme.
   - Added AOEngine v0.55+ support.
 
 1.0.0

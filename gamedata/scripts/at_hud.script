@@ -1,0 +1,278 @@
+--- at_hud: Live debug HUD listing nearby NPCs with their current behavior
+
+local pairs, table_sort, math_floor = pairs, table.sort, math.floor
+local string_sub, string_format = string.sub, string.format
+local IsStalker, RegisterScriptCallback = IsStalker, RegisterScriptCallback
+
+local log = xlog.get_logger("AT.HUD", { outfile = "alifetactics.log" })
+local cfg = at_mcm.cfg
+
+local AT_COMBAT_ACT_ID = 188200
+local REFRESH_INTERVAL_SEC = 1
+
+local ROW_H     = 14
+local PAD       = 6
+local TAG_W     = 28
+local NAME_W    = 155
+local BEH_W     = 130
+local TOTAL_W   = TAG_W + NAME_W + BEH_W + PAD * 2
+local MARGIN    = 15
+local MAX_ROWS  = 50
+local NAME_MAX  = 20
+
+-- Colors built lazily; GetARGB is an engine global not present at module-load
+-- under the static validator. Initialized on first HUD construction.
+local CLR_TITLE, CLR_AT, CLR_NORMAL, CLR_DIM = nil, nil, nil, nil
+
+local function _init_colors()
+    if CLR_TITLE then return end
+    CLR_TITLE  = GetARGB(220, 200, 180, 130)
+    CLR_AT     = GetARGB(240, 170, 220, 170)
+    CLR_NORMAL = GetARGB(220, 200, 200, 200)
+    CLR_DIM    = GetARGB(160, 160, 160, 160)
+end
+
+
+-- =========================================================================
+-- Position presets
+-- =========================================================================
+
+local function _calc_position(panel_h)
+    local cy = math_floor((768 - panel_h) / 2)
+    local rx = 1024 - TOTAL_W - MARGIN
+    local by = 768 - panel_h - MARGIN
+    local presets = {
+        top_left     = { MARGIN, MARGIN },
+        top_right    = { rx,     MARGIN },
+        center_left  = { MARGIN, cy },
+        center_right = { rx,     cy },
+        bottom_left  = { MARGIN, by },
+        bottom_right = { rx,     by },
+    }
+    return presets[cfg.hud_position] or presets.center_right
+end
+
+
+-- =========================================================================
+-- Behavior derivation: AT first, then vanilla combat state, then scheme
+-- =========================================================================
+
+local function _derive(npc, st)
+    -- 1. AT_combat actively driving (action's current_behavior is non-nil)
+    local mgr = npc:motivation_action_manager()
+    if mgr then
+        local act = mgr:action(AT_COMBAT_ACT_ID)
+        if act and act.current_behavior then
+            return "AT", act.current_behavior, true
+        end
+    end
+
+    -- 2. Vanilla / other-mod combat: state_mgr target_state with active enemy
+    local sm = st.state_mgr
+    if sm and sm.target_state and npc:best_enemy() then
+        return nil, sm.target_state, true
+    end
+
+    -- 3. Active xr_logic scheme (walker, sleeper, smart_terrain job, etc)
+    if st.active_scheme then
+        return nil, st.active_scheme, false
+    end
+
+    -- 4. Fallback
+    return nil, "?", false
+end
+
+local function _name_truncate(s)
+    if not s or s == "" then return "?" end
+    if #s > NAME_MAX then return string_sub(s, 1, NAME_MAX) end
+    return s
+end
+
+
+-- =========================================================================
+-- Row builder: walk db.storage, derive state per NPC, sort, cap
+-- =========================================================================
+
+local function _row_for(id, st, ax, r2, actor_id, show_idle)
+    if id == actor_id then return nil end
+    local npc = level.object_by_id(id)
+    if not npc then return nil end
+    if not IsStalker(npc) then return nil end
+    if not npc:alive() then return nil end
+    if ax:distance_to_sqr(npc:position()) >= r2 then return nil end
+    local tag, behavior, is_combat = _derive(npc, st)
+    if not (show_idle or is_combat) then return nil end
+    return {
+        tag       = tag,
+        name      = _name_truncate(npc:character_name() or npc:name()),
+        behavior  = behavior,
+        is_combat = is_combat,
+    }
+end
+
+local function _build_rows()
+    if not db.actor then return {} end
+    local ax = db.actor:position()
+    local radius = cfg.hud_radius or 100
+    local r2 = radius * radius
+    local show_idle = cfg.hud_show_idle ~= false
+    local actor_id = db.actor:id()
+
+    local rows = {}
+    for id, st in pairs(db.storage) do
+        local row = _row_for(id, st, ax, r2, actor_id, show_idle)
+        if row then rows[#rows + 1] = row end
+    end
+
+    table_sort(rows, function(a, b)
+        if (a.tag == "AT") ~= (b.tag == "AT") then
+            return a.tag == "AT"
+        end
+        if a.behavior ~= b.behavior then return a.behavior < b.behavior end
+        return a.name < b.name
+    end)
+
+    if #rows > MAX_ROWS then
+        local extra = #rows - MAX_ROWS
+        for i = #rows, MAX_ROWS + 1, -1 do rows[i] = nil end
+        rows[#rows + 1] = {
+            tag = nil,
+            name = string_format("+%d more", extra),
+            behavior = "",
+            is_overflow = true,
+        }
+    end
+
+    return rows
+end
+
+
+-- =========================================================================
+-- UIDebugHUD: CUIScriptWnd that paints one static-text widget per cell
+-- =========================================================================
+
+class "UIDebugHUD" (CUIScriptWnd)
+
+function UIDebugHUD:__init(rows) super()
+    _init_colors()
+    self:SetAutoDelete(true)
+    self:Enable(true)
+
+    -- +2 rows for title + spacer
+    local panel_h = (#rows + 2) * ROW_H + PAD * 2
+    local pos = _calc_position(panel_h)
+    self:SetWndPos(vector2():set(pos[1], pos[2]))
+    self:SetWndSize(vector2():set(TOTAL_W, panel_h))
+
+    local xml = CScriptXmlInit()
+    xml:ParseFile("ui_at_stats.xml")
+
+    self:_text(xml, PAD + TAG_W, PAD, NAME_W + BEH_W, "SQUAD BEHAVIORS", CLR_TITLE)
+
+    for i = 1, #rows do
+        local row = rows[i]
+        local row_y = PAD + (i + 1) * ROW_H
+        local color
+        if row.is_overflow then
+            color = CLR_DIM
+        elseif row.tag == "AT" then
+            color = CLR_AT
+        else
+            color = CLR_NORMAL
+        end
+        local tag_text = row.tag and ("[" .. row.tag .. "]") or ""
+        self:_text(xml, PAD,                  row_y, TAG_W,  tag_text,     color)
+        self:_text(xml, PAD + TAG_W,          row_y, NAME_W, row.name,     color)
+        self:_text(xml, PAD + TAG_W + NAME_W, row_y, BEH_W,  row.behavior, color)
+    end
+end
+
+function UIDebugHUD:_text(xml, x, y, w, text, color)
+    local st = xml:InitStatic("line", self)
+    st:SetWndPos(vector2():set(x, y))
+    st:SetWndSize(vector2():set(w, ROW_H - 2))
+    local tc = st:TextControl()
+    tc:SetText(text or "")
+    tc:SetTextColor(color)
+    return st
+end
+
+function UIDebugHUD:__finalize() end
+
+
+-- =========================================================================
+-- Lifecycle: visibility-gated 1s refresh via ResetTimeEvent
+-- =========================================================================
+
+local _hud = nil
+local _tick_active = false
+
+local function _hide()
+    if _hud then
+        get_hud():RemoveDialogToRender(_hud)
+        _hud = nil
+    end
+end
+
+local function _refresh()
+    _hide()
+    _hud = UIDebugHUD(_build_rows())
+    get_hud():AddDialogToRender(_hud)
+end
+
+local function _is_visible()
+    if not main_hud_shown() then return false end
+    local pda_menu = ActorMenu and ActorMenu.get_pda_menu and ActorMenu.get_pda_menu()
+    if pda_menu and pda_menu:IsShown() then return false end
+    return true
+end
+
+local function _tick()
+    if not _tick_active then
+        _hide()
+        return true
+    end
+    if _is_visible() then
+        _refresh()
+    else
+        _hide()
+    end
+    ResetTimeEvent("at_hud", "tick", REFRESH_INTERVAL_SEC)
+end
+
+local function _start()
+    if _tick_active then return end
+    _tick_active = true
+    RemoveTimeEvent("at_hud", "tick")
+    CreateTimeEvent("at_hud", "tick", REFRESH_INTERVAL_SEC, _tick)
+    log.info("Debug HUD enabled (position=%s, radius=%dm, show_idle=%s)",
+        cfg.hud_position or "center_right",
+        cfg.hud_radius or 100,
+        cfg.hud_show_idle ~= false and "true" or "false")
+end
+
+local function _stop()
+    _tick_active = false
+    RemoveTimeEvent("at_hud", "tick")
+    _hide()
+    log.info("Debug HUD disabled")
+end
+
+local function _on_option_change()
+    if cfg.hud_enabled then _start() else _stop() end
+end
+
+local function _on_first_update()
+    if cfg.hud_enabled then _start() end
+end
+
+local function _on_actor_net_destroy()
+    _stop()
+end
+
+function on_game_start()
+    RegisterScriptCallback("actor_on_first_update",      _on_first_update)
+    RegisterScriptCallback("actor_on_net_destroy",       _on_actor_net_destroy)
+    RegisterScriptCallback("on_option_change",           _on_option_change)
+    RegisterScriptCallback("mcm_option_restore_default", _on_option_change)
+end
