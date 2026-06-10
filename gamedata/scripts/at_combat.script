@@ -833,6 +833,15 @@ local function _on_net_spawn(npc)
     _install(npc)
 end
 
+-- npc_on_net_destroy fires when the game_object is torn down (offline
+-- transition). The motivation_action_manager goes with it; on next online,
+-- a fresh manager is created and _install must run again. Without this,
+-- the _installed[id] sentinel persists and the new manager has no AT_combat.
+local function _on_net_destroy(npc)
+    if not npc then return end
+    _installed[npc:id()] = nil
+end
+
 local function _on_entity_unregister(se_obj)
     if not se_obj then return end
     local id = se_obj.id
@@ -878,6 +887,7 @@ end
 
 function on_game_start()
     RegisterScriptCallback("npc_on_net_spawn",            _on_net_spawn)
+    RegisterScriptCallback("npc_on_net_destroy",          _on_net_destroy)
     RegisterScriptCallback("server_entity_on_unregister", _on_entity_unregister)
     RegisterScriptCallback("actor_on_first_update",       _on_first_update)
     RegisterScriptCallback("on_option_change",            _refresh_log)
