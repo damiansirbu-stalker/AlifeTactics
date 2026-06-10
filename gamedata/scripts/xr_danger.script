@@ -877,11 +877,17 @@ function action_danger:finalize()
 	if (self.a.last_state) then
 		state_mgr.set_state(self.object,self.a.last_state)
 	end
-	
-	for k,v in pairs(db.used_level_vertex_ids) do 
-		db.used_level_vertex_ids[k] = nil
-	end 
-	
+
+	-- db.used_level_vertex_ids is a shared reservation map; vanilla wiped
+	-- the whole table here, which clobbered every other system's claims.
+	-- Release only entries owned by this NPC.
+	local own_id = self.object:id()
+	for k,v in pairs(db.used_level_vertex_ids) do
+		if v == own_id then
+			db.used_level_vertex_ids[k] = nil
+		end
+	end
+
 	self.a.__warning_shot_tmr = nil
 	utils_obj.send_to_nearest_accessible_vertex(self.object,self.object:level_vertex_id())
 	action_base.finalize(self)
