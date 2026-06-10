@@ -1,7 +1,7 @@
 next
   Summary: combat AI takeover, faction doctrines, flank and retreat behaviors, sniper aim mode, monolith combat, zombied shamble, danger rework, stealth kills, limp/heal fixes, AOEngine compatibility
 
-  - Added Combat AI takeover on a configurable share of NPCs (slider, default 50%).
+  - Added Combat AI takeover on a configurable share of NPCs (slider, default 100%).
     Per-NPC stable hash decides which NPCs use AT combat vs. vanilla / modpack combat. Same NPC always lands the same side across save and load.
     Each NPC walks a list of allowed behaviors (chosen by community, HP, and weapon) every tick and picks the first one matching the current situation.
     Close-weapon carriers (pistol, shotgun, SMG, knife) charge the enemy. Low-HP NPCs retreat. Others advance through cover, take cover when exposed, fire from cover when peeking is possible, crouch and fire otherwise.
@@ -29,6 +29,8 @@ next
   - Fixed NPCs staying stuck in a limp pose after their HP recovers. The looped animation now flushes when limp tracking ends.
   - Fixed healing NPCs not reacting to enemies. They now break the heal sequence when an enemy appears mid-clutch or mid-gesture.
   - Fixed crash on torn-down attacker reference during the attack-sound danger dispatch.
+  - Fixed Combat AI silently turning off on NPCs that went offline and came back. AT combat now persists across offline cycles for the full lifetime of each NPC.
+  - Fixed limping animation playing during combat. NPCs with an enemy in memory no longer limp. The cue is reserved for fully out-of-combat low-HP states.
   - Added AOEngine v0.55+ support.
 
 1.0.0
