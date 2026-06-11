@@ -3,22 +3,21 @@
 ; All keys have script-side fallback defaults, so missing keys won't crash.
 
 [at_combat]
-; Evaluator (_decide_eval)
+; Evaluator
 fail_threshold           = 3      ; consecutive pick-fails before backoff engages
 fail_backoff_ms          = 10000  ; per-fail penalty multiplier
 
-; Gather
-weapon_kind_ttl_ms       = 2000   ; weapon kind cache lifetime
+; Throttle (replaces old behavior_hold)
+throttle_npc_ms          = 1500   ; per-NPC minimum interval between decide attempts
+throttle_global_ms       = 250    ; global minimum interval (caps total AI runs across all NPCs)
 
-; Behavior hold
-behavior_hold_min_ms     = 1500   ; min commit window before a behavior can change
-behavior_hold_max_ms     = 3500   ; max commit window
+; State machine - friendly line-of-fire detection
+friendly_line_thresh_m   = 1.5    ; lateral distance threshold for squadmate-on-firing-line
 
 ; Movement / _repick
-keep_point_min_ms        = 1500   ; min interval between repick attempts
-keep_point_max_ms        = 3500   ; max interval
 advance_step_m           = 15     ; cover_step_fwd lookahead step toward enemy
 step_away_m              = 15     ; step_away backstep distance from enemy
+step_short_m             = 4      ; step_toward_short / step_away_short short-stride distance
 charge_step_m            = 20     ; charge_enemy fallback step when enemy lvid inaccessible
 flank_lateral_m          = 20     ; cover_flank perpendicular offset from npc->enemy axis
 flank_forward_m          = 5      ; cover_flank forward offset along npc->enemy axis
@@ -29,7 +28,7 @@ cover_reach_sqr          = 2025   ; max (search_pos -> enemy) squared distance f
 squad_lateral_buckets    = 5
 squad_lateral_step_m     = 4
 
-; BEHAVIORS catalog
-advance_dist_m           = 40     ; ADVANCE_COVER_STAND / FLANK_COVER_STAND eligible beyond this distance from enemy
-charge_min_dist_m        = 10     ; ADVANCE_OPEN_CHARGE stops charging at this distance; falls through to other HOLD_OPEN_* rows
-retreat_hp_frac          = 0.25   ; HP fraction below which RETREAT_COVER_STAND / RETREAT_COVER_CROUCH / RETREAT_OPEN_STAND are eligible
+; State machine thresholds
+advance_dist_m           = 40     ; reserved for future rules conditioning on distance band
+charge_min_dist_m        = 10     ; reserved for future rules conditioning on charge stop-distance
+retreat_hp_frac          = 0.5    ; deprecated; health state machine uses inline 0.50 / 0.55 thresholds

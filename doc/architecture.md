@@ -20,7 +20,7 @@ Version 1.0.0.
 | `at_hitresponse.script` | feature | done |
 | `at_health.script` | feature | done |
 | `at_accuracy.script` | feature | done |
-| `at_combat.script` | feature | Pattern B planner takeover; 12 BEHAVIORS named `MOVE_COVER_QUALIFIER` (ADVANCE_COVER_STAND, ADVANCE_OPEN_CHARGE, ADVANCE_OPEN_WALK, FLANK_COVER_STAND, RETREAT_COVER_STAND, RETREAT_COVER_CROUCH, RETREAT_OPEN_STAND, HOLD_COVER_CROUCH, HOLD_OPEN_STAND, HOLD_OPEN_CROUCH, HOLD_OPEN_SNIPE, HOLD_OPEN_HIDE); per-community weighted picker driven by `configs/alifetactics/at_combat_factions.ltx`; HOLD_OPEN_SNIPE wires the engine `sniper_fire_mode` flag |
+| `at_combat.script` | feature | Pattern B planner takeover; 14 behaviors + 8 state machines + per-faction × per-environment rule lists; delta-driven decide with squad-uniqueness skip |
 | `xr_danger.script` | feature | done (full-file override) |
 | `at_jam.script` | feature | done (modded-exes xr_weapon_jam.GetConditionMisfireProbability override; suppresses script-injected NPC misfire) |
 | `at_ammo.script` | feature | done (per-NPC virtual ledger drains highest-tier ammo each 5s combat tick down to MIN_SPARE; inventory boxes clamped to ledger to defeat engine try_advance_ammo top-up; npc_on_death_callback trims all boxes to MIN_SPARE so they survive decide_items_to_keep; AP sections gated by `min_ap_rank` LTX (default 17499 = RANK_MASTER)) |
@@ -197,195 +197,200 @@ Per-shot hot path. Cost ~1.5μs per call when DEBUG off (2 luabind crossings via
 
 ## Combat
 
-Pattern B planner takeover per `doc/library/modding/goap-injection.md:427-447`. Single scheme owns vanilla `action_combat_planner` for a configurable share of NPCs.
+GOAP planner takeover. One evaluator + one action installed per stalker. While the evaluator returns true, vanilla `action_combat_planner` / `action_danger_planner` / xr_danger / state_mgr / alife are precondition-blocked. When false, vanilla resumes.
 
-The behavior catalog (`BEHAVIORS` table) defines each combat behavior as a row of `{ plan, applies(ctx) }`. Per-community weights (loaded from `at_combat_factions.ltx`) decide pick frequency among `applies(ctx)`-eligible rows. The decide phase walks `BEHAVIOR_NAMES` in stable order, collects weight-positive AND eligible rows, picks weighted-random. The behavior's `plan` (state, body, mvt, target) drives engine state writes.
+### Eligibility (`_decide_eval`)
 
-### Product framing: inject not replace
+Fast-fail chain, in order; first failing returns `(false, reason)`:
 
-- Single MCM slider `combat_share` (0-100%, default 100%) gates participation per NPC via stable hash `(npc:id() % 1000) < (share * 1000)`. 0% = pure vanilla / GAMMA / whatever modpack combat the user already has. 100% = full takeover.
-- Zero vanilla file overrides beyond xr_danger (separate system). Pattern B preconditions land on top of whatever the user's stack already has.
-- Coexists with vanilla, GAMMA, AI Rework, ReDone Combat AI, Useful Idiots, Mora. Their `xr_combat` / `xr_combat_camper` / condlist `script_combat_type` assignments still run; for NPCs outside our share they drive vanilla behavior. For NPCs in our share, vanilla planner is blocked via precondition; their condlist writes still execute every 500ms via `motivator_binder:update` but have no effect because vanilla planner is not running.
-- Per-NPC hash deterministic across saves. Same NPC always lands the same side. In-squad A/B testing possible.
-
-### Why Pattern B over the sub-scheme route
-
-SQUAD_CAMPER (commit 3fac38f, deferred at d613386) routed through vanilla `xr_combat_camper` via `script_combat_type` condlist. Two races killed it. **Outer**: vanilla `action_combat_planner` only gated by `xr_evaluators_id.script_combat = false`; predicate momentarily flipping nil let vanilla run one tick of `LookOut`/`HoldPosition`, interrupting state_mgr. **Inner**: vanilla `xr_combat_camper` ships two actions (`action_shoot`, `action_look_around`) that toggle on LOS, each calling `state_mgr.set_state` with different args; LOS flips churned state_mgr inside the sub-scheme.
-
-Pattern B blocks vanilla `action_combat_planner` via precondition `world_property(EVAL_ID, false)`, NOT a flippable gate. The planner re-evaluates preconditions when it re-plans; our eval stays stable across the engagement. One action under our control means no internal toggle. State_mgr is touched only on actual mode transitions, never on every tick.
-
-### Install
-
-Install runs at `npc_on_net_spawn` for every stalker. Adds evaluator + action + Pattern B preconditions to that NPC's `motivation_action_manager`. The `_installed[id]` sentinel prevents duplicate registration on net_spawn re-fires; cleared in `server_entity_on_unregister`. Mutants skipped (`IsStalker` filter) — they have no `action_combat_planner`.
-
-Pattern B preconditions block five vanilla actions when our eval returns true: `stalker_ids.action_combat_planner`, `stalker_ids.action_danger_planner`, `xr_danger.actid`, `xr_actions_id.state_mgr + 2`, `xr_actions_id.alife`. Match `axr_stalker_panic.script:521`.
-
-No per-NPC eligibility flag in storage. Eligibility is decided entirely by the evaluator.
-
-### Evaluator (`_decide_eval`)
-
-Fast-fail chain, in order:
-
-1. `cfg.combat_enabled` master toggle
-2. `npc:alive()`
-3. `IsWounded(npc)`
-4. Stable per-id hash: `(npc:id() % 1000) < (cfg.combat_share * 1000)` (default 1.0)
-5. Pick-fail backoff window expired (linear extension past 3 consecutive failures: 3=10s, 4=20s, 5=30s; resets on successful pick)
-6. `npc:best_enemy()` exists and is alive
-
-No distance gate, no community gate, no HP gate, no weapon gate. Every stalker flows through the per-community weight lookup and per-behavior `applies(ctx)` triggers handle gating. AT controls combat at all ranges; `ADVANCE_OPEN_CHARGE`'s own `applies` enforces a stop-charging distance against the enemy (default 10m, `charge_min_dist_m` in `configs/alifetactics/at_combat.ltx`).
-
-Returns `(true, "in_range")` on full pass, else `(false, "<reason>")`. All filters dynamic — MCM toggles take effect on next eval. Hash stable per id.
-
-### Action: 5-step tick
-
-`action_at_combat:execute()` runs per scheduled-update tick (variable 1-50Hz per NPC per engine scheduler, typically 10-20Hz for active combat NPCs near actor):
-
-**gather (`_gather_inputs`)** — one luabind round per tick. Reads `npc:position`, `npc:level_vertex_id`, `npc.health`, `best_enemy`, `enemy:position`, `npc:see(enemy)`, `enemy:see(npc)`, computes `dist`, `dx`, `dz`. Cached for the tick. No re-reads in later steps. No directional cover bake read; the previous `level.high_cover_in_direction` gate was vertex-local and quadrant-interpolated, so lateral cover registered as cover toward the enemy. Removed in the rename-to-3-word + weighted-picker pass.
-
-**decide (`_decide_behavior`)** — early returns on `not ctx.enemy` (signals handoff). Otherwise looks up `FACTION_WEIGHTS[ctx.community]` (LTX-loaded; falls back to the `[stalker]` row for unmapped communities), walks `BEHAVIOR_NAMES` (stable order), collects entries where weight > 0 AND `applies(ctx)` is true, weighted-randomly picks one. Returns the behavior NAME (string), or nil for handoff. No priority order — pick frequency is the LTX weight.
-
-**behavior hold** — gate between decide and apply. After a behavior change, the action commits to that name for `random(1500, 3500)` ms before the picker can flip it again. Prevents sub-second oscillation from the stochastic picker. `BYPASSES_HOLD[new]` (RETREAT_COVER_STAND, RETREAT_COVER_CROUCH, RETREAT_OPEN_STAND — all HP-driven) and nil-handoff skip the gate so HP emergency / terminate paths interrupt any in-flight commitment. `BYPASSES_HOLD_FROM[current]` (ADVANCE_OPEN_CHARGE) lets distance-driven exits transition immediately to a HOLD_OPEN_* row when the NPC reaches the gate distance, instead of overshooting during the commit window. Implemented via `self._behavior_hold_until` on the action; reset in `:initialize`. `_should_hold(new, tg)` extracts the conditional out of the execute hot path.
-
-**apply (`_apply_state`)** — `behavior.plan` returns `{state, body, mvt, target, sniper_aim?}`. Each engine write is gated by change detection:
-- `if plan.state ~= self.last_state` then `state_mgr.set_state(npc, plan.state, ..., {fast_set=true})`
-- `if plan.body  ~= self.last_body`  then `npc:set_body_state(move[plan.body])`
-- `if plan.mvt   ~= self.last_mvt`   then `npc:set_movement_type(move[plan.mvt])`
-- `if plan.sniper_aim ~= self.last_sniper_mode` then `npc:sniper_fire_mode(want)` — flips the engine flag at `ai_stalker.h:814` consumed in `ai_stalker_fire.cpp:193, 225, 239`
-
-Zero engine writes when stable. The sniper_aim toggle drives the engine's actual sniper-aim path (m_head.target as aim direction instead of weapon LastFD). Cleared on finalize so vanilla planner resumes without the flag stuck on.
-
-**movement (`_repick`)** — only fires if `tg > self._next_pick` OR another NPC stole our cover (`db.used_level_vertex_ids[target_lvid] ~= npc:id()`). Resolves target via `TARGET_RESOLVERS[plan.target]` (one of `cover_step_fwd`, `cover_nearest`, `step_away`, `charge_enemy`, `cover_flank`, `flee_far`, `hold`). Cover reservation via `_claim_cover` — if another NPC owns the lvid, our pick fails and we push `_next_pick` out 1.5-3.5s to throttle retry. After successful claim: release old lvid, claim new lvid, `set_dest_level_vertex_id(new_lvid)`, `_next_pick = tg + math_random(1500, 3500)`.
-
-| Resolver | Search point | Cover preference | Notes |
-|---|---|---|---|
-| `cover_step_fwd` | npc + 15m toward enemy | yes (radius 15, dist 1-30 from enemy) | ADVANCE_COVER_STAND; open-terrain fallback to `vertex_in_direction` |
-| `cover_nearest` | npc + bucket offset | yes (two-tier radius 10 then 30) | HOLD_COVER_CROUCH; matches vanilla `find_best_cover` |
-| `step_away` | npc + 15m AWAY from enemy | yes | RETREAT_COVER_STAND, RETREAT_COVER_CROUCH; open-terrain fallback backward |
-| `charge_enemy` | enemy lvid directly | none | ADVANCE_OPEN_CHARGE, ADVANCE_OPEN_WALK; reservation skipped |
-| `cover_flank` | npc + 20m perpendicular (per-id sign) + 5m forward | yes | FLANK_COVER_STAND; perp direction `(-dz, dx)/dist` with sign from `id % 2`; open-terrain fallback to lateral vertex |
-| `flee_far` | — | none | RETREAT_OPEN_STAND; pure `vertex_in_direction` backward 30m, no `best_cover` |
-| `hold` | — | — | HOLD_OPEN_STAND, HOLD_OPEN_CROUCH, HOLD_OPEN_SNIPE, HOLD_OPEN_HIDE; returns existing `target_lvid` or `npc_lvid` |
-
-### Squad spread (lateral hash buckets)
-
-Per-NPC lateral offset perpendicular to the npc->enemy vector spreads squad members across the engagement line. `inputs.bucket = npc:id() % SQUAD_LATERAL_BUCKETS` (5 buckets) is computed once in gather. `_lateral_offset(bucket, dx, dz, dist)` returns `(off_x, off_z)` rotated 90° from `(dx, dz)` and scaled by `(bucket - 2) * SQUAD_LATERAL_STEP_M` (4m), producing offsets in `{-8, -4, 0, +4, +8}` meters.
-
-Applied to the `search_pos` passed to `npc:best_cover` in `cover_step_fwd`, `cover_nearest`, `step_away`. `hold` doesn't apply since it returns the existing target_lvid without a best_cover call.
-
-The offset is stable per id, so the same NPC always lands in the same bucket across save/load. In-squad members fan out deterministically; without the spread, members starting within a few meters of each other run best_cover with near-identical search centers, the engine picks the same cover for the first, reservation forces subsequent members to adjacent lvids on the same cover object, and the squad piles up on one cover edge.
-
-At `dist <= 0` the offset is zero (degenerate same-position case). Cost: 3 mul + 2 div + 2 sub per resolver call, no luabind.
-
-**fire** — one `npc:set_sight(look.fire_point, ene_pos + 1.5y)` per tick. Engine fire dispatch runs from `mental_state = danger` + valid sight + LOS + active weapon. No explicit fire call needed.
-
-### BEHAVIORS catalog
-
-Names follow `MOVE_COVER_QUALIFIER`: movement intent (`HOLD` / `ADVANCE` / `RETREAT` / `FLANK`) + cover graph use (`COVER` / `OPEN`) + posture or distinguishing action (`STAND` / `CROUCH` / `CHARGE` / `WALK` / `SNIPE` / `HIDE`). Catalog row: `name = { plan, applies(ctx), [sniper_aim] }`. Adding a behavior = add a row + add the lowercase key to every `[community]` section in `at_combat_factions.ltx` + the upper-case name to `BEHAVIOR_NAMES`.
-
-| Behavior | State | Body | Mvt | Target | applies(ctx) | sniper_aim |
-|---|---|---|---|---|---|---|
-| ADVANCE_COVER_STAND | assault_fire | standing | run | cover_step_fwd | `dist > ADVANCE_DIST_M or not see` | — |
-| ADVANCE_OPEN_CHARGE | assault_fire | standing | run | charge_enemy | `AGGRESSOR_KINDS[weapon_kind]` (pistol, shotgun, SMG, knife) AND `dist > CHARGE_MIN_DIST_M` | — |
-| ADVANCE_OPEN_WALK | raid_fire | standing | walk | charge_enemy | always | — |
-| FLANK_COVER_STAND | assault_fire | standing | run | cover_flank | `dist > ADVANCE_DIST_M and not see` | — |
-| RETREAT_COVER_STAND | panic | standing | run | step_away | `hp_frac < RETREAT_HP_FRAC` | — |
-| RETREAT_COVER_CROUCH | sneak_fire | crouch | walk | step_away | `hp_frac < RETREAT_HP_FRAC` | — |
-| RETREAT_OPEN_STAND | sprint | standing | run | flee_far | `hp_frac < RETREAT_HP_FRAC` | — |
-| HOLD_COVER_CROUCH | hide_na | crouch | run | cover_nearest | `see_me` | — |
-| HOLD_OPEN_STAND | threat_fire | standing | stand | hold | `see` (no cover check; default weight 0) | — |
-| HOLD_OPEN_CROUCH | hide_fire | crouch | stand | hold | `see` | — |
-| HOLD_OPEN_SNIPE | hide_sniper_fire | crouch | stand | hold | `weapon_kind == "w_sniper" and see` | **true** |
-| HOLD_OPEN_HIDE | hide_na | crouch | stand | hold | always | — |
-
-body / mvt stored as string keys (`"standing"`, `"crouch"`, `"run"`, etc.), resolved at apply time via `move[name]`. Lets BEHAVIORS construct at module load before engine `move` enum is bound.
-
-`HOLD_OPEN_STAND` is the upright-fire row whose original cover gate (`level.high_cover_in_direction(npc_lvid, dir) >= 0.2`) false-positived on lateral cover, parking NPCs in the open. The gate is removed; ship weight is 0 in every faction section of the LTX so the row never picks until you accept the risk or add a real ray_pick occluder check.
-
-### Per-faction weights (LTX-driven picker)
-
-Decide phase looks up `FACTION_WEIGHTS[ctx.community]` (loaded from `gamedata/configs/alifetactics/at_combat_factions.ltx` at `on_game_start` via `_load_faction_weights`). One section per engine community string (`game_relations.ltx:26`); each section lists all 12 behaviors with explicit weights so the file reads as a doctrine matrix. Picker collects rows where weight > 0 AND `applies(ctx)` is true, sums weights, picks weighted-random. `behavior_hold` 1.5-3.5s commit window throttles re-picks so the stochastic picker can't oscillate mid-engagement.
-
-Default weight matrix (excerpt — see LTX for the full table):
-
-| Community | Profile | Notable weights |
+| Step | Check | Reason on fail |
 |---|---|---|
-| `army`, `army_npc`, `dolg`, `freedom`, `isg` | military | `RETREAT_COVER_CROUCH = 80`, `HOLD_OPEN_SNIPE = 40-45`, `ADVANCE_COVER_STAND = 30-35`, `FLANK_COVER_STAND = 25-30`, `HOLD_COVER_CROUCH = 35`, `ADVANCE_OPEN_CHARGE` only on freedom (10) |
-| `monolith`, `greh`, `greh_npc` | fanatic | `ADVANCE_OPEN_CHARGE = 50-60`, all `RETREAT_*` and `HOLD_OPEN_HIDE` = 0 (fights to death) |
-| `killer` | merc | military weights + `RETREAT_COVER_STAND = 30` (breaks when wounded) |
-| `bandit`, `renegade` | disorganized | `ADVANCE_OPEN_CHARGE = 35-40`, `RETREAT_OPEN_STAND = 20`, no flank, no snipe |
-| `ecolog`, `csky` | coward | `RETREAT_OPEN_STAND = 55-60`, `HOLD_COVER_CROUCH = 60-65`, `HOLD_OPEN_HIDE = 35-40`, almost no advance |
-| `zombied` | shambler | `ADVANCE_OPEN_WALK = 100`, everything else 0 |
-| `stalker` | loner / unmapped fallback | balanced; no flank, no charge, no walk |
+| 1 | `cfg.combat_enabled` | `disabled` |
+| 2 | `(npc:id() % 1000) < (cfg.combat_share * 1000)` | `hash_out` |
+| 3 | `npc:alive()` | `dead` |
+| 4 | `IsWounded(npc)` is false | `wounded` |
+| 5 | no active pick-fail backoff | `fail_backoff` |
+| 6 | `npc:best_enemy()` exists and alive | `no_enemy` |
 
-Unmapped community (any community string not present as a section) falls back to `FACTION_WEIGHTS.stalker`. Missing key inside a section reads as 0.
+### Decision model
 
-HP gate (`hp_frac < RETREAT_HP_FRAC`, default 0.25 from `configs/alifetactics/at_combat.ltx`) makes the three `RETREAT_*` rows eligible. The mix among the three is the weight ratio per community: military weights `RETREAT_COVER_CROUCH` heavy and skips `RETREAT_OPEN_STAND` (no panic-flee); coward weights `RETREAT_OPEN_STAND` heavy (sprint with weapon down); fanatic weights all three at 0 (never breaks).
+| Layer | Role | Lives in |
+|---|---|---|
+| State machines | 8 categorical variables, each with hysteresis | `_read_*` in `at_combat.script` |
+| Rule list | Per-faction × per-environment ordered `{ when, do_, on_delta?, unique? }` rows | `MILITARY_OUTDOOR`, `MILITARY_INDOOR`, `STALKER_DEFAULT` in `at_combat.script` |
+| Behavior catalog | 14 named `{ plan }` rows (pure data) | `BEHAVIORS` in `at_combat.script` |
+| Resolvers | 9 target functions returning a level vertex id | `TARGET_RESOLVERS` in `at_combat.script` |
+| Primitives | Weapon classification, raycasts, cover graph, squad helpers | `xlibs/xcombat.script` |
 
-### Sniper behavior: real engine sniper-aim
+### State machines
 
-When `HOLD_OPEN_SNIPE` fires, `_apply_state` calls `npc:sniper_fire_mode(true)`. The engine flag at `ai_stalker.h:814` is consumed in `ai_stalker_fire.cpp:193, 225, 239`:
+8 variables, each discrete with hysteresis. Read in cost order; first delta detected sets `first_delta`; all variables still updated each tick.
 
-- When the flag is set, the engine swaps the aim direction from `weapon->get_LastFD()` (weapon barrel direction) to `movement().m_head.target.yaw/pitch` (target head direction).
-- Practical effect: the NPC aims where the head IS GOING TO point (target position via state_mgr's `look_object`), not where the weapon currently happens to face. More precise aim, tracks the target rather than the barrel.
+| Variable | States | Hysteresis | Reads |
+|---|---|---|---|
+| health | HEALTHY / WOUNDED | drop at hp < 0.50; recover at hp > 0.55 | `npc.health` |
+| environment | OUTDOOR / INDOOR | lvid-cached | `xcombat.is_indoor(pos)` |
+| contact | VISUAL / NO_VISUAL | 500ms debounce on losing | `npc:see(enemy)` |
+| squad | INTACT / DEPLETED / DECIMATED | none (integer ratio) | `xcombat.squad_alive_count` / `xcombat.squad_initial` |
+| friendly_line | CLEAR / BLOCKED | 2-tick clear debounce | `xcombat.friendly_in_line` |
+| range_fit | IN_ZONE / TOO_FAR / TOO_CLOSE | 3m deadband on boundaries | `xcombat.weapon_range` + dist |
+| threat | SAFE / THREATENED | 1s see_me drop, 3s hit lock | `enemy:see(npc)` + recent-hit timestamp |
+| position | IN_COVER / EXPOSED | 3 consecutive raycast misses | `xcombat.has_occluder_between` |
 
-When `HOLD_OPEN_SNIPE` exits (transition to any other behavior or finalize), `npc:sniper_fire_mode(false)` is called so the engine flag doesn't persist when vanilla planner resumes.
+### Throttle
 
-The flag is the only engine-level sniper mechanism. `weapon="sniper_fire"` in the state def is treated identically to `weapon="fire"` by `state_mgr_weapon` (both pass the `unstrapped or fire or sniper_fire` evaluator the same way). The state-name choice is cosmetic; the engine flag is what changes behavior.
+| Gate | Value | Source |
+|---|---|---|
+| Global | 250ms | `throttle_global_ms` in `at_combat.ltx` |
+| Per-NPC | 1500ms | `throttle_npc_ms` in `at_combat.ltx` |
 
-Replaces the old `at_stance.script` functor (dropped 2026-06-09 commit `591b6e0`) which forced crouch on sniper LookOut / HoldPosition. That functor was unreachable for in-share NPCs anyway because Pattern B blocks the `action_combat_planner` sub-tree where `body_state_combat_override` is called from.
+### Per-tick flow
 
-### Cover selection: the architectural lever
+1. Throttle gates (global → per-NPC) — return early on miss
+2. `best_enemy` check — return on nil
+3. `_state[id]` init on first tick (forces `first_delta = "init"`)
+4. `_update_state` reads 8 state machines, tracks `first_delta`
+5. No delta → return (current behavior preserved)
+6. Look up rules: `FACTION_RULES[env][community]` with `[env .. "_DEFAULT"]` fallback
+7. `_decide(rules, state, first_delta, npc_id)` walks rules
+8. `_switch(picked, ctx)` if behavior changed, else `_repick` if cover stolen
+9. `npc:set_sight(look.fire_point, ene_pos + 1.5y)` for fire dispatch
+10. Stamp throttle timestamps
 
-`npc:best_cover(search_pos, enemy_pos, radius, min_dist, max_dist)` is the same engine primitive vanilla `CStalkerActionTakeCover::execute` uses internally (`stalker_combat_actions.cpp:589`, exposed to Lua via `script_game_object3.cpp:66-79`). The function searches the precomputed cover graph (`m_covers` quadtree) for a cover near `search_pos`, scored by how well it hides from `enemy_pos`.
+### Decide algorithm
 
-**Critical insight: `search_pos` is OUR architectural lever, not the NPC's position.**
+```
+fallback = nil
+for rule in rules:
+    if rule.on_delta and rule.on_delta != first_delta: skip
+    if not rule.when(state): skip
+    if rule.unique != false and xcombat.squadmate_in(squad_id, npc_id, rule.do_):
+        fallback = fallback or rule.do_   -- eligible but taken
+        continue
+    return rule.do_
+return fallback
+```
 
-`npc:best_cover` doesn't care where the NPC currently stands. It finds a cover near whatever search center we pass. The NPC then runs to the lvid we picked. So the behavior the NPC exhibits is determined by where WE point the search.
+### BEHAVIORS catalog (14 entries)
 
-Phase 1 `cover_step_fwd` resolver computes a step point 15m from NPC toward enemy and passes THAT as `search_pos`. Result: cover is found near a position 15m ahead of NPC. NPC advances 15m, takes cover. Each re-pick steps another 15m forward, progressively closing.
+Naming: `MOVE_COVER_QUALIFIER`. `MOVE` ∈ {ADVANCE, RETREAT, HOLD}. `COVER` ∈ {COVER, OPEN}. `QUALIFIER` is posture or distinguishing action.
 
-If we passed `npc:position()` as `search_pos`, we'd search near the NPC. NPC would find cover near where they already are, take it, stay there. That's camper behavior.
+| Behavior | state | body | mvt | target | sniper_aim |
+|---|---|---|---|---|---|
+| ADVANCE_COVER_STAND | assault_fire | standing | run | cover_step_fwd | — |
+| ADVANCE_COVER_FLANK | assault_fire | standing | run | cover_flank | — |
+| ADVANCE_OPEN_RUN | assault_fire | standing | run | charge_enemy | — |
+| ADVANCE_OPEN_WALK | raid_fire | standing | walk | charge_enemy | — |
+| ADVANCE_OPEN_STEP | assault_fire | standing | walk | step_toward_short | — |
+| RETREAT_COVER_STAND | panic | standing | run | step_away | — |
+| RETREAT_COVER_CROUCH | sneak_fire | crouch | walk | step_away | — |
+| RETREAT_OPEN_STAND | sprint | standing | run | flee_far | — |
+| RETREAT_OPEN_STEP | assault_fire | standing | walk | step_away_short | — |
+| HOLD_COVER_CROUCH | hide_na | crouch | run | cover_nearest | — |
+| HOLD_OPEN_CROUCH | hide_fire | crouch | stand | hold | — |
+| HOLD_OPEN_SNIPE | hide_sniper_fire | crouch | stand | hold | true |
+| HOLD_OPEN_HIDE | hide_na | crouch | stand | hold | — |
+| SUPPRESS_OPEN_CROUCH | hide_fire | crouch | stand | hold | — |
 
-If we passed `enemy:position()` as `search_pos`, we'd search near the enemy. NPC would charge toward enemy's position to take cover at point-blank. That's close-assault.
+`body` / `mvt` stored as strings; resolved at apply time via `move[name]`.
 
-If we passed `npc:position() + ADVANCE_STEP * -dir_to_enemy`, we'd step backward. That's retreat-with-cover.
+### Target resolvers (9 entries)
 
-So the same engine API drives every mode by varying `search_pos`. The `TARGET_RESOLVERS` table is data-driven for this reason.
+| Resolver | Behavior(s) | Search shape |
+|---|---|---|
+| cover_step_fwd | ADVANCE_COVER_STAND | step 15m toward enemy → best_cover, fallback vertex_in_direction |
+| cover_flank | ADVANCE_COVER_FLANK | 20m perpendicular (per-id sign) + 5m forward → best_cover |
+| charge_enemy | ADVANCE_OPEN_RUN, ADVANCE_OPEN_WALK | enemy lvid directly (no reservation) |
+| step_toward_short | ADVANCE_OPEN_STEP | 4m toward enemy, no cover |
+| step_away | RETREAT_COVER_STAND, RETREAT_COVER_CROUCH | step 15m back → best_cover |
+| flee_far | RETREAT_OPEN_STAND | 30m backward, no cover |
+| step_away_short | RETREAT_OPEN_STEP | 4m back, no cover |
+| cover_nearest | HOLD_COVER_CROUCH | npc + lateral bucket → best_cover (two-tier radius) |
+| hold | HOLD_OPEN_CROUCH, HOLD_OPEN_SNIPE, HOLD_OPEN_HIDE, SUPPRESS_OPEN_CROUCH | current `target_lvid` or `npc_lvid` |
 
-**Cover graph quirks** (cover_manager_inline.h:73-81): the evaluator has inertia. Repeated `best_cover` calls with `search_pos` within `3 * radius` of the previously selected cover tend to return the same lvid. This is fine for us — `_next_pick` throttle means consecutive calls happen 1.5-3.5s apart with the NPC having moved, so `search_pos` shifts enough to escape inertia.
+Squad lateral spread applied to cover-seeking resolvers via `xcombat.lateral_offset(bucket, ...)`.
 
-We do NOT replicate vanilla's full `cover_evaluator` weighting (which iterates multiple candidates considering exposed angles, line-of-fire to OTHER enemies in the agent_manager, etc.). Simpler heuristic, slightly worse cover quality, deterministic behavior. Acceptable tradeoff.
+### Rule lists (v1)
 
-### Cover reservation (`db.used_level_vertex_ids`)
+Shipping rule lists. Other communities fall through to `STALKER_DEFAULT`.
 
-Shared global table; vanilla TakeCover and RCAI also write to it. Each NPC marks their chosen lvid: `db.used_level_vertex_ids[lvid] = npc:id()`. When picking, `_claim_cover` checks ownership — if another id owns it, claim fails. NPC retries 1.5-3.5s later via `_next_pick`. Prevents multi-NPC convergence on one lvid (the bug that produced the 300894-cluster in at_advance testing).
+| List | Communities | Environment |
+|---|---|---|
+| `MILITARY_OUTDOOR` | army, army_npc, dolg, freedom, isg | OUTDOOR |
+| `MILITARY_INDOOR` | army, army_npc, dolg, freedom, isg | INDOOR |
+| `STALKER_DEFAULT` | all unmapped | OUTDOOR + INDOOR |
 
-`_release_cover(lvid, id)` clears the table when we re-pick or finalize. `server_entity_on_unregister` clears on entity despawn.
+Doctrine summary:
 
-### Open-terrain fallback
+- **Military outdoor**: cover-disciplined, snipes, flanks, walks back firing when wounded; advances cover-to-cover, never in the open.
+- **Military indoor**: charge with close-range weapons, no flank/snipe, crouch-fire from current spot.
+- **Stalker default**: balanced, simple priority (cover when threatened, advance when too far, fire when visual, hide as fallback).
 
-If `best_cover` returns nothing accessible at the step point (terrain dead zone, cover graph sparse), we fall back to `level.vertex_in_direction(npc_lvid, dir, ADVANCE_STEP_M)` for any accessible vertex in that direction. NPC moves in the open instead of standing still. Pattern: `axr_stalker_panic.script:282`.
+### Pattern B preconditions
 
-If both fail 3x consecutively, `_on_pick_fail` sets `_fail_until[id] = tg + 10000`. Evaluator returns false with reason "fail_backoff" until the window expires. Vanilla planner resumes for that NPC.
+`world_property(EVAL_ID, false)` added to:
+- `stalker_ids.action_combat_planner`
+- `stalker_ids.action_danger_planner`
+- `xr_danger.actid`
+- `xr_actions_id.state_mgr + 2`
+- `xr_actions_id.alife`
 
-### Handoff to vanilla
+When AT eval returns true, these vanilla actions are blocked from running. When false, no precondition match → vanilla resumes normally.
 
-When evaluator returns false (NPC died, enemy lost, hp dropped below wounded threshold, share toggled off, fail backoff window active), Pattern B preconditions no longer block vanilla. Vanilla planner resumes from its normal action set. Vanilla properties (`eWorldPropertyInCover`, `eWorldPropertyLookedOut`, etc.) may have stale values from before our takeover but self-correct on first `best_cover_changed` event per `stalker_combat_planner.cpp:60-64`.
+### Lifecycle
+
+| Callback | Effect |
+|---|---|
+| `npc_on_net_spawn` | install evaluator + action + preconditions; sentinel-guarded |
+| `npc_on_net_destroy` | clear `_installed[id]` so next online cycle re-installs |
+| `server_entity_on_unregister` | clear all per-id tables; release cover reservation via action finalize |
+| `actor_on_first_update` | reset all module-level tables; load tunables; refresh log level |
+| `npc_on_hit_callback` | stamp `state._threat_hit_at` for 3s lock window |
+| `on_option_change` / `mcm_option_restore_default` | refresh log level / `_dbg` flag |
+
+### Resolver failure handling
+
+| Trigger | Effect |
+|---|---|
+| Resolver returns nil | `_fail_streak[id]` increments |
+| Streak ≥ 3 | `_fail_until[id]` set with linear backoff (3→10s, 4→20s, ...) |
+| Eval during backoff | returns `(false, "fail_backoff")` → vanilla resumes |
+| Successful pick | `_fail_streak[id] = 0` |
+
+### Sniper-aim engine flag
+
+`HOLD_OPEN_SNIPE` sets `plan.sniper_aim = true`. `_apply_plan` calls `npc:sniper_fire_mode(true)`. Engine swaps aim direction from weapon barrel to head target (via `state_mgr.set_state(..., { look_object = enemy })`). Cleared on behavior change away from sniper or on `finalize`.
 
 ### What we don't touch
 
-- `xr_combat.script`, `xr_combat_camper.script`, `xr_combat_monolith.script`, `xr_combat_zombied.script` — vanilla sub-schemes unchanged
-- `xr_combat.set_combat_type` / `motivator_binder:update` 500ms loop — never write `script_combat_type`
-- `xr_cover.script`, `xr_smartcover.script`, `xr_combat_ignore.script`, `visual_memory_manager.script` — vanilla files unchanged (contrast with RCAI which overrides all 6)
-- Smart terrain configs, job XML, LTX — eligibility is runtime per-NPC, not pre-assigned
+- vanilla `xr_combat.script`, `xr_combat_camper.script`, `xr_combat_monolith.script`, `xr_combat_zombied.script`
+- `xr_cover.script`, `xr_smartcover.script`, `xr_combat_ignore.script`, `visual_memory_manager.script`
+- smart terrain configs, job XML, condlists
+- `script_combat_type` writes from other mods (they still execute; vanilla planner is blocked so they have no effect for in-share NPCs)
 
 ### MCM
 
 | Key | Type | Default | Effect |
 |---|---|---|---|
-| `combat_enabled` | check | true | Master toggle. Effective on next eval tick, no restart |
-| `combat_share` | track 0.0-1.0 step 0.05 | 1.0 | Fraction of eligible NPCs using our combat AI. 0 = pure vanilla. 1 = full takeover. Stable per-id hash |
+| `combat_enabled` | check | true | Master toggle. Effective on next eval tick |
+| `combat_share` | track 0.0-1.0 step 0.05 | 1.0 | Stable per-id hash share of NPCs using AT combat; 0 = pure vanilla, 1 = full takeover |
+
+### xcombat primitives (in xlibs)
+
+| Surface | Purpose |
+|---|---|
+| `AGGRESSOR_KINDS`, `SNIPER_KINDS`, `RANGED_KINDS`, `WEAPON_RANGES` | Weapon classification constants |
+| `weapon_kind(npc)` | Active weapon kind, TTL-cached |
+| `weapon_range(kind)` | `{ min, max }` table per kind |
+| `has_occluder_between(a, b)` | Static-geometry raycast between positions |
+| `friendly_in_line(npc, npc_pos, ene_pos, thresh)` | Squadmate-on-firing-line projection check |
+| `is_indoor(pos)` | Level-name table + surge-shelter smart proximity |
+| `claim_cover` / `release_cover` / `cover_stolen` | `db.used_level_vertex_ids` reservation wrappers |
+| `squad_alive_count(squad_id)` | TTL-cached live count |
+| `squad_initial(squad_id, set?)` | Initial squad size per combat session |
+| `squadmate_in` / `record_pick` / `clear_pick` | Per-squad behavior census |
+| `lateral_offset` | Perpendicular spread for cover search |
+| `INDOOR_LEVELS` | Level-name table for full-indoor levels |
 
 ---
 
