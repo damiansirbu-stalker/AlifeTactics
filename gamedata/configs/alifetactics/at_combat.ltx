@@ -30,6 +30,6 @@ squad_lateral_buckets    = 5
 squad_lateral_step_m     = 4
 
 ; BEHAVIORS catalog
-advance_dist_m           = 40     ; ADVANCE / FLANKING trigger beyond this distance from enemy
-close_assault_min_dist_m = 10     ; CLOSE_ASSAULT stops charging at this distance; falls through to FIRE_HOLD
-retreat_hp_frac          = 0.25   ; HP fraction below which RETREAT / RETREAT_AND_FIRE / FLEE fire (faction-list dependent)
+advance_dist_m           = 40     ; ADVANCE_COVER_STAND / FLANK_COVER_STAND eligible beyond this distance from enemy
+charge_min_dist_m        = 10     ; ADVANCE_OPEN_CHARGE stops charging at this distance; falls through to other HOLD_OPEN_* rows
+retreat_hp_frac          = 0.25   ; HP fraction below which RETREAT_COVER_STAND / RETREAT_COVER_CROUCH / RETREAT_OPEN_STAND are eligible

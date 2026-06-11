@@ -1,0 +1,228 @@
+; AlifeTactics per-faction behavior weights. Paired with gamedata/scripts/at_combat.script.
+; Each section is one engine community (game_relations.ltx:26). All 12 behaviors listed
+; explicitly per section so the file reads as a doctrine matrix. Weight 0 = disabled
+; for that faction. Weights are relative; the picker normalizes across applies()-eligible
+; rows at decide time. Script-side default for missing keys is 0 (= same as explicit 0).
+
+; ============ MILITARY (cover-disciplined, sniping, walk-back-firing on HP) ============
+
+[army]
+advance_cover_stand  = 30
+advance_open_charge  = 0
+advance_open_walk    = 0
+flank_cover_stand    = 25
+retreat_cover_stand  = 20
+retreat_cover_crouch = 80
+retreat_open_stand   = 0
+hold_cover_crouch    = 35
+hold_open_stand      = 0
+hold_open_crouch     = 20
+hold_open_snipe      = 40
+hold_open_hide       = 0
+
+[army_npc]
+advance_cover_stand  = 30
+advance_open_charge  = 0
+advance_open_walk    = 0
+flank_cover_stand    = 25
+retreat_cover_stand  = 20
+retreat_cover_crouch = 80
+retreat_open_stand   = 0
+hold_cover_crouch    = 35
+hold_open_stand      = 0
+hold_open_crouch     = 20
+hold_open_snipe      = 40
+hold_open_hide       = 0
+
+[dolg]
+advance_cover_stand  = 35
+advance_open_charge  = 0
+advance_open_walk    = 0
+flank_cover_stand    = 25
+retreat_cover_stand  = 15
+retreat_cover_crouch = 70
+retreat_open_stand   = 0
+hold_cover_crouch    = 35
+hold_open_stand      = 0
+hold_open_crouch     = 25
+hold_open_snipe      = 40
+hold_open_hide       = 0
+
+[freedom]
+advance_cover_stand  = 30
+advance_open_charge  = 10
+advance_open_walk    = 0
+flank_cover_stand    = 25
+retreat_cover_stand  = 25
+retreat_cover_crouch = 60
+retreat_open_stand   = 0
+hold_cover_crouch    = 30
+hold_open_stand      = 0
+hold_open_crouch     = 25
+hold_open_snipe      = 30
+hold_open_hide       = 0
+
+[isg]
+advance_cover_stand  = 30
+advance_open_charge  = 0
+advance_open_walk    = 0
+flank_cover_stand    = 30
+retreat_cover_stand  = 15
+retreat_cover_crouch = 70
+retreat_open_stand   = 0
+hold_cover_crouch    = 35
+hold_open_stand      = 0
+hold_open_crouch     = 20
+hold_open_snipe      = 45
+hold_open_hide       = 0
+
+; ============ FANATIC (charges, never retreats) ============
+
+[monolith]
+advance_cover_stand  = 25
+advance_open_charge  = 60
+advance_open_walk    = 0
+flank_cover_stand    = 20
+retreat_cover_stand  = 0
+retreat_cover_crouch = 0
+retreat_open_stand   = 0
+hold_cover_crouch    = 25
+hold_open_stand      = 0
+hold_open_crouch     = 20
+hold_open_snipe      = 30
+hold_open_hide       = 0
+
+[greh]
+advance_cover_stand  = 25
+advance_open_charge  = 50
+advance_open_walk    = 0
+flank_cover_stand    = 20
+retreat_cover_stand  = 0
+retreat_cover_crouch = 0
+retreat_open_stand   = 0
+hold_cover_crouch    = 25
+hold_open_stand      = 0
+hold_open_crouch     = 25
+hold_open_snipe      = 25
+hold_open_hide       = 0
+
+[greh_npc]
+advance_cover_stand  = 25
+advance_open_charge  = 50
+advance_open_walk    = 0
+flank_cover_stand    = 20
+retreat_cover_stand  = 0
+retreat_cover_crouch = 0
+retreat_open_stand   = 0
+hold_cover_crouch    = 25
+hold_open_stand      = 0
+hold_open_crouch     = 25
+hold_open_snipe      = 25
+hold_open_hide       = 0
+
+; ============ MERC (military skillset + breaks) ============
+
+[killer]
+advance_cover_stand  = 25
+advance_open_charge  = 0
+advance_open_walk    = 0
+flank_cover_stand    = 25
+retreat_cover_stand  = 30
+retreat_cover_crouch = 60
+retreat_open_stand   = 0
+hold_cover_crouch    = 35
+hold_open_stand      = 0
+hold_open_crouch     = 25
+hold_open_snipe      = 35
+hold_open_hide       = 0
+
+; ============ DISORGANIZED (close-range charge, panics on hurt) ============
+
+[bandit]
+advance_cover_stand  = 15
+advance_open_charge  = 35
+advance_open_walk    = 0
+flank_cover_stand    = 0
+retreat_cover_stand  = 40
+retreat_cover_crouch = 40
+retreat_open_stand   = 20
+hold_cover_crouch    = 25
+hold_open_stand      = 0
+hold_open_crouch     = 25
+hold_open_snipe      = 0
+hold_open_hide       = 0
+
+[renegade]
+advance_cover_stand  = 15
+advance_open_charge  = 40
+advance_open_walk    = 0
+flank_cover_stand    = 0
+retreat_cover_stand  = 35
+retreat_cover_crouch = 35
+retreat_open_stand   = 20
+hold_cover_crouch    = 25
+hold_open_stand      = 0
+hold_open_crouch     = 25
+hold_open_snipe      = 0
+hold_open_hide       = 0
+
+; ============ COWARD (flees, hides) ============
+
+[ecolog]
+advance_cover_stand  = 5
+advance_open_charge  = 0
+advance_open_walk    = 0
+flank_cover_stand    = 0
+retreat_cover_stand  = 40
+retreat_cover_crouch = 50
+retreat_open_stand   = 60
+hold_cover_crouch    = 60
+hold_open_stand      = 0
+hold_open_crouch     = 25
+hold_open_snipe      = 10
+hold_open_hide       = 40
+
+[csky]
+advance_cover_stand  = 5
+advance_open_charge  = 0
+advance_open_walk    = 0
+flank_cover_stand    = 0
+retreat_cover_stand  = 35
+retreat_cover_crouch = 50
+retreat_open_stand   = 55
+hold_cover_crouch    = 65
+hold_open_stand      = 0
+hold_open_crouch     = 30
+hold_open_snipe      = 15
+hold_open_hide       = 35
+
+; ============ ZOMBIE / FALLBACK ============
+
+[zombied]
+advance_cover_stand  = 0
+advance_open_charge  = 0
+advance_open_walk    = 100
+flank_cover_stand    = 0
+retreat_cover_stand  = 0
+retreat_cover_crouch = 0
+retreat_open_stand   = 0
+hold_cover_crouch    = 0
+hold_open_stand      = 0
+hold_open_crouch     = 0
+hold_open_snipe      = 0
+hold_open_hide       = 0
+
+[stalker]
+; loner — also the fallback for any community not listed above
+advance_cover_stand  = 25
+advance_open_charge  = 0
+advance_open_walk    = 0
+flank_cover_stand    = 0
+retreat_cover_stand  = 30
+retreat_cover_crouch = 50
+retreat_open_stand   = 0
+hold_cover_crouch    = 35
+hold_open_stand      = 0
+hold_open_crouch     = 25
+hold_open_snipe      = 30
+hold_open_hide       = 0
