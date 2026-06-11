@@ -255,13 +255,13 @@
   </string>
   <!-- ==================== AMMO (child) ==================== -->
   <string id="ui_mcm_at_ammo_desc">
-    <text>NPCs spawn with a list of acceptable ammo types but vanilla loads the first one regardless of what they carry. AlifeTactics picks the highest armor-piercing ammo each NPC actually has in inventory and sets it as their weapon's loaded type at spawn. NPCs fire real AP rounds while they have them, then fall back through their inventory to cheaper ammo as each tier runs out.</text>
+    <text>Simulated NPC ammo consumption. AlifeTactics tracks each NPC's remaining rounds per ammo tier and switches the firing type to match what they actually carry. NPCs fire their highest tier first, then step down through cheaper tiers as each depletes, and revert to vanilla magic FMJ when fully spent. Armor-piercing ammo is restricted to master rank and above. NPC corpses keep at least 3 rounds of each tier so the player sees the actual loadout.</text>
   </string>
   <string id="ui_mcm_at_fixes_ammo_ammo_enabled">
-    <text>Pick best ammo at spawn</text>
+    <text>Simulate ammo consumption</text>
   </string>
   <string id="ui_mcm_at_fixes_ammo_ammo_enabled_desc">
-    <text>On: scan inventory at spawn, switch the active weapon to the highest-armor-piercing ammo type available. Off: vanilla default (whatever the weapon was set to on spawn).</text>
+    <text>On: every 5 seconds during combat, drain the active NPC's tracked ammo tier, switch the firing type when one tier depletes, clamp inventory boxes for corpse loot. Off: vanilla magic FMJ for every NPC; no tracking, no loot adjustment.</text>
   </string>
   <!-- ==================== DEVELOPMENT TAB ==================== -->
   <string id="ui_mcm_at_development_desc">
@@ -322,18 +322,6 @@
   </string>
   <string id="at_development_hud_position_lst_bottomright">
     <text>Bottom Right</text>
-  </string>
-  <string id="ui_mcm_at_development_hud_radius">
-    <text>Scan radius (m)</text>
-  </string>
-  <string id="ui_mcm_at_development_hud_radius_desc">
-    <text>Distance from the actor within which NPCs are listed. Smaller values reduce the row count for a cleaner display. Default: 100m.</text>
-  </string>
-  <string id="ui_mcm_at_development_hud_show_idle">
-    <text>Show idle NPCs</text>
-  </string>
-  <string id="ui_mcm_at_development_hud_show_idle_desc">
-    <text>Include NPCs that are not currently in combat (sleepers, walkers, smart-terrain workers, etc.). When off, only NPCs with an active combat behavior or vanilla combat state are shown. Default: on.</text>
   </string>
   <!-- Development - Reset -->
   <string id="ui_mcm_at_development_btn_reset_all">

@@ -23,7 +23,7 @@ Version 1.0.0.
 | `at_combat.script` | feature | Pattern B planner takeover; 12 BEHAVIORS (ADVANCE, TAKE_COVER, FIRE_FROM_COVER, FIRE_HOLD, RETREAT, CLOSE_ASSAULT, SNIPE, ZOMBIE_SHAMBLE, FLANKING, RETREAT_AND_FIRE, FLEE, HOLD_STILL); per-faction lists (military / fanatic / merc / disorganized / coward / tactical default / zombie); SNIPE wires the engine `sniper_fire_mode` flag |
 | `xr_danger.script` | feature | done (full-file override) |
 | `at_jam.script` | feature | done (modded-exes xr_weapon_jam.GetConditionMisfireProbability override; suppresses script-injected NPC misfire) |
-| `at_ammo.script` | feature | done (npc_on_net_spawn: picks highest-k_ap inventory ammo via xinventory.get_ammo_tier_map, calls wpn:set_ammo_type) |
+| `at_ammo.script` | feature | done (per-NPC virtual ledger drains highest-tier ammo each 5s combat tick down to MIN_SPARE; inventory boxes clamped to ledger to defeat engine try_advance_ammo top-up; npc_on_death_callback trims all boxes to MIN_SPARE so they survive decide_items_to_keep; AP sections gated by `min_ap_rank` LTX (default 17499 = RANK_MASTER)) |
 | `zzz_at_health_patch.script` | feature | done (vanilla xr_eat_medkit re-roll suppressor) |
 | `configs/ai_tweaks/mod_xr_eat_medkit_at.ltx` | data | done |
 | `configs/ai_tweaks/xr_danger.ltx` | data | done |
@@ -62,7 +62,7 @@ AlifeTactics/
 │   │   ├── at_combat.script                   # Combat system (Pattern B planner takeover)
 │   │   ├── xr_danger.script                   # full-file override (Danger system)
 │   │   ├── at_jam.script                      # modded-exes xr_weapon_jam override (Weapon Jam system)
-│   │   ├── at_ammo.script                     # NPC ammo selection at spawn (NPC Ammo system)
+│   │   ├── at_ammo.script                     # NPC ammo simulation (NPC Ammo system)
 │   │   ├── zzz_at_health_patch.script         # vanilla xr_eat_medkit re-roll suppressor
 │   │   └── at_test.script                     # console test commands
 │   └── textures/
@@ -472,52 +472,70 @@ The engine functor lookup at `Weapon.cpp:1781` was added in demonized commit `f2
 
 ## NPC Ammo
 
-`at_ammo.script` picks the highest armor-piercing ammo type in an NPC's inventory at spawn and sets it on the active weapon. The engine cascade then drives natural consumption: real AP first, then degraded variants, then FMJ, then unlimited fallback if the trader flag is set.
+Master-rank NPCs fire AP from inventory until depleted, then revert to vanilla magic FMJ. Player loots the remainder.
 
-### Ranking
+Engine context: NPCs do not consume real inventory ammo while `unlimited_ammo()` is TRUE, which is the default for every stalker (`xrServer_Objects_ALife_Monsters.cpp:2164`). The magic refill at `WeaponMagazined.cpp:520-571` produces copies of `m_DefaultCartridge`, keyed from `m_ammoTypes[m_ammoType]` at line 559-560. Setting `m_ammoType` re-keys those copies; inventory drain in this script is cosmetic for corpse-loot composition.
 
-Uses xlibs `xinventory.get_ammo_tier_map(wpn_sec, 3)` (`xinventory.script:312-359`). Sorts `ammo_class` sections by `k_ap` ascending (cost tiebreaker), buckets into 3 tiers via `floor((i-1) * N / count) + 1`. Tier 3 = highest `k_ap` (clean AP). Tier 2 = mid (typically `_bad` variants of AP, or clean FMJ for non-AP-carrying weapons). Tier 1 = lowest (`_verybad` variants, basic FMJ in mixed lists). Cached per `(weapon_sec, n_tiers)`.
+### Fixed AP set
 
-Same primitive consumed by `AlifePlus/ap_ext_trade.script:64` (`_buy_ammo_tier`) for trader ammo purchases. Shared ranking semantics across the mod family.
+`AP_SECTIONS` is a hardcoded set of clean armor-piercing cartridge sections enumerated from vanilla Anomaly `configs/items/weapons/*.ltx` (14 entries covering 5.45x39, 5.56x45, 7.62x39, 7.62x51, 7.62x54, 7.92x33, 9x18, 9x19, 9x39, 12.7x55, 12x76). Degraded `_bad` / `_verybad` variants are intentionally excluded — they're treated as "carry but don't promote". Add new calibers to the table when modpacks introduce them.
 
-### Pick
+### Per-NPC state
 
-`npc_on_net_spawn` handler:
+`_state[id] = { idx, sec, left }`. Set when a master-rank NPC is first observed carrying any `AP_SECTIONS` entry in inventory; nil otherwise (those NPCs run vanilla forever). Cleared on `server_entity_on_unregister`. Not save-persisted.
 
-1. MCM gate (`ammo_enabled`).
-2. `IsStalker(npc)` filter; mutants skipped.
-3. `wpn = npc:active_item()`, `IsWeapon(wpn)` filter.
-4. `accepted = xinventory.get_ammo_classes(wpn:section())` — set form `{section → true}`.
-5. `tier_map = xinventory.get_ammo_tier_map(wpn:section(), 3)`.
-6. Walk `npc:iterate_inventory`, track section with highest `tier_map[sec]` that's also in `accepted`.
-7. Map best section to its index in the ordered `xinventory.get_ammo_sections` list (1-based Lua → 0-based engine: `i - 1`).
-8. If `idx ~= wpn:get_ammo_type()`, call `wpn:set_ammo_type(idx)`.
+### Tick algorithm
 
-### Engine cascade
+`pick(npc)` is the public entry, subscribed to `npc_on_update` (5s throttle per NPC, gated on `best_enemy()`). Each tick:
 
-`wpn:set_ammo_type(idx)` writes `m_ammoType = idx` (`Weapon.h:1100`). The reload pipeline reads it:
+1. MCM gate (`ammo_enabled`), `npc:alive()` and `IsStalker(npc)` filter, `npc:character_rank() >= min_ap_rank` filter — sub-master returns immediately.
+2. `IsWeapon(npc:active_item())` filter.
+3. If `_state[id]` nil: scan `ammo_class` for the first entry in `AP_SECTIONS` with inventory count > 0; seed `_state[id]` with that idx, section, and starting count. If no AP found, leave `_state[id]` nil so the NPC stays on vanilla.
+4. Drain `_state[id].left` by `DRAIN_PER_KIND[kind]`, clamped at `MIN_SPARE`.
+5. If `left > MIN_SPARE`: set `m_ammoType = idx` and `_sync_box(npc, sec, left)` to defeat engine `try_advance_ammo` top-up.
+6. Else: set `m_ammoType = 0` (vanilla magic FMJ for the rest of the NPC's online session).
 
-- **AP from inventory:** `WeaponMagazined.cpp:298-347` `TryReload` line 314: `m_pInventory->GetAny(m_ammoTypes[m_ammoType])`. Line 323: triggers `SwitchState(eReload)`. `ReloadMagazine` line 525-531 pulls real AP boxes; line 562+ decrements per round.
-- **Fallback through tiers:** When AP gone, line 329-340 walks `m_ammoTypes` for any inventory match, defers via `m_set_next_ammoType_on_reload`. Same again at line 533-545 inside `ReloadMagazine`. `m_ammoType` ratchets to whichever type still has rounds.
-- **Unlimited fallback:** All inventory drained AND `unlimited_ammo()` true (trader flag set per-NPC at `object_handler.cpp:78`). Line 520 skips the inventory search block. Line 559-560: `m_DefaultCartridge.Load(m_ammoTypes[m_ammoType], ...)` rebuilds the magic cartridge from current `m_ammoType` (whichever tier the NPC was last firing from). Mag refills from it.
+Cost per tick per NPC: ~5-10 luabind. Sub-master NPCs early-exit at rank check; only luabind is `character_rank()`. For 50 active combat NPCs at 0.2Hz with mixed rank: ~30 luabind/sec total.
 
-The cheap-fallback at the end happens automatically: by the time inventory is fully drained, `m_ammoType` has ratcheted down to the lowest tier that had any rounds (typically FMJ for most NPCs since loadouts are FMJ-heavy). For NPCs spawning with only AP, the unlimited fallback stays on AP — we do not patch this case.
+### Rank gate
 
-### Verification
+`npc:character_rank() >= min_ap_rank`. Default `min_ap_rank = 17499` (= `RANK_MASTER`, sourced from `AlifePlus/ap_core_const.script:15`). Below-master NPCs never enter the picker. Their inventory AP boxes are untouched during life and trimmed at death by the death hook.
 
-Empirically verified by `tmp/probe_ammo.script`: PMM-carrying NPC, `wpn_pmm` `ammo_class` has 9 entries (FMJ/PMM/AP × clean/bad/verybad). Before: `get_ammo_type=3` (clean PMM). After `set_ammo_type(0)`: `get_ammo_type=0`. After 3 seconds and multiple NPC update ticks: `get_ammo_type=0` still. The engine binding holds; no internal logic resets the value.
+This intentionally restricts AP to master+ to prevent armor degradation across the whole NPC population. Tune via LTX.
+
+### Death hook
+
+`npc_on_death_callback` walks the dead NPC's inventory and trims every ammo box where `ammo_get_count() > MIN_SPARE` down to MIN_SPARE. Runs before `motivator_binder:death_callback`'s `decide_items_to_keep` call at `xr_motivator.script:362`. Boxes ≤ 5 survive `death_manager.script:456-460`'s `>5` deletion filter, so the depletion trail persists as corpse loot.
+
+Without this hook the engine's `try_advance_ammo` top-up at the last reload before death would leave boxes at `boxSize` and `decide_items_to_keep` would release them entirely. Player would see only `death_manager.try_spawn_ammo`'s procedural box. With the hook, player loots the actual remainder.
+
+### Tunables (`gamedata/configs/alifetactics/at_ammo.ltx`)
+
+| Key | Default | Effect |
+|---|---|---|
+| `min_spare` | 3 | Floor for inventory boxes. Must be ≤ 5 to survive `decide_items_to_keep`. |
+| `min_ap_rank` | 17499 | `npc:character_rank()` threshold for AP eligibility. |
+| `drain_w_pistol` | 5 | Rounds drained per 5s tick when active weapon kind is `w_pistol`. |
+| `drain_w_shotgun` | 2 | Same for `w_shotgun`. |
+| `drain_w_smg` | 10 | Same for `w_smg`. |
+| `drain_w_rifle` | 8 | Same for `w_rifle`. |
+| `drain_w_sniper` | 2 | Same for `w_sniper`. |
+
+Script-side fallback defaults match the LTX defaults so a missing key or file won't crash.
 
 ### MCM
 
 | Key | Type | Default | Effect |
 |---|---|---|---|
-| `ammo_enabled` | check | true | On: pick best inventory ammo at NPC spawn. Off: no spawn-time action. Already-set ammo types on existing NPCs are untouched either way (one-shot per spawn). |
+| `ammo_enabled` | check | true | Master toggle. Off: tick early-exits, no `m_ammoType` writes, no inventory clamping, no death-time trim. Effective on next tick. |
 
 ### Scope and limits
 
-- Fires once per spawn. Does not re-pick if an NPC loots better ammo mid-game.
-- Active weapon only. If NPC switches weapons later, the new weapon retains its vanilla default ammo type.
-- No interaction with the `xr_weapon_jam` patch in `at_jam`; they target different engine paths and compose freely.
+- Active weapon only. NPC swapping weapons mid-fight: state stays bound to the original AP section / idx until offline cycle resets state.
+- Drain is by-time, not by-shots-fired. No NPC fire callback exists in vanilla. A rifle NPC firing constantly drains the same as one in cover. Acceptable proxy.
+- Save/load resets `_state` unless marshal hook is added. Re-seeds on next tick for any NPC still carrying AP.
+- Degraded `_ap_bad` / `_ap_verybad` variants are not promoted. NPCs carrying only degraded variants fall through to vanilla magic FMJ and the degraded boxes survive death hook trimming for player loot.
+- No interaction with `at_jam`; different engine paths, compose freely.
 
 ---
 
@@ -533,7 +551,7 @@ The architecture principle is to feed engine memory and state, not fight it. Per
 | Combat | NPC GOAP action (action_at_combat), Pattern B preconditions on action_combat_planner/action_danger_planner/xr_danger.actid/state_mgr+2/alife, set_dest_level_vertex_id, state_mgr.set_state, set_body_state, set_movement_type, set_sight, `m_sniper_fire_mode` flag | GOAP `add_evaluator`/`add_action`/`add_precondition` (evaid/actid 188200), `npc:best_cover`, `level.vertex_in_direction`, `npc:sniper_fire_mode`, `db.used_level_vertex_ids` reservation |
 | Danger | NPC danger evaluator/action graft, `script_danger` per-id table for sound-source dispatch | Engine callbacks `npc_on_hear_callback`, `npc_on_death_callback`, GOAP planner graft (evaid/actid 188113) |
 | Weapon Jam | Module-level function table on `xr_weapon_jam` | Lua function assignment (`xr_weapon_jam.GetConditionMisfireProbability = ...`) read by engine functor lookup at `Weapon.cpp:1781` |
-| NPC Ammo | CWeapon `m_ammoType` field via `wpn:set_ammo_type(idx)` | `npc:active_item`, `npc:iterate_inventory`, `wpn:set_ammo_type`, `wpn:get_ammo_type` plus xlibs `xinventory.get_ammo_tier_map` / `get_ammo_sections` / `get_ammo_classes` |
+| NPC Ammo | CWeapon `m_ammoType` field via `wpn:set_ammo_type(idx)` (re-keys `m_DefaultCartridge` for magic refill ballistics); per-NPC virtual ledger drives section selection; inventory boxes clamped to ledger via `obj:ammo_set_count` to defeat `try_advance_ammo` top-up; death hook trims boxes to MIN_SPARE for corpse loot survival | `npc:active_item`, `wpn:set_ammo_type`, `wpn:get_ammo_type`, `wpn:get_ammo_count_for_type`, `npc:best_enemy`, `npc:character_rank`, `npc:iterate_inventory`, `obj:ammo_get_count`, `obj:ammo_set_count` |
 
 The engine then runs its own combat detection (property_enemy, m_combat_mask, agent_memory propagation) on the state we wrote. No system reimplements engine behavior; each one nudges engine state to produce the desired outcome.
 

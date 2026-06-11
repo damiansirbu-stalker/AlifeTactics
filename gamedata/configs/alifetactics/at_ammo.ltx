@@ -1,0 +1,29 @@
+; AlifeTactics ammo system tuning. Paired with gamedata/scripts/at_ammo.script.
+; All keys have script-side fallback defaults so a missing key won't crash.
+;
+; The script maintains a per-NPC virtual ledger of remaining rounds per ammo
+; section in the weapon's ammo_class. Each 5s combat tick drains the highest
+; tier above MIN_SPARE by the drain rate; inventory boxes are clamped to the
+; ledger value to defeat the engine's try_advance_ammo top-up
+; (object_actions.cpp:131-169). On death, all ammo boxes are trimmed to
+; MIN_SPARE so they survive death_manager.decide_items_to_keep's >5 deletion
+; filter (death_manager.script:456-460), preserving the depletion trail as
+; player corpse loot.
+
+[at_ammo]
+; Floor for inventory boxes. Must be <= 5 to survive decide_items_to_keep.
+min_spare         = 3
+
+; Rounds drained per 5s combat tick, per weapon kind LTX field.
+drain_w_pistol    = 5
+drain_w_shotgun   = 2
+drain_w_smg       = 10
+drain_w_rifle     = 8
+drain_w_sniper    = 2
+
+; NPC character_rank threshold for AP-class ammo eligibility.
+; Sections whose name contains "_ap" require npc:character_rank() >= min_ap_rank.
+; Default 17499 = RANK_MASTER per AlifePlus/ap_core_const.script:15.
+; Lower-rank NPCs skip AP tiers and fire FMJ; AP inventory they carry stays
+; untouched during life, gets trimmed to min_spare at death by the death hook.
+min_ap_rank       = 17499

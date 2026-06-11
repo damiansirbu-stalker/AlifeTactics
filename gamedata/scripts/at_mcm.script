@@ -35,7 +35,7 @@ local defaults = {
     hud_enabled    = false,
     hud_position   = "center_right",
     hud_radius     = 100,
-    hud_show_idle  = true,
+    hud_show_idle  = false,
 }
 
 local RegisterScriptCallback = RegisterScriptCallback
@@ -73,8 +73,6 @@ local _key_to_tab = {
     btn_reset_all = "development",
     hud_enabled    = "development",
     hud_position   = "development",
-    hud_radius     = "development",
-    hud_show_idle  = "development",
 }
 
 local function path_builder(key)
@@ -304,8 +302,6 @@ function on_mcm_load()
                             {"bottom_right", "bottomright"},
                         },
                     },
-                    { id = "hud_radius", type = "track", val = 2, min = 30, max = 200, step = 10, def = 100 },
-                    { id = "hud_show_idle", type = "check", val = 1, def = true },
 
                     { id = "div_reset", type = "line" },
                     { id = "warn_reset", type = "desc", text = "ui_mcm_at_development_reset_warning", clr = {255, 240, 200, 80} },

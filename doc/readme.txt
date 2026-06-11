@@ -96,9 +96,13 @@ Requires demonized exes 2026.6.1 or later for this fix specifically. The engine 
 
 NPC Ammo:
 
-NPCs spawn carrying multiple ammo types (FMJ, PMM, AP, plus degraded variants) but vanilla loads whichever section was set on spawn regardless of what they have. AlifeTactics ranks each NPC's inventory by armor-piercing value and sets the active weapon to the highest type they actually carry (MCM > Fixes > NPC Ammo, default on).
+Vanilla NPCs always fire the first ammo type in their weapon's list. AlifeTactics promotes master-rank NPCs who carry armor-piercing ammo to fire AP-class rounds with real ballistics (MCM > Fixes > NPC Ammo, default on).
 
-NPCs fire real AP rounds until they run out, then the engine falls back to the next-best type in inventory. When all real ammo is gone, the engine's own infinite-ammo fallback uses whatever type was last available, so the depleted NPC keeps fighting on cheap rounds instead of going silent.
+A master-rank merc or military soldier carrying AP will fire AP at the player for a short window, then revert to vanilla magic FMJ when their virtual AP supply runs out. A novice bandit who looted an AP box still fires vanilla FMJ from it. The rank threshold and per-weapon drain rates are tunable in configs/alifetactics/at_ammo.ltx.
+
+NPC corpses keep at least 3 rounds of each ammo box so the player loots the remainder instead of just the procedural spawn from death_manager.
+
+The fixed AP section list covers vanilla Anomaly calibers (5.45x39, 5.56x45, 7.62x39, 7.62x51, 7.62x54, 7.92x33, 9x18, 9x19, 9x39, 12.7x55, 12x76). Add modpack calibers to the script's AP_SECTIONS table when needed.
 
 Performance:
 

@@ -1,9 +1,11 @@
 next
   Summary: combat AI takeover, faction doctrines, flank and retreat behaviors, sniper aim mode, monolith combat, zombied shamble, danger rework, weapon jam fix, NPC ammo selection, stealth kills, limp/heal fixes, AOEngine compatibility
 
-  - Added NPC ammo selection at spawn.
-    Vanilla NPCs load whichever ammo type was set at spawn regardless of what they actually carry. AlifeTactics picks the highest armor-piercing type the NPC has in inventory and sets the active weapon to it.
-    NPCs fire real AP rounds until they run out, then cascade through cheaper tiers as inventory drains. Engine handles the cascade; we only set the initial type.
+  - Added simulated NPC ammo consumption.
+    Vanilla NPCs always fire the first ammo type in their weapon's list regardless of what they carry. AlifeTactics promotes master-rank NPCs who carry armor-piercing ammo to fire AP-class rounds with real ballistics.
+    NPCs fire AP for a tracked window (drain rate by weapon kind: pistol, shotgun, SMG, rifle, sniper) then revert to vanilla magic FMJ when their virtual AP supply runs out. Drain rates live in configs/alifetactics/at_ammo.ltx.
+    NPC corpses keep at least 3 rounds of each ammo box, so the player loots the remainder instead of just a procedural spawn.
+    Armor-piercing is restricted to master rank and above by default. The fixed AP section list covers vanilla calibers (5.45x39, 5.56x45, 7.62x39, 7.62x51, 7.62x54, 7.92x33, 9x18, 9x19, 9x39, 12.7x55, 12x76). Add modpack calibers to the script's AP_SECTIONS table when needed.
     MCM > Fixes > NPC Ammo, default on.
   - Added NPC weapon jam suppression.
     Demonized modded exes add a per-rank jam roll separate from weapon condition. NPCs fire 2-3 rounds, jam, and reload in a tight loop.
@@ -48,6 +50,7 @@ next
     Distance, time, and counter constants moved out of the script for inline tuning without code edits.
     Advance distance and retreat HP threshold moved here from MCM. The two combat-tab sliders are removed.
   - Added live Debug HUD overlay listing nearby NPCs and their current behavior. Toggle in MCM > Development > Debug HUD. AT-controlled NPCs show with [AT] prefix; others show their vanilla state or active scheme.
+  - Changed Debug HUD to combat-only by default and dropped the scan radius slider and idle-NPC toggle from MCM. The HUD now lists only NPCs currently in combat within a fixed 100m radius. Quieter display, less noise during real gameplay.
   - Added AOEngine v0.55+ support.
 
 1.0.0

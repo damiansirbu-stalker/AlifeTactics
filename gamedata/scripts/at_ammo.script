@@ -1,121 +1,218 @@
---- at_ammo: NPC picks best AP from inventory at spawn
+--- at_ammo: master-rank NPCs fire AP from inventory until depleted, then revert
+--- to vanilla magic FMJ. Player loots the depletion remainder.
 ---
---- On `npc_on_net_spawn`, walks the NPC's inventory for ammo sections matching
---- the active weapon's `ammo_class`. Ranks by `k_ap` via `xinventory.get_ammo_tier_map`
---- (3 tiers; clean AP lands in tier 3, degraded `_bad`/`_verybad` variants drop to
---- lower tiers from their reduced `k_ap`). Calls `wpn:set_ammo_type(idx)` for the
---- highest-tier section found.
+--- Engine context: NPCs fire copies of `m_DefaultCartridge` via the magic-refill
+--- path (`WeaponMagazined.cpp:520-571`) regardless of inventory; `m_DefaultCartridge`
+--- is keyed from `m_ammoTypes[m_ammoType]` at line 559-560. Setting `m_ammoType`
+--- via `wpn:set_ammo_type(idx)` re-keys to the section's ballistic params (`k_ap`,
+--- `k_hit`, `k_disp`). Inventory ammo is never consumed by the engine while
+--- `unlimited_ammo()` is TRUE, which is the default for every stalker.
 ---
---- Engine cascade after the set (proved against `WeaponMagazined.cpp:298-347` TryReload
---- and `WeaponMagazined.cpp:480-570` ReloadMagazine):
----   1. NPC fires real AP from inventory until exhausted (line 314, 525-531).
----   2. AP gone -> engine fallback search at line 329-340 picks next available type,
----      `m_set_next_ammoType_on_reload` swaps `m_ammoType` on next reload (line 499-503).
----   3. All inventory drained AND `unlimited_ammo()` true -> `m_DefaultCartridge`
----      rebuilt from current `m_ammoType` (line 559-560), magic refill uses last
----      available type (typically FMJ since it's the deepest tier).
+--- Design: a fixed AP_SECTIONS set lists every clean armor-piercing cartridge
+--- section in vanilla Anomaly. Per-NPC state tracks the SINGLE active AP section
+--- the NPC is firing and the virtual rounds remaining. Each 5s combat tick drains
+--- the virtual count by a per-weapon-kind rate. When virtual drops to MIN_SPARE
+--- the system reverts to `m_ammoType = 0` (vanilla magic FMJ) for the rest of the
+--- NPC's online session.
 ---
---- For mods that don't ship the trader infinite-ammo flag, NPCs simply stop firing
---- once inventory empties. AlifeTactics does not change the unlimited-ammo flag.
+--- Rank gate: only NPCs with `character_rank >= min_ap_rank` (default 17499 =
+--- RANK_MASTER per `AlifePlus/ap_core_const.script:15`) ever pick AP. Lower-rank
+--- NPCs run pure vanilla (m_ammoType=0) and we don't touch them.
 ---
---- The engine binding (`script_game_object.cpp:643-658`, `Weapon.h:1100`) has no
---- actor gate: `set_ammo_type` writes `m_ammoType` on any CWeapon. Empirically
---- verified by `tmp/probe_ammo.script`: a PMM-carrying NPC went from `get_ammo_type=3`
---- to `0` after `set_ammo_type(0)` and held that value across NPC update ticks.
+--- Death hook: trims every ammo box in the dead NPC's inventory to MIN_SPARE so
+--- it survives `death_manager.script:456-460`'s `>5` deletion filter. Player loots
+--- the depletion trail instead of just `death_manager.try_spawn_ammo`'s procedural
+--- box.
 
 local log = xlog.get_logger("AT.AMMO", { outfile = "alifetactics.log" })
 local _dbg = false
 
-local IsStalker, IsWeapon, next = IsStalker, IsWeapon, next
-local RegisterScriptCallback = RegisterScriptCallback
+local IsStalker, IsWeapon, time_global = IsStalker, IsWeapon, time_global
+local RegisterScriptCallback, parse_list = RegisterScriptCallback, parse_list
+local math_max, math_floor = math.max, math.floor
 
-local N_TIERS = 3
+local TICK_MS = 5000
+local LTX_PATH = "alifetactics\\at_ammo.ltx"
+local LTX_SECTION = "at_ammo"
 
-local function _pick_best_section(npc, wpn_sec)
-    local accepted = xinventory.get_ammo_classes(wpn_sec)
-    if not next(accepted) then return nil end
+-- Fixed list of clean armor-piercing ammo sections. Enumerated from
+-- vanilla Anomaly `configs/items/weapons/` ammo_class scans. Excludes
+-- `_bad` / `_verybad` degraded variants by design: low-rank NPCs and
+-- non-master NPCs default to vanilla magic FMJ, and master NPCs who
+-- happen to carry only degraded AP variants also fall through to
+-- vanilla rather than firing weak AP. Add new calibers here as needed.
+local AP_SECTIONS = {
+    ["ammo_5.45x39_ap"]  = true,
+    ["ammo_5.56x45_ap"]  = true,
+    ["ammo_7.62x39_ap"]  = true,
+    ["ammo_7.62x51_ap"]  = true,
+    ["ammo_7.62x54_ap"]  = true,
+    ["ammo_7.62x54_7h14"] = true,
+    ["ammo_7.92x33_ap"]  = true,
+    ["ammo_9x18_ap"]     = true,
+    ["ammo_9x19_ap"]     = true,
+    ["ammo_9x19_pbp"]    = true,
+    ["ammo_9x39_ap"]     = true,
+    ["ammo_9x39_pab9"]   = true,
+    ["ammo_12.7x55_ap"]  = true,
+    ["ammo_12x76_dart"]  = true,
+}
 
-    local tier_map = xinventory.get_ammo_tier_map(wpn_sec, N_TIERS)
+local MIN_SPARE, MIN_AP_RANK
+local DRAIN_PER_KIND = {}
 
-    local best_sec, best_tier = nil, 0
-    npc:iterate_inventory(function(_, itm)
-        local sec = itm:section()
-        if accepted[sec] then
-            local tier = tier_map[sec] or 0
-            if tier > best_tier then
-                best_tier = tier
-                best_sec  = sec
-            end
-        end
-    end, npc)
-
-    return best_sec
+local function _load_tunables()
+    local ini = ini_file(LTX_PATH)
+    local function i(k, d) local v = ini:r_float_ex(LTX_SECTION, k); return v and math_floor(v) or d end
+    MIN_SPARE                = i("min_spare",        3)
+    MIN_AP_RANK              = i("min_ap_rank",      17499)
+    DRAIN_PER_KIND.w_pistol  = i("drain_w_pistol",   5)
+    DRAIN_PER_KIND.w_shotgun = i("drain_w_shotgun",  2)
+    DRAIN_PER_KIND.w_smg     = i("drain_w_smg",      10)
+    DRAIN_PER_KIND.w_rifle   = i("drain_w_rifle",    8)
+    DRAIN_PER_KIND.w_sniper  = i("drain_w_sniper",   2)
 end
 
-local function _section_to_idx(wpn_sec, target_sec)
-    local sections = xinventory.get_ammo_sections(wpn_sec)
-    for i = 1, #sections do
-        if sections[i] == target_sec then
-            return i - 1
+-- Per-NPC state. Set when a master-rank NPC is first observed carrying any
+-- AP_SECTIONS entry in inventory; nil otherwise (those NPCs run vanilla).
+-- Once `left` drops to MIN_SPARE the field stays at MIN_SPARE and the picker
+-- falls through to vanilla m_ammoType=0 every subsequent tick.
+-- Shape: { idx = u8, sec = string, left = int }
+local _state = {}
+
+-- Per-NPC last tick timestamp (time_global ms). Throttle gate sits BEFORE any
+-- luabind call so non-tick callbacks pay only a hash lookup.
+local _last_tick = {}
+
+-- Per-weapon-section ammo_class cache. Weapons are LTX-fixed; cache is
+-- one-shot per section seen.
+local _ammo_class_cache = {}
+
+local function _get_ammo_class(wpn_sec)
+    local cached = _ammo_class_cache[wpn_sec]
+    if cached ~= nil then return cached end
+    local list = parse_list(ini_sys, wpn_sec, "ammo_class")
+    _ammo_class_cache[wpn_sec] = list or false
+    return list
+end
+
+-- Walk weapon's ammo_class; return (idx, section) for the first entry that's
+-- in AP_SECTIONS and currently has > 0 rounds in the NPC's inventory.
+-- Returns nil if no eligible AP is carried.
+local function _find_ap(wpn, ammo_class)
+    for i = 1, #ammo_class do
+        local section = ammo_class[i]
+        if AP_SECTIONS[section] and wpn:get_ammo_count_for_type(i - 1) > 0 then
+            return i - 1, section
         end
     end
-    return nil
+    return nil, nil
 end
 
---- Pick best AP ammo from NPC inventory and apply via wpn:set_ammo_type.
---- Public so test helpers (at_test) can re-trigger after injecting ammo.
---- Returns true if ammo type was changed, false otherwise.
+-- Iterate NPC inventory; for ammo boxes matching `section`, clamp count down
+-- to `target_count` if currently above. Defeats engine try_advance_ammo top-up
+-- (object_actions.cpp:131-169) for the active AP section between our ticks.
+local function _sync_box(npc, section, target_count)
+    npc:iterate_inventory(function(_owner, item)
+        if item and item:is_ammo() and item:section() == section
+            and item:ammo_get_count() > target_count
+        then
+            item:ammo_set_count(target_count)
+        end
+    end, npc)
+end
+
+--- Run one tick of the ammo state machine on `npc`. Public so test helpers
+--- (at_test) can drive it on demand. Returns true if m_ammoType changed.
 function pick(npc)
     if at_mcm.get_config("ammo_enabled") == false then return false end
     if not (npc and npc:alive() and IsStalker(npc)) then return false end
+    if npc:character_rank() < MIN_AP_RANK then return false end
 
     local wpn = npc:active_item()
     if not (wpn and IsWeapon(wpn)) then return false end
 
-    local tmr = xprofiler.new_if(_dbg):start()
-
     local wpn_sec = wpn:section()
-    local best_sec = _pick_best_section(npc, wpn_sec)
-    if not best_sec then
-        tmr:stop()
-        if _dbg then
-            log.debug("[AMMO] skip npc=%d wpn=%s reason=no_inventory_ammo [%.3fms]",
-                npc:id(), wpn_sec, tmr:get_ms())
-        end
-        return false
+    local ammo_class = _get_ammo_class(wpn_sec)
+    if not (ammo_class and #ammo_class > 0) then return false end
+
+    local id = npc:id()
+    local st = _state[id]
+
+    -- First observation of this NPC: scan inventory for any AP_SECTIONS entry
+    -- in the weapon's ammo_class. If none, NPC stays on vanilla forever.
+    if not st then
+        local idx, section = _find_ap(wpn, ammo_class)
+        if not idx then return false end
+        local count = wpn:get_ammo_count_for_type(idx)
+        st = { idx = idx, sec = section, left = count }
+        _state[id] = st
     end
 
-    local idx = _section_to_idx(wpn_sec, best_sec)
-    if not idx then
-        tmr:stop()
+    local kind = ini_sys:r_string_ex(wpn_sec, "kind") or ""
+    local drain = DRAIN_PER_KIND[kind] or 5
+    st.left = math_max(MIN_SPARE, st.left - drain)
+
+    local target_type = (st.left > MIN_SPARE) and st.idx or 0
+    local current_type = wpn:get_ammo_type()
+    local changed = false
+    if current_type ~= target_type then
+        wpn:set_ammo_type(target_type)
+        changed = true
         if _dbg then
-            log.debug("[AMMO] skip npc=%d wpn=%s sec=%s reason=section_not_in_ammo_class [%.3fms]",
-                npc:id(), wpn_sec, best_sec, tmr:get_ms())
+            log.debug("[AMMO] npc=%d wpn=%s ammo_type %d->%d sec=%s left=%d",
+                id, wpn_sec, current_type, target_type,
+                (target_type == st.idx and st.sec) or "-", st.left)
         end
-        return false
     end
 
-    local current = wpn:get_ammo_type()
-    if current == idx then
-        tmr:stop()
-        if _dbg then
-            log.debug("[AMMO] skip npc=%d wpn=%s ammo_type=%d reason=already_best [%.3fms]",
-                npc:id(), wpn_sec, current, tmr:get_ms())
-        end
-        return false
+    -- Sync inventory box of the active AP section to ledger value. Defeats
+    -- engine top-up between our ticks. Skipped once depleted to avoid pinning
+    -- the box at MIN_SPARE forever; death hook will trim at end-of-life.
+    if target_type == st.idx then
+        _sync_box(npc, st.sec, st.left)
     end
 
-    wpn:set_ammo_type(idx)
-    tmr:stop()
     if _dbg then
-        log.debug("[AMMO] set npc=%d wpn=%s ammo_type %d->%d sec=%s [%.3fms]",
-            npc:id(), wpn_sec, current, idx, best_sec, tmr:get_ms())
+        log.debug("[AMMO] tick npc=%d rank=%d wpn=%s firing=%d:%s ap_left=%d",
+            id, npc:character_rank(), wpn_sec, target_type,
+            (target_type == st.idx and st.sec) or "vanilla_fmj", st.left)
     end
-    return true
+
+    return changed
 end
 
-local function _on_net_spawn(npc)
+local function _on_update(npc)
+    if not npc then return end
+    local id = npc:id()
+    local now = time_global()
+    local last = _last_tick[id]
+    if last and (now - last) < TICK_MS then return end
+    _last_tick[id] = now
+
+    if not npc:best_enemy() then return end
     pick(npc)
+end
+
+-- Trim every ammo box in the dead NPC's inventory to MIN_SPARE so it survives
+-- death_manager.decide_items_to_keep's >5 deletion filter
+-- (death_manager.script:456-460). Runs before motivator_binder:death_callback's
+-- decide_items_to_keep call at xr_motivator.script:362.
+local function _on_death(victim, _who)
+    if not (victim and IsStalker(victim)) then return end
+    local floor = MIN_SPARE or 3
+    victim:iterate_inventory(function(_owner, item)
+        if item and item:is_ammo() and item:ammo_get_count() > floor then
+            item:ammo_set_count(floor)
+        end
+    end, victim)
+end
+
+local function _on_entity_unregister(se_obj)
+    if not se_obj then return end
+    local id = se_obj.id
+    _state[id] = nil
+    _last_tick[id] = nil
 end
 
 local function _refresh_log()
@@ -124,8 +221,11 @@ local function _refresh_log()
 end
 
 function on_game_start()
+    _load_tunables()
     _refresh_log()
-    RegisterScriptCallback("npc_on_net_spawn", _on_net_spawn)
-    RegisterScriptCallback("on_option_change", _refresh_log)
-    RegisterScriptCallback("mcm_option_restore_default", _refresh_log)
+    RegisterScriptCallback("npc_on_update",               _on_update)
+    RegisterScriptCallback("npc_on_death_callback",       _on_death)
+    RegisterScriptCallback("server_entity_on_unregister", _on_entity_unregister)
+    RegisterScriptCallback("on_option_change",            _refresh_log)
+    RegisterScriptCallback("mcm_option_restore_default",  _refresh_log)
 end

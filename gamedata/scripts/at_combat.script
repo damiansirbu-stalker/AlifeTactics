@@ -17,7 +17,7 @@ local ACT_ID  = 188200
 -- a script-side fallback default so a missing key or file won't crash. Constants
 -- used by BEHAVIORS / resolvers / hot path read via upvalue at runtime, after
 -- _load_tunables has populated them.
-local LTX_PATH    = "ai_tweaks\\at_combat.ltx"
+local LTX_PATH    = "alifetactics\\at_combat.ltx"
 local LTX_SECTION = "at_combat"
 
 local ADVANCE_DIST_M, RETREAT_HP_FRAC

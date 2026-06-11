@@ -184,9 +184,44 @@ local AP_TEST_AMMO = {
     "ammo_9x39_ap",
 }
 
--- Walk one nearby stalker server entity; inject AP boxes and re-trigger at_ammo.pick.
--- Counts returned via the captured counters table to keep the outer loop flat.
-local function _ammo_test_visit(se, actor_id, ax, counters)
+-- Per-NPC proof flow: snapshot inventory count of the picked AP section at three
+-- timestamps, then log so post-test grep can verify the load + fire cascade.
+local function _ammo_proof_snap(phase, state)
+    local go = level.object_by_id(state.npc_id)
+    if not go or not go:alive() then return end
+    local wpn = go:active_item()
+    if not (wpn and IsWeapon(wpn)) then return end
+    local inv_ap = wpn:get_ammo_count_for_type(state.ap_idx)
+    local mag    = wpn:get_ammo_in_magazine()
+    local type_now = wpn:get_ammo_type()
+    log.info("[AMMO_PROOF] phase=%d npc=%d wpn=%s ap_sec=%s ap_idx=%d inv_ap=%d mag=%d type=%d",
+        phase, state.npc_id, wpn:section(), state.ap_sec, state.ap_idx,
+        inv_ap, mag, type_now)
+end
+
+-- After at_ammo.pick succeeded, force unload + schedule three snapshots so we can
+-- verify (1) engine reloaded AP from inventory (2) NPC fired AP rounds in combat.
+local function _ammo_proof_setup(go, wpn)
+    local ap_idx = wpn:get_ammo_type()
+    local ammo_class = parse_list(ini_sys, wpn:section(), "ammo_class")
+    local ap_sec = (ammo_class and ammo_class[ap_idx + 1]) or "?"
+    wpn:unload_magazine(true)
+    local state = { npc_id = go:id(), ap_idx = ap_idx, ap_sec = ap_sec }
+    _ammo_proof_snap(0, state)
+    local stamp = tostring(time_global())
+    CreateTimeEvent(0, "ammo_proof_1_" .. go:id() .. "_" .. stamp, 3, function()
+        _ammo_proof_snap(1, state)
+        return true
+    end)
+    CreateTimeEvent(0, "ammo_proof_2_" .. go:id() .. "_" .. stamp, 15, function()
+        _ammo_proof_snap(2, state)
+        return true
+    end)
+end
+
+-- Phase 1: inject AP boxes into se inventory. Record the npc id so phase 2 can
+-- find the same NPC after the engine syncs the new items into online inventory.
+local function _ammo_inject_visit(se, actor_id, ax, ids, counters)
     if not se or se.id == actor_id then return end
     local go = level.object_by_id(se.id)
     if not go then return end
@@ -196,9 +231,29 @@ local function _ammo_test_visit(se, actor_id, ax, counters)
         alife_create_item(AP_TEST_AMMO[k], se)
         counters.ammo = counters.ammo + 1
     end
-    if at_ammo and at_ammo.pick then
-        at_ammo.pick(go)
-        counters.pick = counters.pick + 1
+    ids[#ids + 1] = se.id
+end
+
+local function _ammo_pick_one(id, counters)
+    local go = level.object_by_id(id)
+    if not go then return end
+    if not (IsStalker(go) and go:alive()) then return end
+    local wpn = go:active_item()
+    local before_type = (wpn and IsWeapon(wpn)) and wpn:get_ammo_type() or -1
+    local changed = at_ammo.pick(go)
+    counters.pick = counters.pick + 1
+    if changed and wpn and IsWeapon(wpn) and wpn:get_ammo_type() ~= before_type then
+        _ammo_proof_setup(go, wpn)
+        counters.proof = counters.proof + 1
+    end
+end
+
+-- Phase 2: for each recorded id, run at_ammo.pick against the now-synced inventory
+-- and set up the proof flow if the pick changed ammo_type.
+local function _ammo_pick_phase(ids, counters)
+    if not (at_ammo and at_ammo.pick) then return end
+    for i = 1, #ids do
+        _ammo_pick_one(ids[i], counters)
     end
 end
 
@@ -207,10 +262,17 @@ local function _ammo_test_tick()
     if not actor then return end
     local ax = actor:position()
     local actor_id = actor:id()
-    local counters = { ammo = 0, pick = 0 }
-    alife():iterate_objects(function(se) _ammo_test_visit(se, actor_id, ax, counters) end)
-    log.info("[AMMO_TEST] injected=%d picks=%d", counters.ammo, counters.pick)
-    _tip(string_format("AT.AMMO test: injected=%d picks=%d", counters.ammo, counters.pick))
+    local counters = { ammo = 0, pick = 0, proof = 0 }
+    local ids = {}
+    alife():iterate_objects(function(se) _ammo_inject_visit(se, actor_id, ax, ids, counters) end)
+    log.info("[AMMO_TEST] phase=inject npcs=%d ammo=%d", #ids, counters.ammo)
+    CreateTimeEvent(0, "at_ammo_test_pick_" .. tostring(time_global()), 2, function()
+        _ammo_pick_phase(ids, counters)
+        log.info("[AMMO_TEST] phase=pick picks=%d proofs=%d", counters.pick, counters.proof)
+        _tip(string_format("AT.AMMO test: npcs=%d picks=%d proofs=%d",
+            #ids, counters.pick, counters.proof))
+        return true
+    end)
 end
 
 --- @export console
