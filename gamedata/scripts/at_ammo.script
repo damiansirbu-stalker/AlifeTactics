@@ -1,0 +1,131 @@
+--- at_ammo: NPC picks best AP from inventory at spawn
+---
+--- On `npc_on_net_spawn`, walks the NPC's inventory for ammo sections matching
+--- the active weapon's `ammo_class`. Ranks by `k_ap` via `xinventory.get_ammo_tier_map`
+--- (3 tiers; clean AP lands in tier 3, degraded `_bad`/`_verybad` variants drop to
+--- lower tiers from their reduced `k_ap`). Calls `wpn:set_ammo_type(idx)` for the
+--- highest-tier section found.
+---
+--- Engine cascade after the set (proved against `WeaponMagazined.cpp:298-347` TryReload
+--- and `WeaponMagazined.cpp:480-570` ReloadMagazine):
+---   1. NPC fires real AP from inventory until exhausted (line 314, 525-531).
+---   2. AP gone -> engine fallback search at line 329-340 picks next available type,
+---      `m_set_next_ammoType_on_reload` swaps `m_ammoType` on next reload (line 499-503).
+---   3. All inventory drained AND `unlimited_ammo()` true -> `m_DefaultCartridge`
+---      rebuilt from current `m_ammoType` (line 559-560), magic refill uses last
+---      available type (typically FMJ since it's the deepest tier).
+---
+--- For mods that don't ship the trader infinite-ammo flag, NPCs simply stop firing
+--- once inventory empties. AlifeTactics does not change the unlimited-ammo flag.
+---
+--- The engine binding (`script_game_object.cpp:643-658`, `Weapon.h:1100`) has no
+--- actor gate: `set_ammo_type` writes `m_ammoType` on any CWeapon. Empirically
+--- verified by `tmp/probe_ammo.script`: a PMM-carrying NPC went from `get_ammo_type=3`
+--- to `0` after `set_ammo_type(0)` and held that value across NPC update ticks.
+
+local log = xlog.get_logger("AT.AMMO", { outfile = "alifetactics.log" })
+local _dbg = false
+
+local IsStalker, IsWeapon, next = IsStalker, IsWeapon, next
+local RegisterScriptCallback = RegisterScriptCallback
+
+local N_TIERS = 3
+
+local function _pick_best_section(npc, wpn_sec)
+    local accepted = xinventory.get_ammo_classes(wpn_sec)
+    if not next(accepted) then return nil end
+
+    local tier_map = xinventory.get_ammo_tier_map(wpn_sec, N_TIERS)
+
+    local best_sec, best_tier = nil, 0
+    npc:iterate_inventory(function(_, itm)
+        local sec = itm:section()
+        if accepted[sec] then
+            local tier = tier_map[sec] or 0
+            if tier > best_tier then
+                best_tier = tier
+                best_sec  = sec
+            end
+        end
+    end, npc)
+
+    return best_sec
+end
+
+local function _section_to_idx(wpn_sec, target_sec)
+    local sections = xinventory.get_ammo_sections(wpn_sec)
+    for i = 1, #sections do
+        if sections[i] == target_sec then
+            return i - 1
+        end
+    end
+    return nil
+end
+
+--- Pick best AP ammo from NPC inventory and apply via wpn:set_ammo_type.
+--- Public so test helpers (at_test) can re-trigger after injecting ammo.
+--- Returns true if ammo type was changed, false otherwise.
+function pick(npc)
+    if at_mcm.get_config("ammo_enabled") == false then return false end
+    if not (npc and npc:alive() and IsStalker(npc)) then return false end
+
+    local wpn = npc:active_item()
+    if not (wpn and IsWeapon(wpn)) then return false end
+
+    local tmr = xprofiler.new_if(_dbg):start()
+
+    local wpn_sec = wpn:section()
+    local best_sec = _pick_best_section(npc, wpn_sec)
+    if not best_sec then
+        tmr:stop()
+        if _dbg then
+            log.debug("[AMMO] skip npc=%d wpn=%s reason=no_inventory_ammo [%.3fms]",
+                npc:id(), wpn_sec, tmr:get_ms())
+        end
+        return false
+    end
+
+    local idx = _section_to_idx(wpn_sec, best_sec)
+    if not idx then
+        tmr:stop()
+        if _dbg then
+            log.debug("[AMMO] skip npc=%d wpn=%s sec=%s reason=section_not_in_ammo_class [%.3fms]",
+                npc:id(), wpn_sec, best_sec, tmr:get_ms())
+        end
+        return false
+    end
+
+    local current = wpn:get_ammo_type()
+    if current == idx then
+        tmr:stop()
+        if _dbg then
+            log.debug("[AMMO] skip npc=%d wpn=%s ammo_type=%d reason=already_best [%.3fms]",
+                npc:id(), wpn_sec, current, tmr:get_ms())
+        end
+        return false
+    end
+
+    wpn:set_ammo_type(idx)
+    tmr:stop()
+    if _dbg then
+        log.debug("[AMMO] set npc=%d wpn=%s ammo_type %d->%d sec=%s [%.3fms]",
+            npc:id(), wpn_sec, current, idx, best_sec, tmr:get_ms())
+    end
+    return true
+end
+
+local function _on_net_spawn(npc)
+    pick(npc)
+end
+
+local function _refresh_log()
+    log.set_level(at_mcm.get_config("log_level") or "WARN")
+    _dbg = log.get_level() >= 5
+end
+
+function on_game_start()
+    _refresh_log()
+    RegisterScriptCallback("npc_on_net_spawn", _on_net_spawn)
+    RegisterScriptCallback("on_option_change", _refresh_log)
+    RegisterScriptCallback("mcm_option_restore_default", _refresh_log)
+end

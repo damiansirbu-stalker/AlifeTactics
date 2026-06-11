@@ -1,0 +1,37 @@
+--- at_jam: Suppress modded-exes script-injected NPC weapon misfires
+---
+--- The themrdemonized modded-exes overlay ships `xr_weapon_jam.script` with a
+--- `GetConditionMisfireProbability(weapon, npc, base_value)` functor that the
+--- engine calls per-shot from `Weapon.cpp:1781`. The default subscriber
+--- (`npc_misfire`) rolls a per-rank chance against ammo spent and on a hit
+--- returns 1.0, forcing the engine's `CheckForMisfire()` at `Weapon.cpp:1791`
+--- to set `bMisfire = true`. That triggers a reload to clear the misfire flag
+--- (`Weapon.cpp:484` clears it on `ReloadMagazine`), producing the
+--- "fire 2-3 rounds then reload" symptom even on full-condition NPC weapons.
+---
+--- This monkey-patches the functor to return 0 for all non-actor weapons.
+--- Engine `Weapon.cpp:1778` already gates the functor call to non-actor parents,
+--- so actor's own condition-based misfire mechanic is unaffected.
+
+local log = xlog.get_logger("AT.JAM", { outfile = "alifetactics.log" })
+
+local _original
+
+local function _install()
+    if not xr_weapon_jam then
+        log.warn("xr_weapon_jam module not loaded; nothing to patch")
+        return
+    end
+    _original = xr_weapon_jam.GetConditionMisfireProbability
+    xr_weapon_jam.GetConditionMisfireProbability = function(weapon, npc, base_value)
+        if at_mcm.get_config("jam_enabled") == false then
+            return _original(weapon, npc, base_value)
+        end
+        return 0
+    end
+    log.info("xr_weapon_jam.GetConditionMisfireProbability patched (NPC misfire suppression active)")
+end
+
+function on_game_start()
+    _install()
+end

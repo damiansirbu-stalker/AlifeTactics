@@ -20,6 +20,7 @@ local ACT_ID  = 188200
 local LTX_PATH    = "ai_tweaks\\at_combat.ltx"
 local LTX_SECTION = "at_combat"
 
+local ADVANCE_DIST_M, RETREAT_HP_FRAC
 local CLOSE_ASSAULT_MIN_DIST_M, ADVANCE_STEP_M, STEP_AWAY_M, CHARGE_STEP_M
 local FLANK_LATERAL_M, FLANK_FORWARD_M, FLEE_STEP_M, COVER_REACH_SQR
 local SQUAD_LATERAL_BUCKETS, SQUAD_LATERAL_STEP_M
@@ -33,6 +34,8 @@ local function _load_tunables()
     -- everything and floor to int where the value is used as an integer.
     local function f(k, d) return ini:r_float_ex(LTX_SECTION, k) or d end
     local function i(k, d) local v = ini:r_float_ex(LTX_SECTION, k); return v and math_floor(v) or d end
+    ADVANCE_DIST_M           = f("advance_dist_m",           40)
+    RETREAT_HP_FRAC          = f("retreat_hp_frac",          0.25)
     CLOSE_ASSAULT_MIN_DIST_M = f("close_assault_min_dist_m", 10)
     ADVANCE_STEP_M           = f("advance_step_m",           15)
     STEP_AWAY_M              = f("step_away_m",              15)
@@ -300,7 +303,7 @@ local function _always_applies(_ctx) return true end
 local BEHAVIORS = {
     ADVANCE = {
         plan = { state = "assault_fire", body = "standing", mvt = "run", target = "cover_step_fwd" },
-        applies = function(ctx) return ctx.dist > cfg.advance_dist or not ctx.see end,
+        applies = function(ctx) return ctx.dist > ADVANCE_DIST_M or not ctx.see end,
     },
     TAKE_COVER = {
         plan = { state = "hide_na", body = "crouch", mvt = "run", target = "cover_nearest" },
@@ -323,7 +326,7 @@ local BEHAVIORS = {
     },
     RETREAT = {
         plan = { state = "panic", body = "standing", mvt = "run", target = "step_away" },
-        applies = function(ctx) return ctx.hp_frac < cfg.retreat_hp end,
+        applies = function(ctx) return ctx.hp_frac < RETREAT_HP_FRAC end,
     },
     CLOSE_ASSAULT = {
         plan = { state = "assault_fire", body = "standing", mvt = "run", target = "charge_enemy" },
@@ -343,7 +346,7 @@ local BEHAVIORS = {
     -- military / monolith / merc when they have cover but no LOS to enemy at range.
     FLANKING = {
         plan = { state = "assault_fire", body = "standing", mvt = "run", target = "cover_flank" },
-        applies = function(ctx) return ctx.dist > cfg.advance_dist and not ctx.see and ctx.has_high_cover end,
+        applies = function(ctx) return ctx.dist > ADVANCE_DIST_M and not ctx.see and ctx.has_high_cover end,
     },
     -- Tactical pullback firing. sneak_fire (state_lib.script:170-177) = weapon=fire,
     -- crouch, walk, danger. Combined with step_away target = NPC crouch-walks
@@ -352,14 +355,14 @@ local BEHAVIORS = {
     -- whatever else applies).
     RETREAT_AND_FIRE = {
         plan = { state = "sneak_fire", body = "crouch", mvt = "walk", target = "step_away" },
-        applies = function(ctx) return ctx.hp_frac < cfg.retreat_hp and (ctx.id % 10) < 5 end,
+        applies = function(ctx) return ctx.hp_frac < RETREAT_HP_FRAC and (ctx.id % 10) < 5 end,
     },
     -- Real flee. sprint (state_lib.script:99-105) = weapon=strapped, run, panic
     -- mental. Weapon goes away, NPC sprints backward via flee_far resolver, no
     -- firing, no cover preference.
     FLEE = {
         plan = { state = "sprint", body = "standing", mvt = "run", target = "flee_far" },
-        applies = function(ctx) return ctx.hp_frac < cfg.retreat_hp end,
+        applies = function(ctx) return ctx.hp_frac < RETREAT_HP_FRAC end,
     },
     -- Catch-all for COWARD when NPC has no LOS and no other behavior applies.
     -- hide_na (state_lib.script:319-325) = weapon unstrapped, crouch, stand,
@@ -880,8 +883,8 @@ local function _refresh_log()
             cfg.combat_enabled and "true" or "false",
             cfg.combat_share or 0.5,
             CLOSE_ASSAULT_MIN_DIST_M,
-            cfg.advance_dist or 40,
-            cfg.retreat_hp or 0.30)
+            ADVANCE_DIST_M,
+            RETREAT_HP_FRAC)
     end
 end
 

@@ -9,7 +9,6 @@ local LIMP_ELIGIBILITY_CHECK_MS = 1000
 local LIMP_REARM_MS             = 5000
 -- xr_eat_medkit.consume_medkit schedules heal_hp/heal_bleed with left=15.
 local HEAL_TICK_FIRST           = 15
-local HEAL_ACTIVE_EXPIRY_MS     = 30000
 
 -- Posture-slot table per Vodoxleb's limping_anims.script:44-67 (damaged_walk/damaged_run).
 -- Engine indexes torso anims by weapon posture slot, not inventory slot. Missing entries fall
@@ -35,15 +34,10 @@ local LIMP_RUN_BY_SLOT = {
     [8] = "dmg_norm_torso_8_run_0", [9] = "dmg_norm_torso_9_run_0",
     [10] = "dmg_norm_torso_10_run_0",
 }
-local HEAL_CLUTCH_POSE  = LIMP_IDLE_BY_SLOT[1]
 local HEAL_ANIM_MEDKIT  = "dmg_norm_torso_11_attack_0"
 local HEAL_ANIM_BANDAGE = "norm_torso_12_attack_0"
 
 local _limping = {}
-local _healing_active = {}
-local _heal_seq = {}
-local HEAL_CLUTCH_MS  = 3000
-local HEAL_GESTURE_MS = 3000
 
 -- Vanilla pstor writes to a wrong key when name is nil. Guard explicitly.
 local function _safe_save(id, name, key, val)
@@ -77,6 +71,18 @@ local function _rank_tier(npc)
     return _RANK_TO_TIER[ranks.get_obj_rank_name(npc)] or "novice"
 end
 
+-- One-shot medkit/bandage gesture. Gated on healing_anim toggle, on no visible
+-- enemy (no anim during combat), and on not-on-ground. The hurt pose belongs to
+-- LIMP, not here; HEAL is "I am applying an item" and nothing else. The engine
+-- drains the queue when the gesture ends; action transitions clear it on the way
+-- to action_wounded / action_critically_wounded (stalker_base_action.cpp:24-29).
+local function _try_play_heal_anim(npc, gesture)
+    if not cfg.healing_anim_enabled then return end
+    if npc:best_enemy() then return end
+    if IsWounded(npc) or npc:critically_wounded() then return end
+    utils_obj.add_anim(npc, gesture)
+end
+
 -- Vanilla xr_eat_medkit.heal_hp (script:188-201) with MCM rate multiplier.
 -- Reschedules via xr_eat_medkit.heal_hp lookup so the chain stays on the patched function.
 local function _patched_heal_hp(id, left)
@@ -84,22 +90,11 @@ local function _patched_heal_hp(id, left)
     local nextl = left - 1
     local npc = level.object_by_id(id)
     if npc and npc:alive() and nextl > 1 then
-        _healing_active[id] = time_global() + HEAL_ACTIVE_EXPIRY_MS
         local mult = cfg.heal_rate_multiplier
         npc:change_health(0.05 * mult)
         npc.bleeding = 0.01
-        if left == HEAL_TICK_FIRST and cfg.healing_anim_enabled then
-            npc:movement_enabled(false)
-            npc:set_desired_position()
-            npc:clear_animations()
-            utils_obj.add_anim(npc, HEAL_CLUTCH_POSE)
-            _heal_seq[id] = {
-                stage      = "clutch",
-                until_ms   = time_global() + HEAL_CLUTCH_MS,
-                gesture    = HEAL_ANIM_MEDKIT,
-                last_hp    = npc.health,
-            }
-            if _dbg then log.debug("[HEAL] seq_start id=%d kind=medkit", id) end
+        if left == HEAL_TICK_FIRST then
+            _try_play_heal_anim(npc, HEAL_ANIM_MEDKIT)
         end
         tmr:stop()
         if _dbg then
@@ -109,7 +104,6 @@ local function _patched_heal_hp(id, left)
         CreateTimeEvent(id, npc:name() .. "_self_healing_event_hp_" .. nextl,
             level.get_time_factor(), xr_eat_medkit.heal_hp, id, nextl)
     else
-        _healing_active[id] = nil
         tmr:stop()
         if _dbg then
             local reason = (not npc) and "no_obj"
@@ -129,20 +123,9 @@ local function _patched_heal_bleed(id, left)
     local nextl = left - 1
     local npc = level.object_by_id(id)
     if npc and npc:alive() and nextl > 1 then
-        _healing_active[id] = time_global() + HEAL_ACTIVE_EXPIRY_MS
         npc.bleeding = 0.07
-        if left == HEAL_TICK_FIRST and cfg.healing_anim_enabled then
-            npc:movement_enabled(false)
-            npc:set_desired_position()
-            npc:clear_animations()
-            utils_obj.add_anim(npc, HEAL_CLUTCH_POSE)
-            _heal_seq[id] = {
-                stage      = "clutch",
-                until_ms   = time_global() + HEAL_CLUTCH_MS,
-                gesture    = HEAL_ANIM_BANDAGE,
-                last_hp    = npc.health,
-            }
-            if _dbg then log.debug("[HEAL] seq_start id=%d kind=bandage", id) end
+        if left == HEAL_TICK_FIRST then
+            _try_play_heal_anim(npc, HEAL_ANIM_BANDAGE)
         end
         tmr:stop()
         if _dbg then
@@ -152,7 +135,6 @@ local function _patched_heal_bleed(id, left)
         CreateTimeEvent(id, npc:name() .. "_self_healing_event_bleed_" .. nextl,
             level.get_time_factor(), xr_eat_medkit.heal_bleed, id, nextl)
     else
-        _healing_active[id] = nil
         tmr:stop()
         if _dbg then
             local reason = (not npc) and "no_obj"
@@ -215,61 +197,26 @@ local function _pick_limp_anim(npc)
     return tbl[slot] or tbl[0]
 end
 
-local function _end_heal_sequence(npc, id)
-    _heal_seq[id] = nil
-    npc:movement_enabled(true)
-    npc:clear_animations()
-end
-
--- clutch (NPC frozen with wound pose) -> gesture (medkit/bandage anim) -> end.
--- Net HP drop > 0.02 OR enemy appearance aborts so NPC can defend.
-local function _drive_heal_sequence(npc, id, tg)
-    local seq = _heal_seq[id]
-    if not seq then return end
-    if not npc:alive() then _heal_seq[id] = nil; return end
-    if seq.last_hp and npc.health < seq.last_hp - 0.02 then
-        if _dbg then
-            log.debug("[HEAL] seq_abort id=%d reason=damage hp=%.2f->%.2f", id, seq.last_hp, npc.health)
-        end
-        _end_heal_sequence(npc, id)
-        return
-    end
-    local be = npc:best_enemy()
-    if be and npc:see(be) then
-        if _dbg then log.debug("[HEAL] seq_abort id=%d reason=enemy_visible", id) end
-        _end_heal_sequence(npc, id)
-        return
-    end
-    if tg >= seq.until_ms then
-        if seq.stage == "clutch" then
-            npc:clear_animations()
-            utils_obj.add_anim(npc, seq.gesture)
-            seq.stage    = "gesture"
-            seq.until_ms = tg + HEAL_GESTURE_MS
-            if _dbg then log.debug("[HEAL] seq_gesture id=%d anim=%s", id, seq.gesture) end
-        else
-            if _dbg then log.debug("[HEAL] seq_end id=%d", id) end
-            _end_heal_sequence(npc, id)
-            return
-        end
-    end
-    seq.last_hp = npc.health
-end
-
 local function _on_npc_update(npc, st)
     if not st then return end
     local id = npc:id()
     local tg = time_global()
 
-    _drive_heal_sequence(npc, id, tg)
-
     if not cfg.limping_anim_enabled then return end
+    -- Per-tick drop on ground-state transitions; the throttled eligibility check below
+    -- would otherwise let the torso overlay loop on a prone body for up to 1s. The
+    -- action transition into action_wounded / action_critically_wounded clears the
+    -- engine queue via CStalkerActionBase::initialize, so we do not call
+    -- clear_animations here ourselves.
+    if _limping[id] and (not npc:alive() or IsWounded(npc) or npc:critically_wounded()) then
+        _limping[id] = nil
+        if _dbg then log.debug("[LIMP] lost id=%d hp=%.2f reason=wounded_or_dead", id, npc.health) end
+        return
+    end
     if st._at_limp_next_check_ms and tg < st._at_limp_next_check_ms then return end
     st._at_limp_next_check_ms = tg + LIMP_ELIGIBILITY_CHECK_MS
-    local active = _healing_active[id]
     local eligible = IsStalker(npc)
         and npc:alive()
-        and not (active and tg < active)
         and not npc:in_smart_cover()
         and npc.health < cfg.limping_health_threshold
         and not npc:best_enemy()
@@ -281,7 +228,11 @@ local function _on_npc_update(npc, st)
     if not eligible then
         if not _limping[id] then return end
         _limping[id] = nil
-        npc:clear_animations()
+        -- No clear_animations: the currently-playing overlay finishes on its OMF length
+        -- (~2-3s) and the 5s rearm gate prevents the next add. An external clear here
+        -- would race state_mgr's set_state early-return (state_mgr.script:388) on
+        -- non-action-transition flips (combat hand-off being the worst case) and could
+        -- strand the engine queue empty for the rest of a behavior_hold window.
         if _dbg then log.debug("[LIMP] lost id=%d hp=%.2f", id, npc.health) end
         return
     end
@@ -309,8 +260,6 @@ end
 local function _on_entity_unregister(se_obj)
     if not se_obj then return end
     _limping[se_obj.id] = nil
-    _healing_active[se_obj.id] = nil
-    _heal_seq[se_obj.id] = nil
 end
 
 local function _refresh_log()
@@ -320,8 +269,6 @@ end
 
 local function _on_actor_first_update()
     _limping = {}
-    _healing_active = {}
-    _heal_seq = {}
     _refresh_log()
     if not _heal_active then return end
     log.info("Health module initialized (heal_mult=%.2f tiers novice=%d%% experienced=%d%% veteran=%d%% master=%d%%)",

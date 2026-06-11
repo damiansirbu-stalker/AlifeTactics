@@ -1,6 +1,10 @@
 --- at_test: Console commands for AlifeTactics (squad spawn, dumps)
 
 local tostring, string_format, math_rad, math_cos, math_sin = tostring, string.format, math.rad, math.cos, math.sin
+local time_global, IsStalker, alife_create_item, alife_object, level =
+    time_global, IsStalker, alife_create_item, alife_object, level
+local alife = alife
+-- CreateTimeEvent NOT cached: demonized_time_events replaces it at runtime.
 
 local log = xlog.get_logger("AT.TEST", { outfile = "alifetactics.log" })
 
@@ -166,6 +170,56 @@ end
 --- @export console
 function at_spawn_zomb()
     _spawn("zombied_sim_squad_novice", 40, 0)
+end
+
+-- Test helper for at_ammo: spawns a military squad, injects AP boxes covering
+-- common military calibers into each member, then after 2s walks the squad and
+-- calls at_ammo.pick(npc) on each so the handler runs against the AP-augmented
+-- inventory. Watch alifetactics.log for [AMMO] lines; expect ammo_type ratchets
+-- to the AP index for each weapon.
+local AP_TEST_AMMO = {
+    "ammo_5.45x39_ap",
+    "ammo_5.56x45_ap",
+    "ammo_7.62x39_ap",
+    "ammo_9x39_ap",
+}
+
+-- Walk one nearby stalker server entity; inject AP boxes and re-trigger at_ammo.pick.
+-- Counts returned via the captured counters table to keep the outer loop flat.
+local function _ammo_test_visit(se, actor_id, ax, counters)
+    if not se or se.id == actor_id then return end
+    local go = level.object_by_id(se.id)
+    if not go then return end
+    if not (IsStalker(go) and go:alive()) then return end
+    if ax:distance_to(go:position()) >= 100 then return end
+    for k = 1, #AP_TEST_AMMO do
+        alife_create_item(AP_TEST_AMMO[k], se)
+        counters.ammo = counters.ammo + 1
+    end
+    if at_ammo and at_ammo.pick then
+        at_ammo.pick(go)
+        counters.pick = counters.pick + 1
+    end
+end
+
+local function _ammo_test_tick()
+    local actor = db.actor
+    if not actor then return end
+    local ax = actor:position()
+    local actor_id = actor:id()
+    local counters = { ammo = 0, pick = 0 }
+    alife():iterate_objects(function(se) _ammo_test_visit(se, actor_id, ax, counters) end)
+    log.info("[AMMO_TEST] injected=%d picks=%d", counters.ammo, counters.pick)
+    _tip(string_format("AT.AMMO test: injected=%d picks=%d", counters.ammo, counters.pick))
+end
+
+--- @export console
+function at_spawn_ammo_test()
+    _spawn("army_sim_squad_novice", 60, 0)
+    CreateTimeEvent(0, "at_ammo_test_" .. tostring(time_global()), 2, function()
+        _ammo_test_tick()
+        return true
+    end)
 end
 
 --------------------------------------------------------------------------------

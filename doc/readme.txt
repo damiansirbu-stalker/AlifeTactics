@@ -88,6 +88,18 @@ Hits override combat_ignore so allies of allies still get a danger response.
 Gunshot reports register through the script danger pipeline gated on whether the actor is aiming.
 Actor-sourced danger uses its own inertion and ignore tables so encounters with the player tune independently of NPC-vs-NPC.
 
+Weapon Jam:
+
+NPCs fire 2-3 rounds, jam, and reload in a tight loop, even from full-condition rifles. The Demonized modded exes add a per-rank jam roll on top of the engine's condition-based one, fired from ammo spent rather than weapon damage. AlifeTactics suppresses the script-side roll for NPCs (MCM > Fixes > Weapon Jam, default on). Actor jams from damaged weapons stay vanilla.
+
+Requires demonized exes 2026.6.1 or later for this fix specifically. The engine hook it uses was added in that release. Loading on an older demonized or on AOEngine is harmless but does nothing.
+
+NPC Ammo:
+
+NPCs spawn carrying multiple ammo types (FMJ, PMM, AP, plus degraded variants) but vanilla loads whichever section was set on spawn regardless of what they have. AlifeTactics ranks each NPC's inventory by armor-piercing value and sets the active weapon to the highest type they actually carry (MCM > Fixes > NPC Ammo, default on).
+
+NPCs fire real AP rounds until they run out, then the engine falls back to the next-best type in inventory. When all real ammo is gone, the engine's own infinite-ammo fallback uses whatever type was last available, so the depleted NPC keeps fighting on cheap rounds instead of going silent.
+
 Performance:
 
 Most systems above hook on engine callbacks but are throttled and situational.

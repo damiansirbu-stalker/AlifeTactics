@@ -1,6 +1,14 @@
 next
-  Summary: combat AI takeover, faction doctrines, flank and retreat behaviors, sniper aim mode, monolith combat, zombied shamble, danger rework, stealth kills, limp/heal fixes, AOEngine compatibility
+  Summary: combat AI takeover, faction doctrines, flank and retreat behaviors, sniper aim mode, monolith combat, zombied shamble, danger rework, weapon jam fix, NPC ammo selection, stealth kills, limp/heal fixes, AOEngine compatibility
 
+  - Added NPC ammo selection at spawn.
+    Vanilla NPCs load whichever ammo type was set at spawn regardless of what they actually carry. AlifeTactics picks the highest armor-piercing type the NPC has in inventory and sets the active weapon to it.
+    NPCs fire real AP rounds until they run out, then cascade through cheaper tiers as inventory drains. Engine handles the cascade; we only set the initial type.
+    MCM > Fixes > NPC Ammo, default on.
+  - Added NPC weapon jam suppression.
+    Demonized modded exes add a per-rank jam roll separate from weapon condition. NPCs fire 2-3 rounds, jam, and reload in a tight loop.
+    AlifeTactics blocks the roll for NPCs. Actor jams stay vanilla.
+    MCM > Fixes > Weapon Jam, default on. Requires demonized exes 2026.6.1+.
   - Added Combat AI takeover on a configurable share of NPCs (slider, default 100%).
     Per-NPC stable hash decides which NPCs use AT combat vs. vanilla / modpack combat. Same NPC always lands the same side across save and load.
     Each NPC walks a list of allowed behaviors (chosen by community, HP, and weapon) every tick and picks the first one matching the current situation.
@@ -31,8 +39,14 @@ next
   - Fixed crash on torn-down attacker reference during the attack-sound danger dispatch.
   - Fixed Combat AI silently turning off on NPCs that went offline and came back. AT combat now persists across offline cycles for the full lifetime of each NPC.
   - Fixed limping animation playing during combat. NPCs with an enemy in memory no longer limp. The cue is reserved for fully out-of-combat low-HP states.
+  - Fixed healing and limping animations on hurt NPCs.
+    Torso overlay no longer plays on wounded or critically wounded bodies.
+    NPCs no longer freeze in place during a heal; they keep moving while the medkit or bandage gesture plays.
+    Limp pose now continues through the heal cycle (was hidden for 30 seconds around every heal).
   - Changed close-quarters fighters to stop at 10m and fire from there instead of charging into the enemy and handing off to vanilla close combat. AT combat now controls NPCs at all ranges.
-  - Added paired tunables file at configs/ai_tweaks/at_combat.ltx. Distance, time, and counter constants moved out of the script for inline tuning without code edits.
+  - Added paired tunables file at configs/ai_tweaks/at_combat.ltx.
+    Distance, time, and counter constants moved out of the script for inline tuning without code edits.
+    Advance distance and retreat HP threshold moved here from MCM. The two combat-tab sliders are removed.
   - Added live Debug HUD overlay listing nearby NPCs and their current behavior. Toggle in MCM > Development > Debug HUD. AT-controlled NPCs show with [AT] prefix; others show their vanilla state or active scheme.
   - Added AOEngine v0.55+ support.
 
