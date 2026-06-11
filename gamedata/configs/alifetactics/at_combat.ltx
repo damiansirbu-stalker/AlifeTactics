@@ -7,9 +7,8 @@
 fail_threshold           = 3      ; consecutive pick-fails before backoff engages
 fail_backoff_ms          = 10000  ; per-fail penalty multiplier
 
-; Throttle (replaces old behavior_hold)
-throttle_npc_ms          = 1500   ; per-NPC minimum interval between decide attempts
-throttle_global_ms       = 250    ; global minimum interval (caps total AI runs across all NPCs)
+; Throttle
+throttle_npc_ms          = 1500   ; per-NPC minimum interval between decide attempts (sole governor; bounds cost by NPC count)
 
 ; State machine - friendly line-of-fire detection
 friendly_line_thresh_m   = 1.5    ; lateral distance threshold for squadmate-on-firing-line
@@ -27,8 +26,3 @@ cover_reach_sqr          = 2025   ; max (search_pos -> enemy) squared distance f
 ; Squad spread
 squad_lateral_buckets    = 5
 squad_lateral_step_m     = 4
-
-; State machine thresholds
-advance_dist_m           = 40     ; reserved for future rules conditioning on distance band
-charge_min_dist_m        = 10     ; reserved for future rules conditioning on charge stop-distance
-retreat_hp_frac          = 0.5    ; deprecated; health state machine uses inline 0.50 / 0.55 thresholds

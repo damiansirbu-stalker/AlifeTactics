@@ -7,6 +7,7 @@ local IsStalker, IsWounded, time_global = IsStalker, IsWounded, time_global
 local character_community, tostring = character_community, tostring
 local math_sqrt, math_floor, math_min = math.sqrt, math.floor, math.min
 local RegisterScriptCallback = RegisterScriptCallback
+local move, look, anim, state_mgr, vector = move, look, anim, state_mgr, vector
 
 local log = xlog.get_logger("AT.COMBAT", { outfile = "alifetactics.log" })
 local _dbg = false
@@ -22,11 +23,10 @@ local ACT_ID  = 188200
 local LTX_PATH    = "alifetactics\\at_combat.ltx"
 local LTX_SECTION = "at_combat"
 
-local ADVANCE_DIST_M, RETREAT_HP_FRAC, CHARGE_MIN_DIST_M
 local ADVANCE_STEP_M, STEP_AWAY_M, CHARGE_STEP_M, STEP_SHORT_M
 local FLANK_LATERAL_M, FLANK_FORWARD_M, FLEE_STEP_M, COVER_REACH_SQR
 local SQUAD_LATERAL_BUCKETS, SQUAD_LATERAL_STEP_M
-local THROTTLE_NPC_MS, THROTTLE_GLOBAL_MS
+local THROTTLE_NPC_MS
 local FRIENDLY_LINE_THRESH_M
 local FAIL_BACKOFF_MS, FAIL_THRESHOLD
 
@@ -34,9 +34,6 @@ local function _load_tunables()
     local ini = ini_file(LTX_PATH)
     local function f(k, d) return ini:r_float_ex(LTX_SECTION, k) or d end
     local function i(k, d) local v = ini:r_float_ex(LTX_SECTION, k); return v and math_floor(v) or d end
-    ADVANCE_DIST_M           = f("advance_dist_m",            40)
-    RETREAT_HP_FRAC          = f("retreat_hp_frac",           0.5)
-    CHARGE_MIN_DIST_M        = f("charge_min_dist_m",         10)
     ADVANCE_STEP_M           = f("advance_step_m",            15)
     STEP_AWAY_M              = f("step_away_m",               15)
     STEP_SHORT_M             = f("step_short_m",              4)
@@ -48,7 +45,6 @@ local function _load_tunables()
     SQUAD_LATERAL_BUCKETS    = i("squad_lateral_buckets",     5)
     SQUAD_LATERAL_STEP_M     = f("squad_lateral_step_m",      4)
     THROTTLE_NPC_MS          = i("throttle_npc_ms",           1500)
-    THROTTLE_GLOBAL_MS       = i("throttle_global_ms",        250)
     FRIENDLY_LINE_THRESH_M   = f("friendly_line_thresh_m",    1.5)
     FAIL_BACKOFF_MS          = i("fail_backoff_ms",           10000)
     FAIL_THRESHOLD           = i("fail_threshold",            3)
@@ -62,7 +58,6 @@ end
 local _installed        = {}
 local _state            = {}
 local _last_decide_npc  = {}
-local _last_decide_global = 0
 local _last_eval        = {}
 local _last_eval_logged = {}
 local _last_reason      = {}
@@ -132,6 +127,11 @@ local function _lat_off(ctx)
     return xcombat.lateral_offset(ctx.bucket, ctx.dx, ctx.dz, ctx.dist, SQUAD_LATERAL_STEP_M, SQUAD_LATERAL_BUCKETS)
 end
 
+local INVALID_LVID   = xcombat.INVALID_LVID
+local COVER_SEARCH_R = 15
+local COVER_NEAR_R   = 10
+local COVER_WIDE_R   = 30
+
 local function _resolve_cover_step_fwd(npc, ctx)
     local step = ADVANCE_STEP_M
     local target_pos
@@ -148,14 +148,12 @@ local function _resolve_cover_step_fwd(npc, ctx)
     target_pos.x = target_pos.x + ox
     target_pos.z = target_pos.z + oz
     if target_pos:distance_to_sqr(ctx.ene_pos) <= COVER_REACH_SQR then
-        local cover = npc:best_cover(target_pos, ctx.ene_pos, 15, 1, 30)
-        local lvid = cover and cover:level_vertex_id()
-        if lvid and lvid < 4294967295 and npc:accessible(lvid) then return lvid end
+        local lvid = xcombat.cover_vertex(npc, target_pos, ctx.ene_pos, COVER_SEARCH_R)
+        if lvid then return lvid end
     end
     if ctx.dist > 0 then
         local dir = vector():set(ctx.dx / ctx.dist, 0, ctx.dz / ctx.dist)
-        local fb = level.vertex_in_direction(ctx.npc_lvid, dir, step)
-        if fb and fb < 4294967295 and npc:accessible(fb) and fb ~= ctx.npc_lvid then return fb end
+        return xcombat.vertex_toward(npc, ctx.npc_lvid, dir, step)
     end
     return nil
 end
@@ -163,13 +161,9 @@ end
 local function _resolve_cover_nearest(npc, ctx)
     local ox, oz = _lat_off(ctx)
     local search_pos = vector():set(ctx.npc_pos.x + ox, ctx.npc_pos.y, ctx.npc_pos.z + oz)
-    local cover = npc:best_cover(search_pos, ctx.ene_pos, 10, 1, 20)
-    local lvid = cover and cover:level_vertex_id()
-    if lvid and lvid < 4294967295 and npc:accessible(lvid) then return lvid end
-    cover = npc:best_cover(search_pos, ctx.ene_pos, 30, 1, 20)
-    lvid = cover and cover:level_vertex_id()
-    if lvid and lvid < 4294967295 and npc:accessible(lvid) then return lvid end
-    return nil
+    local lvid = xcombat.cover_vertex(npc, search_pos, ctx.ene_pos, COVER_NEAR_R)
+    if lvid then return lvid end
+    return xcombat.cover_vertex(npc, search_pos, ctx.ene_pos, COVER_WIDE_R)
 end
 
 local function _resolve_step_away(npc, ctx)
@@ -184,24 +178,20 @@ local function _resolve_step_away(npc, ctx)
     target_pos.x = target_pos.x + ox
     target_pos.z = target_pos.z + oz
     if target_pos:distance_to_sqr(ctx.ene_pos) <= COVER_REACH_SQR then
-        local cover = npc:best_cover(target_pos, ctx.ene_pos, 15, 1, 30)
-        local lvid = cover and cover:level_vertex_id()
-        if lvid and lvid < 4294967295 and npc:accessible(lvid) then return lvid end
+        local lvid = xcombat.cover_vertex(npc, target_pos, ctx.ene_pos, COVER_SEARCH_R)
+        if lvid then return lvid end
     end
     local dir = vector():set(-ctx.dx / ctx.dist, 0, -ctx.dz / ctx.dist)
-    local fb = level.vertex_in_direction(ctx.npc_lvid, dir, step)
-    if fb and fb < 4294967295 and npc:accessible(fb) and fb ~= ctx.npc_lvid then return fb end
-    return nil
+    return xcombat.vertex_toward(npc, ctx.npc_lvid, dir, step)
 end
 
 local function _resolve_charge_enemy(npc, ctx)
     local elvid = ctx.enemy:level_vertex_id()
-    if elvid and elvid < 4294967295 and npc:accessible(elvid) then return elvid end
+    if elvid and elvid < INVALID_LVID and npc:accessible(elvid) then return elvid end
     if ctx.dist > 0 then
         local dir = vector():set(ctx.dx / ctx.dist, 0, ctx.dz / ctx.dist)
         local step = math_min(ctx.dist, CHARGE_STEP_M)
-        local fb = level.vertex_in_direction(ctx.npc_lvid, dir, step)
-        if fb and fb < 4294967295 and npc:accessible(fb) and fb ~= ctx.npc_lvid then return fb end
+        return xcombat.vertex_toward(npc, ctx.npc_lvid, dir, step)
     end
     return nil
 end
@@ -220,38 +210,29 @@ local function _resolve_cover_flank(npc, ctx)
         ctx.npc_pos.y,
         ctx.npc_pos.z + pz * FLANK_LATERAL_M + nz * FLANK_FORWARD_M)
     if target_pos:distance_to_sqr(ctx.ene_pos) <= COVER_REACH_SQR then
-        local cover = npc:best_cover(target_pos, ctx.ene_pos, 15, 1, 30)
-        local lvid = cover and cover:level_vertex_id()
-        if lvid and lvid < 4294967295 and npc:accessible(lvid) then return lvid end
+        local lvid = xcombat.cover_vertex(npc, target_pos, ctx.ene_pos, COVER_SEARCH_R)
+        if lvid then return lvid end
     end
     local dir = vector():set(px, 0, pz)
-    local fb = level.vertex_in_direction(ctx.npc_lvid, dir, FLANK_LATERAL_M)
-    if fb and fb < 4294967295 and npc:accessible(fb) and fb ~= ctx.npc_lvid then return fb end
-    return nil
+    return xcombat.vertex_toward(npc, ctx.npc_lvid, dir, FLANK_LATERAL_M)
 end
 
 local function _resolve_flee_far(npc, ctx)
     if ctx.dist <= 0 then return nil end
     local dir = vector():set(-ctx.dx / ctx.dist, 0, -ctx.dz / ctx.dist)
-    local fb = level.vertex_in_direction(ctx.npc_lvid, dir, FLEE_STEP_M)
-    if fb and fb < 4294967295 and npc:accessible(fb) and fb ~= ctx.npc_lvid then return fb end
-    return nil
+    return xcombat.vertex_toward(npc, ctx.npc_lvid, dir, FLEE_STEP_M)
 end
 
 local function _resolve_step_toward_short(npc, ctx)
     if ctx.dist <= 0 then return nil end
     local dir = vector():set(ctx.dx / ctx.dist, 0, ctx.dz / ctx.dist)
-    local fb = level.vertex_in_direction(ctx.npc_lvid, dir, STEP_SHORT_M)
-    if fb and fb < 4294967295 and npc:accessible(fb) and fb ~= ctx.npc_lvid then return fb end
-    return nil
+    return xcombat.vertex_toward(npc, ctx.npc_lvid, dir, STEP_SHORT_M)
 end
 
 local function _resolve_step_away_short(npc, ctx)
     if ctx.dist <= 0 then return nil end
     local dir = vector():set(-ctx.dx / ctx.dist, 0, -ctx.dz / ctx.dist)
-    local fb = level.vertex_in_direction(ctx.npc_lvid, dir, STEP_SHORT_M)
-    if fb and fb < 4294967295 and npc:accessible(fb) and fb ~= ctx.npc_lvid then return fb end
-    return nil
+    return xcombat.vertex_toward(npc, ctx.npc_lvid, dir, STEP_SHORT_M)
 end
 
 local TARGET_RESOLVERS = {
@@ -688,11 +669,11 @@ function action_at_combat:execute()
     local id = npc:id()
     local tg = time_global()
 
-    if tg - _last_decide_global < THROTTLE_GLOBAL_MS then return end
     if tg - (_last_decide_npc[id] or 0) < THROTTLE_NPC_MS then return end
 
     local enemy = npc:best_enemy()
     if not (enemy and enemy:alive()) then return end
+    _last_decide_npc[id] = tg
 
     local state = _state[id]
     local first_delta = nil
@@ -739,9 +720,6 @@ function action_at_combat:execute()
 
     npc:set_sight(look.fire_point,
         vector():set(ene_pos.x, ene_pos.y + 1.5, ene_pos.z))
-
-    _last_decide_global = tg
-    _last_decide_npc[id] = tg
 end
 
 function action_at_combat:finalize()
@@ -834,7 +812,6 @@ local function _on_first_update()
     _installed         = {}
     _state             = {}
     _last_decide_npc   = {}
-    _last_decide_global = 0
     _last_eval         = {}
     _last_eval_logged  = {}
     _last_reason       = {}
