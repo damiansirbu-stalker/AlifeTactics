@@ -4,7 +4,7 @@
 --- rule list top-down, first match wins (squad-uniqueness skip with fallback).
 
 local IsStalker, IsWounded, time_global = IsStalker, IsWounded, time_global
-local character_community, tostring = character_community, tostring
+local character_community = character_community
 local math_sqrt, math_floor, math_min = math.sqrt, math.floor, math.min
 local RegisterScriptCallback = RegisterScriptCallback
 local move, look, anim, state_mgr, vector = move, look, anim, state_mgr, vector
@@ -59,11 +59,13 @@ local _installed        = {}
 local _state            = {}
 local _last_decide_npc  = {}
 local _last_eval        = {}
-local _last_eval_logged = {}
 local _last_reason      = {}
 local _fail_until       = {}
 local _fail_streak      = {}
 local _community        = {}
+
+-- All decision tracing + telemetry lives in at_combat_trace (DEBUG-gated, noop off). The pipeline
+-- below calls at_combat_trace.* directly; _dbg only gates the xprofiler timers and the per-frame eval.
 
 
 -- =========================================================================
@@ -99,7 +101,10 @@ local BEHAVIORS = {
         plan = { state = "assault_fire",     body = "standing", mvt = "walk",  target = "step_away_short" },
     },
     HOLD_COVER_CROUCH = {
-        plan = { state = "hide_na",          body = "crouch",   mvt = "run",   target = "cover_nearest" },
+        plan = { state = "sneak_fire",       body = "crouch",   mvt = "walk",  target = "cover_nearest" },
+    },
+    HOLD_COVER_STAND = {
+        plan = { state = "assault_fire",     body = "standing", mvt = "run",   target = "cover_nearest" },
     },
     HOLD_OPEN_CROUCH = {
         plan = { state = "hide_fire",        body = "crouch",   mvt = "stand", target = "hold" },
@@ -131,63 +136,63 @@ local INVALID_LVID   = xcombat.INVALID_LVID
 local COVER_SEARCH_R = 15
 local COVER_NEAR_R   = 10
 local COVER_WIDE_R   = 30
+local SIDESTEP_M     = 4
+local OPT_COVER      = { cover = true }
+local OPT_COVER_NEAR = { cover = true, radius = COVER_NEAR_R, wide = COVER_WIDE_R }
 
-local function _resolve_cover_step_fwd(npc, ctx)
-    local step = ADVANCE_STEP_M
-    local target_pos
-    if ctx.dist <= step then
-        target_pos = vector():set(ctx.ene_pos.x, ctx.npc_pos.y, ctx.ene_pos.z)
-    else
-        local k = step / ctx.dist
-        target_pos = vector():set(
-            ctx.npc_pos.x + ctx.dx * k,
-            ctx.npc_pos.y,
-            ctx.npc_pos.z + ctx.dz * k)
-    end
+-- Short perpendicular step off the enemy axis. The reliable last resort: a 4m sidestep almost always
+-- has room and moves the NPC out of the 1.5m friendly firing lane, so a blocked NPC that cannot
+-- advance, retreat, or flank still clears the line instead of standing in it.
+local function _sidestep(npc, ctx)
+    if ctx.dist <= 0 then return nil, "adjacent" end
+    local sign = (ctx.bucket % 2 == 0) and 1 or -1
+    local side = vector():set(-ctx.dz / ctx.dist * sign, 0, ctx.dx / ctx.dist * sign)
+    local fb = xcombat.vertex_toward(npc, ctx.npc_lvid, side, SIDESTEP_M)
+    if fb then return fb end
+    return nil, "no_room"
+end
+
+-- Unified spacing-aware placement for every formation-preserving move (advance / retreat / step toward
+-- or away from the enemy). Shifts the target laterally by the squad lane (perpendicular to the enemy
+-- axis) so members fan out abreast instead of stacking single-file, seeks cover at the destination when
+-- asked, and on total failure sidesteps to clear a blocked firing line.
+local function _place(npc, ctx, dir, step, opts)
     local ox, oz = _lat_off(ctx)
-    target_pos.x = target_pos.x + ox
-    target_pos.z = target_pos.z + oz
-    if target_pos:distance_to_sqr(ctx.ene_pos) <= COVER_REACH_SQR then
-        local lvid = xcombat.cover_vertex(npc, target_pos, ctx.ene_pos, COVER_SEARCH_R)
+    local target_pos = vector():set(
+        ctx.npc_pos.x + dir.x * step + ox,
+        ctx.npc_pos.y,
+        ctx.npc_pos.z + dir.z * step + oz)
+    if opts and opts.cover and target_pos:distance_to_sqr(ctx.ene_pos) <= COVER_REACH_SQR then
+        local lvid = xcombat.cover_vertex(npc, target_pos, ctx.ene_pos, opts.radius or COVER_SEARCH_R)
         if lvid then return lvid end
+        if opts.wide then
+            lvid = xcombat.cover_vertex(npc, target_pos, ctx.ene_pos, opts.wide)
+            if lvid then return lvid end
+        end
     end
-    if ctx.dist > 0 then
-        local dir = vector():set(ctx.dx / ctx.dist, 0, ctx.dz / ctx.dist)
-        local fb = xcombat.vertex_toward(npc, ctx.npc_lvid, dir, step)
+    local tx, tz = target_pos.x - ctx.npc_pos.x, target_pos.z - ctx.npc_pos.z
+    local tlen = math_sqrt(tx * tx + tz * tz)
+    if tlen > 0 then
+        local fb = xcombat.vertex_toward(npc, ctx.npc_lvid, vector():set(tx / tlen, 0, tz / tlen), tlen)
         if fb then return fb end
     end
-    return nil, "no_cover_no_path"
+    return _sidestep(npc, ctx)
+end
+
+local function _resolve_cover_step_fwd(npc, ctx)
+    if ctx.dist <= 0 then return _place(npc, ctx, VEC_ZERO, 0, OPT_COVER) end
+    local dir = vector():set(ctx.dx / ctx.dist, 0, ctx.dz / ctx.dist)
+    return _place(npc, ctx, dir, math_min(ctx.dist, ADVANCE_STEP_M), OPT_COVER)
 end
 
 local function _resolve_cover_nearest(npc, ctx)
-    local ox, oz = _lat_off(ctx)
-    local search_pos = vector():set(ctx.npc_pos.x + ox, ctx.npc_pos.y, ctx.npc_pos.z + oz)
-    local lvid = xcombat.cover_vertex(npc, search_pos, ctx.ene_pos, COVER_NEAR_R)
-    if lvid then return lvid end
-    lvid = xcombat.cover_vertex(npc, search_pos, ctx.ene_pos, COVER_WIDE_R)
-    if lvid then return lvid end
-    return nil, "no_cover"
+    return _place(npc, ctx, VEC_ZERO, 0, OPT_COVER_NEAR)
 end
 
 local function _resolve_step_away(npc, ctx)
     if ctx.dist <= 0 then return nil, "adjacent" end
-    local step = STEP_AWAY_M
-    local k = step / ctx.dist
-    local target_pos = vector():set(
-        ctx.npc_pos.x - ctx.dx * k,
-        ctx.npc_pos.y,
-        ctx.npc_pos.z - ctx.dz * k)
-    local ox, oz = _lat_off(ctx)
-    target_pos.x = target_pos.x + ox
-    target_pos.z = target_pos.z + oz
-    if target_pos:distance_to_sqr(ctx.ene_pos) <= COVER_REACH_SQR then
-        local lvid = xcombat.cover_vertex(npc, target_pos, ctx.ene_pos, COVER_SEARCH_R)
-        if lvid then return lvid end
-    end
     local dir = vector():set(-ctx.dx / ctx.dist, 0, -ctx.dz / ctx.dist)
-    local fb = xcombat.vertex_toward(npc, ctx.npc_lvid, dir, step)
-    if fb then return fb end
-    return nil, "no_cover_no_path"
+    return _place(npc, ctx, dir, STEP_AWAY_M, OPT_COVER)
 end
 
 local function _resolve_charge_enemy(npc, ctx)
@@ -208,45 +213,33 @@ end
 
 local function _resolve_cover_flank(npc, ctx)
     if ctx.dist <= 0 then return nil, "adjacent" end
-    local sign = (ctx.id % 2 == 0) and 1 or -1
+    local sign = (ctx.bucket % 2 == 0) and 1 or -1
     local nx, nz = ctx.dx / ctx.dist, ctx.dz / ctx.dist
-    local px, pz = -nz * sign, nx * sign
-    local target_pos = vector():set(
-        ctx.npc_pos.x + px * FLANK_LATERAL_M + nx * FLANK_FORWARD_M,
-        ctx.npc_pos.y,
-        ctx.npc_pos.z + pz * FLANK_LATERAL_M + nz * FLANK_FORWARD_M)
-    if target_pos:distance_to_sqr(ctx.ene_pos) <= COVER_REACH_SQR then
-        local lvid = xcombat.cover_vertex(npc, target_pos, ctx.ene_pos, COVER_SEARCH_R)
-        if lvid then return lvid end
-    end
-    local dir = vector():set(px, 0, pz)
-    local fb = xcombat.vertex_toward(npc, ctx.npc_lvid, dir, FLANK_LATERAL_M)
-    if fb then return fb end
-    return nil, "no_flank_room"
+    -- perpendicular flank offset (side by bucket parity) plus a slight forward bias, handed to
+    -- _place as a direction so flankers also get the squad lane spread and sidestep fallback
+    local tx = -nz * sign * FLANK_LATERAL_M + nx * FLANK_FORWARD_M
+    local tz =  nx * sign * FLANK_LATERAL_M + nz * FLANK_FORWARD_M
+    local len = math_sqrt(tx * tx + tz * tz)
+    if len <= 0 then return _sidestep(npc, ctx) end
+    return _place(npc, ctx, vector():set(tx / len, 0, tz / len), len, OPT_COVER)
 end
 
 local function _resolve_flee_far(npc, ctx)
     if ctx.dist <= 0 then return nil, "adjacent" end
     local dir = vector():set(-ctx.dx / ctx.dist, 0, -ctx.dz / ctx.dist)
-    local fb = xcombat.vertex_toward(npc, ctx.npc_lvid, dir, FLEE_STEP_M)
-    if fb then return fb end
-    return nil, "no_flee_room"
+    return _place(npc, ctx, dir, FLEE_STEP_M)
 end
 
 local function _resolve_step_toward_short(npc, ctx)
     if ctx.dist <= 0 then return nil, "adjacent" end
     local dir = vector():set(ctx.dx / ctx.dist, 0, ctx.dz / ctx.dist)
-    local fb = xcombat.vertex_toward(npc, ctx.npc_lvid, dir, STEP_SHORT_M)
-    if fb then return fb end
-    return nil, "no_step_room"
+    return _place(npc, ctx, dir, STEP_SHORT_M)
 end
 
 local function _resolve_step_away_short(npc, ctx)
     if ctx.dist <= 0 then return nil, "adjacent" end
     local dir = vector():set(-ctx.dx / ctx.dist, 0, -ctx.dz / ctx.dist)
-    local fb = xcombat.vertex_toward(npc, ctx.npc_lvid, dir, STEP_SHORT_M)
-    if fb then return fb end
-    return nil, "no_step_room"
+    return _place(npc, ctx, dir, STEP_SHORT_M)
 end
 
 local TARGET_RESOLVERS = {
@@ -388,6 +381,7 @@ local function _init_state(npc)
     return {
         npc_id        = id,
         squad_id      = squad_id,
+        bucket        = xcombat.squad_member_ordinal(squad_id, id) % SQUAD_LATERAL_BUCKETS,
         community     = _community[id] or character_community(npc) or "stalker",
         weapon_kind   = xcombat.weapon_kind(npc),
         health        = "HEALTHY",
@@ -437,7 +431,7 @@ local MILITARY_OUTDOOR = {
     { when = function(s) return s.range_fit == "TOO_CLOSE" end,
       do_ = "RETREAT_OPEN_STEP" },
     { when = function(s) return s.threat == "THREATENED" and s.position == "EXPOSED" end,
-      do_ = "HOLD_COVER_CROUCH" },
+      do_ = "HOLD_COVER_STAND" },
     { when = function(s) return s.contact == "VISUAL" and s.friendly_line == "BLOCKED" end,
       do_ = "ADVANCE_COVER_FLANK" },
     { when = function(s) return s.range_fit == "TOO_FAR" end,
@@ -451,7 +445,7 @@ local MILITARY_OUTDOOR = {
     { when = function(s) return s.contact == "NO_VISUAL" end,
       do_ = "ADVANCE_COVER_FLANK" },
     { when = function(_s) return true end,
-      do_ = "HOLD_OPEN_HIDE" },
+      do_ = "HOLD_OPEN_CROUCH" },
 }
 
 local MILITARY_INDOOR = {
@@ -462,7 +456,7 @@ local MILITARY_INDOOR = {
     { when = function(s) return s.range_fit == "TOO_CLOSE" end,
       do_ = "RETREAT_OPEN_STEP" },
     { when = function(s) return s.threat == "THREATENED" and s.position == "EXPOSED" end,
-      do_ = "HOLD_COVER_CROUCH" },
+      do_ = "HOLD_COVER_STAND" },
     { when = function(s) return s.contact == "VISUAL" and s.friendly_line == "BLOCKED" end,
       do_ = "RETREAT_OPEN_STEP" },
     { when = function(s) return s.range_fit == "TOO_FAR" and xcombat.AGGRESSOR_KINDS[s.weapon_kind] end,
@@ -476,7 +470,7 @@ local MILITARY_INDOOR = {
     { when = function(s) return s.contact == "NO_VISUAL" end,
       do_ = "ADVANCE_OPEN_RUN" },
     { when = function(_s) return true end,
-      do_ = "HOLD_OPEN_HIDE" },
+      do_ = "HOLD_OPEN_CROUCH" },
 }
 
 local STALKER_DEFAULT = {
@@ -489,7 +483,7 @@ local STALKER_DEFAULT = {
     { when = function(s) return s.range_fit == "TOO_CLOSE" end,
       do_ = "RETREAT_OPEN_STEP" },
     { when = function(s) return s.threat == "THREATENED" and s.position == "EXPOSED" end,
-      do_ = "HOLD_COVER_CROUCH" },
+      do_ = "HOLD_COVER_STAND" },
     { when = function(s) return s.contact == "VISUAL" and s.friendly_line == "BLOCKED" end,
       do_ = "ADVANCE_COVER_FLANK" },
     { when = function(s) return s.range_fit == "TOO_FAR" end,
@@ -501,7 +495,7 @@ local STALKER_DEFAULT = {
     { when = function(s) return s.contact == "NO_VISUAL" end,
       do_ = "ADVANCE_COVER_STAND" },
     { when = function(_s) return true end,
-      do_ = "HOLD_OPEN_HIDE" },
+      do_ = "HOLD_OPEN_CROUCH" },
 }
 
 local FACTION_RULES = {
@@ -519,6 +513,13 @@ local FACTION_RULES = {
     INDOOR_DEFAULT  = STALKER_DEFAULT,
 }
 
+-- Reverse map (list table -> name) for the [RULE] trace; lets a log line name the
+-- doctrine that drove the pick instead of just the rule index.
+local RULE_LIST_NAMES = {
+    [MILITARY_OUTDOOR] = "MILITARY_OUTDOOR", [MILITARY_INDOOR] = "MILITARY_INDOOR",
+    [STALKER_DEFAULT] = "STALKER_DEFAULT",
+}
+
 
 -- =========================================================================
 -- Decide: walk rules top-down, first match wins. Squad-uniqueness skip with
@@ -530,7 +531,7 @@ local FACTION_RULES = {
 local function _rule_picks(rule, state, first_delta, npc_id)
     if rule.on_delta and rule.on_delta ~= first_delta then return nil, nil end
     if not rule.when(state) then return nil, nil end
-    local unique = rule.unique ~= false
+    local unique = rule.unique == true
     if unique and xcombat.squadmate_in(state.squad_id, npc_id, rule.do_) then
         return nil, rule.do_
     end
@@ -541,10 +542,10 @@ local function _decide(rules, state, first_delta, npc_id)
     local fallback = nil
     for i = 1, #rules do
         local picked, taken = _rule_picks(rules[i], state, first_delta, npc_id)
-        if picked then return picked end
+        if picked then return picked, i end
         if taken then fallback = fallback or taken end
     end
-    return fallback
+    return fallback, nil
 end
 
 
@@ -569,24 +570,14 @@ local function _decide_eval(npc, id)
     return true, "in_range"
 end
 
-local function _log_eval_transition(id, result, reason)
-    local prev = _last_eval_logged[id]
-    if prev == result then return end
-    _last_eval_logged[id] = result
-    log.debug("[COMBAT] eval npc=%d %s->%s reason=%s",
-        id,
-        prev == nil and "init" or tostring(prev),
-        tostring(result),
-        reason)
-end
-
 function evaluator_at_combat:evaluate()
     local npc = self.object
     local id = npc:id()
     local result, reason = _decide_eval(npc, id)
     _last_eval[id]   = result
     _last_reason[id] = reason
-    if _dbg then _log_eval_transition(id, result, reason) end
+    -- evaluate runs per frame per NPC (hottest path); guard the call so off-state pays nothing.
+    if _dbg then at_combat_trace.eval(id, result, reason) end
     return result
 end
 
@@ -606,7 +597,7 @@ local function _on_pick_fail(id)
     if streak >= FAIL_THRESHOLD then
         local backoff = FAIL_BACKOFF_MS * (streak - FAIL_THRESHOLD + 1)
         _fail_until[id] = time_global() + backoff
-        if _dbg then log.debug("[BACKOFF] npc=%d streak=%d backoff=%dms -> vanilla", id, streak, backoff) end
+        at_combat_trace.backoff(id, streak, backoff)
     end
     return streak
 end
@@ -631,6 +622,7 @@ function action_at_combat:_apply_plan(plan, ctx)
         npc:sniper_fire_mode(want_sniper)
         self.last_sniper_mode = want_sniper
     end
+    at_combat_trace.apply(npc:id(), plan, want_sniper)
 end
 
 function action_at_combat:_repick(plan, ctx)
@@ -638,32 +630,25 @@ function action_at_combat:_repick(plan, ctx)
     local id = npc:id()
     local resolver = TARGET_RESOLVERS[plan.target]
     if not resolver then return end
+    local t_res = xprofiler.new_if(_dbg):start()
     local new_lvid, reason = resolver(npc, ctx, self)
+    t_res:stop()
     if not new_lvid then
         local streak = _on_pick_fail(id)
-        if _dbg then
-            log.debug("[RESOLVE] npc=%d %s target=%s FAIL reason=%s streak=%d dist=%.1f",
-                id, tostring(self.current_behavior), plan.target, reason or "?", streak, ctx.dist)
-        end
+        at_combat_trace.resolve_fail(id, self.current_behavior, plan.target, reason, streak, ctx.dist, t_res:get_ms())
         return
     end
     _fail_streak[id] = 0
     if new_lvid == self.target_lvid then return end
     local skip_reservation = (plan.target == "charge_enemy")
     if not skip_reservation and not _claim(new_lvid, id) then
-        if _dbg then
-            log.debug("[RESOLVE] npc=%d %s target=%s contested lvid=%d",
-                id, tostring(self.current_behavior), plan.target, new_lvid)
-        end
+        at_combat_trace.resolve_contested(id, plan.target, new_lvid, t_res:get_ms())
         return
     end
     _release(self.target_lvid, id)
     self.target_lvid = new_lvid
-    xcombat.send_to(npc, new_lvid)
-    if _dbg then
-        log.debug("[RESOLVE] npc=%d %s target=%s ok lvid=%d dist=%.1f",
-            id, tostring(self.current_behavior), plan.target, new_lvid, ctx.dist)
-    end
+    local sent = xcombat.send_to(npc, new_lvid)
+    at_combat_trace.resolve_ok(id, self.current_behavior, plan.target, new_lvid, sent, ctx.dist, t_res:get_ms())
 end
 
 function action_at_combat:_switch(name, ctx)
@@ -675,7 +660,7 @@ function action_at_combat:_switch(name, ctx)
     local plan = BEHAVIORS[name].plan
     self:_apply_plan(plan, ctx)
     self:_repick(plan, ctx)
-    if _dbg then log.debug("[COMBAT] switch npc=%d -> %s", id, name) end
+    at_combat_trace.switch(id, name)
 end
 
 function action_at_combat:initialize()
@@ -705,6 +690,13 @@ function action_at_combat:execute()
     if not (enemy and enemy:alive()) then return end
     _last_decide_npc[id] = tg
 
+    local tmr = xprofiler.new_if(_dbg):start()
+    local tag = self:_decide_tick(npc, id, enemy, tg)
+    tmr:stop()
+    at_combat_trace.perf(id, tag, tmr:get_ms())
+end
+
+function action_at_combat:_decide_tick(npc, id, enemy, tg)
     local state = _state[id]
     local first_delta = nil
     if not state then
@@ -727,26 +719,26 @@ function action_at_combat:execute()
         dz       = dz,
         enemy    = enemy,
         id       = id,
-        bucket   = id % SQUAD_LATERAL_BUCKETS,
+        bucket   = state.bucket,
     }
 
+    local t_read = xprofiler.new_if(_dbg):start()
     local delta_from_read = _update_state(npc, enemy, state, tg, ctx)
+    t_read:stop()
     first_delta = first_delta or delta_from_read
-    if not first_delta then return end
+    at_combat_trace.state(id, state, first_delta, ctx.dist, t_read:get_ms())
+    if not first_delta then return "no_delta" end
 
     local env_table  = FACTION_RULES[state.environment]
     local rules      = (env_table and env_table[state.community])
                        or FACTION_RULES[state.environment .. "_DEFAULT"]
-    if not rules then return end
+    if not rules then return "no_rules" end
 
-    local picked = _decide(rules, state, first_delta, id)
-    if _dbg then
-        log.debug("[DECIDE] npc=%d comm=%s env=%s hp=%s contact=%s range=%s threat=%s pos=%s squad=%s fline=%s wpn=%s dist=%.1f delta=%s -> %s",
-            id, state.community, state.environment, state.health, state.contact,
-            state.range_fit, state.threat, state.position, state.squad, state.friendly_line,
-            state.weapon_kind or "none", dist, tostring(first_delta), tostring(picked))
-    end
-    if not picked then return end
+    local t_dec = xprofiler.new_if(_dbg):start()
+    local picked, rule_i = _decide(rules, state, first_delta, id)
+    t_dec:stop()
+    at_combat_trace.rule(id, RULE_LIST_NAMES[rules] or "?", rule_i, picked, t_dec:get_ms())
+    if not picked then return "no_pick" end
 
     if picked ~= self.current_behavior then
         self:_switch(picked, ctx)
@@ -759,6 +751,7 @@ function action_at_combat:execute()
 
     npc:set_sight(look.fire_point,
         vector():set(ene_pos.x, ene_pos.y + 1.5, ene_pos.z))
+    return picked
 end
 
 function action_at_combat:finalize()
@@ -825,7 +818,10 @@ end
 
 local function _on_net_destroy(npc)
     if not npc then return end
-    _installed[npc:id()] = nil
+    local id = npc:id()
+    _installed[id] = nil
+    -- offline NPC must not keep holding an online cover slot; finalize may not run on offline teardown
+    xcombat.release_owner_cover(id)
 end
 
 local function _on_entity_unregister(se_obj)
@@ -833,7 +829,7 @@ local function _on_entity_unregister(se_obj)
     local id = se_obj.id
     _installed[id]        = nil
     _last_eval[id]        = nil
-    _last_eval_logged[id] = nil
+    at_combat_trace.forget(id)
     _last_reason[id]      = nil
     _fail_until[id]       = nil
     _fail_streak[id]      = nil
@@ -845,6 +841,12 @@ end
 local function _refresh_log()
     log.set_level(at_mcm.get_config("log_level") or "WARN")
     _dbg = log.get_level() >= 5
+    at_combat_trace.set_enabled(_dbg)
+end
+
+--- Telemetry (counters) + eval snapshot for the at_test stats dump. DEBUG-accumulated.
+function get_stats()
+    return at_combat_trace.stats(), _last_eval, _last_reason
 end
 
 local function _on_first_update()
@@ -852,11 +854,11 @@ local function _on_first_update()
     _state             = {}
     _last_decide_npc   = {}
     _last_eval         = {}
-    _last_eval_logged  = {}
     _last_reason       = {}
     _fail_until        = {}
     _fail_streak       = {}
     _community         = {}
+    at_combat_trace.reset()
     _refresh_log()
     log.info("Combat module initialized (enabled=%s share=%.2f dbg=%s)",
         cfg.combat_enabled and "true" or "false",

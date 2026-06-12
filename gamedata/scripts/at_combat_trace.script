@@ -1,0 +1,115 @@
+--- at_combat_trace: DEBUG-gated decision tracing + telemetry for at_combat.
+--- Every function noops when tracing is off, so at_combat's decision pipeline carries no inline
+--- log/stat blocks. at_combat mirrors its _dbg flag here via set_enabled and holds none of the trace
+--- state. Stats accumulate only while enabled; at_test reads them through at_combat.get_stats.
+
+local tostring = tostring
+local log = xlog.get_logger("AT.COMBAT", { outfile = "alifetactics.log" })
+
+at_combat_trace = at_combat_trace or {}
+
+local _on = false
+local _last_eval_logged = {}
+
+local function _new_stats()
+    return { behaviors = {}, resolve = {}, backoffs = 0,
+             tick_sum = 0, tick_max = 0, tick_n = 0, read_sum = 0, read_n = 0 }
+end
+local _stats = _new_stats()
+
+local function _stat(tbl, key)
+    tbl[key] = (tbl[key] or 0) + 1
+end
+
+--- Enable/disable all tracing. at_combat calls this from its log-level refresh.
+function at_combat_trace.set_enabled(on) _on = on end
+
+--- Reset accumulated telemetry and eval-transition memory (level load / first update).
+function at_combat_trace.reset()
+    _stats = _new_stats()
+    _last_eval_logged = {}
+end
+
+--- Drop one NPC's eval-transition memory on unregister.
+function at_combat_trace.forget(id) _last_eval_logged[id] = nil end
+
+--- Accumulated telemetry table for the at_test stats dump.
+function at_combat_trace.stats() return _stats end
+
+--- [STATE] one line per managed tick: all 8 state machines + first delta + read ms.
+function at_combat_trace.state(id, s, delta, dist, ms)
+    if not _on then return end
+    log.debug("[STATE] npc=%d comm=%s hp=%s env=%s contact=%s squad=%s fline=%s range=%s(%.1fm) threat=%s pos=%s wpn=%s delta=%s [%.3fms]",
+        id, s.community, s.health, s.environment, s.contact, s.squad, s.friendly_line,
+        s.range_fit, dist, s.threat, s.position, s.weapon_kind or "none", tostring(delta), ms)
+end
+
+--- [RULE] matched rule index + picked behavior; counts the behavior into stats.
+function at_combat_trace.rule(id, list_name, rule_i, picked, ms)
+    if not _on then return end
+    if picked then _stat(_stats.behaviors, picked) end
+    log.debug("[RULE] npc=%d list=%s matched=#%s -> %s [%.3fms]", id, list_name, tostring(rule_i), tostring(picked), ms)
+end
+
+--- [APPLY] state/body/mvt/sniper actually written to the NPC on a behavior switch.
+function at_combat_trace.apply(id, plan, sniper)
+    if not _on then return end
+    log.debug("[APPLY] npc=%d state=%s body=%s mvt=%s sniper=%s", id, plan.state, plan.body, plan.mvt, sniper and "Y" or "N")
+end
+
+--- [RESOLVE] resolver returned no vertex; counts target/fail/reason into stats.
+function at_combat_trace.resolve_fail(id, behavior, target, reason, streak, dist, ms)
+    if not _on then return end
+    _stat(_stats.resolve, target .. "/fail/" .. (reason or "?"))
+    log.debug("[RESOLVE] npc=%d %s target=%s FAIL reason=%s streak=%d dist=%.1f [%.3fms]",
+        id, tostring(behavior), target, reason or "?", streak, dist, ms)
+end
+
+--- [RESOLVE] target vertex held by another NPC; owner resolved here, off the hot path.
+function at_combat_trace.resolve_contested(id, target, lvid, ms)
+    if not _on then return end
+    _stat(_stats.resolve, target .. "/contested")
+    log.debug("[RESOLVE] npc=%d target=%s contested lvid=%d owner=%s [%.3fms]", id, target, lvid, tostring(xcombat.cover_owner(lvid)), ms)
+end
+
+--- [RESOLVE] move issued; lvid is the requested vertex, sent is where send_to routed it.
+function at_combat_trace.resolve_ok(id, behavior, target, lvid, sent, dist, ms)
+    if not _on then return end
+    _stat(_stats.resolve, target .. "/ok")
+    log.debug("[RESOLVE] npc=%d %s target=%s ok lvid=%d sent=%d dist=%.1f [%.3fms]",
+        id, tostring(behavior), target, lvid, sent, dist, ms)
+end
+
+--- [BACKOFF] pick-fail streak crossed threshold; NPC handed back to vanilla for backoff ms.
+function at_combat_trace.backoff(id, streak, backoff)
+    if not _on then return end
+    _stats.backoffs = _stats.backoffs + 1
+    log.debug("[BACKOFF] npc=%d streak=%d backoff=%dms -> vanilla", id, streak, backoff)
+end
+
+--- [COMBAT] behavior switch.
+function at_combat_trace.switch(id, name)
+    if not _on then return end
+    log.debug("[COMBAT] switch npc=%d -> %s", id, name)
+end
+
+--- [COMBAT] eval result, logged only on transition (managed<->rejected) per NPC.
+function at_combat_trace.eval(id, result, reason)
+    if not _on then return end
+    local prev = _last_eval_logged[id]
+    if prev == result then return end
+    _last_eval_logged[id] = result
+    log.debug("[COMBAT] eval npc=%d %s->%s reason=%s", id, prev == nil and "init" or tostring(prev), tostring(result), reason)
+end
+
+--- [PERF] per-tick total ms + outcome tag; accumulates tick avg/max and the no_delta read path.
+function at_combat_trace.perf(id, tag, ms)
+    if not _on then return end
+    log.debug("[PERF] npc=%d %s %.3fms", id, tostring(tag), ms)
+    _stats.tick_n = _stats.tick_n + 1
+    _stats.tick_sum = _stats.tick_sum + ms
+    if ms > _stats.tick_max then _stats.tick_max = ms end
+    if tag ~= "no_delta" then return end
+    _stats.read_n = _stats.read_n + 1
+    _stats.read_sum = _stats.read_sum + ms
+end
