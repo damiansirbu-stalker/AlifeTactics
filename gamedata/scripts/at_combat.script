@@ -80,10 +80,10 @@ local BEHAVIORS = {
         plan = { state = "assault_fire",     body = "standing", mvt = "run",   target = "cover_flank" },
     },
     ADVANCE_OPEN_RUN = {
-        plan = { state = "assault_fire",     body = "standing", mvt = "run",   target = "charge_enemy", track = true },
+        plan = { state = "assault_fire",     body = "standing", mvt = "run",   target = "charge_enemy" },
     },
     ADVANCE_OPEN_WALK = {
-        plan = { state = "raid_fire",        body = "standing", mvt = "walk",  target = "charge_enemy", track = true },
+        plan = { state = "raid_fire",        body = "standing", mvt = "walk",  target = "charge_enemy" },
     },
     ADVANCE_OPEN_STEP = {
         plan = { state = "assault_fire",     body = "standing", mvt = "walk",  target = "step_toward_short" },
@@ -128,7 +128,7 @@ local BEHAVIORS = {
 local function _claim(lvid, id) return xcombat.claim_cover(lvid, id) end
 local function _release(lvid, id) xcombat.release_cover(lvid, id) end
 
-local function _lat_off(ctx)
+local function _spread_offset(ctx)
     return xcombat.lateral_offset(ctx.bucket, ctx.dx, ctx.dz, ctx.dist, SQUAD_LATERAL_STEP_M, SQUAD_LATERAL_BUCKETS)
 end
 
@@ -136,28 +136,28 @@ local INVALID_LVID   = xcombat.INVALID_LVID
 local COVER_SEARCH_R = 15
 local COVER_NEAR_R   = 10
 local COVER_WIDE_R   = 30
-local SIDESTEP_M     = 4
+local STEP_SIDE_M     = 4
 local OPT_COVER      = { cover = true }
 local OPT_COVER_NEAR = { cover = true, radius = COVER_NEAR_R, wide = COVER_WIDE_R }
 
--- Short perpendicular step off the enemy axis. The reliable last resort: a 4m sidestep almost always
--- has room and moves the NPC out of the 1.5m friendly firing lane, so a blocked NPC that cannot
+-- Short perpendicular step off the enemy axis. The reliable last resort: a 4m step to the side almost
+-- always has room and moves the NPC out of the 1.5m friendly firing line, so a blocked NPC that cannot
 -- advance, retreat, or flank still clears the line instead of standing in it.
-local function _sidestep(npc, ctx)
+local function _step_side(npc, ctx)
     if ctx.dist <= 0 then return nil, "adjacent" end
     local sign = (ctx.bucket % 2 == 0) and 1 or -1
     local side = vector():set(-ctx.dz / ctx.dist * sign, 0, ctx.dx / ctx.dist * sign)
-    local fb = xcombat.vertex_toward(npc, ctx.npc_lvid, side, SIDESTEP_M)
+    local fb = xcombat.vertex_toward(npc, ctx.npc_lvid, side, STEP_SIDE_M)
     if fb then return fb end
     return nil, "no_room"
 end
 
--- Unified spacing-aware placement for every formation-preserving move (advance / retreat / step toward
--- or away from the enemy). Shifts the target laterally by the squad lane (perpendicular to the enemy
--- axis) so members fan out abreast instead of stacking single-file, seeks cover at the destination when
--- asked, and on total failure sidesteps to clear a blocked firing line.
-local function _place(npc, ctx, dir, step, opts)
-    local ox, oz = _lat_off(ctx)
+-- Picks the navmesh vertex an NPC moves to for a movement intent (direction + distance). Shifts the
+-- target sideways by the NPC's squad slot (perpendicular to the enemy axis) so members fan out abreast
+-- instead of stacking single-file, seeks cover at the destination when asked, and on total failure
+-- steps aside to clear a blocked firing line.
+local function _pick_move_vertex(npc, ctx, dir, step, opts)
+    local ox, oz = _spread_offset(ctx)
     local target_pos = vector():set(
         ctx.npc_pos.x + dir.x * step + ox,
         ctx.npc_pos.y,
@@ -176,23 +176,23 @@ local function _place(npc, ctx, dir, step, opts)
         local fb = xcombat.vertex_toward(npc, ctx.npc_lvid, vector():set(tx / tlen, 0, tz / tlen), tlen)
         if fb then return fb end
     end
-    return _sidestep(npc, ctx)
+    return _step_side(npc, ctx)
 end
 
 local function _resolve_cover_step_fwd(npc, ctx)
-    if ctx.dist <= 0 then return _place(npc, ctx, VEC_ZERO, 0, OPT_COVER) end
+    if ctx.dist <= 0 then return _pick_move_vertex(npc, ctx, VEC_ZERO, 0, OPT_COVER) end
     local dir = vector():set(ctx.dx / ctx.dist, 0, ctx.dz / ctx.dist)
-    return _place(npc, ctx, dir, math_min(ctx.dist, ADVANCE_STEP_M), OPT_COVER)
+    return _pick_move_vertex(npc, ctx, dir, math_min(ctx.dist, ADVANCE_STEP_M), OPT_COVER)
 end
 
 local function _resolve_cover_nearest(npc, ctx)
-    return _place(npc, ctx, VEC_ZERO, 0, OPT_COVER_NEAR)
+    return _pick_move_vertex(npc, ctx, VEC_ZERO, 0, OPT_COVER_NEAR)
 end
 
 local function _resolve_step_away(npc, ctx)
     if ctx.dist <= 0 then return nil, "adjacent" end
     local dir = vector():set(-ctx.dx / ctx.dist, 0, -ctx.dz / ctx.dist)
-    return _place(npc, ctx, dir, STEP_AWAY_M, OPT_COVER)
+    return _pick_move_vertex(npc, ctx, dir, STEP_AWAY_M, OPT_COVER)
 end
 
 local function _resolve_charge_enemy(npc, ctx)
@@ -216,42 +216,46 @@ local function _resolve_cover_flank(npc, ctx)
     local sign = (ctx.bucket % 2 == 0) and 1 or -1
     local nx, nz = ctx.dx / ctx.dist, ctx.dz / ctx.dist
     -- perpendicular flank offset (side by bucket parity) plus a slight forward bias, handed to
-    -- _place as a direction so flankers also get the squad lane spread and sidestep fallback
+    -- _pick_move_vertex as a direction so flankers also get the squad spread and step-aside fallback
     local tx = -nz * sign * FLANK_LATERAL_M + nx * FLANK_FORWARD_M
     local tz =  nx * sign * FLANK_LATERAL_M + nz * FLANK_FORWARD_M
     local len = math_sqrt(tx * tx + tz * tz)
-    if len <= 0 then return _sidestep(npc, ctx) end
-    return _place(npc, ctx, vector():set(tx / len, 0, tz / len), len, OPT_COVER)
+    if len <= 0 then return _step_side(npc, ctx) end
+    return _pick_move_vertex(npc, ctx, vector():set(tx / len, 0, tz / len), len, OPT_COVER)
 end
 
 local function _resolve_flee_far(npc, ctx)
     if ctx.dist <= 0 then return nil, "adjacent" end
     local dir = vector():set(-ctx.dx / ctx.dist, 0, -ctx.dz / ctx.dist)
-    return _place(npc, ctx, dir, FLEE_STEP_M)
+    return _pick_move_vertex(npc, ctx, dir, FLEE_STEP_M)
 end
 
 local function _resolve_step_toward_short(npc, ctx)
     if ctx.dist <= 0 then return nil, "adjacent" end
     local dir = vector():set(ctx.dx / ctx.dist, 0, ctx.dz / ctx.dist)
-    return _place(npc, ctx, dir, STEP_SHORT_M)
+    return _pick_move_vertex(npc, ctx, dir, STEP_SHORT_M)
 end
 
 local function _resolve_step_away_short(npc, ctx)
     if ctx.dist <= 0 then return nil, "adjacent" end
     local dir = vector():set(-ctx.dx / ctx.dist, 0, -ctx.dz / ctx.dist)
-    return _place(npc, ctx, dir, STEP_SHORT_M)
+    return _pick_move_vertex(npc, ctx, dir, STEP_SHORT_M)
 end
 
-local TARGET_RESOLVERS = {
-    cover_step_fwd     = _resolve_cover_step_fwd,
-    cover_nearest      = _resolve_cover_nearest,
-    step_away          = _resolve_step_away,
-    charge_enemy       = _resolve_charge_enemy,
-    cover_flank        = _resolve_cover_flank,
-    flee_far           = _resolve_flee_far,
-    hold               = _resolve_hold,
-    step_toward_short  = _resolve_step_toward_short,
-    step_away_short    = _resolve_step_away_short,
+-- A maneuver: the resolver that picks its move target, plus how that target is held. Default is a
+-- private position the squad reserves. charge_enemy is the lone exception -- it converges on the
+-- moving enemy, so it chases (re-resolves each tick) and shares the target (reserve = false). The
+-- executor reads these fields; it never special-cases a maneuver by name.
+local MANEUVERS = {
+    cover_step_fwd     = { resolve = _resolve_cover_step_fwd },
+    cover_nearest      = { resolve = _resolve_cover_nearest },
+    step_away          = { resolve = _resolve_step_away },
+    charge_enemy       = { resolve = _resolve_charge_enemy, chase = true, reserve = false },
+    cover_flank        = { resolve = _resolve_cover_flank },
+    flee_far           = { resolve = _resolve_flee_far },
+    hold               = { resolve = _resolve_hold },
+    step_toward_short  = { resolve = _resolve_step_toward_short },
+    step_away_short    = { resolve = _resolve_step_away_short },
 }
 
 
@@ -628,10 +632,10 @@ end
 function action_at_combat:_repick(plan, ctx)
     local npc = self.object
     local id = npc:id()
-    local resolver = TARGET_RESOLVERS[plan.target]
-    if not resolver then return end
+    local maneuver = MANEUVERS[plan.target]
+    if not maneuver then return end
     local t_res = xprofiler.new_if(_dbg):start()
-    local new_lvid, reason = resolver(npc, ctx, self)
+    local new_lvid, reason = maneuver.resolve(npc, ctx, self)
     t_res:stop()
     if not new_lvid then
         local streak = _on_pick_fail(id)
@@ -640,8 +644,7 @@ function action_at_combat:_repick(plan, ctx)
     end
     _fail_streak[id] = 0
     if new_lvid == self.target_lvid then return end
-    local skip_reservation = (plan.target == "charge_enemy")
-    if not skip_reservation and not _claim(new_lvid, id) then
+    if maneuver.reserve ~= false and not _claim(new_lvid, id) then
         at_combat_trace.resolve_contested(id, plan.target, new_lvid, t_res:get_ms())
         return
     end
@@ -744,7 +747,8 @@ function action_at_combat:_decide_tick(npc, id, enemy, tg)
         self:_switch(picked, ctx)
     else
         local plan = BEHAVIORS[picked].plan
-        if plan.track or xcombat.cover_stolen(self.target_lvid, id) then
+        local maneuver = MANEUVERS[plan.target]
+        if maneuver and (maneuver.chase or xcombat.cover_stolen(self.target_lvid, id)) then
             self:_repick(plan, ctx)
         end
     end
