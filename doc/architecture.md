@@ -422,16 +422,16 @@ Full-file override of vanilla `xr_danger.script` (Alundaio). Six vanilla bug fix
 
 ### Paired LTX
 
-`configs/ai_tweaks/xr_danger.ltx` ships values aligned to GAMMA AI Rework's base:
+`configs/ai_tweaks/xr_danger.ltx` ships:
 - Weather-conditional ignore distances (rain/storm reduces detection)
 - Separate actor-source tables that respond to `actor_enemy` condition
 - Dead `hit`/`sound`/`visual` keys (PerceiveType names; collide with EDangerType enum values) are dropped
 
-In GAMMA, Useful Idiots DLTX (`mod_xr_danger_z_idiots.ltx`) overlays `[danger_inertion]` (all 8 keys) and 2 keys of `[danger_inertion_actor]` (bullet_ricochet, attack_sound) with per-NPC condlists. The `{=is_gamma}` branch falls through to the same values shipped here, so non-companion non-redone-combat behavior matches our base. Companions get 4-8s inertion via the `{=npc_companion}` branch.
+DLTX overlay mods that replace `[danger_inertion]` take precedence over these base values; absent those, the values here apply.
 
 ### Composition
 
-The override is marked `-- @override` so the validator skips inherited vanilla style warnings. Conflicts with mods that override `xr_danger.script` (ReDone Combat AI, GAMMA AI Rework). MCM Danger tab describes always-on fixes and the three improvement toggles.
+The override is marked `-- @override` so the validator skips inherited vanilla style warnings. Conflicts with any mod that also overrides `xr_danger.script`. MCM Danger tab describes always-on fixes and the three improvement toggles.
 
 ---
 

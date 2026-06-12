@@ -1,7 +1,7 @@
 ;Note: Ignore distance is only checked if danger was produced by game_object.enemy with the exception of grenade and ent. corpse
 ;Inertion values are in milliseconds. Distance values in [danger_object*] are SQUARED meters.
 ;Section keys are EDangerType names (danger_object.h:16-27). PerceiveType names (hit/sound/visual) are NOT keys — they collide with bullet_ricochet/attack_sound/entity_attacked enum values and would overwrite them in vanilla bd_types.
-;Values match GAMMA AI Rework. In GAMMA, Useful Idiots DLTX (mod_xr_danger_z_idiots.ltx) replaces [danger_inertion] entirely and 2 keys of [danger_inertion_actor] with per-NPC condlists; non-companion non-redone-combat values fall through to these same numbers.
+;DLTX overlay mods that replace [danger_inertion] take precedence; absent those, these values apply.
 
 [danger_inertion] ;May use condlists from xr_condition
 grenade         = 6000

@@ -10,7 +10,7 @@ local LIMP_REARM_MS             = 5000
 -- xr_eat_medkit.consume_medkit schedules heal_hp/heal_bleed with left=15.
 local HEAL_TICK_FIRST           = 15
 
--- Posture-slot table per Vodoxleb's limping_anims.script:44-67 (damaged_walk/damaged_run).
+-- Posture-slot table for the dmg_norm torso overlay (damaged_walk / damaged_run anims).
 -- Engine indexes torso anims by weapon posture slot, not inventory slot. Missing entries fall
 -- through to slot 0 (fist). Slots 5, 7 not present in vanilla OMF.
 local LIMP_IDLE_BY_SLOT = {
