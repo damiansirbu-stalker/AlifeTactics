@@ -370,7 +370,7 @@ Resolvers return a reason code on failure (`no_cover`, `no_flank_room`, `no_path
 - vanilla `xr_combat.script`, `xr_combat_camper.script`, `xr_combat_monolith.script`, `xr_combat_zombied.script`
 - `xr_cover.script`, `xr_smartcover.script`, `xr_combat_ignore.script`, `visual_memory_manager.script`
 - smart terrain configs, job XML, condlists
-- `script_combat_type` writes from other mods (they still execute; vanilla planner is blocked so they have no effect for in-share NPCs)
+- `script_combat_type` writes from other mods: AT never reads or writes the field. Its precondition block covers only `action_combat_planner` / `action_danger_planner` / `xr_danger` / `state_mgr+2` / `alife` — **not** the combat sub-scheme actions (`combat_camper_base` / `combat_monolith_base` / `combat_zombied_base`, which reach `property_enemy=false` on their own) nor the camper-job combat action (`stohe_camper_base`). So AT owns an NPC only when its combat routes through `action_combat_planner`; an NPC actively on a combat sub-scheme or a camper job is not preempted by the block. In GAMMA runtime testing the camper combat sub-scheme stayed dormant (`script_combat_type` never resolved to a sub-scheme for any NPC fighting the actor), so every combatant routed through `action_combat_planner` and AT took it. Camper-*job* NPCs (`active_scheme == "camper"`) firing from a post showed `best_enemy() == nil` and were skipped by the eligibility chain (`no_enemy`), not by the precondition block — see Eligibility step 6.
 
 ### MCM
 
