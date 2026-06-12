@@ -78,10 +78,10 @@ local BEHAVIORS = {
         plan = { state = "assault_fire",     body = "standing", mvt = "run",   target = "cover_flank" },
     },
     ADVANCE_OPEN_RUN = {
-        plan = { state = "assault_fire",     body = "standing", mvt = "run",   target = "charge_enemy" },
+        plan = { state = "assault_fire",     body = "standing", mvt = "run",   target = "charge_enemy", track = true },
     },
     ADVANCE_OPEN_WALK = {
-        plan = { state = "raid_fire",        body = "standing", mvt = "walk",  target = "charge_enemy" },
+        plan = { state = "raid_fire",        body = "standing", mvt = "walk",  target = "charge_enemy", track = true },
     },
     ADVANCE_OPEN_STEP = {
         plan = { state = "assault_fire",     body = "standing", mvt = "walk",  target = "step_toward_short" },
@@ -153,9 +153,10 @@ local function _resolve_cover_step_fwd(npc, ctx)
     end
     if ctx.dist > 0 then
         local dir = vector():set(ctx.dx / ctx.dist, 0, ctx.dz / ctx.dist)
-        return xcombat.vertex_toward(npc, ctx.npc_lvid, dir, step)
+        local fb = xcombat.vertex_toward(npc, ctx.npc_lvid, dir, step)
+        if fb then return fb end
     end
-    return nil
+    return nil, "no_cover_no_path"
 end
 
 local function _resolve_cover_nearest(npc, ctx)
@@ -163,11 +164,13 @@ local function _resolve_cover_nearest(npc, ctx)
     local search_pos = vector():set(ctx.npc_pos.x + ox, ctx.npc_pos.y, ctx.npc_pos.z + oz)
     local lvid = xcombat.cover_vertex(npc, search_pos, ctx.ene_pos, COVER_NEAR_R)
     if lvid then return lvid end
-    return xcombat.cover_vertex(npc, search_pos, ctx.ene_pos, COVER_WIDE_R)
+    lvid = xcombat.cover_vertex(npc, search_pos, ctx.ene_pos, COVER_WIDE_R)
+    if lvid then return lvid end
+    return nil, "no_cover"
 end
 
 local function _resolve_step_away(npc, ctx)
-    if ctx.dist <= 0 then return nil end
+    if ctx.dist <= 0 then return nil, "adjacent" end
     local step = STEP_AWAY_M
     local k = step / ctx.dist
     local target_pos = vector():set(
@@ -182,7 +185,9 @@ local function _resolve_step_away(npc, ctx)
         if lvid then return lvid end
     end
     local dir = vector():set(-ctx.dx / ctx.dist, 0, -ctx.dz / ctx.dist)
-    return xcombat.vertex_toward(npc, ctx.npc_lvid, dir, step)
+    local fb = xcombat.vertex_toward(npc, ctx.npc_lvid, dir, step)
+    if fb then return fb end
+    return nil, "no_cover_no_path"
 end
 
 local function _resolve_charge_enemy(npc, ctx)
@@ -191,9 +196,10 @@ local function _resolve_charge_enemy(npc, ctx)
     if ctx.dist > 0 then
         local dir = vector():set(ctx.dx / ctx.dist, 0, ctx.dz / ctx.dist)
         local step = math_min(ctx.dist, CHARGE_STEP_M)
-        return xcombat.vertex_toward(npc, ctx.npc_lvid, dir, step)
+        local fb = xcombat.vertex_toward(npc, ctx.npc_lvid, dir, step)
+        if fb then return fb end
     end
-    return nil
+    return nil, "no_path_to_enemy"
 end
 
 local function _resolve_hold(_npc, ctx, self)
@@ -201,7 +207,7 @@ local function _resolve_hold(_npc, ctx, self)
 end
 
 local function _resolve_cover_flank(npc, ctx)
-    if ctx.dist <= 0 then return nil end
+    if ctx.dist <= 0 then return nil, "adjacent" end
     local sign = (ctx.id % 2 == 0) and 1 or -1
     local nx, nz = ctx.dx / ctx.dist, ctx.dz / ctx.dist
     local px, pz = -nz * sign, nx * sign
@@ -214,25 +220,33 @@ local function _resolve_cover_flank(npc, ctx)
         if lvid then return lvid end
     end
     local dir = vector():set(px, 0, pz)
-    return xcombat.vertex_toward(npc, ctx.npc_lvid, dir, FLANK_LATERAL_M)
+    local fb = xcombat.vertex_toward(npc, ctx.npc_lvid, dir, FLANK_LATERAL_M)
+    if fb then return fb end
+    return nil, "no_flank_room"
 end
 
 local function _resolve_flee_far(npc, ctx)
-    if ctx.dist <= 0 then return nil end
+    if ctx.dist <= 0 then return nil, "adjacent" end
     local dir = vector():set(-ctx.dx / ctx.dist, 0, -ctx.dz / ctx.dist)
-    return xcombat.vertex_toward(npc, ctx.npc_lvid, dir, FLEE_STEP_M)
+    local fb = xcombat.vertex_toward(npc, ctx.npc_lvid, dir, FLEE_STEP_M)
+    if fb then return fb end
+    return nil, "no_flee_room"
 end
 
 local function _resolve_step_toward_short(npc, ctx)
-    if ctx.dist <= 0 then return nil end
+    if ctx.dist <= 0 then return nil, "adjacent" end
     local dir = vector():set(ctx.dx / ctx.dist, 0, ctx.dz / ctx.dist)
-    return xcombat.vertex_toward(npc, ctx.npc_lvid, dir, STEP_SHORT_M)
+    local fb = xcombat.vertex_toward(npc, ctx.npc_lvid, dir, STEP_SHORT_M)
+    if fb then return fb end
+    return nil, "no_step_room"
 end
 
 local function _resolve_step_away_short(npc, ctx)
-    if ctx.dist <= 0 then return nil end
+    if ctx.dist <= 0 then return nil, "adjacent" end
     local dir = vector():set(-ctx.dx / ctx.dist, 0, -ctx.dz / ctx.dist)
-    return xcombat.vertex_toward(npc, ctx.npc_lvid, dir, STEP_SHORT_M)
+    local fb = xcombat.vertex_toward(npc, ctx.npc_lvid, dir, STEP_SHORT_M)
+    if fb then return fb end
+    return nil, "no_step_room"
 end
 
 local TARGET_RESOLVERS = {
@@ -590,7 +604,9 @@ local function _on_pick_fail(id)
     local streak = (_fail_streak[id] or 0) + 1
     _fail_streak[id] = streak
     if streak >= FAIL_THRESHOLD then
-        _fail_until[id] = time_global() + FAIL_BACKOFF_MS * (streak - FAIL_THRESHOLD + 1)
+        local backoff = FAIL_BACKOFF_MS * (streak - FAIL_THRESHOLD + 1)
+        _fail_until[id] = time_global() + backoff
+        if _dbg then log.debug("[BACKOFF] npc=%d streak=%d backoff=%dms -> vanilla", id, streak, backoff) end
     end
     return streak
 end
@@ -622,18 +638,32 @@ function action_at_combat:_repick(plan, ctx)
     local id = npc:id()
     local resolver = TARGET_RESOLVERS[plan.target]
     if not resolver then return end
-    local new_lvid = resolver(npc, ctx, self)
+    local new_lvid, reason = resolver(npc, ctx, self)
     if not new_lvid then
-        _on_pick_fail(id)
+        local streak = _on_pick_fail(id)
+        if _dbg then
+            log.debug("[RESOLVE] npc=%d %s target=%s FAIL reason=%s streak=%d dist=%.1f",
+                id, tostring(self.current_behavior), plan.target, reason or "?", streak, ctx.dist)
+        end
         return
     end
     _fail_streak[id] = 0
     if new_lvid == self.target_lvid then return end
     local skip_reservation = (plan.target == "charge_enemy")
-    if not skip_reservation and not _claim(new_lvid, id) then return end
+    if not skip_reservation and not _claim(new_lvid, id) then
+        if _dbg then
+            log.debug("[RESOLVE] npc=%d %s target=%s contested lvid=%d",
+                id, tostring(self.current_behavior), plan.target, new_lvid)
+        end
+        return
+    end
     _release(self.target_lvid, id)
     self.target_lvid = new_lvid
-    npc:set_dest_level_vertex_id(new_lvid)
+    xcombat.send_to(npc, new_lvid)
+    if _dbg then
+        log.debug("[RESOLVE] npc=%d %s target=%s ok lvid=%d dist=%.1f",
+            id, tostring(self.current_behavior), plan.target, new_lvid, ctx.dist)
+    end
 end
 
 function action_at_combat:_switch(name, ctx)
@@ -710,12 +740,21 @@ function action_at_combat:execute()
     if not rules then return end
 
     local picked = _decide(rules, state, first_delta, id)
+    if _dbg then
+        log.debug("[DECIDE] npc=%d comm=%s env=%s hp=%s contact=%s range=%s threat=%s pos=%s squad=%s fline=%s wpn=%s dist=%.1f delta=%s -> %s",
+            id, state.community, state.environment, state.health, state.contact,
+            state.range_fit, state.threat, state.position, state.squad, state.friendly_line,
+            state.weapon_kind or "none", dist, tostring(first_delta), tostring(picked))
+    end
     if not picked then return end
 
     if picked ~= self.current_behavior then
         self:_switch(picked, ctx)
-    elseif xcombat.cover_stolen(self.target_lvid, id) then
-        self:_repick(BEHAVIORS[picked].plan, ctx)
+    else
+        local plan = BEHAVIORS[picked].plan
+        if plan.track or xcombat.cover_stolen(self.target_lvid, id) then
+            self:_repick(plan, ctx)
+        end
     end
 
     npc:set_sight(look.fire_point,

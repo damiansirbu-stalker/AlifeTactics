@@ -241,21 +241,21 @@ Fast-fail chain, in order; first failing returns `(false, reason)`:
 
 | Gate | Value | Source |
 |---|---|---|
-| Global | 250ms | `throttle_global_ms` in `at_combat.ltx` |
 | Per-NPC | 1500ms | `throttle_npc_ms` in `at_combat.ltx` |
+
+Stamped on entry once a live enemy is confirmed, so a no-delta steady state costs one state read per window, not one per frame. Sole governor; total cost is bounded by the in-combat NPC count, so no global gate is needed.
 
 ### Per-tick flow
 
-1. Throttle gates (global → per-NPC) — return early on miss
-2. `best_enemy` check — return on nil
+1. Per-NPC throttle gate — return early on miss
+2. `best_enemy` check — return on nil; stamp the per-NPC throttle on pass
 3. `_state[id]` init on first tick (forces `first_delta = "init"`)
 4. `_update_state` reads 8 state machines, tracks `first_delta`
 5. No delta → return (current behavior preserved)
 6. Look up rules: `FACTION_RULES[env][community]` with `[env .. "_DEFAULT"]` fallback
 7. `_decide(rules, state, first_delta, npc_id)` walks rules
-8. `_switch(picked, ctx)` if behavior changed, else `_repick` if cover stolen
+8. `_switch(picked, ctx)` if behavior changed; else `_repick` if the behavior tracks a moving target (charge) or cover was stolen
 9. `npc:set_sight(look.fire_point, ene_pos + 1.5y)` for fire dispatch
-10. Stamp throttle timestamps
 
 ### Decide algorithm
 
@@ -310,6 +310,8 @@ Naming: `MOVE_COVER_QUALIFIER`. `MOVE` ∈ {ADVANCE, RETREAT, HOLD}. `COVER` ∈
 
 Squad lateral spread applied to cover-seeking resolvers via `xcombat.lateral_offset(bucket, ...)`.
 
+Resolvers compute the intent geometry (forward / lateral / back offsets, enemy axis, squad spread); the move itself routes through the robust xlibs primitives — `cover_vertex` expands its radius and skips reserved cover, `vertex_toward` decreases its step until a free node validates, and `_repick` issues the move via `send_to`, which reroutes to the nearest accessible node so a blocked exact target degrades instead of failing. Charge (`charge_enemy`) re-resolves each tick to follow the moving enemy.
+
 ### Rule lists (v1)
 
 Shipping rule lists. Other communities fall through to `STALKER_DEFAULT`.
@@ -357,6 +359,8 @@ When AT eval returns true, these vanilla actions are blocked from running. When 
 | Eval during backoff | returns `(false, "fail_backoff")` → vanilla resumes |
 | Successful pick | `_fail_streak[id] = 0` |
 
+Resolvers return a reason code on failure (`no_cover`, `no_flank_room`, `no_path_to_enemy`, `adjacent`, ...). With `log_level = DEBUG`, the decide loop emits per-tick `[DECIDE]` (full state snapshot + picked behavior), `[RESOLVE]` (ok / fail with reason + streak / contested), and `[BACKOFF]` lines to `alifetactics.log`. All trace points are gated, noop when DEBUG is off.
+
 ### Sniper-aim engine flag
 
 `HOLD_OPEN_SNIPE` sets `plan.sniper_aim = true`. `_apply_plan` calls `npc:sniper_fire_mode(true)`. Engine swaps aim direction from weapon barrel to head target (via `state_mgr.set_state(..., { look_object = enemy })`). Cleared on behavior change away from sniper or on `finalize`.
@@ -385,7 +389,10 @@ When AT eval returns true, these vanilla actions are blocked from running. When 
 | `has_occluder_between(a, b)` | Static-geometry raycast between positions |
 | `friendly_in_line(npc, npc_pos, ene_pos, thresh)` | Squadmate-on-firing-line projection check |
 | `is_indoor(pos)` | Level-name table + surge-shelter smart proximity |
-| `claim_cover` / `release_cover` / `cover_stolen` | `db.used_level_vertex_ids` reservation wrappers |
+| `vertex_toward(npc, lvid, dir, step)` | Nearest free accessible vertex toward `dir`, decreasing the step until one validates |
+| `cover_vertex(npc, pos, ene, max_r)` | Nearest free cover facing the enemy, expanding radius, skips reserved vertices |
+| `send_to(npc, vid)` | Move toward `vid`, reroute to nearest accessible node if blocked; never fails |
+| `claim_cover` / `release_cover` / `cover_stolen` | `db.used_level_vertex_ids` reservation wrappers (shared with vanilla and other mods) |
 | `squad_alive_count(squad_id)` | TTL-cached live count |
 | `squad_initial(squad_id, set?)` | Initial squad size per combat session |
 | `squadmate_in` / `record_pick` / `clear_pick` | Per-squad behavior census |
