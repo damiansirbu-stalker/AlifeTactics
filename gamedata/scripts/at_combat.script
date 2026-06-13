@@ -23,7 +23,7 @@ local ACT_ID  = 188200
 local LTX_PATH    = "alifetactics\\at_combat.ltx"
 local LTX_SECTION = "at_combat"
 
-local ADVANCE_STEP_M, STEP_AWAY_M, CHARGE_STEP_M, STEP_SHORT_M
+local ADVANCE_STEP_M, STEP_AWAY_M, CHARGE_MIN_DIST_M, STEP_SHORT_M
 local FLANK_LATERAL_M, FLANK_FORWARD_M, FLEE_STEP_M, COVER_REACH_SQR
 local SQUAD_LATERAL_BUCKETS, SQUAD_LATERAL_STEP_M
 local THROTTLE_NPC_MS
@@ -37,7 +37,7 @@ local function _load_tunables()
     ADVANCE_STEP_M           = f("advance_step_m",            15)
     STEP_AWAY_M              = f("step_away_m",               15)
     STEP_SHORT_M             = f("step_short_m",              4)
-    CHARGE_STEP_M            = f("charge_step_m",             20)
+    CHARGE_MIN_DIST_M        = f("charge_min_dist_m",         10)
     FLANK_LATERAL_M          = f("flank_lateral_m",           20)
     FLANK_FORWARD_M          = f("flank_forward_m",           5)
     FLEE_STEP_M              = f("flee_step_m",               30)
@@ -196,15 +196,11 @@ local function _resolve_step_away(npc, ctx)
 end
 
 local function _resolve_charge_enemy(npc, ctx)
-    local elvid = ctx.enemy:level_vertex_id()
-    if elvid and elvid < INVALID_LVID and npc:accessible(elvid) then return elvid end
-    if ctx.dist > 0 then
-        local dir = vector():set(ctx.dx / ctx.dist, 0, ctx.dz / ctx.dist)
-        local step = math_min(ctx.dist, CHARGE_STEP_M)
-        local fb = xcombat.vertex_toward(npc, ctx.npc_lvid, dir, step)
-        if fb then return fb end
-    end
-    return nil, "no_path_to_enemy"
+    -- aim for a standoff ring CHARGE_MIN_DIST_M from the enemy, not the enemy itself, so the NPC
+    -- closes to firing distance and stops rather than running into the enemy's face
+    if ctx.dist <= CHARGE_MIN_DIST_M then return ctx.npc_lvid end
+    local dir = vector():set(ctx.dx / ctx.dist, 0, ctx.dz / ctx.dist)
+    return xcombat.vertex_toward(npc, ctx.npc_lvid, dir, ctx.dist - CHARGE_MIN_DIST_M) or ctx.npc_lvid
 end
 
 local function _resolve_hold(_npc, ctx, self)
@@ -242,15 +238,15 @@ local function _resolve_step_away_short(npc, ctx)
     return _pick_move_vertex(npc, ctx, dir, STEP_SHORT_M)
 end
 
--- A maneuver: the resolver that picks its move target, plus how that target is held. Default is a
--- private position the squad reserves. charge_enemy is the lone exception -- it converges on the
--- moving enemy, so it chases (re-resolves each tick) and shares the target (reserve = false). The
--- executor reads these fields; it never special-cases a maneuver by name.
+-- A maneuver: the resolver that picks the move target, plus how that target is held. By default a
+-- maneuver reserves a private squad position; reserve = false shares it instead. A behavior resolves
+-- its target once when picked and again only if a squadmate claims that vertex (cover_stolen). The
+-- executor reads these fields and never special-cases a maneuver by name.
 local MANEUVERS = {
     cover_step_fwd     = { resolve = _resolve_cover_step_fwd },
     cover_nearest      = { resolve = _resolve_cover_nearest },
     step_away          = { resolve = _resolve_step_away },
-    charge_enemy       = { resolve = _resolve_charge_enemy, chase = true, reserve = false },
+    charge_enemy       = { resolve = _resolve_charge_enemy },
     cover_flank        = { resolve = _resolve_cover_flank },
     flee_far           = { resolve = _resolve_flee_far },
     hold               = { resolve = _resolve_hold },
@@ -396,6 +392,7 @@ local function _init_state(npc)
         range_fit     = "IN_ZONE",
         threat        = "SAFE",
         position      = "EXPOSED",
+        enemy_moved   = -1,
     }
 end
 
@@ -417,6 +414,7 @@ local function _update_state(npc, enemy, state, tg, ctx)
     first = _track(state, "range_fit",     _read_range_fit(state, ctx.dist),                        first)
     first = _track(state, "threat",        _read_threat(npc, enemy, state, tg),                     first)
     first = _track(state, "position",      _read_position(ctx.npc_pos, ctx.ene_pos, state),         first)
+    first = _track(state, "enemy_moved",   enemy:level_vertex_id(),                                 first)
     return first
 end
 
@@ -748,7 +746,7 @@ function action_at_combat:_decide_tick(npc, id, enemy, tg)
     else
         local plan = BEHAVIORS[picked].plan
         local maneuver = MANEUVERS[plan.target]
-        if maneuver and (maneuver.chase or xcombat.cover_stolen(self.target_lvid, id)) then
+        if maneuver and xcombat.cover_stolen(self.target_lvid, id) then
             self:_repick(plan, ctx)
         end
     end
