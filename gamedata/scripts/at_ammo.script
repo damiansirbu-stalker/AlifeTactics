@@ -191,10 +191,7 @@ local function _on_update(npc)
     _last_tick[id] = now
 
     if not npc:best_enemy() then return end
-    local tmr = xprofiler.new_if(_dbg):start()
     pick(npc)
-    tmr:stop()
-    if _dbg then log.debug("[PERF] ammo_pick npc=%d %.3fms", id, tmr:get_ms()) end
 end
 
 -- Trim every ammo box in the dead NPC's inventory to MIN_SPARE so it survives
