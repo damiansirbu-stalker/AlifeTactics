@@ -290,7 +290,6 @@ Naming: `MOVE_COVER_QUALIFIER`. `MOVE` ∈ {ADVANCE, RETREAT, HOLD}. `COVER` ∈
 | HOLD_OPEN_CROUCH | hide_fire | crouch | stand | hold | — |
 | HOLD_OPEN_SNIPE | hide_sniper_fire | crouch | stand | hold | true |
 | HOLD_OPEN_HIDE | hide_na | crouch | stand | hold | — |
-| SUPPRESS_OPEN_CROUCH | hide_fire | crouch | stand | hold | — |
 
 `body` / `mvt` stored as strings; resolved at apply time via `move[name]`.
 
@@ -306,7 +305,7 @@ Naming: `MOVE_COVER_QUALIFIER`. `MOVE` ∈ {ADVANCE, RETREAT, HOLD}. `COVER` ∈
 | flee_far | RETREAT_OPEN_STAND | 30m backward, no cover |
 | step_away_short | RETREAT_OPEN_STEP | 4m back, no cover |
 | cover_nearest | HOLD_COVER_CROUCH | npc + lateral bucket → best_cover (two-tier radius) |
-| hold | HOLD_OPEN_CROUCH, HOLD_OPEN_SNIPE, HOLD_OPEN_HIDE, SUPPRESS_OPEN_CROUCH | current `target_lvid` or `npc_lvid` |
+| hold | HOLD_OPEN_CROUCH, HOLD_OPEN_SNIPE, HOLD_OPEN_HIDE | current `target_lvid` or `npc_lvid` |
 
 Squad lateral spread applied to cover-seeking resolvers via `xcombat.lateral_offset(bucket, ...)`.
 

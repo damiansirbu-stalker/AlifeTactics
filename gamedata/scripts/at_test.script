@@ -348,7 +348,7 @@ function at_dump()
 end
 
 local CROUCH_BEHAVIORS = {
-    HOLD_COVER_CROUCH = true, HOLD_OPEN_CROUCH = true, SUPPRESS_OPEN_CROUCH = true,
+    HOLD_COVER_CROUCH = true, HOLD_OPEN_CROUCH = true,
     HOLD_OPEN_SNIPE = true, RETREAT_COVER_CROUCH = true,
 }
 

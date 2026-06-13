@@ -115,9 +115,6 @@ local BEHAVIORS = {
     HOLD_OPEN_HIDE = {
         plan = { state = "hide_na",          body = "crouch",   mvt = "stand", target = "hold" },
     },
-    SUPPRESS_OPEN_CROUCH = {
-        plan = { state = "hide_fire",        body = "crouch",   mvt = "stand", target = "hold" },
-    },
 }
 
 
@@ -441,7 +438,7 @@ local MILITARY_OUTDOOR = {
     { when = function(s) return s.contact == "VISUAL" and s.weapon_kind == "w_sniper" end,
       do_ = "HOLD_OPEN_SNIPE" },
     { when = function(s) return s.contact == "VISUAL" and (s.weapon_kind == "w_smg" or s.weapon_kind == "w_rifle") end,
-      do_ = "SUPPRESS_OPEN_CROUCH" },
+      do_ = "HOLD_OPEN_CROUCH" },
     { when = function(s) return s.contact == "VISUAL" end,
       do_ = "ADVANCE_COVER_FLANK" },
     { when = function(s) return s.contact == "NO_VISUAL" end,
@@ -465,8 +462,6 @@ local MILITARY_INDOOR = {
       do_ = "ADVANCE_OPEN_RUN" },
     { when = function(s) return s.range_fit == "TOO_FAR" end,
       do_ = "ADVANCE_OPEN_STEP" },
-    { when = function(s) return s.contact == "VISUAL" and (s.weapon_kind == "w_smg" or s.weapon_kind == "w_rifle") end,
-      do_ = "SUPPRESS_OPEN_CROUCH" },
     { when = function(s) return s.contact == "VISUAL" end,
       do_ = "HOLD_OPEN_CROUCH" },
     { when = function(s) return s.contact == "NO_VISUAL" end,
