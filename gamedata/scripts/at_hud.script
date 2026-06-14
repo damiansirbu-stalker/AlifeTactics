@@ -7,7 +7,7 @@ local IsStalker, RegisterScriptCallback = IsStalker, RegisterScriptCallback
 local log = xlog.get_logger("AT.HUD", { outfile = "alifetactics.log" })
 local cfg = at_mcm.cfg
 
-local AT_COMBAT_ACT_ID = 188200
+local AT_COMBAT_ACT_ID = at_combat.ACT_ID
 local REFRESH_INTERVAL_SEC = 1
 
 local ROW_H     = 14

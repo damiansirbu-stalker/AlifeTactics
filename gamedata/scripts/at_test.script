@@ -357,6 +357,15 @@ local function _fmt_counts(tbl)
     return table_concat(parts, " ")
 end
 
+local function _fmt_stages(stages)
+    local parts = {}
+    for name, st in pairs(stages) do
+        parts[#parts + 1] = string_format("%s=%.3f/%.3f(n%d)",
+            name, st.n > 0 and st.sum / st.n or 0, st.max, st.n)
+    end
+    return table_concat(parts, " ")
+end
+
 local function _inc(tbl, key) tbl[key] = (tbl[key] or 0) + 1 end
 
 --- @export console
@@ -375,7 +384,9 @@ function at_combat_stats()
     log.info("[STATS] managed=%d rejected: %s", managed, _fmt_counts(rejects))
     log.info("[STATS] decisions=%d crouch=%.0f%% behaviors: %s",
         total, total > 0 and crouch / total * 100 or 0, _fmt_counts(stats.behaviors))
-    log.info("[STATS] resolve: %s backoffs=%d", _fmt_counts(stats.resolve), stats.backoffs)
+    log.info("[STATS] resolve: %s backoffs=%d cover: %s",
+        _fmt_counts(stats.resolve), stats.backoffs, _fmt_counts(stats.cover))
+    log.info("[STATS] stages (avg/max ms): %s", _fmt_stages(stats.stages))
     log.info("[STATS] perf tick avg=%.3fms max=%.3fms n=%d | read avg=%.3fms n=%d",
         stats.tick_n > 0 and stats.tick_sum / stats.tick_n or 0, stats.tick_max, stats.tick_n,
         stats.read_n > 0 and stats.read_sum / stats.read_n or 0, stats.read_n)

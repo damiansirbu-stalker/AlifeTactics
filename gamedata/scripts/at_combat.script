@@ -12,8 +12,12 @@ local log = xlog.get_logger("AT.COMBAT", { outfile = "alifetactics.log" })
 local _dbg = false
 local cfg = at_mcm.cfg
 
-local EVAL_ID = 188200
-local ACT_ID  = 188200
+-- Custom GOAP evaluator + action id, registered per stalker on its motivation_action_manager. The 188000+
+-- band stays clear of the engine/Anomaly base ids (low offsets from stalker_ids.action_script); 188200 sits
+-- above xr_danger's 188113. See doc/library/modding/goap-injection.md:237. ACT_ID is a module field so
+-- at_hud reads one source instead of re-hardcoding the literal.
+ACT_ID = 188200
+local EVAL_ID = ACT_ID
 
 -- xcombat control-knob aliases
 local FIRE, SNIPE, STOW       = xcombat.FIRE, xcombat.SNIPE, xcombat.STOW
@@ -21,8 +25,8 @@ local STAND, CROUCH           = xcombat.STAND, xcombat.CROUCH
 local STILL, WALK, RUN        = xcombat.STILL, xcombat.WALK, xcombat.RUN
 
 -- Roles (the slot a maneuver fills in a palette; one per faction)
-local R_HOLD, R_SNIPE, R_COVER, R_FWD, R_BACK, R_FLANK, R_SIDE =
-      "hold", "snipe", "cover", "forward", "back", "flank", "step_side"
+local R_HOLD, R_SNIPE, R_COVER, R_FWD, R_BACK, R_FLANK, R_SIDE, R_FALLBACK =
+      "hold", "snipe", "cover", "forward", "back", "flank", "step_side", "fallback"
 
 -- Problems, highest priority first
 local P_HURT, P_LOST, P_BLOCKED, P_FAR, P_CLOSE, P_NONE =
@@ -42,6 +46,10 @@ local GROUP_STYLE = { [DISC] = "COVER", [MONO] = "COVER", [COMMON] = "MIXED", [R
 local GROUP_LEAN  = { [DISC] = "STEADY", [MONO] = "FEARLESS", [COMMON] = "CAUTIOUS", [RECK] = "AGGRESSIVE", [ZOMB] = "FEARLESS" }
 
 local BUCKET_SNIPER, BUCKET_CLOSE, BUCKET_RIFLE = "SNIPER", "CLOSE", "RIFLE"
+
+-- Pipeline stage names (per-stage perf timers -> at_combat_trace.stage)
+local S_REFRESH, S_READ, S_PICK, S_RESOLVE, S_APPLY =
+      "refresh", "read", "pick", "resolve", "apply"
 
 
 -- =========================================================================
@@ -96,7 +104,9 @@ local _community   = {}
 -- =========================================================================
 -- Maneuver catalog. Each carries its role, fire mode, cover flag, and the three doctrine tags
 -- (factions / weapons / environment). Posture and speed are NOT here - they are rolled at maneuver
--- start (see _roll). DROPPED no-user combos: BACK_*_FIRE, FLANK_OPEN_STOW, FORWARD_OPEN_STOW.
+-- start (see _roll). R_BACK (STOW) is the wounded-flee fall-back; R_FALLBACK (FIRE) is the range-management
+-- fighting withdrawal - weapon up, firing while backing. DROPPED no-user combos: BACK_COVER_FIRE,
+-- FLANK_OPEN_STOW, FORWARD_OPEN_STOW.
 -- =========================================================================
 
 -- nil tag = applies to everything
@@ -113,6 +123,7 @@ local MANEUVERS = {
     FORWARD_COVER_STOW = { role = R_FWD,   fire = STOW,  cover = true, factions = { [DISC]=true } },
     BACK_OPEN_STOW     = { role = R_BACK,  fire = STOW,  factions = { [COMMON]=true, [RECK]=true } },
     BACK_COVER_STOW    = { role = R_BACK,  fire = STOW,  cover = true, factions = { [DISC]=true } },
+    BACK_OPEN_FIRE     = { role = R_FALLBACK, fire = FIRE, factions = { [DISC]=true, [COMMON]=true, [RECK]=true } },
     FLANK_OPEN_FIRE    = { role = R_FLANK, fire = FIRE,  factions = { [RECK]=true },  env = "OUTDOOR" },
     FLANK_COVER_FIRE   = { role = R_FLANK, fire = FIRE,  cover = true, factions = { [MONO]=true }, env = "OUTDOOR" },
     FLANK_COVER_STOW   = { role = R_FLANK, fire = STOW,  cover = true, factions = { [DISC]=true }, env = "OUTDOOR" },
@@ -160,7 +171,7 @@ local function _resolve(maneuver, npc, ctx, state)
     if role == R_FWD then
         local standoff = STANDOFF[state.bucket_name] or 0
         dir, dist = ctx.dir_to, math_min(ADVANCE_STEP_M, math_max(ctx.dist - standoff, 0))
-    elseif role == R_BACK then
+    elseif role == R_BACK or role == R_FALLBACK then
         dir, dist = vector():set(-ctx.dir_to.x, 0, -ctx.dir_to.z), BACK_STEP_M
     elseif role == R_FLANK then
         local fx = -ctx.dir_to.z * sign * FLANK_LAT_M + ctx.dir_to.x * FLANK_FWD_M
@@ -224,8 +235,14 @@ local function _read_problem(npc, enemy, state, ctx, tg)
 
     if state.lean ~= "FEARLESS" and npc.health < HURT_FRAC then return P_HURT end
     if (tg - state.last_seen) > LOST_SIGHT_MS then return P_LOST end
-    if xcombat.has_friendly_in_line(npc, ctx.npc_pos, ctx.ene_pos, FRIENDLY_THRESH_M) then return P_BLOCKED end
-    if not see and xcombat.has_occluder_between(ctx.npc_pos, ctx.ene_pos) then return P_BLOCKED end
+    local friendly = xcombat.has_friendly_in_line(npc, ctx.npc_pos, ctx.ene_pos, FRIENDLY_THRESH_M)
+    ctx.r_friendly = friendly
+    if friendly then return P_BLOCKED end
+    if not see then
+        local occluder = xcombat.has_occluder_between(ctx.npc_pos, ctx.ene_pos)
+        ctx.r_occluder = occluder
+        if occluder then return P_BLOCKED end
+    end
 
     local zone = _range_zone(state, ctx.dist)
     if zone == "FAR" then return P_FAR end
@@ -242,7 +259,7 @@ local function _pick(state, problem, pal)
         if state.bucket_name == BUCKET_SNIPER then return pal[R_SNIPE] or pal[R_HOLD] end
         return pal[R_FWD] or pal[R_HOLD]
     end
-    if problem == P_CLOSE then return pal[R_BACK] or pal[R_HOLD] end
+    if problem == P_CLOSE then return pal[R_FALLBACK] or pal[R_BACK] or pal[R_HOLD] end
     -- P_NONE: the resting base
     if state.bucket_name == BUCKET_SNIPER and pal[R_SNIPE] then return pal[R_SNIPE] end
     if state.style == "COVER" and not state.at_cover and pal[R_COVER] then return pal[R_COVER] end
@@ -354,6 +371,18 @@ local function _on_pick_fail(id)
     end
 end
 
+-- Cover sticky test: true = hold the reserved peek (not yet reached and not stolen). Traces held / stolen.
+-- @cost O(1) | 0 luabind (is_cover_stolen is a db table read)
+local function _cover_held(target_lvid, is_cover, npc_lvid, id)
+    if not (is_cover and target_lvid and npc_lvid ~= target_lvid) then return false end
+    if xcombat.is_cover_stolen(target_lvid, id) then
+        at_combat_trace.cover(id, "stolen", target_lvid)
+        return false
+    end
+    at_combat_trace.cover(id, "held", target_lvid)
+    return true
+end
+
 -- Resolve + send the destination for the active maneuver. Cover targets are sticky (kept until reached
 -- or stolen); other moves re-resolve each recompute to track the enemy; stationary parks on the own node.
 function action_at_combat:_move(maneuver, ctx, state)
@@ -373,13 +402,11 @@ function action_at_combat:_move(maneuver, ctx, state)
     end
 
     -- cover targets are sticky: hold the reserved peek until it is reached or stolen
-    if is_cover and self.target_lvid
-       and not xcombat.is_cover_stolen(self.target_lvid, id)
-       and ctx.npc_lvid ~= self.target_lvid then
-        return
-    end
+    if _cover_held(self.target_lvid, is_cover, ctx.npc_lvid, id) then return end
 
+    local mtmr = xprofiler.new_if(_dbg):start()
     local vid = _resolve(maneuver, npc, ctx, state)
+    at_combat_trace.stage(id, S_RESOLVE, mtmr:stop():get_ms())
     if not vid then
         _on_pick_fail(id)
         at_combat_trace.resolve_fail(id, self.current_behavior, ctx.dist)
@@ -387,12 +414,15 @@ function action_at_combat:_move(maneuver, ctx, state)
     end
     _fail_streak[id] = 0
     if vid == self.target_lvid then return end
-    if is_cover and not _claim(vid, id) then return end
+    if is_cover and not _claim(vid, id) then
+        at_combat_trace.cover(id, "claim_fail", vid)
+        return
+    end
     _release(self.target_lvid, id)
     self.target_lvid = vid
     state.last_cover_vid = is_cover and vid or nil
     local sent = xcombat.send_to(npc, vid)
-    at_combat_trace.resolve_ok(id, self.current_behavior, vid, sent, ctx.dist)
+    at_combat_trace.resolve_ok(id, self.current_behavior, vid, sent, ctx.dist, is_cover and "claimed" or nil)
 end
 
 -- Switch to a new maneuver: release old cover, roll posture/speed, write the combat state, resolve dest.
@@ -404,9 +434,11 @@ function action_at_combat:_apply(maneuver, name, ctx, state)
     self.current_behavior = name
     local stationary = (maneuver.role == R_HOLD or maneuver.role == R_SNIPE)
     self.posture, self.movement = _roll(maneuver.fire, stationary)
+    local atmr = xprofiler.new_if(_dbg):start()
     xcombat.set_combat(self.object, { fire = maneuver.fire, posture = self.posture, movement = self.movement, aim = ctx.enemy })
+    at_combat_trace.stage(id, S_APPLY, atmr:stop():get_ms())
+    at_combat_trace.switch(id, name, maneuver.fire, self.posture, self.movement)
     self:_move(maneuver, ctx, state)
-    at_combat_trace.switch(id, name)
 end
 
 function action_at_combat:initialize()
@@ -450,7 +482,9 @@ function action_at_combat:_decide_tick(npc, id, enemy, tg)
     local npc_pos = npc:position()
     local ene_pos = enemy:position()
     local npc_lvid = npc:level_vertex_id()
+    local rtmr = xprofiler.new_if(_dbg):start()
     _refresh(state, npc, npc_pos, npc_lvid)
+    at_combat_trace.stage(id, S_REFRESH, rtmr:stop():get_ms())
 
     local dx = ene_pos.x - npc_pos.x
     local dz = ene_pos.z - npc_pos.z
@@ -470,11 +504,16 @@ function action_at_combat:_decide_tick(npc, id, enemy, tg)
 
     state.at_cover = state.last_cover_vid ~= nil and npc_lvid == state.last_cover_vid
 
+    local rdtmr = xprofiler.new_if(_dbg):start()
     local problem = _read_problem(npc, enemy, state, ctx, tg)
-    local picked  = _pick(state, problem, state.palette) or "HOLD_FIRE"
-    at_combat_trace.decide(id, state, problem, picked, dist)
+    at_combat_trace.stage(id, S_READ, rdtmr:stop():get_ms())
+
+    local ptmr = xprofiler.new_if(_dbg):start()
+    local picked = _pick(state, problem, state.palette) or "HOLD_FIRE"
+    at_combat_trace.stage(id, S_PICK, ptmr:stop():get_ms())
 
     local maneuver = MANEUVERS[picked]
+    at_combat_trace.decide(id, npc, state, ctx, tg, problem, maneuver and maneuver.role, picked)
     if not maneuver then return "no_maneuver" end
 
     if picked ~= self.current_behavior then
