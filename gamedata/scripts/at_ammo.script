@@ -1,4 +1,4 @@
---- at_ammo: master-rank NPCs fire AP from inventory until depleted, then revert
+--- at_ammo: veteran-rank NPCs fire AP from inventory until depleted, then revert
 --- to vanilla magic FMJ. Player loots the depletion remainder.
 ---
 --- Engine context: NPCs fire copies of `m_DefaultCartridge` via the magic-refill
@@ -15,8 +15,8 @@
 --- the system reverts to `m_ammoType = 0` (vanilla magic FMJ) for the rest of the
 --- NPC's online session.
 ---
---- Rank gate: only NPCs with `character_rank >= min_ap_rank` (default 17499 =
---- RANK_MASTER per `AlifePlus/ap_core_const.script:15`) ever pick AP. Lower-rank
+--- Rank gate: only NPCs with `character_rank >= min_ap_rank` (default 12000 =
+--- RANK_VETERAN per `AlifePlus/ap_core_const.script:14`) ever pick AP. Lower-rank
 --- NPCs run pure vanilla (m_ammoType=0) and we don't touch them.
 ---
 --- Death hook: trims every ammo box in the dead NPC's inventory to MIN_SPARE so
@@ -37,8 +37,8 @@ local LTX_SECTION = "at_ammo"
 
 -- Fixed list of clean armor-piercing ammo sections. Enumerated from
 -- vanilla Anomaly `configs/items/weapons/` ammo_class scans. Excludes
--- `_bad` / `_verybad` degraded variants by design: low-rank NPCs and
--- non-master NPCs default to vanilla magic FMJ, and master NPCs who
+-- `_bad` / `_verybad` degraded variants by design: sub-veteran NPCs
+-- default to vanilla magic FMJ, and veteran-rank NPCs who
 -- happen to carry only degraded AP variants also fall through to
 -- vanilla rather than firing weak AP. Add new calibers here as needed.
 local AP_SECTIONS = {
@@ -65,7 +65,7 @@ local function _load_tunables()
     local ini = ini_file(LTX_PATH)
     local function i(k, d) local v = ini:r_float_ex(LTX_SECTION, k); return v and math_floor(v) or d end
     MIN_SPARE                = i("min_spare",        3)
-    MIN_AP_RANK              = i("min_ap_rank",      17499)
+    MIN_AP_RANK              = i("min_ap_rank",      12000)
     DRAIN_PER_KIND.w_pistol  = i("drain_w_pistol",   5)
     DRAIN_PER_KIND.w_shotgun = i("drain_w_shotgun",  2)
     DRAIN_PER_KIND.w_smg     = i("drain_w_smg",      10)
@@ -73,7 +73,7 @@ local function _load_tunables()
     DRAIN_PER_KIND.w_sniper  = i("drain_w_sniper",   2)
 end
 
--- Per-NPC state. Set when a master-rank NPC is first observed carrying any
+-- Per-NPC state. Set when a veteran-rank NPC is first observed carrying any
 -- AP_SECTIONS entry in inventory; nil otherwise (those NPCs run vanilla).
 -- Once `left` drops to MIN_SPARE the field stays at MIN_SPARE and the picker
 -- falls through to vanilla m_ammoType=0 every subsequent tick.
