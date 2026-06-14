@@ -148,6 +148,12 @@ Both paths short-circuit quickly when no entries match. Most spawn events trigge
 
 ---
 
+## Friendly Fire
+
+Same-faction friendly-fire damage gate in `at_hitresponse.script`. `npc_on_before_hit` scales `shit.power` by the MCM factor when shooter and victim share `character_community`. Stalker-vs-stalker only (both `IsStalker`), the actor as shooter is excluded, and the check is O(1) with no throttle (a damage block must catch every hit). MCM Combat tab: `friendly_fire_enabled` (default on) + `friendly_fire_factor` (default 0.0 = no same-faction damage). Precedent: AlifePlus `ap_ext_object_mutator.script` `shit.power` pattern, without its throttle.
+
+---
+
 ## Healing
 
 Per-NPC self-healing. Vanilla `xr_eat_medkit.script` has a working stage machine, but vanilla `ai_tweaks/xr_eat_medkit.ltx [plugin]` lacks the `medkits=` / `bandages=` keys so `parse_list` returns `{}` and the consumption loop iterates zero times.

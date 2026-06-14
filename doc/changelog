@@ -1,6 +1,10 @@
 next
-  Summary: combat AI takeover, companion exclusion, faction doctrines, human-reaction aiming, sniper aim mode, monolith combat, zombied shamble, danger rework, weapon jam fix, NPC ammo selection, stealth kills, limp/heal fixes, AOEngine compatibility
+  Summary: combat AI takeover, companion exclusion, faction doctrines, human-reaction aiming, sniper aim mode, monolith combat, zombied shamble, friendly-fire block, danger rework, weapon jam fix, NPC ammo selection, stealth kills, limp/heal fixes, AOEngine compatibility
 
+  - Added a same-faction friendly-fire damage block (MCM > Combat, default on).
+    An NPC that hits a teammate of its own faction deals no damage by default.
+    A slider scales same-faction damage from zero up to full vanilla.
+    Damage you deal is never affected.
   - Added simulated NPC ammo consumption.
     Vanilla NPCs always fire the first ammo type in their weapon's list regardless of what they carry. AlifeTactics promotes veteran-rank and higher NPCs who carry armor-piercing ammo to fire AP-class rounds with real ballistics.
     NPCs fire AP for a tracked window (drain rate by weapon kind: pistol, shotgun, SMG, rifle, sniper) then revert to vanilla magic FMJ when their virtual AP supply runs out. Drain rates live in configs/alifetactics/at_ammo.ltx.

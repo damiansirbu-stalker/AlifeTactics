@@ -217,6 +217,21 @@
   <string id="ui_mcm_at_combat_combat_ignore_companions_desc">
     <text>When on, AlifeTactics never takes over your companions; their own follow and combat AI and your commands stay in control. Turn off to let companions fight with AlifeTactics doctrine too. Default: on.</text>
   </string>
+  <string id="ui_mcm_at_combat_hdr_friendly_fire">
+    <text>Friendly fire</text>
+  </string>
+  <string id="ui_mcm_at_combat_friendly_fire_enabled">
+    <text>Block same-faction friendly fire</text>
+  </string>
+  <string id="ui_mcm_at_combat_friendly_fire_enabled_desc">
+    <text>When on, an NPC that hits a teammate of its own faction deals reduced damage set by the slider below. Stops squads from killing their own in crossfire. Does not affect damage you deal. Default: on.</text>
+  </string>
+  <string id="ui_mcm_at_combat_friendly_fire_factor">
+    <text>Same-faction damage multiplier</text>
+  </string>
+  <string id="ui_mcm_at_combat_friendly_fire_factor_desc">
+    <text>How much damage a same-faction hit deals. 0.00 = teammates take no damage from each other. 1.00 = full vanilla damage. Default: 0.00.</text>
+  </string>
   <!-- ==================== FIXES TAB (parent) ==================== -->
   <!-- ==================== DANGER (child) ==================== -->
   <string id="ui_mcm_at_danger_desc">

@@ -70,6 +70,8 @@ Each NPC keeps its own weapon on you. Because taking the planner over also remov
 
 Snipers (the rifles the game classes as sniper weapons - SVD, SVT40, Mosin, SKS, M82 and the rest) get their own behavior: with line of sight they crouch and switch to the engine's sniper-aim mode, which aims down the head line instead of the looser barrel line for tighter shots at range.
 
+Friendly fire between same-faction NPCs is blocked by default (MCM > Combat). An NPC that hits a teammate of its own faction does no damage, so squads stop dropping their own in crossfire. A slider scales it back up to full vanilla damage if you want it. Your own shots are never touched.
+
 Danger:
 
 A full-file override of Anomaly's xr_danger.script with bug fixes always-on and three improvements toggleable in MCM > Danger.

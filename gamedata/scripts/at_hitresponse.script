@@ -324,8 +324,24 @@ function iterate_disclosed(fn)
     end
 end
 
+-- Same-faction friendly-fire damage gate. When a same-community stalker is the shooter, scale the hit power
+-- by the MCM factor (0 = no friendly-fire damage). Runs on every hit, no throttle: a damage block must catch
+-- each hit and the check is O(1). Never touches actor-dealt damage. Precedent: AlifePlus shit.power mutator.
+local function _on_before_hit(npc, shit, _bone_id, _flags)
+    if not cfg.friendly_fire_enabled then return end
+    if not (npc and shit) then return end
+    local attacker = shit.draftsman
+    if not attacker then return end
+    if attacker:id() == npc:id() then return end
+    if not (IsStalker(attacker) and IsStalker(npc)) then return end
+    if db.actor and attacker:id() == db.actor:id() then return end
+    if character_community(attacker) ~= character_community(npc) then return end
+    shit.power = shit.power * cfg.friendly_fire_factor
+end
+
 function on_game_start()
     RegisterScriptCallback("npc_on_hit_callback",        _on_hit)
+    RegisterScriptCallback("npc_on_before_hit",          _on_before_hit)
     RegisterScriptCallback("npc_on_net_spawn",           _on_net_spawn)
     RegisterScriptCallback("server_entity_on_unregister", _on_entity_unregister)
     RegisterScriptCallback("actor_on_first_update",      _on_first_update)
