@@ -1,29 +1,31 @@
-; AlifeTactics combat AI tuning constants. Paired with gamedata/scripts/at_combat.script.
+; AlifeTactics combat AI tuning constants. Paired with gamedata/scripts/at_combat.script + at_combat_doctrine.script.
 ; All keys have script-side fallback defaults, so missing keys won't crash.
 
 [at_combat]
-; Throttles (the two gates) + fail backoff
-aim_throttle_ms          = 200    ; per-NPC interval between re-aims (human reaction time; lower = tighter tracking, higher = more lag)
-decide_throttle_ms       = 1500   ; per-NPC interval between maneuver recomputes (the heavy gate; bounds cost by NPC count)
-fail_threshold           = 3      ; consecutive resolve-fails before the NPC is handed back to vanilla
-fail_backoff_ms          = 10000  ; per-fail penalty multiplier
+; Gate throttles (the three gates)
+fast_throttle_ms         = 200    ; FAST gate: re-aim interval (reaction cadence; lower = tighter tracking, higher = more lag)
+medium_throttle_ms       = 500    ; MEDIUM gate: urgent events (grenade, under fire, in your face, exposed)
+slow_throttle_ms         = 1000   ; SLOW gate: rebuild palette, pick the base maneuver
 
-; Problem readings
+; Handback hysteresis (how long a flickery condition must hold before AT yields to vanilla)
+no_enemy_ms              = 2500   ; no live enemy this long before yielding to vanilla
+lost_sight_ms            = 2500   ; NPC has not seen its enemy this long before yielding to vanilla (it searches)
+see_throttle_ms          = 500    ; min interval between the evaluator's see() probes (perception throttle)
+
+; Event readings
+under_fire_ms            = 3000   ; how recent a danger hit/attack/ricochet counts as "under fire"
 friendly_line_thresh_m   = 1.5    ; lateral half-width of the firing lane for the squadmate-block check
-range_deadband_m         = 3      ; hysteresis on the weapon-band in/out boundaries
-hurt_frac                = 0.30   ; health below this is the "hurt" problem (ignored by FEARLESS factions)
-lost_sight_ms            = 12000  ; time-since-last-seen before "lost sight" forces a reposition
+range_hysteresis_m       = 3      ; hysteresis on the weapon-band in/out boundaries
+hurt_frac                = 0.30   ; health below this is the "hurt" event
 
 ; Movement distances
-advance_step_m           = 15     ; FORWARD lookahead cap per recompute (toward the weapon standoff)
-back_step_m              = 12     ; BACK pull-back distance from the enemy
-flank_lateral_m          = 12     ; FLANK perpendicular offset from the npc->enemy axis
-flank_forward_m          = 6      ; FLANK forward bias along the axis
-step_side_m              = 4      ; STEP_SIDE lateral nudge to clear a blocked line
+advance_step_m           = 15     ; advance lookahead cap per recompute (toward the weapon standoff)
+back_step_m              = 12     ; withdraw / fall-back pull-back distance from the enemy
+step_back_m              = 6      ; step_back short nudge away when the enemy is in your face
 
-; Weapon standoffs (FORWARD stops this far from the enemy; SNIPER never closes)
+; Weapon standoffs (advance stops this far from the enemy; sniper never closes)
 standoff_close_m         = 10     ; pistol / shotgun / smg / melee
 standoff_rifle_m         = 30     ; assault rifle
 
 ; Squad spread
-squad_buckets            = 5      ; per-NPC bucket count for flank/sidestep direction fan-out
+squad_buckets            = 5      ; per-NPC bucket count for step direction fan-out

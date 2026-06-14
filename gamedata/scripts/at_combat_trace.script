@@ -43,23 +43,24 @@ function at_combat_trace.forget(id) _last_eval_logged[id] = nil end
 --- Accumulated telemetry table for the at_test stats dump.
 function at_combat_trace.stats() return _stats end
 
---- One line per recompute: the NPC, the enemy it answers to, all readings, the problem, the chosen maneuver.
---- Enemy + names + health read here (gated) so the off path pays nothing. Counts the maneuver.
-function at_combat_trace.decide(id, npc, state, ctx, tg, problem, role, maneuver)
+--- One line per gate pass: the NPC, the enemy, the readings this gate computed, and the chosen event.
+--- Enemy + names + health read here (gated) so the off path pays nothing. Slow gate fills see/fr/occ;
+--- medium gate fills exp/uf/gren/tgt; the unfilled ones show N for that gate.
+function at_combat_trace.gate(id, npc, state, ctx, gate_name, event)
     if not _on then return end
-    if maneuver then _stat(_stats.behaviors, maneuver) end
-    local age = tg - state.last_seen
     local enemy = ctx.enemy
-    log.debug("decide npc=%d(%s) grp=%s wpn=%s/%s env=%s hp=%.2f ene=%d(%s/%s) see=%s age=%dms zone=%s dist=%.1f cover=%s fr=%s occ=%s prob=%s role=%s man=%s",
-        id, npc:name(), state.group, state.weapon_kind or "none", state.bucket_name, state.env or "?",
-        npc.health, enemy:id(), enemy:name(), IsStalker(enemy) and "stalker" or "mutant",
-        _yn(age == 0), age, state.range_zone, ctx.dist, _yn(state.at_cover),
-        _yn(ctx.r_friendly), _yn(ctx.r_occluder), tostring(problem), tostring(role or "-"), tostring(maneuver))
+    log.debug("gate npc=%d(%s) %s grp=%s wpn=%s/%s env=%s hp=%.2f ene=%d(%s) zone=%s dist=%.1f cover=%s see=%s fr=%s occ=%s exp=%s uf=%s gren=%s tgt=%s event=%s",
+        id, npc:name(), gate_name, state.group, state.weapon_kind or "none", state.bucket_name, state.env or "?",
+        ctx.health or npc.health, enemy:id(), IsStalker(enemy) and "stalker" or "mutant",
+        state.range_zone, ctx.dist, _yn(state.at_cover),
+        _yn(ctx.see), _yn(ctx.friendly), _yn(ctx.occluder), _yn(ctx.exposed), _yn(ctx.under_fire),
+        _yn(ctx.grenade), _yn(ctx.target_changed), tostring(event or "-"))
 end
 
---- Maneuver switch with the rolled knobs (fire/posture/movement) held for the maneuver's lifetime.
+--- Maneuver switch with the rolled knobs (fire/posture/movement) held for the maneuver's lifetime. Counts it.
 function at_combat_trace.switch(id, name, fire, posture, movement)
     if not _on then return end
+    _stat(_stats.behaviors, name)
     log.debug("switch npc=%d man=%s fire=%s posture=%s move=%s",
         id, name, tostring(fire), tostring(posture), tostring(movement))
 end

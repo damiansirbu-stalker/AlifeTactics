@@ -197,7 +197,7 @@
   </string>
   <!-- ==================== COMBAT TAB ==================== -->
   <string id="ui_mcm_at_combat_desc">
-    <text>AlifeTactics replaces vanilla combat behavior on a share of NPCs. Each NPC picks from 12 combat behaviors per tick. The choice depends on faction doctrine, equipped weapon class, current health, line of sight, and nearby cover. The share slider below decides how much your existing combat AI (vanilla or modpack) stays in charge versus how much of the squad fights with AlifeTactics doctrine.</text>
+    <text>AlifeTactics replaces vanilla combat behavior on a share of NPCs. Each NPC picks a maneuver from its faction's doctrine each tick, based on equipped weapon class, current health, line of sight, and nearby cover. The share slider below decides how much your existing combat AI (vanilla or modpack) stays in charge versus how much of the squad fights with AlifeTactics doctrine.</text>
   </string>
   <string id="ui_mcm_at_combat_combat_enabled">
     <text>Enable Combat AI injection</text>
