@@ -49,12 +49,12 @@ function at_combat_trace.stats() return _stats end
 function at_combat_trace.gate(id, npc, state, ctx, gate_name, event)
     if not _on then return end
     local enemy = ctx.enemy
-    log.debug("gate npc=%d(%s) %s grp=%s wpn=%s/%s env=%s hp=%.2f ene=%d(%s) zone=%s dist=%.1f cover=%s see=%s fr=%s occ=%s exp=%s uf=%s gren=%s tgt=%s event=%s",
-        id, npc:name(), gate_name, state.group, state.weapon_kind or "none", state.bucket_name, state.env or "?",
+    log.debug("gate npc=%d(%s) %s com=%s wpn=%s/%s env=%s hp=%.2f ene=%d(%s) zone=%s dist=%.1f cover=%s see=%s fr=%s occ=%s exp=%s uf=%s gren=%s event=%s",
+        id, npc:name(), gate_name, state.community, state.weapon_kind or "none", state.bucket_name, state.env or "?",
         ctx.health or npc.health, enemy:id(), IsStalker(enemy) and "stalker" or "mutant",
         state.range_zone, ctx.dist, _yn(state.at_cover),
         _yn(ctx.see), _yn(ctx.friendly), _yn(ctx.occluder), _yn(ctx.exposed), _yn(ctx.under_fire),
-        _yn(ctx.grenade), _yn(ctx.target_changed), tostring(event or "-"))
+        _yn(ctx.grenade), tostring(event or "-"))
 end
 
 --- Maneuver switch with the rolled knobs (fire/posture/movement) held for the maneuver's lifetime. Counts it.
