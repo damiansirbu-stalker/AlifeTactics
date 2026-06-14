@@ -15,9 +15,9 @@
 --- the system reverts to `m_ammoType = 0` (vanilla magic FMJ) for the rest of the
 --- NPC's online session.
 ---
---- Rank gate: only NPCs with `character_rank >= min_ap_rank` (default 12000 =
---- RANK_VETERAN per `AlifePlus/ap_core_const.script:14`) ever pick AP. Lower-rank
---- NPCs run pure vanilla (m_ammoType=0) and we don't touch them.
+--- Rank gate: only NPCs with `character_rank >= min_ap_rank` (default 12000 = veteran and up; the
+--- professional band caps at 11999 in `configs/creatures/game_relations.ltx [game_relations] rating`)
+--- ever pick AP. Lower-rank NPCs run pure vanilla (m_ammoType=0) and we don't touch them.
 ---
 --- Death hook: trims every ammo box in the dead NPC's inventory to MIN_SPARE so
 --- it survives `death_manager.script:456-460`'s `>5` deletion filter. Player loots

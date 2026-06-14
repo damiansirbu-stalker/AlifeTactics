@@ -326,7 +326,7 @@ end
 
 -- Same-faction friendly-fire damage gate. When a same-community stalker is the shooter, scale the hit power
 -- by the MCM factor (0 = no friendly-fire damage). Runs on every hit, no throttle: a damage block must catch
--- each hit and the check is O(1). Never touches actor-dealt damage. Precedent: AlifePlus shit.power mutator.
+-- each hit and the check is O(1). Never touches actor-dealt damage.
 local function _on_before_hit(npc, shit, _bone_id, _flags)
     if not cfg.friendly_fire_enabled then return end
     if not (npc and shit) then return end

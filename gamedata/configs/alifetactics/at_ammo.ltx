@@ -23,7 +23,7 @@ drain_w_sniper    = 2
 
 ; NPC character_rank threshold for AP-class ammo eligibility.
 ; Sections whose name contains "_ap" require npc:character_rank() >= min_ap_rank.
-; Default 12000 = RANK_VETERAN per AlifePlus/ap_core_const.script:14.
+; Default 12000 = veteran and up (professional band caps at 11999 in creatures/game_relations.ltx [game_relations] rating).
 ; Lower-rank NPCs skip AP tiers and fire FMJ; AP inventory they carry stays
 ; untouched during life, gets trimmed to min_spare at death by the death hook.
 min_ap_rank       = 12000
