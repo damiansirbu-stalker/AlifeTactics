@@ -58,13 +58,15 @@ Masters shoot tighter than novices, and the full spread is configurable per tier
 
 Combat:
 
-AlifeTactics injects its own combat AI on a configurable share of NPCs. The slider in MCM (default 100%) picks which NPCs use AT combat and which stay on vanilla / modpack combat. Per-NPC stable hash so the same NPC always lands the same side across save and load.
+This is the core of AlifeTactics. In a firefight, every move a stalker makes - posture, where it walks, when it shoots - is run by the engine's built-in combat planner. AlifeTactics takes that planner over: on the NPCs in its share it blocks the engine's combat and danger planners outright and drives the NPC itself. It is a full takeover, not a tweak layered on top of vanilla, which is what lets it give NPCs coherent faction tactics instead of the usual sit-in-cover-and-barely-shoot.
 
-Each faction has its own behavior list. Military (army, Duty, Freedom, ISG) holds cover, snipes, flanks, and pulls back firing when wounded. Monolith and Sin charge with close-quarters weapons and never retreat. Mercenaries fight like military but break under sustained fire and panic at low HP. Bandits and renegades have no doctrine; they charge with close weapons, advance with rifles, and panic when hurt. Ecologists and Clear Sky are cowards; they hide in cover, never push, and flee outright at low HP with weapon strapped. Zombies walk toward the enemy firing, no cover seeking, no retreat. Loners (the catch-all default) mix tactical movement with panic retreats.
+It coexists with everything. A slider in MCM (default 100%) picks which NPCs run AlifeTactics combat and which stay on vanilla or your modpack's combat, by a stable per-NPC hash so the same NPC always lands the same side across save and load. AlifeTactics overrides no combat scripts, so out-of-share NPCs are completely untouched - you can watch AT and vanilla NPCs fight in the same battle. Set the share to 0 to disable combat without removing the mod.
 
-Snipers (LTX kind=w_sniper carriers: SVD, SVT40, Mosin, SKS, M82 and the rest of the class) get their own behavior. When a sniper has line of sight to the enemy they crouch and engage the engine's sniper-aim mode, which aims at the target head direction instead of the weapon barrel direction. More precise aim at range.
+Each faction fights to its own doctrine. Military, Duty, Freedom, ISG, and mercenaries fight from cover and keep firing while they reposition, steady under fire. Monolith presses forward firing and never retreats. Bandits, renegades, and Sin come head-on. Loners, ecologists, and Clear Sky fight more cautiously and fall back when badly hurt. Zombies walk straight at the enemy firing, no cover, no retreat. The set of moves an NPC can pick from is filtered by its faction, its weapon class, and whether the fight is indoors or out.
 
-The system blocks the vanilla combat planner on NPCs in its share via a precondition. It does not override vanilla combat scripts, so out-of-share NPCs get their original combat behavior untouched. Side-by-side comparison in the same engagement is supported.
+Each NPC keeps its own weapon on you. Because taking the planner over also removes the engine's own aimer, AlifeTactics re-points the weapon at the enemy itself, at roughly human reaction speed - so NPCs track a moving target and trail a strafe instead of snapping to where you were or holding a frozen aim. They are not aimbots; the reaction lag is deliberate and tunable.
+
+Snipers (the rifles the game classes as sniper weapons - SVD, SVT40, Mosin, SKS, M82 and the rest) get their own behavior: with line of sight they crouch and switch to the engine's sniper-aim mode, which aims down the head line instead of the looser barrel line for tighter shots at range.
 
 Danger:
 
@@ -96,9 +98,9 @@ Requires demonized exes 2026.6.1 or later for this fix specifically. The engine 
 
 NPC Ammo:
 
-Vanilla NPCs always fire the first ammo type in their weapon's list. AlifeTactics promotes master-rank NPCs who carry armor-piercing ammo to fire AP-class rounds with real ballistics (MCM > Fixes > NPC Ammo, default on).
+Vanilla NPCs always fire the first ammo type in their weapon's list. AlifeTactics promotes veteran-rank and higher NPCs who carry armor-piercing ammo to fire AP-class rounds with real ballistics (MCM > Fixes > NPC Ammo, default on).
 
-A master-rank merc or military soldier carrying AP will fire AP at the player for a short window, then revert to vanilla magic FMJ when their virtual AP supply runs out. A novice bandit who looted an AP box still fires vanilla FMJ from it. The rank threshold and per-weapon drain rates are tunable in configs/alifetactics/at_ammo.ltx.
+A veteran or higher merc or military soldier carrying AP will fire AP at the player for a short window, then revert to vanilla magic FMJ when their virtual AP supply runs out. A novice bandit who looted an AP box still fires vanilla FMJ from it. The rank threshold and per-weapon drain rates are tunable in configs/alifetactics/at_ammo.ltx.
 
 NPC corpses keep at least 3 rounds of each ammo box so the player loots the remainder instead of just the procedural spawn from death_manager.
 
@@ -107,9 +109,9 @@ The fixed AP section list covers vanilla Anomaly calibers (5.45x39, 5.56x45, 7.6
 Performance:
 
 Most systems above hook on engine callbacks but are throttled and situational.
-All operations are done through xlibs which encapsulates best practices in workign with the engine and what Anomaly uses internally.
-Also all operations are traced for performance and duration and can be checked if debug logging is activated.
-Tests showed the perfromance impact is almost nonexistent.
+All operations are done through xlibs, which encapsulates best practices for working with the engine and what Anomaly uses internally.
+All operations are also traced for performance and duration, viewable when debug logging is on.
+Tests showed the performance impact is almost nonexistent.
 
 Compatibility:
 

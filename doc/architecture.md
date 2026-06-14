@@ -20,10 +20,10 @@ Version 1.0.0.
 | `at_hitresponse.script` | feature | done |
 | `at_health.script` | feature | done |
 | `at_accuracy.script` | feature | done |
-| `at_combat.script` | feature | Pattern B planner takeover; 14 behaviors + 8 state machines + per-faction × per-environment rule lists; delta-driven decide with squad-uniqueness skip |
+| `at_combat.script` | feature | Pattern B planner takeover; 3-gate pipeline (takeover / aim / decide); 11 maneuvers from a faction × weapon × terrain doctrine palette |
 | `xr_danger.script` | feature | done (full-file override) |
 | `at_jam.script` | feature | done (modded-exes xr_weapon_jam.GetConditionMisfireProbability override; suppresses script-injected NPC misfire) |
-| `at_ammo.script` | feature | done (per-NPC virtual ledger drains highest-tier ammo each 5s combat tick down to MIN_SPARE; inventory boxes clamped to ledger to defeat engine try_advance_ammo top-up; npc_on_death_callback trims all boxes to MIN_SPARE so they survive decide_items_to_keep; AP sections gated by `min_ap_rank` LTX (default 17499 = RANK_MASTER)) |
+| `at_ammo.script` | feature | done (per-NPC virtual ledger drains highest-tier ammo each 5s combat tick down to MIN_SPARE; inventory boxes clamped to ledger to defeat engine try_advance_ammo top-up; npc_on_death_callback trims all boxes to MIN_SPARE so they survive decide_items_to_keep; AP sections gated by `min_ap_rank` LTX (default 12000 = RANK_VETERAN)) |
 | `zzz_at_health_patch.script` | feature | done (vanilla xr_eat_medkit re-roll suppressor) |
 | `configs/ai_tweaks/mod_xr_eat_medkit_at.ltx` | data | done |
 | `configs/ai_tweaks/xr_danger.ltx` | data | done |
@@ -197,85 +197,91 @@ Per-shot hot path. Cost ~1.5μs per call when DEBUG off (2 luabind crossings via
 
 ## Combat
 
-GOAP planner takeover. One evaluator + one action per stalker; while the evaluator returns true, vanilla `action_combat_planner` / `action_danger_planner` / `xr_danger` / `state_mgr+2` / `alife` are precondition-blocked, so AT owns the NPC. When false, vanilla resumes. The NPC is a **turret**: a fire state plus an aim target makes the engine fire autonomously every frame, so AT only decides *when to change maneuver*, never when to pull the trigger.
+GOAP planner takeover (Pattern B). `_install` grafts one evaluator + one action into each stalker's motivation manager and adds `world_property(EVAL_ID, false)` as a precondition to vanilla `action_combat_planner` / `action_danger_planner` / `xr_danger` / `state_mgr+2` / `alife`. While the takeover gate (`_should_manage`) returns true the engine runs AT's action and those vanilla planners are precondition-blocked; when false, vanilla resumes.
 
-### NPC control (what the takeover owns)
+Blocking the combat planner also removes the engine's per-tick aimer, so under the takeover AT must supply aim, posture, movement, destination, and fire state itself. The engine keeps the trigger (when the round leaves), the per-rank dispersion, and the `can_kill_member` friendly-fire hold. See `doc/library/modding/npc-combat-control.md` (takeover ownership, aim) and `npc-combat-effectiveness.md` (friendly fire).
 
-Blocking the planners stops vanilla from re-rolling body state (`stalker_combat_actions.cpp:691-694`), so AT's commands are unopposed. All control goes through three xlibs primitives:
+### The pipeline (three gates)
 
-| Primitive | Owns |
-|---|---|
-| `xcombat.set_combat(npc, {fire, posture, movement, aim, state})` | weapon mode + posture + movement in one call; resolves the matching `state_lib` state from a [fire × posture × movement] matrix, returns false on a combo the engine lacks |
-| `xcombat.aim_at(npc, pos)` | the turret aim (`set_sight(look.fire_point, pos)`) — the trigger half |
-| `xcombat.send_to(npc, vid)` | destination (reroutes to the nearest accessible node; never fails) |
+The takeover is wired once at spawn; from then on the engine polls the gate and runs the action each AI tick. `execute()` is the skeleton:
 
-### The loop (per ~1.5s recompute)
+| Gate | Trigger | What it does |
+|---|---|---|
+| takeover | engine polls `_should_manage` while planning | true = AT drives this NPC, false = vanilla. The on/off of the whole takeover. |
+| aim | `aim_throttle_ms` (200) | `_aim` re-points the weapon at the enemy's current position. |
+| decide | `decide_throttle_ms` (1500) | `_decide` chooses and drives one maneuver. |
 
-`_refresh` (weapon bucket / band / environment; rebuild the doctrine palette on change) → `_read_problem` → `_pick` (problem → palette role) → `_apply` (roll posture+speed, `set_combat`, resolve destination) / `_move` (sticky cover, tracking point) → `aim_at`. One maneuver chosen, held until the next recompute. Sole governor is the per-NPC throttle (`throttle_npc_ms`, 1500), so cost scales with the in-combat NPC count.
+`execute()` computes both throttles, returns cheap if neither is ready (no `best_enemy` call on that path), resolves the enemy once, then runs the aim gate and/or the decide gate. A decide pass is three steps: 1. palette (`_refresh` rebuilds the doctrine palette only when faction group / weapon bucket / indoor-outdoor changes), 2. problem (`_read_problem`), 3. maneuver (`_pick` → `_apply` switch or `_move` hold). `_gather` builds the per-tick context (state, positions, distance, direction, at-cover).
+
+### Aim
+
+A static fire point (`set_sight(look.fire_point, enemy_pos)`) re-stamped every `aim_throttle_ms` (200ms ≈ human reaction time). Not every frame (that is an aimbot) and not on the slow decide tick (that lags a strafing target); the reaction-cadence re-stamp gives realistic trailing aim. The engine fires along the sight with its own dispersion; AT only points. Sniper maneuvers additionally set `sniper_fire_mode` so the shot follows the head aim.
 
 ### Problem → maneuver
 
-One problem per recompute, highest priority first; the faction's palette supplies the variant.
+One problem per decide, highest priority first; the faction's palette supplies the variant.
 
 | Problem | Read | Answer |
 |---|---|---|
-| hurt | `npc.health < hurt_frac` (FEARLESS factions ignore) | pull (back / cover) |
+| hurt | `npc.health < hurt_frac` (FEARLESS factions ignore) | fall back (BACK, weapon stowed — the only flee) |
 | lost | time since `npc:see` > `lost_sight_ms` (12s) | forward, toward the enemy |
 | blocked | squadmate in the lane, or a wall on the line | STEP_SIDE |
-| too_far / too_close | weapon band ± deadband | forward (to the standoff) / back |
-| none | — | HOLD (cover factions seek a peek first) |
+| too_far | beyond the weapon band + deadband | forward to the standoff (snipers snipe) |
+| too_close | inside the band − deadband | fighting withdrawal (BACK, firing) |
+| none | in band, enemy seen | HOLD; cover factions seek a peek first |
 
-### Maneuvers (13)
+### Maneuvers (11)
 
-Name = `DIRECTION_COVER_FIRE`; the two no-direction specials drop the cover word. Posture (stand/crouch) and speed (walk/run) are **rolled** at maneuver start and held, not named (crouch+fire → walk, STOW → run).
+Posture (stand/crouch) and speed (walk/run) are **rolled** at maneuver start and held. STOW (holster + sprint) is reserved for flee — only the BACK maneuvers picked on `hurt`. Every other maneuver keeps the weapon up and fires while repositioning.
 
 | Family | Members |
 |---|---|
 | stationary | HOLD_FIRE, HOLD_SNIPE |
-| take cover | COVER_FIRE, COVER_STOW |
-| adjustment | STEP_SIDE_FIRE (the only one — clears a blocked line) |
-| forward | FORWARD_OPEN_FIRE, FORWARD_COVER_FIRE, FORWARD_COVER_STOW |
-| back | BACK_OPEN_STOW, BACK_COVER_STOW |
-| flank (outdoor) | FLANK_OPEN_FIRE, FLANK_COVER_FIRE, FLANK_COVER_STOW |
+| take cover | COVER_FIRE |
+| adjustment | STEP_SIDE_FIRE (clears a blocked line) |
+| forward | FORWARD_OPEN_FIRE, FORWARD_COVER_FIRE |
+| fall back (flee, stowed) | BACK_OPEN_STOW, BACK_COVER_STOW |
+| fighting withdrawal (firing) | BACK_OPEN_FIRE |
+| flank (outdoor) | FLANK_OPEN_FIRE, FLANK_COVER_FIRE |
 
 Destinations come from `find_point` (open) or `find_peek` (a firing vertex at a cover edge — `best_cover` locates the obstacle, edge raycasts pick the side with a clear shot). Catalog + tags in `MANEUVERS` (`at_combat.script`).
 
 ### Doctrine (eligibility tags, not a table)
 
-Each maneuver carries `factions` (group) / `weapons` (bucket) / `environment`. An NPC's palette = the maneuvers matching all three. Community → group → style + lean:
+Each maneuver carries `factions` (group) / `weapons` (bucket) / `env`. An NPC's palette = the maneuvers matching all three. Community → group → style + lean:
 
 | Group | Communities | Style | Lean |
 |---|---|---|---|
-| DISCIPLINED | military, dolg, freedom, isg, killer | cover (reposition STOW/silent) | STEADY |
+| DISCIPLINED | military, army, dolg, freedom, isg, killer | cover, fires while repositioning | STEADY |
 | MONOLITH | monolith | cover, fires on the move | FEARLESS (never pulls) |
-| COMMON | stalker, ecolog, csky | mixed, flees gun-down | CAUTIOUS |
+| COMMON | stalker, ecolog, csky | mixed | CAUTIOUS |
 | RECKLESS | bandit, renegade, greh | open, head-on | AGGRESSIVE |
 | ZOMBIED | zombied | open, FORWARD only | FEARLESS |
 
 Weapon bucket sets the forward standoff: CLOSE (pistol/shotgun/smg/melee) 10m, RIFLE 30m, SNIPER never closes (holds/snipes). `FACTION_GROUP` / `GROUP_STYLE` / `GROUP_LEAN` / `STANDOFF` in `at_combat.script`.
 
-### Eligibility (`_decide_eval`)
+### Takeover gate (`_should_manage`)
 
-First failing check returns `(false, reason)`: `combat_enabled` → id-hash vs `combat_share` → `alive` → not `IsWounded` → no fail-backoff → `best_enemy` alive.
-
-### Pattern B preconditions
-
-`world_property(EVAL_ID, false)` is added to `action_combat_planner`, `action_danger_planner`, `xr_danger.actid`, `xr_actions_id.state_mgr + 2`, `xr_actions_id.alife`. It does **not** cover the combat sub-scheme actions (camper / monolith / zombied) or camper jobs — AT owns an NPC only when its combat routes through `action_combat_planner`.
+First failing check returns `(false, reason)`: `combat_enabled` → id-hash vs `combat_share` → `alive` → not `IsWounded` → no fail-backoff → `best_enemy` alive. The `world_property(EVAL_ID, false)` block list does **not** cover the monolith/zombied combat sub-schemes — AT owns an NPC only when its combat routes through `action_combat_planner`.
 
 ### Lifecycle
 
-`npc_on_net_spawn` installs (sentinel-guarded); `npc_on_net_destroy` clears install + releases the cover reservation; `server_entity_on_unregister` clears per-id tables; `actor_on_first_update` resets tables + loads tunables; `on_option_change` / `mcm_option_restore_default` refresh the log level / `_dbg`.
+`npc_on_net_spawn` installs (sentinel-guarded); `npc_on_net_destroy` clears install + releases the cover reservation; `server_entity_on_unregister` clears per-id tables; `actor_on_first_update` resets tables + loads tunables; `on_option_change` / `mcm_option_restore_default` refresh the log level.
 
-### Failure handling
+### Failure handling + tracing
 
-A maneuver whose destination resolves nil increments `_fail_streak`; at the threshold the NPC backs off to vanilla for a linear window (eval returns `fail_backoff`). DEBUG (`log_level = DEBUG`) emits gated `[DECIDE]` / `[RESOLVE]` / `[BACKOFF]` to `alifetactics.log` via `at_combat_trace` (noop off).
+A maneuver whose destination resolves nil increments `_fail_streak`; at `fail_threshold` the NPC backs off to vanilla for a growing window (the gate returns `fail_backoff`). At DEBUG log level `at_combat_trace` writes one `decide` line per recompute (npc + name, enemy + name + type, readings, problem, maneuver) plus `switch` / `resolve` / `cover` / `backoff` / `eval`, and accumulates per-stage perf (resolve, apply, total) read via the `at_combat_stats` console command. All tracing is noop when DEBUG is off (no bridge, no string, no alloc on the off path).
 
-### MCM
+### MCM + tunables
 
-| Key | Type | Default | Effect |
+| Key | Where | Default | Effect |
 |---|---|---|---|
-| `combat_enabled` | check | true | Master toggle (next eval tick) |
-| `combat_share` | track 0-1 | 1.0 | Stable per-id hash share on AT vs vanilla |
+| `combat_enabled` | MCM | true | Master toggle (next gate tick) |
+| `combat_share` | MCM | 1.0 | Stable per-id hash share AT vs vanilla |
+| `aim_throttle_ms` | `at_combat.ltx` | 200 | Re-aim interval (reaction cadence) |
+| `decide_throttle_ms` | `at_combat.ltx` | 1500 | Maneuver recompute interval |
+
+Plus the problem/movement tunables (`hurt_frac`, `lost_sight_ms`, standoffs, step distances, `fail_*`) in `at_combat.ltx`.
 
 ### xcombat primitives (xlibs)
 
@@ -284,7 +290,9 @@ A maneuver whose destination resolves nil increments `_fail_streak`; at the thre
 | `FIRE/SNIPE/STOW`, `STAND/CROUCH`, `STILL/WALK/RUN` | `set_combat` option constants |
 | `AGGRESSOR_KINDS`, `SNIPER_KINDS`, `WEAPON_RANGES` | weapon classification |
 | `get_weapon_kind` / `get_weapon_range` | active kind (TTL-cached) / band |
-| `set_combat` / `aim_at` / `send_to` | the three control primitives |
+| `set_combat` | weapon mode + posture + movement in one call; resolves the matching `state_lib` state from a [fire × posture × movement] matrix, returns false on a combo the engine lacks |
+| `aim_at` | the aim: static `set_sight(look.fire_point, pos)` at a world point (the decide and aim gates call this) |
+| `send_to` | destination (reroutes to the nearest accessible node; never fails) |
 | `find_point` / `find_peek` | open move / cover-edge firing vertex |
 | `vertex_toward` | geometry primitive under `find_point` |
 | `has_occluder_between` / `has_friendly_in_line` | wall raycast / squadmate-in-lane |
@@ -369,7 +377,7 @@ Engine context: NPCs do not consume real inventory ammo while `unlimited_ammo()`
 
 ### Per-NPC state
 
-`_state[id] = { idx, sec, left }`. Set when a master-rank NPC is first observed carrying any `AP_SECTIONS` entry in inventory; nil otherwise (those NPCs run vanilla forever). Cleared on `server_entity_on_unregister`. Not save-persisted.
+`_state[id] = { idx, sec, left }`. Set when a veteran-rank NPC is first observed carrying any `AP_SECTIONS` entry in inventory; nil otherwise (those NPCs run vanilla forever). Cleared on `server_entity_on_unregister`. Not save-persisted.
 
 ### Tick algorithm
 
@@ -386,9 +394,9 @@ Cost per tick per NPC: ~5-10 luabind. Sub-master NPCs early-exit at rank check; 
 
 ### Rank gate
 
-`npc:character_rank() >= min_ap_rank`. Default `min_ap_rank = 17499` (= `RANK_MASTER`, sourced from `AlifePlus/ap_core_const.script:15`). Below-master NPCs never enter the picker. Their inventory AP boxes are untouched during life and trimmed at death by the death hook.
+`npc:character_rank() >= min_ap_rank`. Default `min_ap_rank = 12000` (= `RANK_VETERAN`, sourced from `AlifePlus/ap_core_const.script:14`). Below-veteran NPCs never enter the picker. Their inventory AP boxes are untouched during life and trimmed at death by the death hook.
 
-This intentionally restricts AP to master+ to prevent armor degradation across the whole NPC population. Tune via LTX.
+This intentionally restricts AP to veteran+ to prevent armor degradation across the whole NPC population. Tune via LTX.
 
 ### Death hook
 
@@ -401,7 +409,7 @@ Without this hook the engine's `try_advance_ammo` top-up at the last reload befo
 | Key | Default | Effect |
 |---|---|---|
 | `min_spare` | 3 | Floor for inventory boxes. Must be ≤ 5 to survive `decide_items_to_keep`. |
-| `min_ap_rank` | 17499 | `npc:character_rank()` threshold for AP eligibility. |
+| `min_ap_rank` | 12000 | `npc:character_rank()` threshold for AP eligibility. |
 | `drain_w_pistol` | 5 | Rounds drained per 5s tick when active weapon kind is `w_pistol`. |
 | `drain_w_shotgun` | 2 | Same for `w_shotgun`. |
 | `drain_w_smg` | 10 | Same for `w_smg`. |

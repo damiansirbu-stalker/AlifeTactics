@@ -1,29 +1,29 @@
 next
-  Summary: combat AI takeover, faction doctrines, flank and retreat behaviors, sniper aim mode, monolith combat, zombied shamble, danger rework, weapon jam fix, NPC ammo selection, stealth kills, limp/heal fixes, AOEngine compatibility
+  Summary: combat AI takeover, faction doctrines, human-reaction aiming, sniper aim mode, monolith combat, zombied shamble, danger rework, weapon jam fix, NPC ammo selection, stealth kills, limp/heal fixes, AOEngine compatibility
 
   - Added simulated NPC ammo consumption.
-    Vanilla NPCs always fire the first ammo type in their weapon's list regardless of what they carry. AlifeTactics promotes master-rank NPCs who carry armor-piercing ammo to fire AP-class rounds with real ballistics.
+    Vanilla NPCs always fire the first ammo type in their weapon's list regardless of what they carry. AlifeTactics promotes veteran-rank and higher NPCs who carry armor-piercing ammo to fire AP-class rounds with real ballistics.
     NPCs fire AP for a tracked window (drain rate by weapon kind: pistol, shotgun, SMG, rifle, sniper) then revert to vanilla magic FMJ when their virtual AP supply runs out. Drain rates live in configs/alifetactics/at_ammo.ltx.
     NPC corpses keep at least 3 rounds of each ammo box, so the player loots the remainder instead of just a procedural spawn.
-    Armor-piercing is restricted to master rank and above by default. The fixed AP section list covers vanilla calibers (5.45x39, 5.56x45, 7.62x39, 7.62x51, 7.62x54, 7.92x33, 9x18, 9x19, 9x39, 12.7x55, 12x76). Add modpack calibers to the script's AP_SECTIONS table when needed.
+    Armor-piercing is restricted to veteran rank and above by default. The fixed AP section list covers vanilla calibers (5.45x39, 5.56x45, 7.62x39, 7.62x51, 7.62x54, 7.92x33, 9x18, 9x19, 9x39, 12.7x55, 12x76). Add modpack calibers to the script's AP_SECTIONS table when needed.
     MCM > Fixes > NPC Ammo, default on.
   - Added NPC weapon jam suppression.
     Demonized modded exes add a per-rank jam roll separate from weapon condition. NPCs fire 2-3 rounds, jam, and reload in a tight loop.
     AlifeTactics blocks the roll for NPCs. Actor jams stay vanilla.
     MCM > Fixes > Weapon Jam, default on. Requires demonized exes 2026.6.1+.
   - Added Combat AI takeover on a configurable share of NPCs (slider, default 100%).
-    Per-NPC stable hash decides which NPCs use AT combat vs. vanilla / modpack combat. Same NPC always lands the same side across save and load.
-    Each NPC walks a list of allowed behaviors (chosen by community, HP, and weapon) every tick and picks the first one matching the current situation.
-    Close-weapon carriers (pistol, shotgun, SMG, knife) charge the enemy. Low-HP NPCs retreat. Others advance through cover, take cover when exposed, fire from cover when peeking is possible, crouch and fire otherwise.
+    AlifeTactics blocks the engine's combat and danger planners on its share and drives those NPCs itself.
+    A stable per-NPC hash fixes which NPCs run AT combat vs vanilla, the same across save and load.
+    Out-of-share NPCs are untouched, so AT and vanilla NPCs can fight in the same battle.
   - Added Combat AI takeover for monolith and zombied.
     Monolith use standard behavior selection by HP and weapon, same as other communities.
     Zombied walk toward the enemy firing, no cover seeking, no retreat.
-  - Added per-faction combat doctrines.
-    Military holds cover, snipes, flanks. Monolith charges with close weapons and never retreats.
-    Bandits panic when hurt. Cowards flee outright. Mercs use military skillset but break under fire.
-    Each NPC's doctrine is stable across save and load.
-  - Added 3 combat behaviors. FLANKING goes around the enemy when line of sight is lost.
-    RETREAT_AND_FIRE pulls back crouched while firing. FLEE sprints away with weapon strapped.
+  - Added per-faction combat doctrine.
+    Military, Duty, Freedom, ISG, and mercs fight from cover and keep firing as they reposition.
+    Monolith presses forward firing and never retreats. Bandits, renegades, and Sin come head-on.
+    Loners, ecologists, and Clear Sky fight cautiously and fall back when badly hurt.
+  - Changed NPCs to keep the weapon up while repositioning. They holster only to flee when wounded.
+  - Changed NPCs to re-aim at human reaction speed. No aimbot snapping, no stale aim on a moving target.
   - Added Sniper aim mode for kind=w_sniper carriers (SVD, SVT40, Mosin, SKS, M82 and the rest of the class).
     When a sniper has line of sight, they crouch and engage the engine sniper-aim flag, which tracks the target head direction instead of the weapon barrel direction. More precise aim at range.
   - Removed Stance Switch as a standalone system. Sniper crouching is now handled inside Combat for in-share NPCs and inherited from the vanilla planner for out-of-share NPCs.
