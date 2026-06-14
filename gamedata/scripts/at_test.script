@@ -26,9 +26,21 @@ local function _rotate_y(dir, angle_deg)
     return vector():set(dir.x * cos_a + dir.z * sin_a, dir.y, -dir.x * sin_a + dir.z * cos_a)
 end
 
+-- Drop `grenades` F1 grenades into each squad member's inventory (server-side, offline-safe). No-op when 0.
+local function _arm_members(squad, pos, lvid, gvid, grenades)
+    local count = grenades or 0
+    if count == 0 or squad:npc_count() == 0 then return end
+    local sim = alife()
+    for member in squad:squad_members() do
+        for _ = 1, count do
+            sim:create("grenade_f1", pos, lvid, gvid, member.id)
+        end
+    end
+end
+
 -- Spawn at actor vertex then teleport to `distance` meters along (actor facing rotated by angle).
 -- Off-map target vertex -> stay at actor.
-local function _spawn(section, distance, angle_deg)
+local function _spawn(section, distance, angle_deg, grenades)
     section   = section   or DEFAULT_SECTION
     distance  = distance  or DEFAULT_DISTANCE
     angle_deg = angle_deg or 0
@@ -60,6 +72,7 @@ local function _spawn(section, distance, angle_deg)
             if se then SIMBOARD:setup_squad_and_group(se) end
         end
     end
+    _arm_members(squad, actor_pos, actor_lvid, actor_gvid, grenades)
 
     local dir         = _rotate_y(actor:direction(), angle_deg)
     local target_pos  = vector():set(
@@ -145,7 +158,7 @@ end
 
 --- @export console
 function at_spawn_mil()
-    _spawn("army_sim_squad_novice", 60, 0)
+    _spawn("army_sim_squad_novice", 60, 0, 3)
 end
 
 --- @export console
