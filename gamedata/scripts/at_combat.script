@@ -333,6 +333,7 @@ local function _should_manage(npc, id)
     if (id % 1000) >= (cfg.combat_share * 1000) then return false, "hash_out" end
     if not npc:alive() then return false, "dead" end
     if IsWounded(npc) then return false, "wounded" end
+    if cfg.combat_ignore_companions and npc:has_info("npcx_is_companion") then return false, "companion" end
     local until_ms = _fail_until[id]
     if until_ms and time_global() < until_ms then return false, "fail_backoff" end
     local be = npc:best_enemy()

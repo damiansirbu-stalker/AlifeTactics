@@ -1,5 +1,5 @@
 next
-  Summary: combat AI takeover, faction doctrines, human-reaction aiming, sniper aim mode, monolith combat, zombied shamble, danger rework, weapon jam fix, NPC ammo selection, stealth kills, limp/heal fixes, AOEngine compatibility
+  Summary: combat AI takeover, companion exclusion, faction doctrines, human-reaction aiming, sniper aim mode, monolith combat, zombied shamble, danger rework, weapon jam fix, NPC ammo selection, stealth kills, limp/heal fixes, AOEngine compatibility
 
   - Added simulated NPC ammo consumption.
     Vanilla NPCs always fire the first ammo type in their weapon's list regardless of what they carry. AlifeTactics promotes veteran-rank and higher NPCs who carry armor-piercing ammo to fire AP-class rounds with real ballistics.
@@ -15,6 +15,8 @@ next
     AlifeTactics blocks the engine's combat and danger planners on its share and drives those NPCs itself.
     A stable per-NPC hash fixes which NPCs run AT combat vs vanilla, the same across save and load.
     Out-of-share NPCs are untouched, so AT and vanilla NPCs can fight in the same battle.
+  - Companions are no longer taken over by the Combat AI (MCM > Combat toggle, default on).
+    They keep their own follow and combat behavior and your squad commands.
   - Added Combat AI takeover for monolith and zombied.
     Monolith use standard behavior selection by HP and weapon, same as other communities.
     Zombied walk toward the enemy firing, no cover seeking, no retreat.

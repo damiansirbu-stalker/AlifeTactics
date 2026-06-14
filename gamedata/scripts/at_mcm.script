@@ -26,6 +26,7 @@ local defaults = {
     acc_disp_legend        = 0.38,
     combat_enabled = true,
     combat_share   = 1.0,
+    combat_ignore_companions = true,
     danger_hit_bypass   = true,
     danger_attack_sound = true,
     danger_actor_tables = true,
@@ -64,6 +65,7 @@ local _key_to_tab = {
     acc_disp_legend        = "accuracy",
     combat_enabled = "combat",
     combat_share   = "combat",
+    combat_ignore_companions = "combat",
     danger_hit_bypass   = "fixes/danger",
     danger_attack_sound = "fixes/danger",
     danger_actor_tables = "fixes/danger",
@@ -208,6 +210,7 @@ function on_mcm_load()
                     { id = "desc", type = "desc", text = "ui_mcm_at_combat_desc" },
                     { id = "combat_enabled", type = "check", val = 1, def = true },
                     { id = "combat_share", type = "track", val = 2, min = 0.0, max = 1.0, step = 0.05, def = 1.0 },
+                    { id = "combat_ignore_companions", type = "check", val = 1, def = true },
 
                     { id = "div_version", type = "line" },
                     { id = "version", type = "desc", text = "ui_mcm_at_title",

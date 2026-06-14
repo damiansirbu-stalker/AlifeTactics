@@ -62,6 +62,8 @@ This is the core of AlifeTactics. In a firefight, every move a stalker makes - p
 
 It coexists with everything. A slider in MCM (default 100%) picks which NPCs run AlifeTactics combat and which stay on vanilla or your modpack's combat, by a stable per-NPC hash so the same NPC always lands the same side across save and load. AlifeTactics overrides no combat scripts, so out-of-share NPCs are completely untouched - you can watch AT and vanilla NPCs fight in the same battle. Set the share to 0 to disable combat without removing the mod.
 
+Your companions are left out of the takeover by default (MCM > Combat), so they keep their own follow and combat behavior under your command. Turn the toggle off to let companions fight with AlifeTactics doctrine too.
+
 Each faction fights to its own doctrine. Military, Duty, Freedom, ISG, and mercenaries fight from cover and keep firing while they reposition, steady under fire. Monolith presses forward firing and never retreats. Bandits, renegades, and Sin come head-on. Loners, ecologists, and Clear Sky fight more cautiously and fall back when badly hurt. Zombies walk straight at the enemy firing, no cover, no retreat. The set of moves an NPC can pick from is filtered by its faction, its weapon class, and whether the fight is indoors or out.
 
 Each NPC keeps its own weapon on you. Because taking the planner over also removes the engine's own aimer, AlifeTactics re-points the weapon at the enemy itself, at roughly human reaction speed - so NPCs track a moving target and trail a strafe instead of snapping to where you were or holding a frozen aim. They are not aimbots; the reaction lag is deliberate and tunable.

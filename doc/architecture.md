@@ -262,7 +262,7 @@ Weapon bucket sets the forward standoff: CLOSE (pistol/shotgun/smg/melee) 10m, R
 
 ### Takeover gate (`_should_manage`)
 
-First failing check returns `(false, reason)`: `combat_enabled` → id-hash vs `combat_share` → `alive` → not `IsWounded` → no fail-backoff → `best_enemy` alive. The `world_property(EVAL_ID, false)` block list does **not** cover the monolith/zombied combat sub-schemes — AT owns an NPC only when its combat routes through `action_combat_planner`.
+First failing check returns `(false, reason)`: `combat_enabled` → id-hash vs `combat_share` → `alive` → not `IsWounded` → not a companion (`npcx_is_companion`, gated by `combat_ignore_companions`) → no fail-backoff → `best_enemy` alive. The `world_property(EVAL_ID, false)` block list does **not** cover the monolith/zombied combat sub-schemes — AT owns an NPC only when its combat routes through `action_combat_planner`.
 
 ### Lifecycle
 
@@ -278,6 +278,7 @@ A maneuver whose destination resolves nil increments `_fail_streak`; at `fail_th
 |---|---|---|---|
 | `combat_enabled` | MCM | true | Master toggle (next gate tick) |
 | `combat_share` | MCM | 1.0 | Stable per-id hash share AT vs vanilla |
+| `combat_ignore_companions` | MCM | true | Skip the takeover for companions (`npcx_is_companion`) |
 | `aim_throttle_ms` | `at_combat.ltx` | 200 | Re-aim interval (reaction cadence) |
 | `decide_throttle_ms` | `at_combat.ltx` | 1500 | Maneuver recompute interval |
 
