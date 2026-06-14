@@ -2,8 +2,9 @@
 ; All keys have script-side fallback defaults, so missing keys won't crash.
 
 [at_combat]
-; Recompute throttle + fail backoff
-throttle_npc_ms          = 1500   ; per-NPC minimum interval between recomputes (sole governor; bounds cost by NPC count)
+; Throttles (the two gates) + fail backoff
+aim_throttle_ms          = 200    ; per-NPC interval between re-aims (human reaction time; lower = tighter tracking, higher = more lag)
+decide_throttle_ms       = 1500   ; per-NPC interval between maneuver recomputes (the heavy gate; bounds cost by NPC count)
 fail_threshold           = 3      ; consecutive resolve-fails before the NPC is handed back to vanilla
 fail_backoff_ms          = 10000  ; per-fail penalty multiplier
 

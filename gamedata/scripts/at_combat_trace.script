@@ -3,7 +3,7 @@
 --- log/stat blocks. at_combat mirrors its _dbg flag here via set_enabled and holds none of the trace
 --- state. Stats accumulate only while enabled; at_test reads them through at_combat.get_stats.
 
-local tostring = tostring
+local tostring, IsStalker = tostring, IsStalker
 local log = xlog.get_logger("AT.COMBAT", { outfile = "alifetactics.log" })
 
 at_combat_trace = at_combat_trace or {}
@@ -43,78 +43,77 @@ function at_combat_trace.forget(id) _last_eval_logged[id] = nil end
 --- Accumulated telemetry table for the at_test stats dump.
 function at_combat_trace.stats() return _stats end
 
---- [DECIDE] one line per recompute: all readings (hp/see/age/zone/cover/friendly/occluder), the problem,
---- and the palette role -> maneuver chosen. Reads name/health here (gated) so the off path stays free. Counts the maneuver.
+--- One line per recompute: the NPC, the enemy it answers to, all readings, the problem, the chosen maneuver.
+--- Enemy + names + health read here (gated) so the off path pays nothing. Counts the maneuver.
 function at_combat_trace.decide(id, npc, state, ctx, tg, problem, role, maneuver)
     if not _on then return end
     if maneuver then _stat(_stats.behaviors, maneuver) end
     local age = tg - state.last_seen
-    log.debug("[DECIDE] npc=%d(%s) grp=%s wpn=%s/%s env=%s hp=%.2f see=%s age=%dms zone=%s cover=%s fr=%s occ=%s prob=%s %s->%s dist=%.1f",
+    local enemy = ctx.enemy
+    log.debug("decide npc=%d(%s) grp=%s wpn=%s/%s env=%s hp=%.2f ene=%d(%s/%s) see=%s age=%dms zone=%s dist=%.1f cover=%s fr=%s occ=%s prob=%s role=%s man=%s",
         id, npc:name(), state.group, state.weapon_kind or "none", state.bucket_name, state.env or "?",
-        npc.health, _yn(age == 0), age, state.range_zone, _yn(state.at_cover),
-        _yn(ctx.r_friendly), _yn(ctx.r_occluder), tostring(problem), tostring(role or "-"),
-        tostring(maneuver), ctx.dist)
+        npc.health, enemy:id(), enemy:name(), IsStalker(enemy) and "stalker" or "mutant",
+        _yn(age == 0), age, state.range_zone, ctx.dist, _yn(state.at_cover),
+        _yn(ctx.r_friendly), _yn(ctx.r_occluder), tostring(problem), tostring(role or "-"), tostring(maneuver))
 end
 
---- [COMBAT] maneuver switch with the rolled knobs (fire/posture/movement) held for the maneuver's lifetime.
+--- Maneuver switch with the rolled knobs (fire/posture/movement) held for the maneuver's lifetime.
 function at_combat_trace.switch(id, name, fire, posture, movement)
     if not _on then return end
-    log.debug("[COMBAT] switch npc=%d -> %s fire=%s posture=%s move=%s",
+    log.debug("switch npc=%d man=%s fire=%s posture=%s move=%s",
         id, name, tostring(fire), tostring(posture), tostring(movement))
 end
 
---- [RESOLVE] move issued; lvid is the requested vertex, sent is where send_to routed it, cover the claim outcome.
+--- Move issued; lvid is the requested vertex, sent is where send_to routed it, cover the claim outcome.
 function at_combat_trace.resolve_ok(id, maneuver, vid, sent, dist, cover)
     if not _on then return end
     _stat(_stats.resolve, tostring(maneuver) .. "/ok")
-    log.debug("[RESOLVE] npc=%d %s ok lvid=%d sent=%d dist=%.1f cover=%s",
+    log.debug("resolve npc=%d man=%s ok lvid=%d sent=%d dist=%.1f cover=%s",
         id, tostring(maneuver), vid, sent, dist, tostring(cover or "na"))
 end
 
---- [RESOLVE] resolver returned no vertex; counts the fail.
+--- Resolver returned no vertex; counts the fail.
 function at_combat_trace.resolve_fail(id, maneuver, dist)
     if not _on then return end
     _stat(_stats.resolve, tostring(maneuver) .. "/fail")
-    log.debug("[RESOLVE] npc=%d %s FAIL dist=%.1f", id, tostring(maneuver), dist)
+    log.debug("resolve npc=%d man=%s fail dist=%.1f", id, tostring(maneuver), dist)
 end
 
---- [COVER] reservation event (held / stolen / claim_fail); reads the contesting owner here (gated).
+--- Cover reservation event (held / stolen / claim_fail); reads the contesting owner here (gated).
 function at_combat_trace.cover(id, event, lvid)
     if not _on then return end
     _stat(_stats.cover, event)
     local owner = lvid and xcombat.get_cover_owner(lvid)
-    log.debug("[COVER] npc=%d %s lvid=%s owner=%s", id, event, tostring(lvid), tostring(owner or "-"))
+    log.debug("cover npc=%d %s lvid=%s owner=%s", id, event, tostring(lvid), tostring(owner or "-"))
 end
 
---- [BACKOFF] pick-fail streak crossed threshold; NPC handed back to vanilla for backoff ms.
+--- Pick-fail streak crossed threshold; NPC handed back to vanilla for backoff ms.
 function at_combat_trace.backoff(id, streak, backoff)
     if not _on then return end
     _stats.backoffs = _stats.backoffs + 1
-    log.debug("[BACKOFF] npc=%d streak=%d backoff=%dms -> vanilla", id, streak, backoff)
+    log.debug("backoff npc=%d streak=%d backoff=%dms -> vanilla", id, streak, backoff)
 end
 
---- [COMBAT] eval result, logged only on transition (managed<->rejected) per NPC.
+--- Eval result, logged only on transition (managed<->rejected) per NPC.
 function at_combat_trace.eval(id, result, reason)
     if not _on then return end
     local prev = _last_eval_logged[id]
     if prev == result then return end
     _last_eval_logged[id] = result
-    log.debug("[COMBAT] eval npc=%d %s->%s reason=%s", id, prev == nil and "init" or tostring(prev), tostring(result), reason)
+    log.debug("eval npc=%d %s->%s reason=%s", id, prev == nil and "init" or tostring(prev), tostring(result), reason)
 end
 
---- [PERF] per-recompute total ms + outcome tag; accumulates tick avg/max.
-function at_combat_trace.perf(id, tag, ms)
+--- Per-recompute total ms; accumulates tick avg/max into stats. Read via at_combat_stats, not logged per tick.
+function at_combat_trace.perf(ms)
     if not _on then return end
-    log.debug("[PERF] npc=%d %s %.3fms", id, tostring(tag), ms)
     _stats.tick_n = _stats.tick_n + 1
     _stats.tick_sum = _stats.tick_sum + ms
     if ms > _stats.tick_max then _stats.tick_max = ms end
 end
 
---- [PERF] per-stage duration; accumulates stage avg/max into stats.stages. The read stage mirrors to read_*.
-function at_combat_trace.stage(id, name, ms)
+--- Per-stage duration; accumulates stage avg/max into stats.stages. Read via at_combat_stats, not logged per tick.
+function at_combat_trace.stage(name, ms)
     if not _on then return end
-    log.debug("[PERF] npc=%d stage=%s %.3fms", id, name, ms)
     local st = _stats.stages[name]
     if not st then
         st = { sum = 0, max = 0, n = 0 }

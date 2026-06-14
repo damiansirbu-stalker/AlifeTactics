@@ -1,7 +1,8 @@
---- at_combat: Pattern B planner takeover. The NPC is a turret - a fire state plus aim makes the engine
---- fire autonomously. Each ~1.5s recompute reads the problem (hurt / lost / blocked / wrong range), picks
---- exactly one maneuver from the NPC's doctrine palette (faction x weapon x terrain), and holds it until
---- the next recompute. One-shot, no cycles. All NPC control goes through xcombat (set_combat / aim_at / send_to).
+--- at_combat: Pattern B planner takeover. While the takeover gate is open (_should_manage) the engine runs
+--- our action instead of the vanilla combat/danger/alife planners. Per AI tick the action runs two throttled
+--- gates: AIM points the weapon at the enemy (fast, reaction cadence); DECIDE chooses one maneuver (slow)
+--- from the NPC's doctrine palette (faction x weapon x terrain) via palette -> problem -> pick, holds it
+--- until the next DECIDE. All NPC control goes through xcombat (set_combat / aim_at / send_to).
 
 local IsStalker, IsWounded, time_global = IsStalker, IsWounded, time_global
 local math_sqrt, math_floor, math_min, math_max, math_random = math.sqrt, math.floor, math.min, math.max, math.random
@@ -47,9 +48,8 @@ local GROUP_LEAN  = { [DISC] = "STEADY", [MONO] = "FEARLESS", [COMMON] = "CAUTIO
 
 local BUCKET_SNIPER, BUCKET_CLOSE, BUCKET_RIFLE = "SNIPER", "CLOSE", "RIFLE"
 
--- Pipeline stage names (per-stage perf timers -> at_combat_trace.stage)
-local S_REFRESH, S_READ, S_PICK, S_RESOLVE, S_APPLY =
-      "refresh", "read", "pick", "resolve", "apply"
+-- Perf timer stage names (-> at_combat_trace.stage). resolve = find_peek/find_point, apply = set_combat.
+local S_RESOLVE, S_APPLY = "resolve", "apply"
 
 
 -- =========================================================================
@@ -59,7 +59,7 @@ local S_REFRESH, S_READ, S_PICK, S_RESOLVE, S_APPLY =
 local LTX_PATH    = "alifetactics\\at_combat.ltx"
 local LTX_SECTION = "at_combat"
 
-local THROTTLE_NPC_MS, FAIL_THRESHOLD, FAIL_BACKOFF_MS
+local AIM_THROTTLE_MS, DECIDE_THROTTLE_MS, FAIL_THRESHOLD, FAIL_BACKOFF_MS
 local FRIENDLY_THRESH_M, RANGE_DEADBAND_M, HURT_FRAC, LOST_SIGHT_MS
 local ADVANCE_STEP_M, BACK_STEP_M, FLANK_LAT_M, FLANK_FWD_M, STEP_SIDE_M
 local SQUAD_BUCKETS
@@ -69,7 +69,8 @@ local function _load_tunables()
     local ini = ini_file(LTX_PATH)
     local function f(k, d) return ini:r_float_ex(LTX_SECTION, k) or d end
     local function i(k, d) local v = ini:r_float_ex(LTX_SECTION, k); return v and math_floor(v) or d end
-    THROTTLE_NPC_MS    = i("throttle_npc_ms",        1500)
+    AIM_THROTTLE_MS    = i("aim_throttle_ms",        200)
+    DECIDE_THROTTLE_MS = i("decide_throttle_ms",     1500)
     FAIL_THRESHOLD     = i("fail_threshold",         3)
     FAIL_BACKOFF_MS    = i("fail_backoff_ms",        10000)
     FRIENDLY_THRESH_M  = f("friendly_line_thresh_m", 1.5)
@@ -94,6 +95,7 @@ end
 local _installed   = {}
 local _state       = {}
 local _last_decide = {}
+local _last_aim    = {}
 local _last_eval   = {}
 local _last_reason = {}
 local _fail_until  = {}
@@ -104,9 +106,9 @@ local _community   = {}
 -- =========================================================================
 -- Maneuver catalog. Each carries its role, fire mode, cover flag, and the three doctrine tags
 -- (factions / weapons / environment). Posture and speed are NOT here - they are rolled at maneuver
--- start (see _roll). R_BACK (STOW) is the wounded-flee fall-back; R_FALLBACK (FIRE) is the range-management
--- fighting withdrawal - weapon up, firing while backing. DROPPED no-user combos: BACK_COVER_FIRE,
--- FLANK_OPEN_STOW, FORWARD_OPEN_STOW.
+-- start (see _roll). STOW holsters the weapon (sprint state) and is reserved for flee only: R_BACK on
+-- P_HURT. Every other role keeps the weapon up and fires while repositioning; R_FALLBACK (FIRE) is the
+-- range-management fighting withdrawal on P_CLOSE. DROPPED: BACK_COVER_FIRE, FLANK_OPEN_STOW, FORWARD_OPEN_STOW.
 -- =========================================================================
 
 -- nil tag = applies to everything
@@ -116,17 +118,14 @@ local SNIPER_ONLY = { [BUCKET_SNIPER] = true }
 local MANEUVERS = {
     HOLD_FIRE          = { role = R_HOLD,  fire = FIRE,  factions = ALL,                                       weapons = ALL },
     HOLD_SNIPE         = { role = R_SNIPE, fire = SNIPE, factions = { [DISC]=true, [MONO]=true, [COMMON]=true }, weapons = SNIPER_ONLY },
-    COVER_FIRE         = { role = R_COVER, fire = FIRE,  cover = true, factions = { [MONO]=true, [COMMON]=true } },
-    COVER_STOW         = { role = R_COVER, fire = STOW,  cover = true, factions = { [DISC]=true } },
+    COVER_FIRE         = { role = R_COVER, fire = FIRE,  cover = true, factions = { [MONO]=true, [COMMON]=true, [DISC]=true } },
     FORWARD_OPEN_FIRE  = { role = R_FWD,   fire = FIRE,  factions = { [COMMON]=true, [RECK]=true, [ZOMB]=true } },
-    FORWARD_COVER_FIRE = { role = R_FWD,   fire = FIRE,  cover = true, factions = { [MONO]=true } },
-    FORWARD_COVER_STOW = { role = R_FWD,   fire = STOW,  cover = true, factions = { [DISC]=true } },
+    FORWARD_COVER_FIRE = { role = R_FWD,   fire = FIRE,  cover = true, factions = { [MONO]=true, [DISC]=true } },
     BACK_OPEN_STOW     = { role = R_BACK,  fire = STOW,  factions = { [COMMON]=true, [RECK]=true } },
     BACK_COVER_STOW    = { role = R_BACK,  fire = STOW,  cover = true, factions = { [DISC]=true } },
     BACK_OPEN_FIRE     = { role = R_FALLBACK, fire = FIRE, factions = { [DISC]=true, [COMMON]=true, [RECK]=true } },
     FLANK_OPEN_FIRE    = { role = R_FLANK, fire = FIRE,  factions = { [RECK]=true },  env = "OUTDOOR" },
-    FLANK_COVER_FIRE   = { role = R_FLANK, fire = FIRE,  cover = true, factions = { [MONO]=true }, env = "OUTDOOR" },
-    FLANK_COVER_STOW   = { role = R_FLANK, fire = STOW,  cover = true, factions = { [DISC]=true }, env = "OUTDOOR" },
+    FLANK_COVER_FIRE   = { role = R_FLANK, fire = FIRE,  cover = true, factions = { [MONO]=true, [DISC]=true }, env = "OUTDOOR" },
     STEP_SIDE_FIRE     = { role = R_SIDE,  fire = FIRE,  factions = { [DISC]=true, [MONO]=true, [COMMON]=true, [RECK]=true } },
 }
 
@@ -318,7 +317,9 @@ end
 
 
 -- =========================================================================
--- Evaluator (Pattern B gate; kept)
+-- TAKEOVER GATE. The engine polls this evaluator while planning: true = AT drives the
+-- NPC (the vanilla combat/danger/alife planners are precondition-blocked), false = vanilla
+-- resumes. This is the on/off of the whole takeover; the per-tick pipeline is below.
 -- =========================================================================
 
 class "evaluator_at_combat" ( property_evaluator )
@@ -326,7 +327,8 @@ class "evaluator_at_combat" ( property_evaluator )
 function evaluator_at_combat:__init(name) super (nil, name)
 end
 
-local function _decide_eval(npc, id)
+-- The takeover test, highest-priority check first; first failure returns (false, reason).
+local function _should_manage(npc, id)
     if not cfg.combat_enabled then return false, "disabled" end
     if (id % 1000) >= (cfg.combat_share * 1000) then return false, "hash_out" end
     if not npc:alive() then return false, "dead" end
@@ -341,7 +343,7 @@ end
 function evaluator_at_combat:evaluate()
     local npc = self.object
     local id = npc:id()
-    local result, reason = _decide_eval(npc, id)
+    local result, reason = _should_manage(npc, id)
     _last_eval[id]   = result
     _last_reason[id] = reason
     if _dbg then at_combat_trace.eval(id, result, reason) end
@@ -406,7 +408,7 @@ function action_at_combat:_move(maneuver, ctx, state)
 
     local mtmr = xprofiler.new_if(_dbg):start()
     local vid = _resolve(maneuver, npc, ctx, state)
-    at_combat_trace.stage(id, S_RESOLVE, mtmr:stop():get_ms())
+    at_combat_trace.stage(S_RESOLVE, mtmr:stop():get_ms())
     if not vid then
         _on_pick_fail(id)
         at_combat_trace.resolve_fail(id, self.current_behavior, ctx.dist)
@@ -436,7 +438,7 @@ function action_at_combat:_apply(maneuver, name, ctx, state)
     self.posture, self.movement = _roll(maneuver.fire, stationary)
     local atmr = xprofiler.new_if(_dbg):start()
     xcombat.set_combat(self.object, { fire = maneuver.fire, posture = self.posture, movement = self.movement, aim = ctx.enemy })
-    at_combat_trace.stage(id, S_APPLY, atmr:stop():get_ms())
+    at_combat_trace.stage(S_APPLY, atmr:stop():get_ms())
     at_combat_trace.switch(id, name, maneuver.fire, self.posture, self.movement)
     self:_move(maneuver, ctx, state)
 end
@@ -454,76 +456,79 @@ function action_at_combat:initialize()
     self.movement         = nil
 end
 
+-- =========================================================================
+-- THE PIPELINE. While the takeover gate is open, the engine runs this action each AI tick.
+-- execute() is the skeleton; it runs two gates, each on its own throttle:
+--   AIM    (aim_throttle_ms)    _aim     point the weapon at the enemy
+--   DECIDE (decide_throttle_ms) _decide  choose and drive one maneuver, in 3 steps:
+--       1. palette   _refresh        doctrine(faction) x weapon x terrain -> maneuver set
+--       2. problem   _read_problem   the single problem to solve this tick
+--       3. maneuver  _pick           problem -> palette role -> maneuver, then _apply / _move
+-- =========================================================================
+
 function action_at_combat:execute()
     action_base.execute(self)
     local npc = self.object
-    local id = npc:id()
-    local tg = time_global()
+    local id, tg = npc:id(), time_global()
 
-    if tg - (_last_decide[id] or 0) < THROTTLE_NPC_MS then return end
+    local aim_ready    = tg - (_last_aim[id]    or 0) >= AIM_THROTTLE_MS
+    local decide_ready = tg - (_last_decide[id] or 0) >= DECIDE_THROTTLE_MS
+    if not (aim_ready or decide_ready) then return end
 
     local enemy = npc:best_enemy()
     if not (enemy and enemy:alive()) then return end
-    _last_decide[id] = tg
 
-    local tmr = xprofiler.new_if(_dbg):start()
-    local tag = self:_decide_tick(npc, id, enemy, tg)
-    tmr:stop()
-    at_combat_trace.perf(id, tag, tmr:get_ms())
+    if aim_ready    then self:_aim(npc, id, enemy, tg) end
+    if decide_ready then self:_decide(npc, id, enemy, tg) end
 end
 
-function action_at_combat:_decide_tick(npc, id, enemy, tg)
+-- AIM gate: re-point the weapon at the enemy's current position.
+function action_at_combat:_aim(npc, id, enemy, tg)
+    _last_aim[id] = tg
+    xcombat.aim_at(npc, enemy:position())
+end
+
+-- DECIDE gate: palette -> problem -> maneuver, then switch (_apply) or hold (_move). Timed end to end.
+function action_at_combat:_decide(npc, id, enemy, tg)
+    _last_decide[id] = tg
+    local timer = xprofiler.new_if(_dbg):start()
+
+    local ctx   = self:_gather(npc, id, enemy)
+    local state = ctx.state
+    _refresh(state, npc, ctx.npc_pos, ctx.npc_lvid)
+    local problem = _read_problem(npc, enemy, state, ctx, tg)
+    local picked  = _pick(state, problem, state.palette) or "HOLD_FIRE"
+
+    local maneuver = MANEUVERS[picked]
+    at_combat_trace.decide(id, npc, state, ctx, tg, problem, maneuver and maneuver.role, picked)
+    if maneuver and picked ~= self.current_behavior then
+        self:_apply(maneuver, picked, ctx, state)
+    elseif maneuver then
+        self:_move(maneuver, ctx, state)
+    end
+
+    at_combat_trace.perf(timer:stop():get_ms())
+end
+
+-- Per-tick context: state (lazily created), positions, distance, direction, at-cover flag.
+function action_at_combat:_gather(npc, id, enemy)
     local state = _state[id]
     if not state then
         state = _init_state(npc)
         _state[id] = state
     end
-
-    local npc_pos = npc:position()
-    local ene_pos = enemy:position()
+    local npc_pos  = npc:position()
+    local ene_pos  = enemy:position()
     local npc_lvid = npc:level_vertex_id()
-    local rtmr = xprofiler.new_if(_dbg):start()
-    _refresh(state, npc, npc_pos, npc_lvid)
-    at_combat_trace.stage(id, S_REFRESH, rtmr:stop():get_ms())
-
-    local dx = ene_pos.x - npc_pos.x
-    local dz = ene_pos.z - npc_pos.z
-    local dist = math_sqrt(dx*dx + dz*dz)
-    local inv  = dist > 0 and (1 / dist) or 0
-    local ctx = {
-        npc      = npc,
-        id       = id,
-        enemy    = enemy,
-        npc_pos  = npc_pos,
-        ene_pos  = ene_pos,
-        npc_lvid = npc_lvid,
-        dist     = dist,
-        dir_to   = vector():set(dx * inv, 0, dz * inv),
-        bucket   = state.bucket,
-    }
-
+    local dx, dz   = ene_pos.x - npc_pos.x, ene_pos.z - npc_pos.z
+    local dist     = math_sqrt(dx*dx + dz*dz)
+    local inv      = dist > 0 and (1 / dist) or 0
     state.at_cover = state.last_cover_vid ~= nil and npc_lvid == state.last_cover_vid
-
-    local rdtmr = xprofiler.new_if(_dbg):start()
-    local problem = _read_problem(npc, enemy, state, ctx, tg)
-    at_combat_trace.stage(id, S_READ, rdtmr:stop():get_ms())
-
-    local ptmr = xprofiler.new_if(_dbg):start()
-    local picked = _pick(state, problem, state.palette) or "HOLD_FIRE"
-    at_combat_trace.stage(id, S_PICK, ptmr:stop():get_ms())
-
-    local maneuver = MANEUVERS[picked]
-    at_combat_trace.decide(id, npc, state, ctx, tg, problem, maneuver and maneuver.role, picked)
-    if not maneuver then return "no_maneuver" end
-
-    if picked ~= self.current_behavior then
-        self:_apply(maneuver, picked, ctx, state)
-    else
-        self:_move(maneuver, ctx, state)
-    end
-
-    xcombat.aim_at(npc, ene_pos)
-    return picked
+    return {
+        npc = npc, id = id, enemy = enemy, state = state,
+        npc_pos = npc_pos, ene_pos = ene_pos, npc_lvid = npc_lvid,
+        dist = dist, dir_to = vector():set(dx * inv, 0, dz * inv), bucket = state.bucket,
+    }
 end
 
 function action_at_combat:finalize()
@@ -539,6 +544,8 @@ end
 -- Lifecycle: install, unregister, MCM refresh
 -- =========================================================================
 
+-- TAKEOVER INSTALL (once per NPC, on spawn): graft the evaluator + action into the GOAP
+-- manager and block the vanilla planners. The block list below is exactly what AT takes over.
 local function _install(npc)
     if not npc then return end
     if not IsStalker(npc) then return end
@@ -595,6 +602,7 @@ local function _on_entity_unregister(se_obj)
     _community[id]   = nil
     _state[id]       = nil
     _last_decide[id] = nil
+    _last_aim[id]    = nil
 end
 
 local function _refresh_log()
@@ -612,6 +620,7 @@ local function _on_first_update()
     _installed   = {}
     _state       = {}
     _last_decide = {}
+    _last_aim    = {}
     _last_eval   = {}
     _last_reason = {}
     _fail_until  = {}
