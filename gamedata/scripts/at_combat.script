@@ -30,8 +30,8 @@ local R_HOLD, R_SNIPE, R_COVER, R_FWD, R_BACK, R_FLANK, R_SIDE, R_FALLBACK =
       "hold", "snipe", "cover", "forward", "back", "flank", "step_side", "fallback"
 
 -- Problems, highest priority first
-local P_HURT, P_LOST, P_BLOCKED, P_FAR, P_CLOSE, P_NONE =
-      "hurt", "lost", "blocked", "too_far", "too_close", "none"
+local P_UNARMED, P_HURT, P_LOST, P_BLOCKED, P_FAR, P_CLOSE, P_NONE =
+      "unarmed", "hurt", "lost", "blocked", "too_far", "too_close", "none"
 
 -- Faction groups + their style/lean
 local DISC, MONO, COMMON, RECK, ZOMB = "DISCIPLINED", "MONOLITH", "COMMON", "RECKLESS", "ZOMBIED"
@@ -128,6 +128,10 @@ local MANEUVERS = {
     FLANK_COVER_FIRE   = { role = R_FLANK, fire = FIRE,  cover = true, factions = { [MONO]=true, [DISC]=true }, env = "OUTDOOR" },
     STEP_SIDE_FIRE     = { role = R_SIDE,  fire = FIRE,  factions = { [DISC]=true, [MONO]=true, [COMMON]=true, [RECK]=true } },
 }
+
+-- Universal flee for an unarmed NPC: run directly away with the weapon stowed (R_BACK + STOW + run),
+-- picked regardless of faction palette or lean. A gunless NPC of any community runs, never holds.
+local FLEE_UNARMED = "BACK_OPEN_STOW"
 
 
 -- =========================================================================
@@ -232,6 +236,7 @@ local function _read_problem(npc, enemy, state, ctx, tg)
     local see = npc:see(enemy)
     if see then state.last_seen = tg end
 
+    if state.unarmed then return P_UNARMED end
     if state.lean ~= "FEARLESS" and npc.health < HURT_FRAC then return P_HURT end
     if (tg - state.last_seen) > LOST_SIGHT_MS then return P_LOST end
     local friendly = xcombat.has_friendly_in_line(npc, ctx.npc_pos, ctx.ene_pos, FRIENDLY_THRESH_M)
@@ -251,6 +256,7 @@ end
 
 -- Problem -> maneuver, via the palette. The read names the need; the faction's palette supplies the variant.
 local function _pick(state, problem, pal)
+    if problem == P_UNARMED then return FLEE_UNARMED end
     if problem == P_HURT   then return pal[R_BACK] or pal[R_COVER] or pal[R_HOLD] end
     if problem == P_LOST   then return pal[R_FWD]  or pal[R_FLANK] or pal[R_HOLD] end
     if problem == P_BLOCKED then return pal[R_SIDE] or pal[R_FLANK] or pal[R_HOLD] end
@@ -285,6 +291,7 @@ local function _init_state(npc)
         style         = GROUP_STYLE[group],
         lean          = GROUP_LEAN[group],
         weapon_kind   = nil,
+        unarmed       = false,
         bucket_name   = BUCKET_RIFLE,
         range_band    = xcombat.WEAPON_RANGES.w_rifle,
         palette       = nil,
@@ -300,7 +307,9 @@ end
 
 -- Refresh weapon bucket / band / environment and rebuild the palette only when one of the three changes.
 local function _refresh(state, npc, npc_pos, npc_lvid)
-    local kind = xcombat.get_weapon_kind(npc) or "w_rifle"
+    local kind = xcombat.get_weapon_kind(npc)
+    state.unarmed     = (kind == nil)
+    kind = kind or "w_rifle"
     state.weapon_kind = kind
     state.bucket_name = _weapon_bucket(kind)
     state.range_band  = xcombat.get_weapon_range(kind)

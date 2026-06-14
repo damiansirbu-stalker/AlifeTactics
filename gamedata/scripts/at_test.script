@@ -38,6 +38,37 @@ local function _arm_members(squad, pos, lvid, gvid, grenades)
     end
 end
 
+-- Reused scratch buffer + a single inventory functor (defined once, never per-loop) for weapon stripping.
+local _strip_buf = {}
+local function _buf_weapon(_owner, item)
+    if IsWeapon(item) then _strip_buf[#_strip_buf + 1] = item:id() end
+end
+
+-- Release every weapon in one online NPC's inventory. Returns the count removed.
+local function _strip_npc(sim, npc)
+    for i = #_strip_buf, 1, -1 do _strip_buf[i] = nil end
+    npc:iterate_inventory(_buf_weapon, npc)
+    local removed = 0
+    for i = 1, #_strip_buf do
+        local se = alife_object(_strip_buf[i])
+        if se then sim:release(se, true); removed = removed + 1 end
+    end
+    return removed
+end
+
+-- Remove every weapon (rifle/pistol/knife) from each online squad member so the NPC reads as unarmed to
+-- at_combat (xcombat.get_weapon_kind -> nil). Members must be online; call a few seconds after spawn.
+local function _strip_weapons(squad)
+    if squad:npc_count() == 0 then return 0 end
+    local sim = alife()
+    local removed = 0
+    for member in squad:squad_members() do
+        local npc = level.object_by_id(member.id)
+        if npc then removed = removed + _strip_npc(sim, npc) end
+    end
+    return removed
+end
+
 -- Spawn at actor vertex then teleport to `distance` meters along (actor facing rotated by angle).
 -- Off-map target vertex -> stay at actor.
 local function _spawn(section, distance, angle_deg, grenades)
@@ -91,6 +122,7 @@ local function _spawn(section, distance, angle_deg, grenades)
     _tip(string_format("AT.TEST: %s id=%d %s",
         section, squad.id,
         on_map and (distance .. "m @" .. angle_deg .. "deg") or "at actor (off-map)"))
+    return squad
 end
 
 -- Spawn N squads in one call. Each entry: { section, distance, angle_deg }.
@@ -184,6 +216,22 @@ end
 --- @export console
 function at_spawn_zomb()
     _spawn("zombied_sim_squad_novice", 40, 0)
+end
+
+-- Spawn an armed military squad, then strip every weapon 3s later so each member reads as unarmed.
+-- Tests the unarmed-flee path: a gunless NPC should sprint away from the enemy regardless of faction.
+--- @export console
+function at_spawn_unarmed()
+    local squad = _spawn("army_sim_squad_novice", 40, 0)
+    if not squad then return end
+    local squad_id = squad.id
+    CreateTimeEvent(0, "at_unarmed_strip_" .. tostring(time_global()), 3, function()
+        local sq = alife_object(squad_id)
+        local removed = sq and _strip_weapons(sq) or 0
+        log.info("[SPAWN] unarmed squad=%d weapons_removed=%d", squad_id, removed)
+        _tip(string_format("AT.TEST: unarmed squad id=%d, %d weapons removed", squad_id, removed))
+        return true
+    end)
 end
 
 -- Test helper for at_ammo: spawns a military squad, injects AP boxes covering

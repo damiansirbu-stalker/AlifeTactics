@@ -1,5 +1,5 @@
 next
-  Summary: combat AI takeover, companion exclusion, faction doctrines, human-reaction aiming, sniper aim mode, monolith combat, zombied shamble, friendly-fire block, danger rework, weapon jam fix, NPC ammo selection, stealth kills, limp/heal fixes, AOEngine compatibility
+  Summary: combat AI takeover, companion exclusion, faction doctrines, human-reaction aiming, sniper aim mode, monolith combat, zombied shamble, friendly-fire block, unarmed flee, danger rework, weapon jam fix, NPC ammo selection, stealth kills, limp/heal fixes, AOEngine compatibility
 
   - Added a same-faction friendly-fire damage block (MCM > Combat, default on).
     An NPC that hits a teammate of its own faction deals no damage by default.
@@ -29,6 +29,7 @@ next
     Monolith presses forward firing and never retreats. Bandits, renegades, and Sin come head-on.
     Loners, ecologists, and Clear Sky fight cautiously and fall back when badly hurt.
   - Changed NPCs to keep the weapon up while repositioning. They holster only to flee when wounded.
+  - Unarmed NPCs now sprint away from the enemy instead of fighting empty-handed, any faction.
   - Changed NPCs to re-aim at human reaction speed. No aimbot snapping, no stale aim on a moving target.
   - Added Sniper aim mode for kind=w_sniper carriers (SVD, SVT40, Mosin, SKS, M82 and the rest of the class).
     When a sniper has line of sight, they crouch and engage the engine sniper-aim flag, which tracks the target head direction instead of the weapon barrel direction. More precise aim at range.

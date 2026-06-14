@@ -229,7 +229,8 @@ One problem per decide, highest priority first; the faction's palette supplies t
 
 | Problem | Read | Answer |
 |---|---|---|
-| hurt | `npc.health < hurt_frac` (FEARLESS factions ignore) | fall back (BACK, weapon stowed — the only flee) |
+| unarmed | no weapon equipped (`get_weapon_kind` nil) | flee: run away, weapon stowed — any faction, ignores palette and lean |
+| hurt | `npc.health < hurt_frac` (FEARLESS factions ignore) | fall back (BACK, weapon stowed) |
 | lost | time since `npc:see` > `lost_sight_ms` (12s) | forward, toward the enemy |
 | blocked | squadmate in the lane, or a wall on the line | STEP_SIDE |
 | too_far | beyond the weapon band + deadband | forward to the standoff (snipers snipe) |
