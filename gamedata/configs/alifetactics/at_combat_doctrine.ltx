@@ -1,0 +1,111 @@
+; AlifeTactics combat doctrine: maneuver catalog. Paired with gamedata/scripts/at_combat_doctrine.script.
+; handles = the events (problems) this maneuver answers   move = destination resolver   fire = shoot|snipe|stow
+; factions / weapons / env = selection sets (listed in full, no shorthand). An event is answered by a random
+; eligible maneuver, so listing the same event on several maneuvers spreads behavior across the squad.
+
+[doctrine]
+maneuvers = hold_fire, hold_snipe, cover_fire, forward_open_fire, back_open_fire, back_cover_stow, back_open_stow, step_back_fire, step_side_fire, flank_open_fire, flank_cover_fire, flank_open_stow, flank_cover_stow
+
+[hold_fire]
+handles  = engage, none
+move     = hold
+fire     = shoot
+factions = bandit, dolg, ecolog, freedom, killer, army, monolith, stalker, csky, zombied, greh, isg, renegade
+weapons  = sniper, close, rifle
+env      = indoor, outdoor
+
+[hold_snipe]
+handles  = engage, none
+move     = hold
+fire     = snipe
+factions = stalker, bandit, dolg, freedom, killer, army, monolith, ecolog, csky, renegade, greh, isg
+weapons  = sniper
+env      = outdoor
+
+[cover_fire]
+handles  = engage, is_under_fire, is_exposed, is_blocked_wall, none
+move     = cover
+fire     = shoot
+factions = army, dolg, freedom, killer, isg, monolith, stalker, ecolog, csky
+weapons  = sniper, close, rifle
+env      = indoor, outdoor
+
+[forward_open_fire]
+handles  = engage, is_too_far
+move     = advance
+fire     = shoot
+factions = bandit, dolg, ecolog, freedom, killer, army, monolith, stalker, csky, zombied, greh, isg, renegade
+weapons  = sniper, close, rifle
+env      = indoor, outdoor
+
+[back_open_fire]
+handles  = is_hurt
+move     = withdraw
+fire     = shoot
+factions = army, dolg, freedom, killer, isg, stalker, bandit, greh
+weapons  = sniper, close, rifle
+env      = indoor, outdoor
+
+[back_cover_stow]
+handles  = is_hurt
+move     = withdraw
+fire     = stow
+factions = ecolog, csky, renegade
+weapons  = sniper, close, rifle
+env      = indoor, outdoor
+
+[back_open_stow]
+handles  = is_grenade_near, is_unarmed
+move     = withdraw
+fire     = stow
+factions = bandit, dolg, ecolog, freedom, killer, army, monolith, stalker, csky, zombied, greh, isg, renegade
+weapons  = sniper, close, rifle
+env      = indoor, outdoor
+
+[step_back_fire]
+handles  = is_too_close
+move     = step_back
+fire     = shoot
+factions = bandit, dolg, ecolog, freedom, killer, army, monolith, stalker, csky, zombied, greh, isg, renegade
+weapons  = sniper, close, rifle
+env      = indoor, outdoor
+
+[step_side_fire]
+handles  = is_blocked_friendly, is_blocked_wall
+move     = step_side
+fire     = shoot
+factions = bandit, dolg, ecolog, freedom, killer, army, monolith, stalker, csky, zombied, greh, isg, renegade
+weapons  = sniper, close, rifle
+env      = indoor, outdoor
+
+[flank_open_fire]
+handles  = engage, is_too_far
+move     = flank
+fire     = shoot
+factions = army, dolg, freedom, killer, isg, monolith
+weapons  = close, rifle
+env      = outdoor
+
+[flank_cover_fire]
+handles  = engage, is_too_far
+move     = flank_cover
+fire     = shoot
+factions = army, dolg, freedom, killer, isg, monolith
+weapons  = close, rifle
+env      = outdoor
+
+[flank_open_stow]
+handles  = is_blocked_wall
+move     = flank
+fire     = stow
+factions = army, dolg, freedom, killer, isg, monolith
+weapons  = close, rifle
+env      = outdoor
+
+[flank_cover_stow]
+handles  = is_blocked_wall
+move     = flank_cover
+fire     = stow
+factions = army, dolg, freedom, killer, isg, monolith
+weapons  = close, rifle
+env      = outdoor

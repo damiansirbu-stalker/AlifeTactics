@@ -35,7 +35,7 @@ local S_RESOLVE, S_APPLY = "resolve", "apply"
 -- LTX tunables (gate plumbing + handback hysteresis; the doctrine half loads its own). Deferred load.
 -- =========================================================================
 
-local LTX_PATH    = "alifetactics\\at_combat.ltx"
+local LTX_PATH    = "alifetactics\\at_combat_config.ltx"
 local LTX_SECTION = "at_combat"
 
 local FAST_MS, MEDIUM_MS, SLOW_MS, NO_ENEMY_MS, LOST_SIGHT_MS, SEE_THROTTLE_MS
@@ -230,6 +230,9 @@ function action_at_combat:initialize()
     self.target_lvid      = nil
     self.posture          = nil
     self.movement         = nil
+    self.opened           = false
+    local st = _state[npc:id()]
+    if st then st.event_pick = {} end
 end
 
 
@@ -274,6 +277,7 @@ function action_at_combat:_slow(ctx, tg)
     local event = doctrine.first_event(doctrine.GATE_SLOW, ctx, state, tg)
     at_combat_trace.gate(id, npc, state, ctx, doctrine.GATE_SLOW, event)
     self:_dispatch(event, ctx, state, false)
+    self.opened = true
 
     at_combat_trace.perf(timer:stop():get_ms())
 end
@@ -296,7 +300,7 @@ function action_at_combat:_dispatch(event, ctx, state, is_medium)
     local name = event and doctrine.pick(event, state)
     if not name then
         if is_medium and state.override then
-            self:_switch(state.base_maneuver or "HOLD_FIRE", ctx, state, false)
+            self:_switch(state.base_maneuver or "hold_fire", ctx, state, false)
         else
             local maneuver = doctrine.MANEUVERS[self.current_behavior]
             if maneuver then self:_move(maneuver, ctx, state) end
@@ -325,7 +329,7 @@ function action_at_combat:_gather(npc, id, enemy)
         npc = npc, id = id, enemy = enemy, state = state,
         npc_pos = npc_pos, ene_pos = ene_pos, npc_lvid = npc_lvid,
         dist = dist, dir_to = vector():set(dx * inv, 0, dz * inv), bucket = state.bucket,
-        health = npc.health,
+        health = npc.health, opened = self.opened,
         grenade = false, under_fire = false, exposed = false,
         see = false, friendly = false, occluder = false,
     }
