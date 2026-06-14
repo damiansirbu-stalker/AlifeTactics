@@ -1,28 +1,28 @@
 ; AlifeTactics combat AI tuning constants. Paired with gamedata/scripts/at_combat.script.
-; Sections mirror at_combat.script architecture (see AlifeTactics/doc/architecture.md Combat).
 ; All keys have script-side fallback defaults, so missing keys won't crash.
 
 [at_combat]
-; Evaluator
-fail_threshold           = 3      ; consecutive pick-fails before backoff engages
+; Recompute throttle + fail backoff
+throttle_npc_ms          = 1500   ; per-NPC minimum interval between recomputes (sole governor; bounds cost by NPC count)
+fail_threshold           = 3      ; consecutive resolve-fails before the NPC is handed back to vanilla
 fail_backoff_ms          = 10000  ; per-fail penalty multiplier
 
-; Throttle
-throttle_npc_ms          = 1500   ; per-NPC minimum interval between decide attempts (sole governor; bounds cost by NPC count)
+; Problem readings
+friendly_line_thresh_m   = 1.5    ; lateral half-width of the firing lane for the squadmate-block check
+range_deadband_m         = 3      ; hysteresis on the weapon-band in/out boundaries
+hurt_frac                = 0.30   ; health below this is the "hurt" problem (ignored by FEARLESS factions)
+lost_sight_ms            = 12000  ; time-since-last-seen before "lost sight" forces a reposition
 
-; State machine - friendly line-of-fire detection
-friendly_line_thresh_m   = 1.5    ; lateral distance threshold for squadmate-on-firing-line
+; Movement distances
+advance_step_m           = 15     ; FORWARD lookahead cap per recompute (toward the weapon standoff)
+back_step_m              = 12     ; BACK pull-back distance from the enemy
+flank_lateral_m          = 12     ; FLANK perpendicular offset from the npc->enemy axis
+flank_forward_m          = 6      ; FLANK forward bias along the axis
+step_side_m              = 4      ; STEP_SIDE lateral nudge to clear a blocked line
 
-; Movement / _repick
-advance_step_m           = 15     ; cover_step_fwd lookahead step toward enemy
-step_away_m              = 15     ; step_away backstep distance from enemy
-step_short_m             = 4      ; step_toward_short / step_away_short short-stride distance
-charge_min_dist_m        = 10     ; charge_enemy stops this far from the enemy (standoff ring)
-flank_lateral_m          = 20     ; cover_flank perpendicular offset from npc->enemy axis
-flank_forward_m          = 5      ; cover_flank forward offset along npc->enemy axis
-flee_step_m              = 30     ; flee_far backward sprint distance
-cover_reach_sqr          = 2025   ; max (search_pos -> enemy) squared distance for best_cover viability (45m^2)
+; Weapon standoffs (FORWARD stops this far from the enemy; SNIPER never closes)
+standoff_close_m         = 10     ; pistol / shotgun / smg / melee
+standoff_rifle_m         = 30     ; assault rifle
 
 ; Squad spread
-squad_lateral_buckets    = 5
-squad_lateral_step_m     = 4
+squad_buckets            = 5      ; per-NPC bucket count for flank/sidestep direction fan-out

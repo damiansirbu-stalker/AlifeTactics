@@ -347,10 +347,9 @@ function at_dump()
     _tip(string_format("AT.TEST: %d disclosed-squad records (see alifetactics.log)", count))
 end
 
-local CROUCH_BEHAVIORS = {
-    HOLD_COVER_CROUCH = true, HOLD_OPEN_CROUCH = true,
-    HOLD_OPEN_SNIPE = true, RETREAT_COVER_CROUCH = true,
-}
+-- Posture (stand/crouch) is now rolled per maneuver in at_combat, not fixed by maneuver name, so the
+-- crouch% line below is no longer derivable from the behavior counts. Left empty (reports 0%).
+local CROUCH_BEHAVIORS = {}
 
 local function _fmt_counts(tbl)
     local parts = {}
