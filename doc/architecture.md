@@ -20,7 +20,7 @@ Version 1.0.0.
 | `at_hitresponse.script` | feature | done |
 | `at_health.script` | feature | done |
 | `at_accuracy.script` | feature | done |
-| `at_combat.script` | feature | Pattern B planner takeover; 3-gate pipeline (takeover / aim / decide); 11 maneuvers from a faction × weapon × terrain doctrine palette |
+| `at_combat.script` | feature | Pattern B planner takeover; 3-gate pipeline (takeover / aim / decide); data-driven maneuver catalog (LTX), selected by a faction × weapon × terrain palette, random pick per NPC |
 | `xr_danger.script` | feature | done (full-file override) |
 | `at_jam.script` | feature | done (modded-exes xr_weapon_jam.GetConditionMisfireProbability override; suppresses script-injected NPC misfire) |
 | `at_ammo.script` | feature | done (per-NPC virtual ledger drains highest-tier ammo each 5s combat tick down to MIN_SPARE; inventory boxes clamped to ledger to defeat engine try_advance_ammo top-up; npc_on_death_callback trims all boxes to MIN_SPARE so they survive decide_items_to_keep; AP sections gated by `min_ap_rank` LTX (default 12000 = RANK_VETERAN)) |
@@ -52,6 +52,10 @@ AlifeTactics/
 │   │   ├── ai_tweaks/
 │   │   │   ├── mod_xr_eat_medkit_at.ltx       # DLTX overlay: vanilla medkit/bandage lists
 │   │   │   └── xr_danger.ltx                  # paired with xr_danger override
+│   │   ├── alifetactics/
+│   │   │   ├── at_combat_config.ltx           # Combat numeric tunables
+│   │   │   ├── at_combat_doctrine.ltx         # Combat maneuver catalog
+│   │   │   └── at_ammo.ltx                    # NPC Ammo tunables
 │   │   └── text/eng/ui_st_mcm_at.xml          # English MCM strings
 │   ├── scripts/
 │   │   ├── _at_deps.script                    # dependency gate
@@ -59,7 +63,9 @@ AlifeTactics/
 │   │   ├── at_hitresponse.script              # Hit Sharing system
 │   │   ├── at_health.script                   # Healing system
 │   │   ├── at_accuracy.script                 # Accuracy system
-│   │   ├── at_combat.script                   # Combat system (Pattern B planner takeover)
+│   │   ├── at_combat.script                   # Combat system (engine half: GOAP takeover, gates, lifecycle)
+│   │   ├── at_combat_doctrine.script          # Combat decision half (events, palette, maneuvers, resolvers)
+│   │   ├── at_combat_trace.script             # Combat DEBUG tracing + telemetry (noop when off)
 │   │   ├── xr_danger.script                   # full-file override (Danger system)
 │   │   ├── at_jam.script                      # modded-exes xr_weapon_jam override (Weapon Jam system)
 │   │   ├── at_ammo.script                     # NPC ammo simulation (NPC Ammo system)
@@ -203,7 +209,9 @@ Per-shot hot path. Cost ~1.5μs per call when DEBUG off (2 luabind crossings via
 
 ## Combat
 
-GOAP planner takeover (Pattern B), split across two files: `at_combat` (the engine half - GOAP classes, the three gates, cover reservation, handback, lifecycle) and `at_combat_doctrine` (the pure decision half - events, roles, maneuvers, the faction palette, movement resolution). `_install` grafts one evaluator + one action into each stalker's motivation manager and adds `world_property(EVAL_ID, false)` as a precondition to vanilla `action_combat_planner` / `action_danger_planner` / `xr_danger` / `state_mgr+2` / `alife`. Takeover gate true = AT drives the NPC; false = vanilla resumes.
+GOAP planner takeover (Pattern B), split across two files: `at_combat` (the engine half - GOAP classes, the three gates, cover reservation, handback, lifecycle) and `at_combat_doctrine` (the pure decision half - events, the maneuver catalog, the faction palette, movement resolution). `_install` grafts one evaluator + one action into each stalker's motivation manager and adds `world_property(EVAL_ID, false)` as a precondition to vanilla `action_combat_planner` / `action_danger_planner` / `xr_danger` / `state_mgr+2` / `alife`. Takeover gate true = AT drives the NPC; false = vanilla resumes.
+
+The catalog and tunables are data, not code: numeric knobs in `configs/alifetactics/at_combat_config.ltx`, the maneuver catalog in `configs/alifetactics/at_combat_doctrine.ltx`. `load_tunables` reads both at game start and builds `MANEUVERS` in place; the script holds no literal catalog.
 
 Blocking the combat planner removes the engine's per-tick aimer, so under takeover AT supplies aim, posture, movement, destination, and fire state. The engine keeps the trigger, the per-rank dispersion, and the `can_kill_member` friendly-fire hold. All NPC control routes through xcombat. See `doc/library/modding/npc-combat-control.md`, `npc-combat-effectiveness.md`.
 
@@ -223,53 +231,61 @@ Slow sets the **base** maneuver; medium **overrides** it for an urgent event and
 
 `set_sight(look.fire_point, enemy_pos)` re-stamped every 200ms (≈ reaction time): not every frame (aimbot), not on the slow tick (lags a strafe). The engine fires along the sight with its own dispersion. Snipers additionally set `sniper_fire_mode` (head-line aim) via the SNIPE fire mode.
 
-### Events → roles
+### Events → maneuvers
 
-Each check is a uniform `is_*` predicate. Per gate the highest-priority true event wins; its event-to-role mapping resolves against the faction palette to a maneuver (or nothing — a no-op for that faction, which is how doctrine emerges).
+Each check is a uniform predicate. Per gate the highest-priority true event wins. Each maneuver declares the events it `handles`; the palette inverts that into an event -> eligible-maneuver list (filtered by faction / weapon / env), and `pick` rolls a **random** one. The roll is cached per NPC and re-rolled on fight start and on weapon/env change — so squadmates fan across the available answers without thrashing. An event with no eligible maneuver is a no-op for that faction (how doctrine emerges).
 
-| Event | Gate | True when | Role |
+| Event | Gate | True when | Answered by |
 |---|---|---|---|
+| engage | slow | first tick of the fight (the opener) | hold / snipe / cover / advance / flank-fire |
 | is_grenade_near | medium | best_danger = grenade | flee |
 | is_unarmed | medium | no weapon equipped | flee |
-| is_hurt | medium | `health < hurt_frac` | fall_back |
+| is_hurt | medium | `health < hurt_frac` | fall_back (fire for brave, stow for coward) |
 | is_under_fire | medium | recent hit/ricochet (best_danger) | cover |
 | is_too_close | medium | inside the weapon min band | step_back |
 | is_exposed | medium | enemy sees me AND not at cover | cover |
 | is_blocked_friendly | slow | squadmate in my lane | step_side |
-| is_blocked_wall | slow | wall on my line, can't see enemy | cover, else step_side |
-| is_too_far | slow | beyond the weapon max band | advance |
-| none | slow | nothing above | snipe / cover / hold (resting) |
+| is_blocked_wall | slow | can't see enemy (wall on my line) | cover / step_side / flank-stow |
+| is_too_far | slow | beyond the weapon max band | advance / flank-fire |
+| none | slow | nothing above (steady state) | snipe / cover / hold |
+
+`engage` rides an `opened` flag reset in `action:initialize()`: true only on the first slow tick of a fight, highest slow priority, so the NPC commits a random opening maneuver before the granular events take over.
 
 ### Maneuvers
 
-Each maneuver carries role, move, fire (shoot / snipe / stow), and the selection tags factions / weapons / env. Posture (stand/crouch) + speed (walk/run) are rolled at maneuver start and held.
+Each maneuver carries `handles` (the events it answers), `move` (the destination resolver), `fire` (shoot / snipe / stow), and the selection tags factions / weapons / env. Posture (stand/crouch) + speed (walk/run) are rolled at maneuver start and held. Names are the lowercase LTX section names.
 
-| Maneuver | role | move | fire |
+| Maneuver | handles | move | fire |
 |---|---|---|---|
-| HOLD_FIRE | hold | hold | shoot |
-| HOLD_SNIPE | snipe | hold | snipe |
-| TAKE_COVER | cover | cover | shoot |
-| ADVANCE | advance | advance | shoot |
-| FALL_BACK_FIRE | fall_back | withdraw | shoot |
-| FALL_BACK_RUN | fall_back | withdraw | stow |
-| FLEE | flee | withdraw | stow |
-| STEP_BACK | step_back | step_back | shoot |
-| STEP_SIDE | step_side | step_side | shoot |
+| hold_fire | engage, none | hold | shoot |
+| hold_snipe | engage, none | hold | snipe |
+| cover_fire | engage, is_under_fire, is_exposed, is_blocked_wall, none | cover | shoot |
+| forward_open_fire | engage, is_too_far | advance | shoot |
+| back_open_fire | is_hurt | withdraw | shoot |
+| back_cover_stow | is_hurt | withdraw | stow |
+| back_open_stow | is_grenade_near, is_unarmed | withdraw | stow |
+| step_back_fire | is_too_close | step_back | shoot |
+| step_side_fire | is_blocked_friendly, is_blocked_wall | step_side | shoot |
+| flank_open_fire | engage, is_too_far | flank | shoot |
+| flank_cover_fire | engage, is_too_far | flank_cover | shoot |
+| flank_open_stow | is_blocked_wall | flank | stow |
+| flank_cover_stow | is_blocked_wall | flank_cover | stow |
 
-`move` dispatches to a resolver: hold = own node; advance = toward the enemy, capped at the standoff; withdraw / step_back = away; cover = `find_cover`; step_side = `find_shot`. A resolve that returns nil holds and fires in place (never fails to vanilla). Catalog in `at_combat_doctrine.MANEUVERS`.
+`move` dispatches to a resolver: hold = own node; advance = toward the enemy, capped at the standoff; withdraw / step_back = away; cover = `find_cover`; step_side = `find_shot`; flank = lateral + forward offset (side by squad bucket parity); flank_cover = `find_cover` anchored at that flank offset. A resolve that returns nil holds and fires in place (never fails to vanilla). Catalog in `at_combat_doctrine.ltx`.
 
 ### Doctrine (faction palette)
 
 No groups, no lean flags. Each maneuver lists the real communities it belongs to; an NPC's palette = the maneuvers matching its (community, weapon bucket, indoor/outdoor). Behavior is emergent from membership:
 
-- cover factions (army, dolg, freedom, killer, isg, monolith, stalker, ecolog, csky) own TAKE_COVER so they fight from cover; open factions (bandit, renegade, greh, zombied) don't, so they fight in the open.
-- the `fall_back` maneuver fires for the brave, is a stow-flee for cowards (ecolog, csky, renegade), and is absent for the fearless (monolith, zombied) — so the fearless don't retreat on `is_hurt`. Everyone has FLEE for grenade / no-weapon.
+- cover factions (army, dolg, freedom, killer, isg, monolith, stalker, ecolog, csky) own cover_fire so they fight from cover; open factions (bandit, renegade, greh, zombied) don't, so they fight in the open.
+- is_hurt is answered by back_open_fire for the brave, back_cover_stow (stow) for cowards (ecolog, csky, renegade), and by nothing for the fearless (monolith, zombied) — so the fearless don't retreat on hurt. Everyone has back_open_stow for grenade / no-weapon.
+- the four flank maneuvers (flank_open_fire, flank_cover_fire, flank_open_stow, flank_cover_stow) belong to the military factions (army, dolg, freedom, killer, isg, monolith), close + rifle weapons, outdoors only. The fire flanks answer engage and is_too_far (close on a visible enemy from the side); the stow flanks answer is_blocked_wall (run to flank an enemy they can't see). open = a bare lateral point; cover = cover at the flank offset.
 
 Weapon bucket sets the advance standoff: CLOSE 10m, RIFLE 30m, SNIPER holds/snipes.
 
 ### Cover
 
-`find_cover` (xlibs): `best_cover` locates the nearest obstacle, then a ring of probes around it (8 directions × increasing radius) returns the nearest free vertex with a clear shot — the NPC stands there with cover adjacent. No clear ring vertex → hold and fire. `find_shot` is the same ring centred on the NPC (the smart sidestep), no cover required.
+`find_cover(npc, enemy_pos, search_pos)` (xlibs): `best_cover` locates the nearest obstacle around `search_pos` (defaults to the NPC), then a ring of probes around it (8 directions × increasing radius) returns the nearest free vertex with a clear shot — the NPC stands there with cover adjacent. No clear ring vertex → hold and fire. The cover-flank resolver passes `search_pos` = the flank offset so the cover search runs ahead/to the side instead of at the NPC. `find_shot` is the same ring centred on the NPC (the smart sidestep), no cover required.
 
 ### Handback to vanilla (`_should_manage`)
 
@@ -277,7 +293,7 @@ First failing check returns `(false, reason)`: `combat_enabled` → id-hash vs `
 
 ### Lifecycle
 
-`npc_on_net_spawn` installs (sentinel-guarded); `npc_on_net_destroy` clears install + releases the cover reservation; `server_entity_on_unregister` clears per-id tables; `actor_on_first_update` resets tables + loads tunables (shell + doctrine); `on_option_change` / `mcm_option_restore_default` refresh the log level.
+`npc_on_net_spawn` installs (sentinel-guarded); `npc_on_net_destroy` clears install + releases the cover reservation; `server_entity_on_unregister` clears per-id tables; `actor_on_first_update` resets tables + loads tunables (shell + doctrine); `on_option_change` / `mcm_option_restore_default` refresh the log level. Each `action:initialize()` (combat start) resets the per-fight `opened` flag and clears the NPC's `event_pick` roll, so a re-engagement rolls a fresh opener.
 
 ### Tracing
 
@@ -290,10 +306,10 @@ At DEBUG, `at_combat_trace` writes one `gate` line per gate pass (npc, enemy, th
 | `combat_enabled` | MCM | true | Master toggle |
 | `combat_share` | MCM | 1.0 | Stable per-id hash share AT vs vanilla |
 | `combat_ignore_companions` | MCM | true | Skip companions (`npcx_is_companion`) |
-| `fast/medium/slow_throttle_ms` | `at_combat.ltx` | 200/500/1000 | Gate cadences |
-| `no_enemy_ms` / `lost_sight_ms` | `at_combat.ltx` | 2500 | Handback hysteresis |
+| `fast/medium/slow_throttle_ms` | `at_combat_config.ltx` | 200/500/1000 | Gate cadences |
+| `no_enemy_ms` / `lost_sight_ms` | `at_combat_config.ltx` | 2500 | Handback hysteresis |
 
-Plus the event/movement tunables (`hurt_frac`, `under_fire_ms`, range hysteresis, standoffs, step distances) in `at_combat.ltx`.
+Plus the event/movement tunables (`hurt_frac`, `under_fire_ms`, range hysteresis, standoffs, step distances, `flank_lateral_m` / `flank_forward_m`) in `at_combat_config.ltx`. The maneuver catalog (each maneuver's `handles` / `move` / `fire` / factions / weapons / env) is `at_combat_doctrine.ltx`.
 
 ### xcombat primitives (xlibs)
 
@@ -305,7 +321,7 @@ Plus the event/movement tunables (`hurt_frac`, `under_fire_ms`, range hysteresis
 | `set_combat` | weapon mode + posture + movement in one call; resolves a `state_lib` state from a [fire × posture × movement] matrix, false on a combo the engine lacks |
 | `aim_at` | static `set_sight(look.fire_point, pos)` at a world point |
 | `send_to` | destination (reroutes to the nearest accessible node; never fails) |
-| `find_point` / `find_cover` / `find_shot` | open move / firing vertex at cover / clear-shot sidestep |
+| `find_point` / `find_cover` / `find_shot` | open move / firing vertex at cover (search anchorable via `search_pos`) / clear-shot sidestep |
 | `has_occluder_between` / `has_friendly_in_line` | wall raycast / squadmate-in-lane |
 | `is_indoor` | level-name table + surge-shelter proximity |
 | `claim_cover` / `release_cover` / `release_owner_cover` / `is_cover_stolen` / `get_cover_owner` | `db.used_level_vertex_ids` reservation |
