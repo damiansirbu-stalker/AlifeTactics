@@ -26,6 +26,7 @@ hurt_frac                = 0.25   ; health below this fires is_hurt
 ; Posture / speed (rolled per maneuver, held for its life)
 crouch_chance            = 0.30   ; chance a maneuver crouches (else stands); a crouch always walks (no crouch+run fire state)
 run_chance               = 0.30   ; chance a standing moving-fire maneuver runs (else walks)
+stance_hold_ms           = 5000   ; hold the crouch/stand choice this long across re-commits (vanilla keep_body_state cadence; stops posture flicker)
 
 ; Movement distances
 advance_standoff_m       = 10     ; advance stops this far short of the enemy

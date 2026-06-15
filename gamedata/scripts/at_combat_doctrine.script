@@ -59,7 +59,7 @@ local DOCTRINE_SECTION = "doctrine"
 
 local GRENADE_MS, FRIENDLY_THRESH_M, RANGE_HYSTERESIS_M, HURT_FRAC, CROUCH_CHANCE, RUN_CHANCE
 local ADVANCE_STANDOFF_M, BACK_STEP_M, STEP_BACK_M, FLANK_LAT_M, FLANK_FWD_M
-local SQUAD_BUCKETS, REACT_MS, SLOW_MS
+local SQUAD_BUCKETS, REACT_MS, SLOW_MS, STANCE_HOLD_MS
 
 -- Maneuver catalog, filled from at_combat_doctrine.ltx. Each entry: handles (the checks it answers),
 -- move (destination resolver), fire (xcombat mode), factions / weapons / env selection sets.
@@ -101,6 +101,11 @@ function at_combat_doctrine.load_tunables()
     SQUAD_BUCKETS      = i("squad_buckets",          5)
     REACT_MS           = i("react_period_ms",        500)
     SLOW_MS            = i("slow_period_ms",          1000)
+    STANCE_HOLD_MS     = i("stance_hold_ms",         5000)
+    -- Bind each check's period now. The CHECKS literal is built at script load, before these are read, so it
+    -- carries a speed token (react/slow) instead of the number; resolve the token here once the ms are known.
+    local speed_ms = { react = REACT_MS, slow = SLOW_MS }
+    for _, c in ipairs(at_combat_doctrine.CHECKS) do c.period = speed_ms[c.speed] end
     _load_maneuvers()
 end
 
@@ -170,14 +175,14 @@ local function _grenade_near(ctx)
 end
 
 local CHECKS = {
-    { name = "engage",              period = REACT_MS, pred = function(_, s) return s.maneuver == nil end },
-    { name = "is_grenade_near",     period = REACT_MS, pred = function(c, _) return _grenade_near(c) end },
-    { name = "is_too_close",        period = REACT_MS, pred = function(_, s) return s.range_zone == "CLOSE" end },
-    { name = "is_target_changed",   period = REACT_MS, pred = function(c, s) return s.enemy_id ~= nil and c.enemy_id ~= s.enemy_id end },
-    { name = "is_hurt",             period = REACT_MS, pred = function(c, _) return c.health < HURT_FRAC end },
-    { name = "is_blocked_wall",     period = REACT_MS, pred = function(c, s) return (not s.sees) and xcombat.has_occluder_between(c.npc_pos, c.enemy_pos) end },
-    { name = "is_blocked_friendly", period = REACT_MS, pred = function(c, _) return xcombat.has_friendly_in_line(c.npc, c.npc_pos, c.enemy_pos, FRIENDLY_THRESH_M) end },
-    { name = "is_enemy_unseen",     period = SLOW_MS,  pred = function(_, s) return not s.sees end },
+    { name = "engage",              speed = "react", pred = function(_, s) return s.maneuver == nil end },
+    { name = "is_grenade_near",     speed = "react", pred = function(c, _) return _grenade_near(c) end },
+    { name = "is_too_close",        speed = "react", pred = function(_, s) return s.range_zone == "CLOSE" end },
+    { name = "is_target_changed",   speed = "react", pred = function(c, s) return s.enemy_id ~= nil and c.enemy_id ~= s.enemy_id end },
+    { name = "is_hurt",             speed = "react", pred = function(c, _) return c.health < HURT_FRAC end },
+    { name = "is_blocked_wall",     speed = "react", pred = function(c, s) return (not s.sees) and xcombat.has_occluder_between(c.npc_pos, c.enemy_pos) end },
+    { name = "is_blocked_friendly", speed = "react", pred = function(c, _) return xcombat.has_friendly_in_line(c.npc, c.npc_pos, c.enemy_pos, FRIENDLY_THRESH_M) end },
+    { name = "is_enemy_unseen",     speed = "slow",  pred = function(_, s) return not s.sees end },
 }
 at_combat_doctrine.CHECKS = CHECKS
 
@@ -257,23 +262,27 @@ end
 
 
 -- =========================================================================
--- Posture (stand/crouch) + speed (walk/run) roll, respecting the engine state matrix
--- (crouch+fire -> walk; STOW -> run+stand; snipe/hold -> still). Held for the maneuver's lifetime.
+-- Posture (stand/crouch) + speed (still/walk/run) per maneuver. The crouch/stand choice is what flickered when
+-- maneuvers re-committed fast, so it is held per NPC for STANCE_HOLD_MS (vanilla keep_body_state cadence);
+-- movement stays per-maneuver (a hold is still, a move walks or runs). xcombat.resolve_stance snaps the
+-- preference to a combo the engine ships, so this function holds no state-matrix knowledge.
 -- =========================================================================
 
-function at_combat_doctrine.roll(fire, stationary)
-    local crouch = math_random() < CROUCH_CHANCE
-    if fire == SNIPE or stationary then
-        return crouch and CROUCH or STAND, STILL
+function at_combat_doctrine.roll(slot, fire, stationary, tg)
+    if not slot.crouch_until or tg >= slot.crouch_until then
+        slot.want_crouch  = math_random() < CROUCH_CHANCE
+        slot.crouch_until = tg + STANCE_HOLD_MS
     end
-    if fire == STOW then
-        return STAND, RUN
+    local posture = slot.want_crouch and CROUCH or STAND
+    local movement
+    if stationary then
+        movement = STILL
+    elseif math_random() < RUN_CHANCE then
+        movement = RUN
+    else
+        movement = WALK
     end
-    -- crouch+run+fire has no engine state (xcombat COMBAT_STATES), so a crouch always walks
-    if crouch then
-        return CROUCH, WALK
-    end
-    return STAND, (math_random() < RUN_CHANCE) and RUN or WALK
+    return xcombat.resolve_stance(fire, posture, movement)
 end
 
 

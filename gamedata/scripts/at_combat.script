@@ -183,7 +183,7 @@ function action_at_combat:_start(name, ctx, slot, check)
     slot.maneuver    = name
     slot.maneuver_at = ctx.tg
     slot.enemy_id    = ctx.enemy_id
-    local posture, movement = doctrine.roll(maneuver.fire, doctrine.is_stationary(maneuver))
+    local posture, movement = doctrine.roll(slot, maneuver.fire, doctrine.is_stationary(maneuver), ctx.tg)
     local atmr = xprofiler.new_if(_dbg):start()
     local ok = xcombat.set_combat(self.object, { fire = maneuver.fire, posture = posture, movement = movement, aim = ctx.enemy })
     local apply_ms = atmr:stop():get_ms()
