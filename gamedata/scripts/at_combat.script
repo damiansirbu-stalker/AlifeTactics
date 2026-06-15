@@ -14,7 +14,7 @@
 
 local IsStalker, IsWounded, time_global = IsStalker, IsWounded, time_global
 local math_sqrt, math_floor, math_random = math.sqrt, math.floor, math.random
-local RegisterScriptCallback, pairs = RegisterScriptCallback, pairs
+local RegisterScriptCallback = RegisterScriptCallback
 local vector, anim, game_object, level = vector, anim, game_object, level
 
 local log = xlog.get_logger("AT.COMBAT", { outfile = "alifetactics.log" })
@@ -222,15 +222,12 @@ function action_at_combat:execute()
     -- aim (wait = false): always, on its own period.
     if tg - (ran.aim or 0) >= AIM_MS then
         ran.aim = tg
-        local tmr = xprofiler.new_if(_dbg):start()
         xcombat.aim_at(npc, enemy:position())
-        at_combat_trace.aim(tmr:stop():get_ms())
     end
 
     -- the wait checks only fire once the current maneuver is done.
     if not self:_done(npc, slot, tg) then return end
 
-    local gtmr = xprofiler.new_if(_dbg):start()
     local ctx = self:_gather(npc, id, enemy, slot, tg)
 
     -- refresh the palette (is_context_changed) and the cheap reads the checks consume.
@@ -259,7 +256,6 @@ function action_at_combat:execute()
         if maneuver then self:_start(maneuver, ctx, slot, picked) end
     end
     at_combat_trace.scan(id, ctx, picked, maneuver)
-    at_combat_trace.perf(gtmr:stop():get_ms())
 end
 
 function action_at_combat:finalize()
@@ -328,16 +324,6 @@ local function _refresh_log()
     log.set_level(at_mcm.get_config("log_level") or "WARN")
     _dbg = log.get_level() >= 5
     at_combat_trace.set_enabled(_dbg)
-end
-
---- Telemetry (counters) + eval snapshot for the at_test stats dump. DEBUG-accumulated.
-function get_stats()
-    local evals, reasons = {}, {}
-    for id, entry in pairs(_combat) do
-        evals[id]   = entry.eval
-        reasons[id] = entry.reason
-    end
-    return at_combat_trace.stats(), evals, reasons
 end
 
 --- Current maneuver name for an NPC (at_hud reads it), or nil when AT is not driving one.

@@ -285,7 +285,7 @@ First failing check returns `(false, reason)`: `combat_enabled` → id-hash vs `
 
 ### Tracing
 
-At DEBUG, `at_combat_trace` writes one `scan` line per done-scan (the readings the checks saw, which check fired, which maneuver — or `-` for a turret tick) plus `decide` (the committed maneuver + apply/resolve ms), `aim`, and `eval`, and accumulates per-stage perf read via the `at_combat_stats` console command. All timers are `xprofiler.new_if(_dbg)`; noop when DEBUG is off (no string, no alloc on the off path).
+At DEBUG, `at_combat_trace` writes one `scan` line per done-scan (the readings the checks saw, which check fired, which maneuver — or `-` for a turret tick), a `decide` line per committed maneuver (the rolled posture/speed plus the apply/resolve ms), and an `eval` line on each takeover/handback transition. No aggregate counters and no console command — the log lines are the telemetry. Noop when DEBUG is off (no string, no alloc on the off path).
 
 ### MCM + tunables
 

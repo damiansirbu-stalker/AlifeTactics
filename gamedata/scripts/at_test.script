@@ -4,7 +4,6 @@ local tostring, string_format, math_rad, math_cos, math_sin = tostring, string.f
 local time_global, IsStalker, alife_create_item, alife_object, level =
     time_global, IsStalker, alife_create_item, alife_object, level
 local alife = alife
-local pairs, table_concat = pairs, table.concat
 -- CreateTimeEvent NOT cached: demonized_time_events replaces it at runtime.
 
 local log = xlog.get_logger("AT.TEST", { outfile = "alifetactics.log" })
@@ -408,43 +407,5 @@ function at_dump()
     _tip(string_format("AT.TEST: %d disclosed-squad records (see alifetactics.log)", count))
 end
 
-local function _fmt_counts(tbl)
-    local parts = {}
-    for k, v in pairs(tbl) do parts[#parts + 1] = k .. "=" .. v end
-    return table_concat(parts, " ")
-end
-
-local function _fmt_stages(stages)
-    local parts = {}
-    for name, st in pairs(stages) do
-        parts[#parts + 1] = string_format("%s=%.3f/%.3f(n%d)",
-            name, st.n > 0 and st.sum / st.n or 0, st.max, st.n)
-    end
-    return table_concat(parts, " ")
-end
-
-local function _inc(tbl, key) tbl[key] = (tbl[key] or 0) + 1 end
-
---- @export console
-function at_combat_stats()
-    if not (at_combat and at_combat.get_stats) then return end
-    local stats, last_eval, last_reason = at_combat.get_stats()
-    local managed, rejects = 0, {}
-    for npc_id, ok in pairs(last_eval) do
-        if ok then managed = managed + 1 else _inc(rejects, last_reason[npc_id] or "?") end
-    end
-    local total = 0
-    for _, count in pairs(stats.behaviors) do total = total + count end
-    local crouch = stats.posture.CROUCH or 0
-    local posture_n = crouch + (stats.posture.STAND or 0)
-    log.info("[STATS] managed=%d rejected: %s", managed, _fmt_counts(rejects))
-    log.info("[STATS] decisions=%d crouch=%.0f%% behaviors: %s",
-        total, posture_n > 0 and crouch / posture_n * 100 or 0, _fmt_counts(stats.behaviors))
-    log.info("[STATS] resolve: %s backoffs=%d cover: %s",
-        _fmt_counts(stats.resolve), stats.backoffs, _fmt_counts(stats.cover))
-    log.info("[STATS] stages (avg/max ms): %s", _fmt_stages(stats.stages))
-    log.info("[STATS] perf tick avg=%.3fms max=%.3fms n=%d | read avg=%.3fms n=%d",
-        stats.tick_n > 0 and stats.tick_sum / stats.tick_n or 0, stats.tick_max, stats.tick_n,
-        stats.read_n > 0 and stats.read_sum / stats.read_n or 0, stats.read_n)
-    _tip("AT.TEST: combat stats -> alifetactics.log")
-end
+-- Combat telemetry dump removed: the DEBUG alifetactics.log already carries the per-decision
+-- scan / decide / eval lines, so no separate console aggregate is needed.

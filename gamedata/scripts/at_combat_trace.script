@@ -1,6 +1,7 @@
---- at_combat_trace: DEBUG-gated decision tracing + telemetry for at_combat. Every function noops when
---- tracing is off, so at_combat's scan carries no inline log/stat blocks. at_combat mirrors its _dbg flag
---- here via set_enabled. Stats accumulate only while enabled; at_test reads them through at_combat.get_stats.
+--- at_combat_trace: DEBUG-gated decision logging for at_combat. Every function noops when tracing is off,
+--- so at_combat's scan carries no inline log blocks. at_combat mirrors its _dbg flag here via set_enabled.
+--- One line per done-scan (scan), per committed maneuver (decide), and per takeover transition (eval).
+--- No aggregate counters: the log lines are the telemetry.
 
 local tostring = tostring
 local log = xlog.get_logger("AT.COMBAT", { outfile = "alifetactics.log" })
@@ -10,50 +11,14 @@ at_combat_trace = at_combat_trace or {}
 local _on = false
 local _last_eval_logged = {}
 
-local function _new_stats()
-    return { behaviors = {}, posture = {}, resolve = {}, cover = {}, backoffs = 0,
-             tick_sum = 0, tick_max = 0, tick_n = 0, read_sum = 0, read_n = 0,
-             stages = {} }
-end
-local _stats = _new_stats()
-
-local function _stat(tbl, key)
-    tbl[key] = (tbl[key] or 0) + 1
-end
-
 --- Enable/disable all tracing. at_combat calls this from its log-level refresh.
 function at_combat_trace.set_enabled(on) _on = on end
 
---- Reset accumulated telemetry and eval-transition memory (level load / first update).
-function at_combat_trace.reset()
-    _stats = _new_stats()
-    _last_eval_logged = {}
-end
+--- Drop the eval-transition memory (level load / first update).
+function at_combat_trace.reset() _last_eval_logged = {} end
 
 --- Drop one NPC's eval-transition memory on unregister.
 function at_combat_trace.forget(id) _last_eval_logged[id] = nil end
-
---- Accumulated telemetry table for the at_test stats dump.
-function at_combat_trace.stats() return _stats end
-
---- Per-stage duration; accumulates stage avg/max into stats.stages. Read via at_combat_stats, not per tick.
-function at_combat_trace.stage(name, ms)
-    if not _on then return end
-    local st = _stats.stages[name]
-    if not st then
-        st = { sum = 0, max = 0, n = 0 }
-        _stats.stages[name] = st
-    end
-    st.n = st.n + 1
-    st.sum = st.sum + ms
-    if ms > st.max then st.max = ms end
-end
-
---- Fast re-aim duration. Aggregated into the aim stage only (aim fires ~5x/s per NPC, no per-line).
-function at_combat_trace.aim(ms)
-    if not _on then return end
-    at_combat_trace.stage("aim", ms)
-end
 
 --- One line per done-scan: the readings the checks saw and the outcome (which check fired, which maneuver,
 --- or "-" for a turret tick where nothing fired). Skipped while a maneuver is committed (no work to log).
@@ -65,24 +30,11 @@ function at_combat_trace.scan(id, ctx, check, maneuver)
         tostring(check or "-"), tostring(maneuver or "-"))
 end
 
---- Maneuver committed: the check that fired it, the rolled posture/speed, the apply + resolve costs. Counts it.
+--- Maneuver committed: the check that fired it, the rolled posture/speed, the apply + resolve costs.
 function at_combat_trace.decide(id, name, check, posture, movement, apply_ms, resolve_ms, ok)
     if not _on then return end
-    _stat(_stats.behaviors, name)
-    _stat(_stats.posture, tostring(posture))
-    _stat(_stats.resolve, name)
-    at_combat_trace.stage("apply", apply_ms)
-    at_combat_trace.stage("resolve", resolve_ms)
     log.debug("decide npc=%d man=%s check=%s posture=%s move=%s apply=%.3fms resolve=%.3fms ok=%s",
         id, name, tostring(check), tostring(posture), tostring(movement), apply_ms, resolve_ms, tostring(ok))
-end
-
---- Per-scan total ms; accumulates tick avg/max. Read via at_combat_stats, not logged per tick.
-function at_combat_trace.perf(ms)
-    if not _on then return end
-    _stats.tick_n = _stats.tick_n + 1
-    _stats.tick_sum = _stats.tick_sum + ms
-    if ms > _stats.tick_max then _stats.tick_max = ms end
 end
 
 --- Eval result, logged only on transition (managed<->rejected) per NPC.
