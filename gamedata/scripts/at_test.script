@@ -408,10 +408,6 @@ function at_dump()
     _tip(string_format("AT.TEST: %d disclosed-squad records (see alifetactics.log)", count))
 end
 
--- Posture (stand/crouch) is now rolled per maneuver in at_combat, not fixed by maneuver name, so the
--- crouch% line below is no longer derivable from the behavior counts. Left empty (reports 0%).
-local CROUCH_BEHAVIORS = {}
-
 local function _fmt_counts(tbl)
     local parts = {}
     for k, v in pairs(tbl) do parts[#parts + 1] = k .. "=" .. v end
@@ -437,14 +433,13 @@ function at_combat_stats()
     for npc_id, ok in pairs(last_eval) do
         if ok then managed = managed + 1 else _inc(rejects, last_reason[npc_id] or "?") end
     end
-    local crouch, total = 0, 0
-    for name, count in pairs(stats.behaviors) do
-        total = total + count
-        if CROUCH_BEHAVIORS[name] then crouch = crouch + count end
-    end
+    local total = 0
+    for _, count in pairs(stats.behaviors) do total = total + count end
+    local crouch = stats.posture.CROUCH or 0
+    local posture_n = crouch + (stats.posture.STAND or 0)
     log.info("[STATS] managed=%d rejected: %s", managed, _fmt_counts(rejects))
     log.info("[STATS] decisions=%d crouch=%.0f%% behaviors: %s",
-        total, total > 0 and crouch / total * 100 or 0, _fmt_counts(stats.behaviors))
+        total, posture_n > 0 and crouch / posture_n * 100 or 0, _fmt_counts(stats.behaviors))
     log.info("[STATS] resolve: %s backoffs=%d cover: %s",
         _fmt_counts(stats.resolve), stats.backoffs, _fmt_counts(stats.cover))
     log.info("[STATS] stages (avg/max ms): %s", _fmt_stages(stats.stages))

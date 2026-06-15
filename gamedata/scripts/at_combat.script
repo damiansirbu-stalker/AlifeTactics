@@ -27,9 +27,6 @@ local doctrine = at_combat_doctrine
 ACT_ID = 188200
 local EVAL_ID = ACT_ID
 
--- Perf timer stage names (-> at_combat_trace.stage).
-local S_RESOLVE, S_APPLY = "resolve", "apply"
-
 
 -- =========================================================================
 -- LTX tunables (gate plumbing + handback hysteresis; the doctrine half loads its own). Deferred load.
@@ -173,9 +170,9 @@ function action_at_combat:_move(maneuver, ctx, state)
 
     local mtmr = xprofiler.new_if(_dbg):start()
     local vid = doctrine.resolve(maneuver, npc, ctx, state)
-    at_combat_trace.stage(S_RESOLVE, mtmr:stop():get_ms())
+    local resolve_ms = mtmr:stop():get_ms()
     if not vid then
-        at_combat_trace.resolve_fail(id, self.current_behavior, ctx.dist)
+        at_combat_trace.resolve_fail(id, self.current_behavior, ctx.dist, resolve_ms)
         if self.target_lvid ~= ctx.npc_lvid then self:_hold_here(ctx, state) end
         return
     end
@@ -188,7 +185,7 @@ function action_at_combat:_move(maneuver, ctx, state)
     self.target_lvid = vid
     state.last_cover_vid = is_cover and vid or nil
     local sent = xcombat.send_to(npc, vid)
-    at_combat_trace.resolve_ok(id, self.current_behavior, vid, sent, ctx.dist, is_cover and "claimed" or nil)
+    at_combat_trace.resolve_ok(id, self.current_behavior, vid, sent, ctx.dist, is_cover and "claimed" or nil, resolve_ms)
 end
 
 -- Switch to a maneuver by name: release old cover, roll posture/speed, write the combat state, resolve dest.
@@ -210,12 +207,12 @@ function action_at_combat:_switch(name, ctx, state, override)
     self.posture, self.movement = doctrine.roll(maneuver.fire, doctrine.is_stationary(maneuver))
     local atmr = xprofiler.new_if(_dbg):start()
     local ok = xcombat.set_combat(self.object, { fire = maneuver.fire, posture = self.posture, movement = self.movement, aim = ctx.enemy })
-    at_combat_trace.stage(S_APPLY, atmr:stop():get_ms())
+    local apply_ms = atmr:stop():get_ms()
     if not ok then
-        at_combat_trace.switch(id, name .. "(no_state)", maneuver.fire, self.posture, self.movement)
+        at_combat_trace.switch(id, name .. "(no_state)", maneuver.fire, self.posture, self.movement, override, apply_ms)
         return
     end
-    at_combat_trace.switch(id, name, maneuver.fire, self.posture, self.movement)
+    at_combat_trace.switch(id, name, maneuver.fire, self.posture, self.movement, override, apply_ms)
     self:_move(maneuver, ctx, state)
 end
 
@@ -262,36 +259,43 @@ end
 -- FAST gate: re-point the weapon at the enemy's current position.
 function action_at_combat:_aim(npc, id, enemy, tg)
     _last_aim[id] = tg
+    local tmr = xprofiler.new_if(_dbg):start()
     xcombat.aim_at(npc, enemy:position())
+    at_combat_trace.aim(tmr:stop():get_ms())
 end
 
 -- SLOW gate: refresh palette, read the slow signals, pick the base maneuver (none always resolves a base).
 function action_at_combat:_slow(ctx, tg)
-    local id, npc, enemy, state = ctx.id, ctx.npc, ctx.enemy, ctx.state
+    local id, npc, state = ctx.id, ctx.npc, ctx.state
     _last_slow[id] = tg
-    local timer = xprofiler.new_if(_dbg):start()
-
+    local gtmr = xprofiler.new_if(_dbg):start()
+    local rtmr = xprofiler.new_if(_dbg):start()
     doctrine.refresh(state, npc, ctx.npc_pos, ctx.npc_lvid)
-    doctrine.read_slow(ctx, npc, enemy)
+    doctrine.read_slow(ctx, npc)
+    local read_ms = rtmr:stop():get_ms()
 
     local event = doctrine.first_event(doctrine.GATE_SLOW, ctx, state, tg)
-    at_combat_trace.gate(id, npc, state, ctx, doctrine.GATE_SLOW, event)
+    at_combat_trace.gate(id, npc, state, ctx, doctrine.GATE_SLOW, event, read_ms)
     self:_dispatch(event, ctx, state, false)
     self.opened = true
 
-    at_combat_trace.perf(timer:stop():get_ms())
+    at_combat_trace.perf(gtmr:stop():get_ms())
 end
 
 -- MEDIUM gate: urgent events override the base maneuver; revert when none applies.
 function action_at_combat:_medium(ctx, tg)
     local id, npc, enemy, state = ctx.id, ctx.npc, ctx.enemy, ctx.state
     _last_medium[id] = tg
-
+    local gtmr = xprofiler.new_if(_dbg):start()
+    local rtmr = xprofiler.new_if(_dbg):start()
     doctrine.read_medium(ctx, npc, enemy, tg)
+    local read_ms = rtmr:stop():get_ms()
 
     local event = doctrine.first_event(doctrine.GATE_MEDIUM, ctx, state, tg)
-    at_combat_trace.gate(id, npc, state, ctx, doctrine.GATE_MEDIUM, event)
+    at_combat_trace.gate(id, npc, state, ctx, doctrine.GATE_MEDIUM, event, read_ms)
     self:_dispatch(event, ctx, state, true)
+
+    at_combat_trace.perf(gtmr:stop():get_ms())
 end
 
 -- Dispatch: event -> the faction's maneuver. nil event or no maneuver for it = keep current (medium reverts

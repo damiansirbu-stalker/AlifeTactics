@@ -12,7 +12,7 @@ local _on = false
 local _last_eval_logged = {}
 
 local function _new_stats()
-    return { behaviors = {}, resolve = {}, cover = {}, backoffs = 0,
+    return { behaviors = {}, posture = {}, resolve = {}, cover = {}, backoffs = 0,
              tick_sum = 0, tick_max = 0, tick_n = 0, read_sum = 0, read_n = 0,
              stages = {} }
 end
@@ -46,38 +46,49 @@ function at_combat_trace.stats() return _stats end
 --- One line per gate pass: the NPC, the enemy, the readings this gate computed, and the chosen event.
 --- Enemy + names + health read here (gated) so the off path pays nothing. Slow gate fills see/fr/occ;
 --- medium gate fills exp/uf/gren/tgt; the unfilled ones show N for that gate.
-function at_combat_trace.gate(id, npc, state, ctx, gate_name, event)
+function at_combat_trace.gate(id, npc, state, ctx, gate_name, event, read_ms)
     if not _on then return end
+    at_combat_trace.stage("read", read_ms)
     local enemy = ctx.enemy
-    log.debug("gate npc=%d(%s) %s com=%s wpn=%s/%s env=%s hp=%.2f ene=%d(%s) zone=%s dist=%.1f cover=%s see=%s fr=%s occ=%s exp=%s uf=%s gren=%s event=%s",
+    log.debug("gate npc=%d(%s) %s com=%s wpn=%s/%s env=%s hp=%.2f ene=%d(%s) zone=%s dist=%.1f cover=%s see=%s fr=%s occ=%s exp=%s uf=%s gren=%s event=%s read=%.3fms",
         id, npc:name(), gate_name, state.community, state.weapon_kind or "none", state.bucket_name, state.env or "?",
         ctx.health or npc.health, enemy:id(), IsStalker(enemy) and "stalker" or "mutant",
         state.range_zone, ctx.dist, _yn(state.at_cover),
         _yn(ctx.see), _yn(ctx.friendly), _yn(ctx.occluder), _yn(ctx.exposed), _yn(ctx.under_fire),
-        _yn(ctx.grenade), tostring(event or "-"))
+        _yn(ctx.grenade), tostring(event or "-"), read_ms)
+end
+
+--- Fast-gate re-aim duration. Aggregated into the aim stage only (no per-line: aim fires ~5x/s per NPC).
+function at_combat_trace.aim(ms)
+    if not _on then return end
+    at_combat_trace.stage("aim", ms)
 end
 
 --- Maneuver switch with the rolled knobs (fire/posture/movement) held for the maneuver's lifetime. Counts it.
-function at_combat_trace.switch(id, name, fire, posture, movement)
+function at_combat_trace.switch(id, name, fire, posture, movement, override, apply_ms)
     if not _on then return end
     _stat(_stats.behaviors, name)
-    log.debug("switch npc=%d man=%s fire=%s posture=%s move=%s",
-        id, name, tostring(fire), tostring(posture), tostring(movement))
+    _stat(_stats.posture, tostring(posture))
+    at_combat_trace.stage("apply", apply_ms)
+    log.debug("switch npc=%d man=%s mode=%s fire=%s posture=%s move=%s apply=%.3fms",
+        id, name, override and "override" or "base", tostring(fire), tostring(posture), tostring(movement), apply_ms)
 end
 
 --- Move issued; lvid is the requested vertex, sent is where send_to routed it, cover the claim outcome.
-function at_combat_trace.resolve_ok(id, maneuver, vid, sent, dist, cover)
+function at_combat_trace.resolve_ok(id, maneuver, vid, sent, dist, cover, ms)
     if not _on then return end
     _stat(_stats.resolve, tostring(maneuver) .. "/ok")
-    log.debug("resolve npc=%d man=%s ok lvid=%d sent=%d dist=%.1f cover=%s",
-        id, tostring(maneuver), vid, sent, dist, tostring(cover or "na"))
+    at_combat_trace.stage("resolve", ms)
+    log.debug("resolve npc=%d man=%s ok lvid=%d sent=%d dist=%.1f cover=%s [%.3fms]",
+        id, tostring(maneuver), vid, sent, dist, tostring(cover or "na"), ms)
 end
 
 --- Resolver returned no vertex; counts the fail.
-function at_combat_trace.resolve_fail(id, maneuver, dist)
+function at_combat_trace.resolve_fail(id, maneuver, dist, ms)
     if not _on then return end
     _stat(_stats.resolve, tostring(maneuver) .. "/fail")
-    log.debug("resolve npc=%d man=%s fail dist=%.1f", id, tostring(maneuver), dist)
+    at_combat_trace.stage("resolve", ms)
+    log.debug("resolve npc=%d man=%s fail dist=%.1f [%.3fms]", id, tostring(maneuver), dist, ms)
 end
 
 --- Cover reservation event (held / stolen / claim_fail); reads the contesting owner here (gated).
