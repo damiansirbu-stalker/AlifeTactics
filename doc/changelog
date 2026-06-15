@@ -1,5 +1,5 @@
 next
-  Summary: combat AI takeover, companion exclusion, faction doctrines, human-reaction aiming, sniper aim mode, monolith combat, zombied shamble, friendly-fire block, unarmed flee, danger rework, weapon jam fix, NPC ammo selection, stealth kills, limp/heal fixes, AOEngine compatibility
+  Summary: combat AI takeover, companion exclusion, faction doctrines, human-reaction aiming, sniper aim mode, monolith combat, zombied shamble, friendly-fire block, danger rework, weapon jam fix, NPC ammo selection, stealth kills, limp/heal fixes, AOEngine compatibility
 
   - Added a same-faction friendly-fire damage block (MCM > Combat, default on).
     An NPC that hits a teammate of its own faction deals no damage by default.
