@@ -244,10 +244,13 @@ Each check is a uniform predicate. Per gate the highest-priority true event wins
 | is_under_fire | medium | recent hit/ricochet (best_danger) | cover |
 | is_too_close | medium | inside the weapon min band | step_back |
 | is_exposed | medium | enemy sees me AND not at cover | cover |
+| is_blocked_wall | medium | wall on my firing line (occluder raycast) | cover / step_side / flank-stow |
+| is_unseen | medium | lost sight of the enemy (no wall) | advance / flank-stow |
 | is_blocked_friendly | slow | squadmate in my lane | step_side |
-| is_blocked_wall | slow | can't see enemy (wall on my line) | cover / step_side / flank-stow |
 | is_too_far | slow | beyond the weapon max band | advance / flank-fire |
 | none | slow | nothing above (steady state) | snipe / cover / hold |
+
+`is_blocked_wall` and `is_unseen` are on the medium (500ms) tick so a lost shot is reacted to fast. The sight reads move with them: `read_medium` computes `npc:see(enemy)` and, only when sight is lost, the `has_occluder_between` raycast (so a clear shot pays nothing). A wall on the line (`occluder`) is checked before plain `is_unseen` — it's the same not-see condition narrowed to "a wall is the cause," so it must win the tie or it would never fire.
 
 `engage` rides an `opened` flag reset in `action:initialize()`: true only on the first slow tick of a fight, highest slow priority, so the NPC commits a random opening maneuver before the granular events take over.
 
@@ -260,7 +263,7 @@ Each maneuver carries `handles` (the events it answers), `move` (the destination
 | hold_fire | engage, none | hold | shoot |
 | hold_snipe | engage, none | hold | snipe |
 | cover_fire | engage, is_under_fire, is_exposed, is_blocked_wall, none | cover | shoot |
-| forward_open_fire | engage, is_too_far | advance | shoot |
+| forward_open_fire | engage, is_too_far, is_unseen | advance | shoot |
 | back_open_fire | is_hurt | withdraw | shoot |
 | back_cover_stow | is_hurt | withdraw | stow |
 | back_open_stow | is_grenade_near, is_unarmed | withdraw | stow |
@@ -268,8 +271,8 @@ Each maneuver carries `handles` (the events it answers), `move` (the destination
 | step_side_fire | is_blocked_friendly, is_blocked_wall | step_side | shoot |
 | flank_open_fire | engage, is_too_far | flank | shoot |
 | flank_cover_fire | engage, is_too_far | flank_cover | shoot |
-| flank_open_stow | is_blocked_wall | flank | stow |
-| flank_cover_stow | is_blocked_wall | flank_cover | stow |
+| flank_open_stow | is_blocked_wall, is_unseen | flank | stow |
+| flank_cover_stow | is_blocked_wall, is_unseen | flank_cover | stow |
 
 `move` dispatches to a resolver: hold = own node; advance = toward the enemy, capped at the standoff; withdraw / step_back = away; cover = `find_cover`; step_side = `find_shot`; flank = lateral + forward offset (side by squad bucket parity); flank_cover = `find_cover` anchored at that flank offset. A resolve that returns nil holds and fires in place (never fails to vanilla). Catalog in `at_combat_doctrine.ltx`.
 

@@ -31,7 +31,7 @@ weapons  = sniper, close, rifle
 env      = indoor, outdoor
 
 [forward_open_fire]
-handles  = engage, is_too_far
+handles  = engage, is_too_far, is_unseen
 move     = advance
 fire     = shoot
 factions = bandit, dolg, ecolog, freedom, killer, army, monolith, stalker, csky, zombied, greh, isg, renegade
@@ -95,7 +95,7 @@ weapons  = close, rifle
 env      = outdoor
 
 [flank_open_stow]
-handles  = is_blocked_wall
+handles  = is_blocked_wall, is_unseen
 move     = flank
 fire     = stow
 factions = army, dolg, freedom, killer, isg, monolith
@@ -103,7 +103,7 @@ weapons  = close, rifle
 env      = outdoor
 
 [flank_cover_stow]
-handles  = is_blocked_wall
+handles  = is_blocked_wall, is_unseen
 move     = flank_cover
 fire     = stow
 factions = army, dolg, freedom, killer, isg, monolith

@@ -130,8 +130,9 @@ local EVENTS = {
     { name = "is_under_fire",   gate = GATE_MEDIUM, test = function(ctx) return ctx.under_fire end },
     { name = "is_too_close",    gate = GATE_MEDIUM, test = function(ctx, state) return state.range_zone == "CLOSE" end },
     { name = "is_exposed",      gate = GATE_MEDIUM, test = function(ctx, state) return ctx.exposed and not state.at_cover end },
+    { name = "is_blocked_wall", gate = GATE_MEDIUM, test = function(ctx) return ctx.occluder end },
+    { name = "is_unseen",       gate = GATE_MEDIUM, test = function(ctx) return not ctx.see end },
     { name = "is_blocked_friendly", gate = GATE_SLOW, test = function(ctx) return ctx.friendly end },
-    { name = "is_blocked_wall", gate = GATE_SLOW,   test = function(ctx) return ctx.occluder end },
     { name = "is_too_far",      gate = GATE_SLOW,   test = function(ctx, state) return state.range_zone == "FAR" end },
     { name = "none",            gate = GATE_SLOW,   test = function() return true end },
 }
@@ -300,7 +301,9 @@ end
 -- Per-gate signal reads (engine perception, gated by cadence; thresholds live here in the doctrine).
 -- =========================================================================
 
--- MEDIUM: grenade / under-fire (one best_danger call) + is the enemy looking at me (exposed).
+-- MEDIUM: grenade / under-fire (one best_danger call), enemy looking at me (exposed), and my own sight of
+-- the enemy: see (else is_unseen) and a wall on my firing line (else is_blocked_wall). The occluder raycast
+-- only fires when I don't see him, so a clear shot pays nothing.
 function at_combat_doctrine.read_medium(ctx, npc, enemy, tg)
     local bd = npc:best_danger()
     if bd then
@@ -311,14 +314,14 @@ function at_combat_doctrine.read_medium(ctx, npc, enemy, tg)
                          and (tg - bd:time()) <= UNDER_FIRE_MS
     end
     ctx.exposed = enemy:see(npc)
-end
-
--- SLOW: a squadmate in my lane, a wall on my line (can't see the enemy).
-function at_combat_doctrine.read_slow(ctx, npc, enemy)
     local see = npc:see(enemy)
     ctx.see = see
-    ctx.friendly = xcombat.has_friendly_in_line(npc, ctx.npc_pos, ctx.ene_pos, FRIENDLY_THRESH_M)
     ctx.occluder = (not see) and xcombat.has_occluder_between(ctx.npc_pos, ctx.ene_pos) or false
+end
+
+-- SLOW: a squadmate in my firing lane.
+function at_combat_doctrine.read_slow(ctx, npc)
+    ctx.friendly = xcombat.has_friendly_in_line(npc, ctx.npc_pos, ctx.ene_pos, FRIENDLY_THRESH_M)
 end
 
 
