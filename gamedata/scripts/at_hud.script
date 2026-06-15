@@ -7,7 +7,6 @@ local IsStalker, RegisterScriptCallback = IsStalker, RegisterScriptCallback
 local log = xlog.get_logger("AT.HUD", { outfile = "alifetactics.log" })
 local cfg = at_mcm.cfg
 
-local AT_COMBAT_ACT_ID = at_combat.ACT_ID
 local REFRESH_INTERVAL_SEC = 1
 
 local ROW_H     = 14
@@ -58,13 +57,10 @@ end
 -- =========================================================================
 
 local function _derive(npc, st)
-    -- 1. AT_combat actively driving (action's current_behavior is non-nil)
-    local mgr = npc:motivation_action_manager()
-    if mgr then
-        local act = mgr:action(AT_COMBAT_ACT_ID)
-        if act and act.current_behavior then
-            return "AT", act.current_behavior, true
-        end
+    -- 1. AT_combat actively driving (its slot holds a maneuver)
+    local maneuver = at_combat.get_maneuver(npc:id())
+    if maneuver then
+        return "AT", maneuver, true
     end
 
     -- 2. Vanilla / other-mod combat: state_mgr target_state with active enemy

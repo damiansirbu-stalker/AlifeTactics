@@ -1,20 +1,21 @@
 --- at_combat: the engine half of the combat takeover (Pattern B). Owns the GOAP evaluator + action, the
---- per-action engine state, the three throttled gates, the cover reservation, the handback hysteresis, and
---- the lifecycle. The decision half - which event fires, which maneuver answers it, where to move - lives in
+--- single per-tick scan, the per-NPC slot store, the cover reservation, the handback hysteresis, and the
+--- lifecycle. The decision half - which check fires, which maneuver answers it, where to move - lives in
 --- at_combat_doctrine; this file turns those answers into xcombat commands.
 ---
---- Gates (each on its own throttle, execute() bails before any work when none is due):
----   FAST   (fast_throttle_ms)   _aim     point the weapon at the enemy (reaction cadence)
----   MEDIUM (medium_throttle_ms) _medium  urgent events -> a maneuver override (reverts when they clear)
----   SLOW   (slow_throttle_ms)   _slow    rebuild the palette, pick the base maneuver
---- Handback to vanilla is the evaluator returning false. No fail-backoff: a move that can't resolve just
---- holds and fires. The flickery gates (no-enemy, lost-sight) carry a hysteresis window so AT never
---- oscillates with vanilla. Tracing is noop when DEBUG is off.
+--- One scan per tick (execute). Registered checks each carry a period and a wait flag:
+---   aim (aim_period_ms)  always re-points the weapon - never waits for a maneuver.
+---   the rest            wait: they only fire once the current maneuver is done (npc:path_completed,
+---                       or arrival distance, or the maneuver_max_ms stuck cap). The NPC is a turret by
+---                       default; a maneuver runs only when a check fires, is committed once started, and
+---                       is never interrupted before it completes. No base/override, no resting maneuver.
+--- All per-NPC state lives in one flat slot (_combat[id]); nothing is stored on the engine object or the
+--- action instance. Tracing is noop when DEBUG is off.
 
 local IsStalker, IsWounded, time_global = IsStalker, IsWounded, time_global
-local math_sqrt, math_floor = math.sqrt, math.floor
-local character_community, RegisterScriptCallback = character_community, RegisterScriptCallback
-local vector, anim, game_object = vector, anim, game_object
+local math_sqrt, math_floor, math_random = math.sqrt, math.floor, math.random
+local RegisterScriptCallback, pairs = RegisterScriptCallback, pairs
+local vector, anim, game_object, level = vector, anim, game_object, level
 
 local log = xlog.get_logger("AT.COMBAT", { outfile = "alifetactics.log" })
 local _dbg = false
@@ -29,44 +30,56 @@ local EVAL_ID = ACT_ID
 
 
 -- =========================================================================
--- LTX tunables (gate plumbing + handback hysteresis; the doctrine half loads its own). Deferred load.
+-- LTX tunables (scan plumbing + handback hysteresis; the doctrine half loads its own). Deferred load.
 -- =========================================================================
 
 local LTX_PATH    = "alifetactics\\at_combat_config.ltx"
 local LTX_SECTION = "at_combat"
 
-local FAST_MS, MEDIUM_MS, SLOW_MS, NO_ENEMY_MS, LOST_SIGHT_MS, SEE_THROTTLE_MS
+local AIM_MS, CONTEXT_MS, MANEUVER_MAX_MS, ARRIVE_M, NO_ENEMY_MS, LOST_SIGHT_MS, SEE_THROTTLE_MS
 
 local function _load_tunables()
     local ini = ini_file(LTX_PATH)
     local function i(k, d) local v = ini:r_float_ex(LTX_SECTION, k); return v and math_floor(v) or d end
-    FAST_MS         = i("fast_throttle_ms",   200)
-    MEDIUM_MS       = i("medium_throttle_ms", 500)
-    SLOW_MS         = i("slow_throttle_ms",   1000)
-    NO_ENEMY_MS     = i("no_enemy_ms",        2500)
-    LOST_SIGHT_MS   = i("lost_sight_ms",      2500)
-    SEE_THROTTLE_MS = i("see_throttle_ms",    500)
+    local function f(k, d) return ini:r_float_ex(LTX_SECTION, k) or d end
+    AIM_MS          = i("aim_period_ms",     200)
+    CONTEXT_MS      = i("context_period_ms", 1000)
+    MANEUVER_MAX_MS = i("maneuver_max_ms",   8000)
+    ARRIVE_M        = f("arrive_m",          2.0)
+    NO_ENEMY_MS     = i("no_enemy_ms",       2500)
+    LOST_SIGHT_MS   = i("lost_sight_ms",     2500)
+    SEE_THROTTLE_MS = i("see_throttle_ms",   500)
 end
 
 
 -- =========================================================================
--- Per-NPC tracking
+-- Per-NPC slot store. One flat record per NPC, created on first touch; holds the evaluator hysteresis, the
+-- weapon/community/palette cache, the running maneuver, and the per-check last-run timestamps. squad_id is a
+-- field (nil = solo). Cleared on unregister; never saved.
 -- =========================================================================
 
-local _installed   = {}
-local _state       = {}
-local _last_aim    = {}
-local _last_medium = {}
-local _last_slow   = {}
-local _last_eval   = {}
-local _last_reason = {}
--- _last_enemy: last tg with a live enemy (no-enemy hysteresis). _last_seen: last tg the NPC saw its enemy
--- (lost-sight hysteresis). _see_check / _saw: throttle interval + cached result for the evaluator see() probe.
-local _last_enemy  = {}
-local _last_seen   = {}
-local _see_check   = {}
-local _saw         = {}
-local _community   = {}
+local _installed = {}
+local _combat    = {}
+
+local function _slot(id)
+    local slot = _combat[id]
+    if not slot then
+        slot = { ran_at = {} }
+        _combat[id] = slot
+    end
+    return slot
+end
+
+-- Throttled see() probe shared by the evaluator and the scan: at most one raycast per SEE_THROTTLE_MS,
+-- cached in slot.sees with the success time in slot.seen_at.
+local function _probe_see(npc, enemy, slot, tg)
+    if tg - (slot.probe_at or 0) < SEE_THROTTLE_MS then return slot.sees end
+    local sees = npc:see(enemy)
+    slot.probe_at = tg
+    slot.sees = sees
+    if sees then slot.seen_at = tg end
+    return sees
+end
 
 
 -- =========================================================================
@@ -79,15 +92,6 @@ class "evaluator_at_combat" ( property_evaluator )
 function evaluator_at_combat:__init(name) super (nil, name)
 end
 
--- Throttled see() probe so the eval doesn't raycast perception every poll. Cached per SEE_THROTTLE_MS.
-local function _saw_enemy(npc, enemy, id, tg)
-    if tg - (_see_check[id] or 0) < SEE_THROTTLE_MS then return _saw[id] end
-    local saw = npc:see(enemy)
-    _see_check[id] = tg
-    _saw[id] = saw
-    return saw
-end
-
 local function _should_manage(npc, id, tg)
     if not cfg.combat_enabled then return false, "disabled" end
     if (id % 1000) >= (cfg.combat_share * 1000) then return false, "hash_out" end
@@ -95,20 +99,17 @@ local function _should_manage(npc, id, tg)
     if IsWounded(npc) then return false, "wounded" end
     if cfg.combat_ignore_companions and npc:has_info("npcx_is_companion") then return false, "companion" end
 
-    local be = npc:best_enemy()
-    if not (be and be:alive()) then
-        if tg - (_last_enemy[id] or 0) > NO_ENEMY_MS then return false, "no_enemy" end
+    local enemy = npc:best_enemy()
+    local slot = _slot(id)
+    if not (enemy and enemy:alive()) then
+        if tg - (slot.enemy_at or 0) > NO_ENEMY_MS then return false, "no_enemy" end
         return true, "managed"
     end
-    _last_enemy[id] = tg
+    slot.enemy_at = tg
 
-    if _saw_enemy(npc, be, id, tg) then
-        _last_seen[id] = tg
-    elseif not _last_seen[id] then
-        -- start the clock on acquisition so a never-seen ghost also yields after the window
-        _last_seen[id] = tg
-    end
-    if tg - _last_seen[id] > LOST_SIGHT_MS then return false, "lost_sight" end
+    local sees = _probe_see(npc, enemy, slot, tg)
+    if not sees and not slot.seen_at then slot.seen_at = tg end
+    if tg - slot.seen_at > LOST_SIGHT_MS then return false, "lost_sight" end
     return true, "managed"
 end
 
@@ -116,8 +117,9 @@ function evaluator_at_combat:evaluate()
     local npc = self.object
     local id = npc:id()
     local result, reason = _should_manage(npc, id, time_global())
-    _last_eval[id]   = result
-    _last_reason[id] = reason
+    local slot = _slot(id)
+    slot.eval = result
+    slot.reason = reason
     if _dbg then at_combat_trace.eval(id, result, reason) end
     return result
 end
@@ -132,90 +134,6 @@ class "action_at_combat" ( action_base )
 function action_at_combat:__init(name) super (nil, name)
 end
 
-local function _claim(lvid, id) return xcombat.claim_cover(lvid, id) end
-local function _release(lvid, id) xcombat.release_cover(lvid, id) end
-
--- Cover sticky test: true = hold the reserved firing spot (not yet reached, not stolen). Traces held / stolen.
-local function _cover_held(target_lvid, is_cover, npc_lvid, id)
-    if not (is_cover and target_lvid and npc_lvid ~= target_lvid) then return false end
-    if xcombat.is_cover_stolen(target_lvid, id) then
-        at_combat_trace.cover(id, "stolen", target_lvid)
-        return false
-    end
-    at_combat_trace.cover(id, "held", target_lvid)
-    return true
-end
-
--- Park on the own node (hold and fire). Used by stationary maneuvers and as the resolve-fail fallback.
-function action_at_combat:_hold_here(ctx, state)
-    _release(self.target_lvid, ctx.id)
-    self.target_lvid = ctx.npc_lvid
-    state.last_cover_vid = nil
-    xcombat.send_to(self.object, ctx.npc_lvid)
-end
-
--- Resolve + send the destination for the active maneuver. Cover targets are sticky; stationary parks once;
--- a move that resolves nil holds and fires in place (never hands to vanilla).
-function action_at_combat:_move(maneuver, ctx, state)
-    local npc, id = self.object, ctx.id
-    local is_cover   = doctrine.is_cover(maneuver)
-    local stationary = doctrine.is_stationary(maneuver)
-
-    if stationary then
-        if self.target_lvid ~= ctx.npc_lvid then self:_hold_here(ctx, state) end
-        return
-    end
-
-    if _cover_held(self.target_lvid, is_cover, ctx.npc_lvid, id) then return end
-
-    local mtmr = xprofiler.new_if(_dbg):start()
-    local vid = doctrine.resolve(maneuver, npc, ctx, state)
-    local resolve_ms = mtmr:stop():get_ms()
-    if not vid then
-        at_combat_trace.resolve_fail(id, self.current_behavior, ctx.dist, resolve_ms)
-        if self.target_lvid ~= ctx.npc_lvid then self:_hold_here(ctx, state) end
-        return
-    end
-    if vid == self.target_lvid then return end
-    if is_cover and not _claim(vid, id) then
-        at_combat_trace.cover(id, "claim_fail", vid)
-        return
-    end
-    _release(self.target_lvid, id)
-    self.target_lvid = vid
-    state.last_cover_vid = is_cover and vid or nil
-    local sent = xcombat.send_to(npc, vid)
-    at_combat_trace.resolve_ok(id, self.current_behavior, vid, sent, ctx.dist, is_cover and "claimed" or nil, resolve_ms)
-end
-
--- Switch to a maneuver by name: release old cover, roll posture/speed, write the combat state, resolve dest.
--- override = true means a medium urgent maneuver (does not become the base); false sets the resting base.
-function action_at_combat:_switch(name, ctx, state, override)
-    local maneuver = doctrine.MANEUVERS[name]
-    if not maneuver then return end
-    state.override = override and true or false
-    if not override then state.base_maneuver = name end
-    if name == self.current_behavior then
-        self:_move(maneuver, ctx, state)
-        return
-    end
-    local id = ctx.id
-    _release(self.target_lvid, id)
-    self.target_lvid = nil
-    state.last_cover_vid = nil
-    self.current_behavior = name
-    self.posture, self.movement = doctrine.roll(maneuver.fire, doctrine.is_stationary(maneuver))
-    local atmr = xprofiler.new_if(_dbg):start()
-    local ok = xcombat.set_combat(self.object, { fire = maneuver.fire, posture = self.posture, movement = self.movement, aim = ctx.enemy })
-    local apply_ms = atmr:stop():get_ms()
-    if not ok then
-        at_combat_trace.switch(id, name .. "(no_state)", maneuver.fire, self.posture, self.movement, override, apply_ms)
-        return
-    end
-    at_combat_trace.switch(id, name, maneuver.fire, self.posture, self.movement, override, apply_ms)
-    self:_move(maneuver, ctx, state)
-end
-
 function action_at_combat:initialize()
     action_base.initialize(self)
     local npc = self.object
@@ -223,127 +141,131 @@ function action_at_combat:initialize()
     npc:set_desired_direction()
     npc:set_path_type(game_object.level_path)
     npc:set_mental_state(anim.danger)
-    self.current_behavior = nil
-    self.target_lvid      = nil
-    self.posture          = nil
-    self.movement         = nil
-    self.opened           = false
-    local st = _state[npc:id()]
-    if st then st.event_pick = {} end
+    -- Fresh fight: clear the per-fight maneuver state (engage reopens). The cache (weapon/palette) persists.
+    local slot = _slot(npc:id())
+    slot.maneuver    = nil
+    slot.maneuver_at = nil
+    slot.dest        = nil
+    slot.enemy_id    = nil
+end
+
+-- A maneuver is done when nothing is running, the engine reports the path complete, the NPC is within the
+-- arrival radius of the destination, or the stuck cap elapsed (a move that cannot reach / ping-pongs).
+function action_at_combat:_done(npc, slot, tg)
+    if not slot.maneuver then return true end
+    if npc:path_completed() then return true end
+    if slot.dest and npc:position():distance_to(level.vertex_position(slot.dest)) <= ARRIVE_M then return true end
+    return (tg - (slot.maneuver_at or 0)) > MANEUVER_MAX_MS
+end
+
+-- Per-scan context: positions, distance, direction, the enemy id (for is_target_changed), health.
+function action_at_combat:_gather(npc, id, enemy, slot, tg)
+    local npc_pos   = npc:position()
+    local enemy_pos = enemy:position()
+    local npc_lvid  = npc:level_vertex_id()
+    local dx, dz    = enemy_pos.x - npc_pos.x, enemy_pos.z - npc_pos.z
+    local dist      = math_sqrt(dx*dx + dz*dz)
+    local inv       = dist > 0 and (1 / dist) or 0
+    return {
+        npc = npc, id = id, enemy = enemy, enemy_id = enemy:id(), slot = slot, tg = tg,
+        npc_pos = npc_pos, enemy_pos = enemy_pos, npc_lvid = npc_lvid,
+        dist = dist, dir_to = vector():set(dx * inv, 0, dz * inv), health = npc.health,
+    }
+end
+
+-- Commit a maneuver: release any held cover, record it, roll posture/speed, write the combat state, resolve +
+-- send the destination (cover targets reserved; a nil-resolving move holds and fires on the own node).
+function action_at_combat:_start(name, ctx, slot, check)
+    local maneuver = doctrine.MANEUVERS[name]
+    if not maneuver then return end
+    local id = ctx.id
+    xcombat.release_owner_cover(id)
+    slot.maneuver    = name
+    slot.maneuver_at = ctx.tg
+    slot.enemy_id    = ctx.enemy_id
+    local posture, movement = doctrine.roll(maneuver.fire, doctrine.is_stationary(maneuver))
+    local atmr = xprofiler.new_if(_dbg):start()
+    local ok = xcombat.set_combat(self.object, { fire = maneuver.fire, posture = posture, movement = movement, aim = ctx.enemy })
+    local apply_ms = atmr:stop():get_ms()
+    local mtmr = xprofiler.new_if(_dbg):start()
+    local vid = doctrine.resolve(maneuver, self.object, ctx, slot)
+    local resolve_ms = mtmr:stop():get_ms()
+    if doctrine.is_cover(maneuver) and vid ~= ctx.npc_lvid then xcombat.claim_cover(vid, id) end
+    slot.dest = xcombat.send_to(self.object, vid)
+    at_combat_trace.decide(id, name, check, posture, movement, apply_ms, resolve_ms, ok)
+end
+
+
+-- A check fires when its period elapsed (stamped here) and its predicate holds for an eligible maneuver;
+-- returns the check name to add as a candidate, or nil. Lifted out so the scan loop stays shallow.
+local function _check_fires(check, ctx, slot, tg, ran)
+    if tg - (ran[check.name] or 0) < check.period then return nil end
+    ran[check.name] = tg
+    if check.pred(ctx, slot) and slot.palette[check.name] then return check.name end
+    return nil
 end
 
 
 -- =========================================================================
--- THE PIPELINE: three gates, each on its own throttle.
+-- THE SCAN: aim always, then (only when the current maneuver is done) refresh + the wait checks.
 -- =========================================================================
 
 function action_at_combat:execute()
     action_base.execute(self)
     local npc = self.object
     local id, tg = npc:id(), time_global()
-
-    local aim_ready    = tg - (_last_aim[id]    or 0) >= FAST_MS
-    local medium_ready = tg - (_last_medium[id] or 0) >= MEDIUM_MS
-    local slow_ready   = tg - (_last_slow[id]   or 0) >= SLOW_MS
-    if not (aim_ready or medium_ready or slow_ready) then return end
-
     local enemy = npc:best_enemy()
     if not (enemy and enemy:alive()) then return end
+    local slot = _slot(id)
+    local ran  = slot.ran_at
 
-    local ctx = self:_gather(npc, id, enemy)
-    if slow_ready   then self:_slow(ctx, tg) end
-    if medium_ready then self:_medium(ctx, tg) end
-    if aim_ready    then self:_aim(npc, id, enemy, tg) end
-end
+    -- aim (wait = false): always, on its own period.
+    if tg - (ran.aim or 0) >= AIM_MS then
+        ran.aim = tg
+        local tmr = xprofiler.new_if(_dbg):start()
+        xcombat.aim_at(npc, enemy:position())
+        at_combat_trace.aim(tmr:stop():get_ms())
+    end
 
--- FAST gate: re-point the weapon at the enemy's current position.
-function action_at_combat:_aim(npc, id, enemy, tg)
-    _last_aim[id] = tg
-    local tmr = xprofiler.new_if(_dbg):start()
-    xcombat.aim_at(npc, enemy:position())
-    at_combat_trace.aim(tmr:stop():get_ms())
-end
+    -- the wait checks only fire once the current maneuver is done.
+    if not self:_done(npc, slot, tg) then return end
 
--- SLOW gate: refresh palette, read the slow signals, pick the base maneuver (none always resolves a base).
-function action_at_combat:_slow(ctx, tg)
-    local id, npc, state = ctx.id, ctx.npc, ctx.state
-    _last_slow[id] = tg
     local gtmr = xprofiler.new_if(_dbg):start()
-    local rtmr = xprofiler.new_if(_dbg):start()
-    doctrine.refresh(state, npc, ctx.npc_pos, ctx.npc_lvid)
-    doctrine.read_slow(ctx, npc)
-    local read_ms = rtmr:stop():get_ms()
+    local ctx = self:_gather(npc, id, enemy, slot, tg)
 
-    local event = doctrine.first_event(doctrine.GATE_SLOW, ctx, state, tg)
-    at_combat_trace.gate(id, npc, state, ctx, doctrine.GATE_SLOW, event, read_ms)
-    self:_dispatch(event, ctx, state, false)
-    self.opened = true
+    -- refresh the palette (is_context_changed) and the cheap reads the checks consume.
+    if tg - (ran.context or 0) >= CONTEXT_MS then
+        ran.context = tg
+        doctrine.refresh(slot, npc, ctx.npc_pos, ctx.npc_lvid)
+    end
+    doctrine.range_zone(slot, ctx.dist)
+    _probe_see(npc, enemy, slot, tg)
 
-    at_combat_trace.perf(gtmr:stop():get_ms())
-end
-
--- MEDIUM gate: urgent events override the base maneuver; revert when none applies.
-function action_at_combat:_medium(ctx, tg)
-    local id, npc, enemy, state = ctx.id, ctx.npc, ctx.enemy, ctx.state
-    _last_medium[id] = tg
-    local gtmr = xprofiler.new_if(_dbg):start()
-    local rtmr = xprofiler.new_if(_dbg):start()
-    doctrine.read_medium(ctx, npc, enemy, tg)
-    local read_ms = rtmr:stop():get_ms()
-
-    local event = doctrine.first_event(doctrine.GATE_MEDIUM, ctx, state, tg)
-    at_combat_trace.gate(id, npc, state, ctx, doctrine.GATE_MEDIUM, event, read_ms)
-    self:_dispatch(event, ctx, state, true)
-
-    at_combat_trace.perf(gtmr:stop():get_ms())
-end
-
--- Dispatch: event -> the faction's maneuver. nil event or no maneuver for it = keep current (medium reverts
--- an active override to the base). Slow's "none" always resolves a maneuver, so the base is always set.
-function action_at_combat:_dispatch(event, ctx, state, is_medium)
-    local name = event and doctrine.pick(event, state)
-    if not name then
-        if is_medium and state.override then
-            self:_switch(state.base_maneuver or "hold_fire", ctx, state, false)
-        else
-            local maneuver = doctrine.MANEUVERS[self.current_behavior]
-            if maneuver then self:_move(maneuver, ctx, state) end
+    -- run every due check; a true one with an eligible maneuver becomes a candidate; shuffle-pick one.
+    local fired, count = nil, 0
+    local checks = doctrine.CHECKS
+    for i = 1, #checks do
+        local name = _check_fires(checks[i], ctx, slot, tg, ran)
+        if name then
+            count = count + 1
+            fired = fired or {}
+            fired[count] = name
         end
-        return
     end
-    self:_switch(name, ctx, state, is_medium)
-end
-
--- Per-tick base context: state (lazily created), positions, distance, direction, range zone, at-cover.
-function action_at_combat:_gather(npc, id, enemy)
-    local state = _state[id]
-    if not state then
-        state = doctrine.init_state(npc, _community[id] or character_community(npc) or "stalker")
-        _state[id] = state
+    local picked, maneuver
+    if count > 0 then
+        picked = fired[math_random(count)]
+        maneuver = doctrine.pick(picked, slot)
+        if maneuver then self:_start(maneuver, ctx, slot, picked) end
     end
-    local npc_pos  = npc:position()
-    local ene_pos  = enemy:position()
-    local npc_lvid = npc:level_vertex_id()
-    local dx, dz   = ene_pos.x - npc_pos.x, ene_pos.z - npc_pos.z
-    local dist     = math_sqrt(dx*dx + dz*dz)
-    local inv      = dist > 0 and (1 / dist) or 0
-    doctrine.range_zone(state, dist)
-    state.at_cover = state.last_cover_vid ~= nil and npc_lvid == state.last_cover_vid
-    return {
-        npc = npc, id = id, enemy = enemy, state = state,
-        npc_pos = npc_pos, ene_pos = ene_pos, npc_lvid = npc_lvid,
-        dist = dist, dir_to = vector():set(dx * inv, 0, dz * inv), bucket = state.bucket,
-        health = npc.health, opened = self.opened,
-        grenade = false, under_fire = false, exposed = false,
-        see = false, friendly = false, occluder = false,
-    }
+    at_combat_trace.scan(id, ctx, picked, maneuver)
+    at_combat_trace.perf(gtmr:stop():get_ms())
 end
 
 function action_at_combat:finalize()
     action_base.finalize(self)
     local npc = self.object
-    _release(self.target_lvid, npc:id())
-    self.target_lvid = nil
+    xcombat.release_owner_cover(npc:id())
     npc:sniper_fire_mode(false)
 end
 
@@ -357,11 +279,10 @@ local function _install(npc)
     if not IsStalker(npc) then return end
     local id = npc:id()
     if _installed[id] then return end
-    _installed[id] = true
-    _community[id] = character_community(npc) or ""
 
     local manager = npc:motivation_action_manager()
     if not manager then return end
+    _installed[id] = true
 
     manager:add_evaluator(EVAL_ID, evaluator_at_combat("eva_at_combat"))
 
@@ -398,19 +319,9 @@ end
 local function _on_entity_unregister(se_obj)
     if not se_obj then return end
     local id = se_obj.id
-    _installed[id]   = nil
-    _last_eval[id]   = nil
+    _installed[id] = nil
+    _combat[id]    = nil
     at_combat_trace.forget(id)
-    _last_reason[id] = nil
-    _last_enemy[id]  = nil
-    _last_seen[id]   = nil
-    _see_check[id]   = nil
-    _saw[id]         = nil
-    _community[id]   = nil
-    _state[id]       = nil
-    _last_medium[id] = nil
-    _last_slow[id]   = nil
-    _last_aim[id]    = nil
 end
 
 local function _refresh_log()
@@ -421,22 +332,23 @@ end
 
 --- Telemetry (counters) + eval snapshot for the at_test stats dump. DEBUG-accumulated.
 function get_stats()
-    return at_combat_trace.stats(), _last_eval, _last_reason
+    local evals, reasons = {}, {}
+    for id, entry in pairs(_combat) do
+        evals[id]   = entry.eval
+        reasons[id] = entry.reason
+    end
+    return at_combat_trace.stats(), evals, reasons
+end
+
+--- Current maneuver name for an NPC (at_hud reads it), or nil when AT is not driving one.
+function get_maneuver(id)
+    local slot = _combat[id]
+    return slot and slot.maneuver
 end
 
 local function _on_first_update()
-    _installed   = {}
-    _state       = {}
-    _last_aim    = {}
-    _last_medium = {}
-    _last_slow   = {}
-    _last_eval   = {}
-    _last_reason = {}
-    _last_enemy  = {}
-    _last_seen   = {}
-    _see_check   = {}
-    _saw         = {}
-    _community   = {}
+    _installed = {}
+    _combat    = {}
     at_combat_trace.reset()
     _refresh_log()
     log.info("Combat module initialized (enabled=%s share=%.2f dbg=%s)",

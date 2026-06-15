@@ -1,18 +1,16 @@
 --- at_combat_doctrine: the pure decision half of the combat takeover. Data + pure functions only - no
---- engine class, no per-action state, no callbacks. Given a per-tick context and a per-NPC state it answers
---- "what should this NPC do": which event fires (the priority-ordered EVENTS spine), which maneuver answers
---- it (each maneuver declares the events it handles; the palette inverts that and pick() rolls a random
---- eligible one), where the destination is (resolve, by move), and the posture/speed roll. The engine half
---- (at_combat.script) owns the GOAP classes, the gates, the per-action state, the handback hysteresis, and
---- turning these answers into xcombat commands.
+--- engine class, no per-NPC store, no callbacks. Given a per-scan context and a per-NPC slot it answers
+--- "what should this NPC do": the registered checks (each a predicate + period), which maneuver answers a
+--- fired check (each maneuver declares the checks it handles; the palette inverts that and pick() rolls a
+--- random eligible one), where the destination is (resolve, by move), and the posture/speed roll. The shell
+--- (at_combat.script) owns the GOAP classes, the single scan, the slot store, and the xcombat commands.
 ---
---- Behavior is emergent, not flagged: a faction reacts to an event only if some maneuver in its palette
---- handles it. Fearless = no fall_back maneuver, so is_hurt does nothing for them. Open factions = no cover
---- maneuver, so is_exposed does nothing for them. The only per-faction data is the faction tag on each
---- maneuver. Tunables load via load_tunables (called by the shell on_game_start).
+--- Behavior is emergent, not flagged: a faction reacts to a check only if some maneuver in its palette
+--- handles it. No cover maneuver in a faction's palette = it never takes cover. The only per-faction data is
+--- the faction tag on each maneuver. Tunables load via load_tunables (called by the shell on_game_start).
 
 local pairs, ipairs, math_floor = pairs, ipairs, math.floor
-local math_min, math_max, math_random, math_sqrt = math.min, math.max, math.random, math.sqrt
+local math_random, math_sqrt = math.random, math.sqrt
 local character_community, vector = character_community, vector
 
 at_combat_doctrine = at_combat_doctrine or {}
@@ -21,11 +19,6 @@ at_combat_doctrine = at_combat_doctrine or {}
 local SHOOT, SNIPE, STOW = xcombat.FIRE, xcombat.SNIPE, xcombat.STOW
 local STAND, CROUCH      = xcombat.STAND, xcombat.CROUCH
 local STILL, WALK, RUN   = xcombat.STILL, xcombat.WALK, xcombat.RUN
-
--- Gate tags (the shell asks first_event per gate)
-local GATE_MEDIUM, GATE_SLOW = "M", "S"
-at_combat_doctrine.GATE_MEDIUM = GATE_MEDIUM
-at_combat_doctrine.GATE_SLOW   = GATE_SLOW
 
 -- Weapon buckets
 local BUCKET_SNIPER, BUCKET_CLOSE, BUCKET_RIFLE = "SNIPER", "CLOSE", "RIFLE"
@@ -64,12 +57,11 @@ local CONFIG_SECTION = "at_combat"
 local DOCTRINE_PATH    = "alifetactics\\at_combat_doctrine.ltx"
 local DOCTRINE_SECTION = "doctrine"
 
-local UNDER_FIRE_MS, FRIENDLY_THRESH_M, RANGE_HYSTERESIS_M, HURT_FRAC
-local ADVANCE_STEP_M, BACK_STEP_M, STEP_BACK_M, FLANK_LAT_M, FLANK_FWD_M
-local SQUAD_BUCKETS
-local STANDOFF = {}
+local GRENADE_MS, FRIENDLY_THRESH_M, RANGE_HYSTERESIS_M, HURT_FRAC, CROUCH_CHANCE, RUN_CHANCE
+local ADVANCE_STANDOFF_M, BACK_STEP_M, STEP_BACK_M, FLANK_LAT_M, FLANK_FWD_M
+local SQUAD_BUCKETS, REACT_MS, SLOW_MS
 
--- Maneuver catalog, filled from at_combat_doctrine.ltx. Each entry: handles (the events it answers),
+-- Maneuver catalog, filled from at_combat_doctrine.ltx. Each entry: handles (the checks it answers),
 -- move (destination resolver), fire (xcombat mode), factions / weapons / env selection sets.
 -- Filled in place so the exported reference stays valid.
 local MANEUVERS = {}
@@ -95,74 +87,34 @@ function at_combat_doctrine.load_tunables()
     local ini = ini_file(CONFIG_PATH)
     local function f(k, d) return ini:r_float_ex(CONFIG_SECTION, k) or d end
     local function i(k, d) local v = ini:r_float_ex(CONFIG_SECTION, k); return v and math_floor(v) or d end
-    UNDER_FIRE_MS      = i("under_fire_ms",          3000)
+    GRENADE_MS         = i("grenade_ms",             3000)
     FRIENDLY_THRESH_M  = f("friendly_line_thresh_m", 1.5)
     RANGE_HYSTERESIS_M = f("range_hysteresis_m",     3)
-    HURT_FRAC          = f("hurt_frac",              0.30)
-    ADVANCE_STEP_M     = f("advance_step_m",         15)
+    HURT_FRAC          = f("hurt_frac",              0.25)
+    CROUCH_CHANCE      = f("crouch_chance",          0.30)
+    RUN_CHANCE         = f("run_chance",             0.30)
+    ADVANCE_STANDOFF_M = f("advance_standoff_m",     10)
     BACK_STEP_M        = f("back_step_m",            12)
     STEP_BACK_M        = f("step_back_m",            6)
     FLANK_LAT_M        = f("flank_lateral_m",        12)
     FLANK_FWD_M        = f("flank_forward_m",        6)
     SQUAD_BUCKETS      = i("squad_buckets",          5)
-    STANDOFF[BUCKET_CLOSE] = f("standoff_close_m",   10)
-    STANDOFF[BUCKET_RIFLE] = f("standoff_rifle_m",   30)
+    REACT_MS           = i("react_period_ms",        500)
+    SLOW_MS            = i("slow_period_ms",          1000)
     _load_maneuvers()
 end
 
 
 local function _is_stationary(maneuver) return maneuver.move == "hold" end
 at_combat_doctrine.is_stationary = _is_stationary
-function at_combat_doctrine.is_cover(maneuver) return maneuver.move == "cover" or maneuver.move == "flank_cover" end
-
-
--- =========================================================================
--- Events. EVENTS is the priority-ordered spine (first true, within the gate, wins). Each maneuver declares
--- the events it handles; the palette inverts that into event -> list of eligible maneuvers and pick() takes a
--- random one. An event with no eligible maneuver is a no-op for that faction (emergent doctrine).
--- =========================================================================
-
-local EVENTS = {
-    { name = "engage",          gate = GATE_SLOW,   test = function(ctx) return not ctx.opened end },
-    { name = "is_grenade_near", gate = GATE_MEDIUM, test = function(ctx) return ctx.grenade end },
-    { name = "is_unarmed",      gate = GATE_MEDIUM, test = function(ctx, state) return state.unarmed end },
-    { name = "is_hurt",         gate = GATE_MEDIUM, test = function(ctx) return ctx.health < HURT_FRAC end },
-    { name = "is_under_fire",   gate = GATE_MEDIUM, test = function(ctx) return ctx.under_fire end },
-    { name = "is_too_close",    gate = GATE_MEDIUM, test = function(ctx, state) return state.range_zone == "CLOSE" end },
-    { name = "is_exposed",      gate = GATE_MEDIUM, test = function(ctx, state) return ctx.exposed and not state.at_cover end },
-    { name = "is_blocked_wall", gate = GATE_MEDIUM, test = function(ctx) return ctx.occluder end },
-    { name = "is_unseen",       gate = GATE_MEDIUM, test = function(ctx) return not ctx.see end },
-    { name = "is_blocked_friendly", gate = GATE_SLOW, test = function(ctx) return ctx.friendly end },
-    { name = "is_too_far",      gate = GATE_SLOW,   test = function(ctx, state) return state.range_zone == "FAR" end },
-    { name = "none",            gate = GATE_SLOW,   test = function() return true end },
-}
-
--- First true event for this gate, in priority order. Medium returns nil when no urgent event fires.
-function at_combat_doctrine.first_event(gate, ctx, state, tg)
-    for i = 1, #EVENTS do
-        local entry = EVENTS[i]
-        if entry.gate == gate and entry.test(ctx, state, tg) then return entry.name end
-    end
-    return nil
-end
-
--- Event -> a random eligible maneuver from the palette, or nil. The roll is cached per state so it holds
--- until the palette rebuilds (no per-tick thrash); different NPCs still roll different maneuvers.
-function at_combat_doctrine.pick(event, state)
-    local list = state.palette[event]
-    if not list then return nil end
-    if #list == 1 then return list[1] end
-    local chosen = state.event_pick[event]
-    if not chosen then
-        chosen = list[math_random(#list)]
-        state.event_pick[event] = chosen
-    end
-    return chosen
+function at_combat_doctrine.is_cover(maneuver)
+    local move = maneuver.move
+    return move == "cover" or move == "flank_cover" or move == "advance_cover"
 end
 
 
 -- =========================================================================
--- Palette: filter the catalog by (community, weapon bucket, environment) into an event -> maneuver-list map.
+-- Palette: filter the catalog by (community, weapon bucket, environment) into a check -> maneuver-list map.
 -- =========================================================================
 
 local function _weapon_bucket(kind)
@@ -171,11 +123,11 @@ local function _weapon_bucket(kind)
     return BUCKET_RIFLE
 end
 
--- Append a maneuver under each event it handles (event -> list of eligible maneuver names).
+-- Append a maneuver under each check it handles (check -> list of eligible maneuver names).
 local function _add_handlers(pal, name, handles)
-    for event in pairs(handles) do
-        local list = pal[event]
-        if not list then list = {} pal[event] = list end
+    for check in pairs(handles) do
+        local list = pal[check]
+        if not list then list = {} pal[check] = list end
         list[#list + 1] = name
     end
 end
@@ -191,18 +143,64 @@ local function _build_palette(community, bucket, env)
     return pal
 end
 
+-- Check -> a random eligible maneuver from the palette, or nil. The roll is cached per slot so it holds until
+-- the palette rebuilds (no per-pick thrash); different NPCs still roll different maneuvers.
+function at_combat_doctrine.pick(check, slot)
+    local list = slot.palette and slot.palette[check]
+    if not list then return nil end
+    if #list == 1 then return list[1] end
+    local chosen = slot.event_pick[check]
+    if not chosen then
+        chosen = list[math_random(#list)]
+        slot.event_pick[check] = chosen
+    end
+    return chosen
+end
+
+
+-- =========================================================================
+-- Checks. Each is a predicate + period. The shell runs every check whose period elapsed once the current
+-- maneuver is done, shuffles among the true ones, and fires its maneuver through the palette. engage is the
+-- opener: true only while no maneuver has been picked this fight (slot.maneuver nil).
+-- =========================================================================
+
+local function _grenade_near(ctx)
+    local bd = ctx.npc:best_danger()
+    return bd ~= nil and bd:type() == danger_object.grenade and (ctx.tg - bd:time()) <= GRENADE_MS
+end
+
+local CHECKS = {
+    { name = "engage",              period = REACT_MS, pred = function(_, s) return s.maneuver == nil end },
+    { name = "is_grenade_near",     period = REACT_MS, pred = function(c, _) return _grenade_near(c) end },
+    { name = "is_too_close",        period = REACT_MS, pred = function(_, s) return s.range_zone == "CLOSE" end },
+    { name = "is_target_changed",   period = REACT_MS, pred = function(c, s) return s.enemy_id ~= nil and c.enemy_id ~= s.enemy_id end },
+    { name = "is_hurt",             period = REACT_MS, pred = function(c, _) return c.health < HURT_FRAC end },
+    { name = "is_blocked_wall",     period = REACT_MS, pred = function(c, s) return (not s.sees) and xcombat.has_occluder_between(c.npc_pos, c.enemy_pos) end },
+    { name = "is_blocked_friendly", period = REACT_MS, pred = function(c, _) return xcombat.has_friendly_in_line(c.npc, c.npc_pos, c.enemy_pos, FRIENDLY_THRESH_M) end },
+    { name = "is_enemy_unseen",     period = SLOW_MS,  pred = function(_, s) return not s.sees end },
+}
+at_combat_doctrine.CHECKS = CHECKS
+
 
 -- =========================================================================
 -- Movement resolution, dispatched by move. Returns a destination vertex or nil (nil -> the shell holds).
 -- =========================================================================
 
 local function _res_hold(_, ctx) return ctx.npc_lvid end
-local function _res_cover(npc, ctx) return xcombat.find_cover(npc, ctx.ene_pos) end
+local function _res_cover(npc, ctx) return xcombat.find_cover(npc, ctx.enemy_pos) end
 
-local function _res_advance(npc, ctx, state)
-    if ctx.dist < 1 then return ctx.npc_lvid end
-    local standoff = STANDOFF[state.bucket_name] or 0
-    return xcombat.find_point(npc, ctx.dir_to, math_min(ADVANCE_STEP_M, math_max(ctx.dist - standoff, 0)))
+-- advance_open: a point on the NPC->enemy line, standoff metres short of the enemy (committed, walked in full).
+local function _res_advance_open(npc, ctx)
+    if ctx.dist <= ADVANCE_STANDOFF_M then return ctx.npc_lvid end
+    return xcombat.find_point(npc, ctx.dir_to, ctx.dist - ADVANCE_STANDOFF_M)
+end
+
+-- advance_cover: cover anchored at that same forward point (radial best_cover for now; t92 makes it directional).
+local function _res_advance_cover(npc, ctx)
+    if ctx.dist <= ADVANCE_STANDOFF_M then return xcombat.find_cover(npc, ctx.enemy_pos) end
+    local reach = ctx.dist - ADVANCE_STANDOFF_M
+    return xcombat.find_cover(npc, ctx.enemy_pos,
+        vector():set(ctx.npc_pos.x + ctx.dir_to.x * reach, ctx.npc_pos.y, ctx.npc_pos.z + ctx.dir_to.z * reach))
 end
 
 local function _res_withdraw(npc, ctx)
@@ -216,45 +214,45 @@ local function _res_step_back(npc, ctx)
 end
 
 local function _res_step_side(npc, ctx)
-    return xcombat.find_shot(npc, ctx.ene_pos)
+    return xcombat.find_shot(npc, ctx.enemy_pos)
 end
 
 -- Flank offset: lateral (side by squad bucket parity, so squadmates fan to opposite sides) + forward bias
 -- toward the enemy. Shared by both flank resolvers.
-local function _flank_offset(ctx, state)
+local function _flank_offset(ctx, slot)
     local dir = ctx.dir_to
-    local sign = (state.bucket % 2 == 0) and 1 or -1
+    local sign = (slot.bucket % 2 == 0) and 1 or -1
     local fx = -dir.z * sign * FLANK_LAT_M + dir.x * FLANK_FWD_M
     local fz =  dir.x * sign * FLANK_LAT_M + dir.z * FLANK_FWD_M
     return fx, fz
 end
 
 -- Open flank: the bare lateral+forward point.
-local function _res_flank(npc, ctx, state)
+local function _res_flank(npc, ctx, slot)
     if ctx.dist < 1 then return ctx.npc_lvid end
-    local fx, fz = _flank_offset(ctx, state)
+    local fx, fz = _flank_offset(ctx, slot)
     local mag = math_sqrt(fx * fx + fz * fz)
     if mag < 1 then return ctx.npc_lvid end
     return xcombat.find_point(npc, vector():set(fx / mag, 0, fz / mag), mag)
 end
 
 -- Cover flank: seek cover at the flank point (find_cover anchored at the offset, not at the NPC).
-local function _res_flank_cover(npc, ctx, state)
+local function _res_flank_cover(npc, ctx, slot)
     if ctx.dist < 1 then return ctx.npc_lvid end
-    local fx, fz = _flank_offset(ctx, state)
-    return xcombat.find_cover(npc, ctx.ene_pos,
+    local fx, fz = _flank_offset(ctx, slot)
+    return xcombat.find_cover(npc, ctx.enemy_pos,
         vector():set(ctx.npc_pos.x + fx, ctx.npc_pos.y, ctx.npc_pos.z + fz))
 end
 
 local MOVE_RESOLVERS = {
-    hold = _res_hold, cover = _res_cover, advance = _res_advance,
+    hold = _res_hold, cover = _res_cover, advance_open = _res_advance_open, advance_cover = _res_advance_cover,
     withdraw = _res_withdraw, step_back = _res_step_back, step_side = _res_step_side,
     flank = _res_flank, flank_cover = _res_flank_cover,
 }
 
-function at_combat_doctrine.resolve(maneuver, npc, ctx, state)
+function at_combat_doctrine.resolve(maneuver, npc, ctx, slot)
     local resolver = MOVE_RESOLVERS[maneuver.move]
-    return resolver and resolver(npc, ctx, state) or ctx.npc_lvid
+    return resolver and resolver(npc, ctx, slot) or ctx.npc_lvid
 end
 
 
@@ -264,26 +262,28 @@ end
 -- =========================================================================
 
 function at_combat_doctrine.roll(fire, stationary)
+    local crouch = math_random() < CROUCH_CHANCE
     if fire == SNIPE or stationary then
-        return (math_random(2) == 1) and STAND or CROUCH, STILL
+        return crouch and CROUCH or STAND, STILL
     end
     if fire == STOW then
         return STAND, RUN
     end
-    if math_random(2) == 1 then
-        return STAND, (math_random(2) == 1) and WALK or RUN
+    -- crouch+run+fire has no engine state (xcombat COMBAT_STATES), so a crouch always walks
+    if crouch then
+        return CROUCH, WALK
     end
-    return CROUCH, WALK
+    return STAND, (math_random() < RUN_CHANCE) and RUN or WALK
 end
 
 
 -- =========================================================================
--- Range zone (hysteresis on the weapon band): CLOSE / IN / FAR. Drives is_too_close / is_too_far.
+-- Range zone (hysteresis on the weapon band): CLOSE / IN / FAR. Drives is_too_close.
 -- =========================================================================
 
-function at_combat_doctrine.range_zone(state, dist)
-    local band = state.range_band
-    local zone = state.range_zone
+function at_combat_doctrine.range_zone(slot, dist)
+    local band = slot.range
+    local zone = slot.range_zone or "IN"
     if zone == "FAR" then
         if dist < band.max - RANGE_HYSTERESIS_M then zone = "IN" end
     elseif zone == "CLOSE" then
@@ -292,86 +292,37 @@ function at_combat_doctrine.range_zone(state, dist)
         if dist > band.max then zone = "FAR"
         elseif dist < band.min then zone = "CLOSE" end
     end
-    state.range_zone = zone
+    slot.range_zone = zone
     return zone
 end
 
 
 -- =========================================================================
--- Per-gate signal reads (engine perception, gated by cadence; thresholds live here in the doctrine).
+-- Slot context refresh: weapon bucket / band / environment + the eligible-maneuver palette. Rebuilds the
+-- palette only when (community, weapon bucket, env) changes. Fills the static fields once (community, squad,
+-- spread bucket). is_context_changed is just this call detecting a changed key.
 -- =========================================================================
 
--- MEDIUM: grenade / under-fire (one best_danger call), enemy looking at me (exposed), and my own sight of
--- the enemy: see (else is_unseen) and a wall on my firing line (else is_blocked_wall). The occluder raycast
--- only fires when I don't see him, so a clear shot pays nothing.
-function at_combat_doctrine.read_medium(ctx, npc, enemy, tg)
-    local bd = npc:best_danger()
-    if bd then
-        local dtype = bd:type()
-        ctx.grenade = (dtype == danger_object.grenade)
-        ctx.under_fire = (dtype == danger_object.attacked or dtype == danger_object.entity_attacked
-                          or dtype == danger_object.bullet_ricochet or bd:perceive_type() == danger_object.hit)
-                         and (tg - bd:time()) <= UNDER_FIRE_MS
+function at_combat_doctrine.refresh(slot, npc, npc_pos, npc_lvid)
+    if not slot.community then
+        slot.community = character_community(npc) or "stalker"
+        local squad = xsquad.get_squad_by_member(npc:id())
+        slot.squad_id = squad and squad.id or nil
+        slot.bucket   = xcombat.get_squad_ordinal(slot.squad_id, npc:id()) % SQUAD_BUCKETS
+        slot.event_pick = slot.event_pick or {}
     end
-    ctx.exposed = enemy:see(npc)
-    local see = npc:see(enemy)
-    ctx.see = see
-    ctx.occluder = (not see) and xcombat.has_occluder_between(ctx.npc_pos, ctx.ene_pos) or false
-end
-
--- SLOW: a squadmate in my firing lane.
-function at_combat_doctrine.read_slow(ctx, npc)
-    ctx.friendly = xcombat.has_friendly_in_line(npc, ctx.npc_pos, ctx.ene_pos, FRIENDLY_THRESH_M)
-end
-
-
--- =========================================================================
--- State init + per-recompute refresh
--- =========================================================================
-
-function at_combat_doctrine.init_state(npc, community)
-    local id = npc:id()
-    local squad = xsquad.get_squad_by_member(id)
-    local squad_id = squad and squad.id or nil
-    community = community or character_community(npc) or "stalker"
-    return {
-        npc_id        = id,
-        squad_id      = squad_id,
-        bucket        = xcombat.get_squad_ordinal(squad_id, id) % SQUAD_BUCKETS,
-        community     = community,
-        weapon_kind   = nil,
-        unarmed       = false,
-        bucket_name   = BUCKET_RIFLE,
-        range_band    = xcombat.WEAPON_RANGES.w_rifle,
-        palette       = nil,
-        pal_key       = nil,
-        event_pick    = {},
-        env           = "OUTDOOR",
-        _env_lvid     = nil,
-        range_zone    = "IN",
-        at_cover      = false,
-        last_cover_vid = nil,
-        base_maneuver = nil,
-        override      = false,
-    }
-end
-
--- Refresh weapon bucket / band / environment and rebuild the palette only when one of the three changes.
-function at_combat_doctrine.refresh(state, npc, npc_pos, npc_lvid)
-    local kind = xcombat.get_weapon_kind(npc)
-    state.unarmed = (kind == nil)
-    kind = kind or "w_rifle"
-    state.weapon_kind = kind
-    state.bucket_name = _weapon_bucket(kind)
-    state.range_band  = xcombat.get_weapon_range(kind)
-    if state._env_lvid ~= npc_lvid then
-        state._env_lvid = npc_lvid
-        state.env = xcombat.is_indoor(npc_pos) and "INDOOR" or "OUTDOOR"
+    local kind = xcombat.get_weapon_kind(npc) or "w_rifle"
+    slot.weapon      = kind
+    slot.bucket_name = _weapon_bucket(kind)
+    slot.range       = xcombat.get_weapon_range(kind)
+    if slot._env_lvid ~= npc_lvid then
+        slot._env_lvid = npc_lvid
+        slot.env = xcombat.is_indoor(npc_pos) and "INDOOR" or "OUTDOOR"
     end
-    local key = state.community .. "|" .. state.bucket_name .. "|" .. state.env
-    if key ~= state.pal_key then
-        state.pal_key = key
-        state.palette = _build_palette(state.community, state.bucket_name, state.env)
-        state.event_pick = {}
+    local key = slot.community .. "|" .. slot.bucket_name .. "|" .. slot.env
+    if key ~= slot.pal_key then
+        slot.pal_key = key
+        slot.palette = _build_palette(slot.community, slot.bucket_name, slot.env)
+        slot.event_pick = {}
     end
 end
