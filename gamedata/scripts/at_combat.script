@@ -11,14 +11,13 @@
 --- the blocked combat planner (enemy_manager + memory_manager, see doc/library/modding/stalker-combat-brain.md).
 --- We consume that target; we never compute it. The takeover owns what to do, not who the enemy is.
 ---
---- One scan per tick (execute). Registered checks each carry a period and a wait flag:
----   aim (aim_period_ms)  re-points the weapon every tick - except during a flee (STOW), which faces the run path.
----   the rest            wait: they only fire once the current maneuver is done (npc:path_completed,
----                       or the maneuver_max_ms stuck cap). The NPC is a turret by
----                       default; a maneuver runs only when a check fires, is committed once started, and
----                       is never interrupted before it completes. No base/override, no resting maneuver.
---- All per-NPC state lives in one flat slot (_combat[id]); nothing is stored on the engine object or the
---- action instance. Tracing is noop when DEBUG is off.
+--- THE SCAN is one table (SCAN), one loop, one throttle gate. Every timed operation is an entry { name,
+--- period, wait, run }: aim (wait=false) re-points the weapon every tick - except during a flee (STOW), which
+--- faces the run path; context-refresh and the tactical checks (wait=true) fire only once the current maneuver
+--- is done (npc:path_completed, or the maneuver_max_ms stuck cap). The NPC is a turret by default; a maneuver
+--- runs only when a check fires, is committed once started, and is never interrupted before it completes.
+--- execute() reads as a template method (observe -> scan -> commit). All per-NPC state lives in one flat slot
+--- (_combat[id]); nothing is stored on the engine object or the action instance. Tracing is noop when DEBUG off.
 
 local IsStalker, time_global, tostring = IsStalker, time_global, tostring
 local math_sqrt, math_floor, math_random = math.sqrt, math.floor, math.random
@@ -47,8 +46,49 @@ local LTX_PATH    = "alifetactics\\at_combat_config.ltx"
 local LTX_SECTION = "at_combat"
 
 local AIM_MS, CONTEXT_MS, MANEUVER_MAX_MS, LOST_SIGHT_MS, SEE_THROTTLE_MS, EVAL_PERIOD_MS
+local REACT_MS, SLOW_MS
 
-local function _load_tunables()
+-- The scan table: every timed operation is one entry { name, period, wait, run }. aim and context-refresh are
+-- entries exactly like the tactical checks - the only difference is the wait flag (aim runs every tick, the
+-- rest only once the maneuver is done) and the run rule. Built by _build_scan after the LTX periods are read.
+local SCAN = {}
+
+-- aim (wait=false): re-point at the live enemy every tick, unless stowed (a flee faces its run path). No candidate.
+local function _run_aim(ctx)
+    if ctx.slot.fire ~= STOW then xcombat.aim_at(ctx.npc, ctx.enemy:position()) end
+end
+
+-- context (wait=true): rebuild the eligible-maneuver palette and the cheap reads the checks consume. No candidate.
+local function _run_context(ctx)
+    doctrine.refresh(ctx.slot, ctx.npc, ctx.npc_pos, ctx.npc_lvid)
+end
+
+-- Wrap a doctrine check as a scan run: returns the check name as a candidate when its predicate holds and the
+-- palette has an eligible maneuver for it, nil otherwise. The per-check period + stamping live in the scan loop.
+local function _make_check_run(check)
+    local name, pred = check.name, check.pred
+    return function(ctx)
+        local slot = ctx.slot
+        if pred(ctx, slot) and slot.palette[name] then return name end
+    end
+end
+
+-- Build the scan table once, after the LTX periods are read, so every entry carries a real period number (no
+-- speed token). Check periods come from the react/slow tokens on doctrine.CHECKS resolved against the LTX.
+local function _build_scan()
+    SCAN = {
+        { name = "aim",     period = AIM_MS,     wait = false, run = _run_aim },
+        { name = "context", period = CONTEXT_MS, wait = true,  run = _run_context },
+    }
+    local speed_ms = { react = REACT_MS, slow = SLOW_MS }
+    local checks = doctrine.CHECKS
+    for i = 1, #checks do
+        local check = checks[i]
+        SCAN[#SCAN + 1] = { name = check.name, period = speed_ms[check.speed], wait = true, run = _make_check_run(check) }
+    end
+end
+
+local function _load_config()
     local ini = ini_file(LTX_PATH)
     local function i(k, d) local v = ini:r_float_ex(LTX_SECTION, k); return v and math_floor(v) or d end
     AIM_MS          = i("aim_period_ms",     200)
@@ -57,6 +97,9 @@ local function _load_tunables()
     LOST_SIGHT_MS   = i("lost_sight_ms",     5000)
     SEE_THROTTLE_MS = i("see_throttle_ms",   500)
     EVAL_PERIOD_MS  = i("eval_period_ms",    250)
+    REACT_MS        = i("react_period_ms",   500)
+    SLOW_MS         = i("slow_period_ms",     1000)
+    _build_scan()
 end
 
 
@@ -68,6 +111,9 @@ end
 
 local _takeover_installed = {}
 local _combat    = {}
+-- Reused scratch ctx for the aim-only path (maneuver in flight): execute is non-reentrant per frame, so one
+-- shared table is safe and avoids allocating a fresh ctx every tick while a maneuver travels.
+local _light_ctx = {}
 
 local function _slot(id)
     local slot = _combat[id]
@@ -107,9 +153,9 @@ end
 -- combat/danger/alife planners are precondition-blocked), false = vanilla resumes.
 -- =========================================================================
 
-class "evaluator_at_combat" ( property_evaluator )
+class "at_combat_gate" ( property_evaluator )
 
-function evaluator_at_combat:__init(name) super (nil, name)
+function at_combat_gate:__init(name) super (nil, name)
 end
 
 -- One source of truth for "has the committed maneuver finished travelling": the engine reports the path
@@ -166,7 +212,7 @@ end
 -- Pure read. The engine polls this every plan solve (more during a re-plan), so it must be a flag read, not a
 -- computation. The decision is recomputed off the hot path by _on_update (throttled) and stored in slot.eval;
 -- nil before the first _on_update tick reads as false, so vanilla drives until AT's first decision (safe).
-function evaluator_at_combat:evaluate()
+function at_combat_gate:evaluate()
     return _slot(self.object:id()).eval == true
 end
 
@@ -175,12 +221,12 @@ end
 -- Action
 -- =========================================================================
 
-class "action_at_combat" ( action_base )
+class "at_combat_action" ( action_base )
 
-function action_at_combat:__init(name) super (nil, name)
+function at_combat_action:__init(name) super (nil, name)
 end
 
-function action_at_combat:initialize()
+function at_combat_action:initialize()
     action_base.initialize(self)
     local npc = self.object
     npc:set_desired_position()
@@ -200,7 +246,7 @@ end
 -- The enemy position is the LIVE position when the NPC currently sees the enemy, else its last-known position
 -- from memory (xcombat.enemy_track_pos) - so a chase toward an unseen enemy heads to where it was lost, not
 -- after the live fleeing target. slot.sees is refreshed by execute() just before this call.
-function action_at_combat:_gather(npc, id, enemy, slot, tg)
+function at_combat_action:_gather(npc, id, enemy, slot, tg)
     local npc_pos   = npc:position()
     local enemy_pos = xcombat.enemy_track_pos(npc, enemy, slot.sees)
     local npc_lvid  = npc:level_vertex_id()
@@ -216,7 +262,7 @@ end
 
 -- Commit a maneuver: release any held cover, record it, roll posture/speed, write the combat state, resolve +
 -- send the destination (cover targets reserved; a nil-resolving move holds and fires on the own node).
-function action_at_combat:_start(name, ctx, slot, check)
+function at_combat_action:_start(name, ctx, slot, check)
     local maneuver = doctrine.MANEUVERS[name]
     if not maneuver then return end
     local id = ctx.id
@@ -241,87 +287,83 @@ function action_at_combat:_start(name, ctx, slot, check)
 end
 
 
--- A check fires when its period elapsed (stamped here) and its predicate holds for an eligible maneuver;
--- returns the check name to add as a candidate, or nil. Lifted out so the scan loop stays shallow.
-local function _check_fires(check, ctx, slot, tg, ran)
-    if tg - (ran[check.name] or 0) < check.period then return nil end
-    ran[check.name] = tg
-    if check.pred(ctx, slot) and slot.palette[check.name] then return check.name end
-    return nil
+-- =========================================================================
+-- THE SCAN: observe -> scan -> commit. aim runs every tick; the rest only once the maneuver is done.
+-- =========================================================================
+
+-- Full per-scan observation (the done path only): refresh the throttled LOS probe, read the weapon band for the
+-- range hysteresis, gather positions, and update range_zone. _gather picks the track position (live vs
+-- last-known) from slot.sees, which _probe_see just refreshed.
+function at_combat_action:_observe(npc, id, enemy, slot, tg)
+    _probe_see(npc, enemy, slot, tg)
+    slot.range = xcombat.get_weapon_range(xcombat.get_weapon_kind(npc) or "w_rifle")
+    local ctx = self:_gather(npc, id, enemy, slot, tg)
+    doctrine.range_zone(slot, ctx.dist)
+    return ctx
 end
 
+-- One scan entry: skip until its period has elapsed; otherwise stamp the last-run time and run it, returning
+-- the candidate name (checks) or nil (aim/context). The wait gate (done-only) is applied by the caller.
+local function _run_entry(entry, ctx, ran, tg)
+    if tg - (ran[entry.name] or 0) < entry.period then return nil end
+    ran[entry.name] = tg
+    return entry.run(ctx)
+end
 
--- =========================================================================
--- THE SCAN: aim always, then (only when the current maneuver is done) refresh + the wait checks.
--- =========================================================================
-
-function action_at_combat:execute()
-    action_base.execute(self)
-    local npc = self.object
-    local id, tg = npc:id(), time_global()
-    local enemy = npc:best_enemy()
-    if not (enemy and enemy:alive()) then return end
-    local slot = _slot(id)
-    local ran  = slot.ran_at
-
-    -- aim (wait = false): re-point every tick, unless the weapon is stowed (a flee faces its run path).
-    if slot.fire ~= STOW and tg - (ran.aim or 0) >= AIM_MS then
-        ran.aim = tg
-        xcombat.aim_at(npc, enemy:position())
-    end
-
-    -- the wait checks only fire once the current maneuver is done.
-    if not _maneuver_done(npc, slot, tg) then return end
-
-    -- refresh LOS first: _gather reads slot.sees to pick the track position (live vs last-known), and the
-    -- tactical checks (is_blocked_wall, is_enemy_unseen) consume it too.
-    _probe_see(npc, enemy, slot, tg)
-
-    local prof = xprofiler.new_if(_dbg):start()
-    local ctx = self:_gather(npc, id, enemy, slot, tg)
-    local gather_us = prof:stop():get_us()
-
-    -- refresh the palette (is_context_changed) and the cheap reads the checks consume.
-    prof = xprofiler.new_if(_dbg):start()
-    if tg - (ran.context or 0) >= CONTEXT_MS then
-        ran.context = tg
-        doctrine.refresh(slot, npc, ctx.npc_pos, ctx.npc_lvid)
-    end
-    local refresh_us = prof:stop():get_us()
-
-    prof = xprofiler.new_if(_dbg):start()
-    doctrine.range_zone(slot, ctx.dist)
-    local read_us = prof:stop():get_us()
-
-    -- run every due check; a true one with an eligible maneuver becomes a candidate; shuffle-pick one.
-    prof = xprofiler.new_if(_dbg):start()
+-- Run every due scan entry once: a wait entry runs only when the maneuver is done, aim every tick. A check that
+-- fires returns its name. Collect the candidates and shuffle-pick one.
+function at_combat_action:_scan(ctx, slot, tg, done)
+    local ran = slot.ran_at
     local fired, count = nil, 0
-    local checks = doctrine.CHECKS
-    for i = 1, #checks do
-        local name = _check_fires(checks[i], ctx, slot, tg, ran)
-        if name then
+    for i = 1, #SCAN do
+        local entry = SCAN[i]
+        local candidate = (done or not entry.wait) and _run_entry(entry, ctx, ran, tg)
+        if candidate then
             count = count + 1
             fired = fired or {}
-            fired[count] = name
+            fired[count] = candidate
         end
     end
-    local checks_us = prof:stop():get_us()
-    local picked, maneuver
-    if count > 0 then
-        picked = fired[math_random(count)]
-        maneuver = doctrine.pick(picked, slot)
-    end
+    if count == 0 then return nil end
+    return fired[math_random(count)]
+end
+
+-- Commit the scan outcome: the picked check rolls a maneuver through the palette and starts it; a finished flee
+-- (weapon stowed) with nothing else pending re-arms to hold_fire so the NPC never idles weapon-down.
+function at_combat_action:_commit(picked, ctx, slot, scan_us)
+    local maneuver = picked and doctrine.pick(picked, slot)
     if maneuver then
         self:_start(maneuver, ctx, slot, picked)
     elseif slot.fire == STOW then
-        -- a finished flee left the weapon down and nothing else fired: re-arm and hold fire in place.
         maneuver = "hold_fire"
-        self:_start(maneuver, ctx, slot, "rearm")
+        self:_start("hold_fire", ctx, slot, "rearm")
     end
-    at_combat_trace.scan(id, ctx, picked, maneuver, gather_us, refresh_us, read_us, checks_us)
+    at_combat_trace.scan(ctx.id, ctx, picked, maneuver, scan_us)
 end
 
-function action_at_combat:finalize()
+function at_combat_action:execute()
+    action_base.execute(self)
+    local npc = self.object
+    local enemy = npc:best_enemy()
+    if not (enemy and enemy:alive()) then return end
+    local id, tg = npc:id(), time_global()
+    local slot = _slot(id)
+
+    -- maneuver still travelling: only aim runs (the wait entries skip), against a reused light ctx, no commit.
+    if not _maneuver_done(npc, slot, tg) then
+        _light_ctx.npc, _light_ctx.enemy, _light_ctx.slot = npc, enemy, slot
+        self:_scan(_light_ctx, slot, tg, false)
+        return
+    end
+
+    -- maneuver done: observe the world, run the full scan, commit the picked maneuver.
+    local prof = xprofiler.new_if(_dbg):start()
+    local ctx = self:_observe(npc, id, enemy, slot, tg)
+    local picked = self:_scan(ctx, slot, tg, true)
+    self:_commit(picked, ctx, slot, prof:stop():get_us())
+end
+
+function at_combat_action:finalize()
     action_base.finalize(self)
     local npc = self.object
     local id = npc:id()
@@ -349,9 +391,9 @@ local function _install(npc)
     if not manager then return end
     _takeover_installed[id] = true
 
-    manager:add_evaluator(EVAL_ID, evaluator_at_combat("eva_at_combat"))
+    manager:add_evaluator(EVAL_ID, at_combat_gate("eva_at_combat"))
 
-    local action = action_at_combat("act_at_combat")
+    local action = at_combat_action("act_at_combat")
     action:add_precondition(world_property(stalker_ids.property_alive, true))
     -- Wounded yields to the engine wounded scheme, the way every vanilla planner-blocking scheme does
     -- (axr_stalker_panic, axr_fight_from_cover, ...). The engine evaluates sidor_wounded_base for every stalker
@@ -444,8 +486,8 @@ local function _on_update(npc)
 end
 
 function on_game_start()
-    _load_tunables()
-    doctrine.load_tunables()
+    _load_config()
+    doctrine.load_config()
     RegisterScriptCallback("npc_on_net_spawn",            _on_net_spawn)
     RegisterScriptCallback("npc_on_net_destroy",          _on_net_destroy)
     RegisterScriptCallback("npc_on_update",               _on_update)

@@ -31,17 +31,17 @@ function at_combat_trace.forget(id) _logged_eval[id] = nil _last_act[id] = nil _
 
 --- One line per done-scan: the readings the checks saw and the outcome (which check fired, which maneuver,
 --- or "-" for a turret tick where nothing fired). Skipped while a maneuver is committed (no work to log).
-function at_combat_trace.scan(id, ctx, check, maneuver, gather_us, refresh_us, read_us, checks_us)
+function at_combat_trace.scan(id, ctx, check, maneuver, scan_us)
     if not _on then return end
     local slot = ctx.slot
     local age = slot.unseen_ms or 0
-    log.debug("scan npc=%d(%s) dist=%.1f hp=%.2f zone=%s sees=%s fire=%s ene=%s(%s) age=%d pal=%s/%s/%s dest=%s cover=%s check=%s man=%s us[gather=%.0f refresh=%.0f read=%.0f checks=%.0f]",
+    log.debug("scan npc=%d(%s) dist=%.1f hp=%.2f zone=%s sees=%s fire=%s ene=%s(%s) age=%d pal=%s/%s/%s dest=%s cover=%s check=%s man=%s us=%.0f",
         id, _nm(id), ctx.dist, ctx.health, _s(slot.range_zone), slot.sees and "Y" or "N",
         _s(slot.fire), _s(ctx.enemy_id), _s(ctx.enemy and ctx.enemy:name()), age,
         _s(slot.community), _s(slot.bucket_name), _s(slot.env),
         _s(slot.dest), _s(slot.cover_lvid),
         _s(check), _s(maneuver),
-        gather_us, refresh_us, read_us, checks_us)
+        scan_us)
 end
 
 --- Maneuver committed: the check that fired it, the rolled posture/speed, the apply + resolve costs.

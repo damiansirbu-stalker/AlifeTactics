@@ -7,7 +7,7 @@
 ---
 --- Behavior is emergent, not flagged: a faction reacts to a check only if some maneuver in its palette
 --- handles it. No cover maneuver in a faction's palette = it never takes cover. The only per-faction data is
---- the faction tag on each maneuver. Tunables load via load_tunables (called by the shell on_game_start).
+--- the faction tag on each maneuver. Tunables load via load_config (called by the shell on_game_start).
 
 local pairs, ipairs, math_floor = pairs, ipairs, math.floor
 local math_random, math_sqrt = math.random, math.sqrt
@@ -49,7 +49,7 @@ end
 
 -- =========================================================================
 -- LTX paths. Numeric tunables live in at_combat_config.ltx; the maneuver catalog in
--- at_combat_doctrine.ltx. Both loaded by load_tunables (the shell calls it on_game_start).
+-- at_combat_doctrine.ltx. Both loaded by load_config (the shell calls it on_game_start).
 -- =========================================================================
 
 local CONFIG_PATH    = "alifetactics\\at_combat_config.ltx"
@@ -59,7 +59,7 @@ local DOCTRINE_SECTION = "doctrine"
 
 local GRENADE_MS, FRIENDLY_THRESH_M, RANGE_HYSTERESIS_M, HURT_FRAC, CROUCH_CHANCE, RUN_CHANCE
 local ADVANCE_STANDOFF_M, BACK_STEP_M, STEP_BACK_M, FLANK_LAT_M, FLANK_FWD_M
-local SQUAD_BUCKETS, REACT_MS, SLOW_MS, STANCE_HOLD_MS
+local SQUAD_BUCKETS, STANCE_HOLD_MS
 
 -- Maneuver catalog, filled from at_combat_doctrine.ltx. Each entry: handles (the checks it answers),
 -- move (destination resolver), fire (xcombat mode), factions / weapons / env selection sets.
@@ -83,7 +83,7 @@ local function _load_maneuvers()
     end
 end
 
-function at_combat_doctrine.load_tunables()
+function at_combat_doctrine.load_config()
     local ini = ini_file(CONFIG_PATH)
     local function f(k, d) return ini:r_float_ex(CONFIG_SECTION, k) or d end
     local function i(k, d) local v = ini:r_float_ex(CONFIG_SECTION, k); return v and math_floor(v) or d end
@@ -99,13 +99,7 @@ function at_combat_doctrine.load_tunables()
     FLANK_LAT_M        = f("flank_lateral_m",        12)
     FLANK_FWD_M        = f("flank_forward_m",        6)
     SQUAD_BUCKETS      = i("squad_buckets",          5)
-    REACT_MS           = i("react_period_ms",        500)
-    SLOW_MS            = i("slow_period_ms",          1000)
     STANCE_HOLD_MS     = i("stance_hold_ms",         5000)
-    -- Bind each check's period now. The CHECKS literal is built at script load, before these are read, so it
-    -- carries a speed token (react/slow) instead of the number; resolve the token here once the ms are known.
-    local speed_ms = { react = REACT_MS, slow = SLOW_MS }
-    for _, c in ipairs(at_combat_doctrine.CHECKS) do c.period = speed_ms[c.speed] end
     _load_maneuvers()
 end
 
@@ -307,7 +301,7 @@ end
 
 
 -- =========================================================================
--- Slot context refresh: weapon bucket / band / environment + the eligible-maneuver palette. Rebuilds the
+-- Slot context refresh: weapon bucket / environment + the eligible-maneuver palette. Rebuilds the
 -- palette only when (community, weapon bucket, env) changes. Fills the static fields once (community, squad,
 -- spread bucket). is_context_changed is just this call detecting a changed key.
 -- =========================================================================
@@ -323,7 +317,6 @@ function at_combat_doctrine.refresh(slot, npc, npc_pos, npc_lvid)
     local kind = xcombat.get_weapon_kind(npc) or "w_rifle"
     slot.weapon      = kind
     slot.bucket_name = _weapon_bucket(kind)
-    slot.range       = xcombat.get_weapon_range(kind)
     if slot._env_lvid ~= npc_lvid then
         slot._env_lvid = npc_lvid
         slot.env = xcombat.is_indoor(npc_pos) and "INDOOR" or "OUTDOOR"
