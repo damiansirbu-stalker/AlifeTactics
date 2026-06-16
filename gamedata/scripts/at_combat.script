@@ -3,8 +3,16 @@
 --- lifecycle. The decision half - which check fires, which maneuver answers it, where to move - lives in
 --- at_combat_doctrine; this file turns those answers into xcombat commands.
 ---
+--- INVERSION OF CONTROL - this file runs no loop of its own. _install grafts two probes into each stalker's
+--- engine GOAP brain (motivation_action_manager): an evaluator (a boolean sensor the engine polls every plan
+--- solve - "should AT drive this NPC?") and an action (the behavior the engine runs every frame the evaluator
+--- wins). The engine pumps the brain and calls into us; we never schedule ourselves. Both callbacks read
+--- npc:best_enemy() at entry - the engine's own per-NPC target, chosen in the memory manager one layer below
+--- the blocked combat planner (enemy_manager + memory_manager, see doc/library/modding/stalker-combat-brain.md).
+--- We consume that target; we never compute it. The takeover owns what to do, not who the enemy is.
+---
 --- One scan per tick (execute). Registered checks each carry a period and a wait flag:
----   aim (aim_period_ms)  always re-points the weapon - never waits for a maneuver.
+---   aim (aim_period_ms)  re-points the weapon every tick - except during a flee (STOW), which faces the run path.
 ---   the rest            wait: they only fire once the current maneuver is done (npc:path_completed,
 ---                       or arrival distance, or the maneuver_max_ms stuck cap). The NPC is a turret by
 ---                       default; a maneuver runs only when a check fires, is committed once started, and
@@ -12,7 +20,7 @@
 --- All per-NPC state lives in one flat slot (_combat[id]); nothing is stored on the engine object or the
 --- action instance. Tracing is noop when DEBUG is off.
 
-local IsStalker, IsWounded, time_global = IsStalker, IsWounded, time_global
+local IsStalker, IsWounded, time_global, tostring = IsStalker, IsWounded, time_global, tostring
 local math_sqrt, math_floor, math_random = math.sqrt, math.floor, math.random
 local RegisterScriptCallback = RegisterScriptCallback
 local vector, anim, game_object, level = vector, anim, game_object, level
@@ -21,6 +29,8 @@ local log = xlog.get_logger("AT.COMBAT", { outfile = "alifetactics.log" })
 local _dbg = false
 local cfg = at_mcm.cfg
 local doctrine = at_combat_doctrine
+-- weapon-stowed fire mode (a flee): the turret stops aiming and faces its run path.
+local STOW = xcombat.STOW
 
 -- Custom GOAP evaluator + action id, grafted per stalker on its motivation_action_manager. The 188000+ band
 -- stays clear of the engine/Anomaly base ids; 188200 sits above xr_danger's 188113. ACT_ID is a module field
@@ -54,11 +64,11 @@ end
 
 -- =========================================================================
 -- Per-NPC slot store. One flat record per NPC, created on first touch; holds the evaluator hysteresis, the
--- weapon/community/palette cache, the running maneuver, and the per-check last-run timestamps. squad_id is a
--- field (nil = solo). Cleared on unregister; never saved.
+-- weapon/community/palette cache, the running maneuver, the held cover vertex, and the per-check last-run
+-- timestamps. squad_id is a field (nil = solo). Cleared on unregister; never saved.
 -- =========================================================================
 
-local _installed = {}
+local _takeover_installed = {}
 local _combat    = {}
 
 local function _slot(id)
@@ -82,6 +92,18 @@ local function _probe_see(npc, enemy, slot, tg)
 end
 
 
+-- DEBUG probe label: which top-level action an installed NPC is actually running. AT = our takeover
+-- (ACT_ID), COMBAT / DANGER = the vanilla planners we precondition-block, "-" = uninitialized. Resolved at
+-- call time (under _dbg only) so the module still loads where stalker_ids is absent (the validator stub).
+local function _act_label(cur)
+    if cur == nil then return "-" end
+    if cur == ACT_ID then return "AT" end
+    if cur == stalker_ids.action_combat_planner then return "COMBAT" end
+    if cur == stalker_ids.action_danger_planner then return "DANGER" end
+    return tostring(cur)
+end
+
+
 -- =========================================================================
 -- TAKEOVER GATE. The engine polls this evaluator while planning: true = AT drives the NPC (vanilla
 -- combat/danger/alife planners are precondition-blocked), false = vanilla resumes.
@@ -90,6 +112,15 @@ end
 class "evaluator_at_combat" ( property_evaluator )
 
 function evaluator_at_combat:__init(name) super (nil, name)
+end
+
+-- Maneuver transaction guard: a committed maneuver still in transit keeps AT driving. NO soft reason
+-- (lost_sight, no_enemy) may break a maneuver mid-flight - only hard stops (dead/wounded/disabled/companion)
+-- do. Bounded by path_completed (arrived) and the stuck cap so a finished or blocked move still yields.
+local function _maneuver_in_flight(npc, slot, tg)
+    if not slot.maneuver then return false end
+    local arrived = npc:path_completed()
+    return not arrived and (tg - (slot.maneuver_at or 0)) < MANEUVER_MAX_MS
 end
 
 local function _should_manage(npc, id, tg)
@@ -102,25 +133,41 @@ local function _should_manage(npc, id, tg)
     local enemy = npc:best_enemy()
     local slot = _slot(id)
     if not (enemy and enemy:alive()) then
-        if tg - (slot.enemy_at or 0) > NO_ENEMY_MS then return false, "no_enemy" end
+        if tg - (slot.enemy_at or 0) > NO_ENEMY_MS then
+            if _maneuver_in_flight(npc, slot, tg) then return true, "finish_maneuver" end
+            return false, "no_enemy"
+        end
         return true, "managed"
     end
     slot.enemy_at = tg
 
     local sees = _probe_see(npc, enemy, slot, tg)
     if not sees and not slot.seen_at then slot.seen_at = tg end
-    if tg - slot.seen_at > LOST_SIGHT_MS then return false, "lost_sight" end
+    if tg - slot.seen_at > LOST_SIGHT_MS then
+        -- A committed maneuver (e.g. advancing to the last-known up a stairwell) finishes before we hand off.
+        if _maneuver_in_flight(npc, slot, tg) then return true, "pursue_to_lastknown" end
+        return false, "lost_sight"
+    end
     return true, "managed"
 end
 
 function evaluator_at_combat:evaluate()
     local npc = self.object
     local id = npc:id()
-    local result, reason = _should_manage(npc, id, time_global())
+    local tg = time_global()
+    local result, reason = _should_manage(npc, id, tg)
     local slot = _slot(id)
     slot.eval = result
     slot.reason = reason
-    if _dbg then at_combat_trace.eval(id, result, reason) end
+    if _dbg then
+        at_combat_trace.eval(id, result, reason, slot, tg)
+        -- Action-state probe: what is THIS NPC's brain actually running this frame? current_action_id reads
+        -- the last committed top-level action (we are mid-solve here). eval=true + cur=COMBAT = the block
+        -- leaked; eval=false + cur=COMBAT = an expected handback. Guarded on initialized() so it never asserts.
+        local mgr = npc:motivation_action_manager()
+        local cur = (mgr and mgr:initialized()) and mgr:current_action_id() or nil
+        at_combat_trace.curact(id, result, _act_label(cur), cur)
+    end
     return result
 end
 
@@ -147,6 +194,7 @@ function action_at_combat:initialize()
     slot.maneuver_at = nil
     slot.dest        = nil
     slot.enemy_id    = nil
+    slot.fire        = nil
 end
 
 -- A maneuver is done when nothing is running, the engine reports the path complete, the NPC is within the
@@ -179,20 +227,24 @@ function action_at_combat:_start(name, ctx, slot, check)
     local maneuver = doctrine.MANEUVERS[name]
     if not maneuver then return end
     local id = ctx.id
-    xcombat.release_owner_cover(id)
+    xcombat.release_cover(slot.cover_lvid, id)
+    slot.cover_lvid  = nil
     slot.maneuver    = name
     slot.maneuver_at = ctx.tg
     slot.enemy_id    = ctx.enemy_id
+    slot.fire        = maneuver.fire
     local posture, movement = doctrine.roll(slot, maneuver.fire, doctrine.is_stationary(maneuver), ctx.tg)
     local atmr = xprofiler.new_if(_dbg):start()
-    local ok = xcombat.set_combat(self.object, { fire = maneuver.fire, posture = posture, movement = movement, aim = ctx.enemy })
+    -- a flee (STOW) faces its run path: no aim target, so set_combat leaves the sight on path_dir
+    local aim = (maneuver.fire == STOW) and nil or ctx.enemy
+    local ok = xcombat.set_combat(self.object, { fire = maneuver.fire, posture = posture, movement = movement, aim = aim })
     local apply_ms = atmr:stop():get_ms()
     local mtmr = xprofiler.new_if(_dbg):start()
     local vid = doctrine.resolve(maneuver, self.object, ctx, slot)
     local resolve_ms = mtmr:stop():get_ms()
-    if doctrine.is_cover(maneuver) and vid ~= ctx.npc_lvid then xcombat.claim_cover(vid, id) end
+    if doctrine.is_cover(maneuver) and vid ~= ctx.npc_lvid and xcombat.claim_cover(vid, id) then slot.cover_lvid = vid end
     slot.dest = xcombat.send_to(self.object, vid)
-    at_combat_trace.decide(id, name, check, posture, movement, apply_ms, resolve_ms, ok)
+    at_combat_trace.decide(id, name, check, posture, movement, apply_ms, resolve_ms, ok, slot)
 end
 
 
@@ -219,8 +271,8 @@ function action_at_combat:execute()
     local slot = _slot(id)
     local ran  = slot.ran_at
 
-    -- aim (wait = false): always, on its own period.
-    if tg - (ran.aim or 0) >= AIM_MS then
+    -- aim (wait = false): re-point every tick, unless the weapon is stowed (a flee faces its run path).
+    if slot.fire ~= STOW and tg - (ran.aim or 0) >= AIM_MS then
         ran.aim = tg
         xcombat.aim_at(npc, enemy:position())
     end
@@ -228,17 +280,25 @@ function action_at_combat:execute()
     -- the wait checks only fire once the current maneuver is done.
     if not self:_done(npc, slot, tg) then return end
 
+    local prof = xprofiler.new_if(_dbg):start()
     local ctx = self:_gather(npc, id, enemy, slot, tg)
+    local gather_us = prof:stop():get_us()
 
     -- refresh the palette (is_context_changed) and the cheap reads the checks consume.
+    prof = xprofiler.new_if(_dbg):start()
     if tg - (ran.context or 0) >= CONTEXT_MS then
         ran.context = tg
         doctrine.refresh(slot, npc, ctx.npc_pos, ctx.npc_lvid)
     end
+    local refresh_us = prof:stop():get_us()
+
+    prof = xprofiler.new_if(_dbg):start()
     doctrine.range_zone(slot, ctx.dist)
     _probe_see(npc, enemy, slot, tg)
+    local read_us = prof:stop():get_us()
 
     -- run every due check; a true one with an eligible maneuver becomes a candidate; shuffle-pick one.
+    prof = xprofiler.new_if(_dbg):start()
     local fired, count = nil, 0
     local checks = doctrine.CHECKS
     for i = 1, #checks do
@@ -249,19 +309,32 @@ function action_at_combat:execute()
             fired[count] = name
         end
     end
+    local checks_us = prof:stop():get_us()
     local picked, maneuver
     if count > 0 then
         picked = fired[math_random(count)]
         maneuver = doctrine.pick(picked, slot)
-        if maneuver then self:_start(maneuver, ctx, slot, picked) end
     end
-    at_combat_trace.scan(id, ctx, picked, maneuver)
+    if maneuver then
+        self:_start(maneuver, ctx, slot, picked)
+    elseif slot.fire == STOW then
+        -- a finished flee left the weapon down and nothing else fired: re-arm and hold fire in place.
+        maneuver = "hold_fire"
+        self:_start(maneuver, ctx, slot, "rearm")
+    end
+    at_combat_trace.scan(id, ctx, picked, maneuver, gather_us, refresh_us, read_us, checks_us)
 end
 
 function action_at_combat:finalize()
     action_base.finalize(self)
     local npc = self.object
-    xcombat.release_owner_cover(npc:id())
+    local id = npc:id()
+    local slot = _combat[id]
+    if slot then
+        xcombat.release_cover(slot.cover_lvid, id)
+        slot.cover_lvid = nil
+        slot.fire = nil
+    end
     npc:sniper_fire_mode(false)
 end
 
@@ -274,11 +347,11 @@ local function _install(npc)
     if not npc then return end
     if not IsStalker(npc) then return end
     local id = npc:id()
-    if _installed[id] then return end
+    if _takeover_installed[id] then return end
 
     local manager = npc:motivation_action_manager()
     if not manager then return end
-    _installed[id] = true
+    _takeover_installed[id] = true
 
     manager:add_evaluator(EVAL_ID, evaluator_at_combat("eva_at_combat"))
 
@@ -308,15 +381,21 @@ end
 local function _on_net_destroy(npc)
     if not npc then return end
     local id = npc:id()
-    _installed[id] = nil
-    xcombat.release_owner_cover(id)
+    _takeover_installed[id] = nil
+    local slot = _combat[id]
+    if slot then
+        xcombat.release_cover(slot.cover_lvid, id)
+        slot.cover_lvid = nil
+    end
 end
 
 local function _on_entity_unregister(se_obj)
     if not se_obj then return end
     local id = se_obj.id
-    _installed[id] = nil
-    _combat[id]    = nil
+    _takeover_installed[id] = nil
+    local slot = _combat[id]
+    if slot then xcombat.release_cover(slot.cover_lvid, id) end
+    _combat[id] = nil
     at_combat_trace.forget(id)
 end
 
@@ -333,7 +412,7 @@ function get_maneuver(id)
 end
 
 local function _on_first_update()
-    _installed = {}
+    _takeover_installed = {}
     _combat    = {}
     at_combat_trace.reset()
     _refresh_log()

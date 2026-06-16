@@ -211,13 +211,15 @@ Per-shot hot path. Cost ~1.5μs per call when DEBUG off (2 luabind crossings via
 
 GOAP planner takeover (Pattern B), split across two files: `at_combat` (the engine half - GOAP classes, the single per-tick scan, the per-NPC slot store, cover reservation, handback, lifecycle) and `at_combat_doctrine` (the pure decision half - the checks, the maneuver catalog, the faction palette, movement resolution). `_install` grafts one evaluator + one action into each stalker's motivation manager and adds `world_property(EVAL_ID, false)` as a precondition to vanilla `action_combat_planner` / `action_danger_planner` / `xr_danger` / `state_mgr+2` / `alife`. Takeover gate true = AT drives the NPC; false = vanilla resumes.
 
+The takeover is inversion of control, not a loop. `_install` registers an evaluator (a boolean "should AT drive this NPC?" sensor) and an action (the behavior) into the engine brain; the engine pumps that brain every frame and calls them - the evaluator on every plan solve, the action's `execute` every frame it is the current action. AT has no scheduler of its own. Both read `npc:best_enemy()` at entry, which is the engine's per-NPC target from the memory manager one layer below the blocked planner (`enemy_manager.cpp` via `memory_manager.cpp`): AT consumes the target, it never computes it. The takeover owns *what to do*, not *who the enemy is*. See `doc/library/modding/stalker-combat-brain.md`.
+
 The catalog and tunables are data, not code: numeric knobs in `configs/alifetactics/at_combat_config.ltx`, the maneuver catalog in `configs/alifetactics/at_combat_doctrine.ltx`. `load_tunables` reads both at game start and builds `MANEUVERS` in place; the script holds no literal catalog.
 
 Blocking the combat planner removes the engine's per-tick aimer, so under takeover AT supplies aim, posture, movement, destination, and fire state. The engine keeps the trigger, the per-rank dispersion, and the `can_kill_member` friendly-fire hold. All NPC control routes through xcombat. See `doc/library/modding/npc-combat-control.md`, `npc-combat-effectiveness.md`.
 
 ### Scan and checks
 
-`execute()` runs one scan per engine tick. A set of checks is registered to that scan; each check carries a period (its throttle), a predicate, and a `wait` flag. The scan runs every check whose period has elapsed, and a check whose predicate holds fires its event. A `wait = true` check fires only when the current maneuver has finished (`npc:path_completed()`); a `wait = false` check fires regardless. The NPC is a turret by default (aims and fires on its own); a maneuver runs only when a check fires on something significant, is committed once started, and is never interrupted before it completes. There is no default/resting maneuver: finish one with nothing pending and the NPC is just the turret again.
+`execute()` runs one scan per engine tick. A set of checks is registered to that scan; each check carries a period (its throttle), a predicate, and a `wait` flag. The scan runs every check whose period has elapsed, and a check whose predicate holds fires its event. A `wait = true` check fires only when the current maneuver has finished (`npc:path_completed()`); a `wait = false` check fires regardless. The NPC is a turret by default (aims and fires on its own); a maneuver runs only when a check fires on something significant, is committed once started, and is never interrupted before it completes. There is no default/resting maneuver: finish a fire maneuver with nothing pending and the NPC is just the turret again; finish a flee (weapon stowed) and it re-arms to `hold_fire` so it never idles weapon-down.
 
 | Check | Period | Predicate | wait | Result |
 |---|---|---|---|---|
@@ -236,7 +238,7 @@ Blocking the combat planner removes the engine's per-tick aimer, so under takeov
 
 ### Aim
 
-`xcombat.aim_at(npc, enemy_pos)` re-stamped every `aim_period_ms` (200, ≈ reaction time), always — never gated by the current maneuver, so the NPC tracks the enemy while it advances or flanks. The engine fires along the sight with its own dispersion. Snipers additionally set `sniper_fire_mode` (head-line aim) via the SNIPE fire mode.
+`xcombat.aim_at(npc, enemy_pos)` re-stamped every `aim_period_ms` (200, ≈ reaction time) while the weapon is up, so the NPC tracks the enemy as it advances or flanks. The engine fires along the sight with its own dispersion. Snipers additionally set `sniper_fire_mode` (head-line aim) via the SNIPE fire mode. A flee (a STOW maneuver) is the one exception: the aim is suppressed and `set_combat` passes no look target, so the state resolves to `path_dir` and the NPC turns its back and runs. When the flee finishes with nothing else pending, the turret re-arms to `hold_fire` (weapon back up, fire in place) so it never idles weapon-down.
 
 ### Maneuvers
 
@@ -279,6 +281,8 @@ advance stops `advance_standoff_m` (10) short of the enemy for every weapon.
 
 First failing check returns `(false, reason)`: `combat_enabled` → id-hash vs `combat_share` → `alive` → not `IsWounded` → not a companion → `best_enemy` alive (else **no_enemy** after `no_enemy_ms`) → seen within **lost_sight** (`lost_sight_ms`, a throttled `see` probe shared with the scan, so a lost enemy hands off to vanilla's own search). The two flickery conditions carry a 2.5s hysteresis so AT never oscillates with vanilla.
 
+**Maneuver transaction.** While a committed maneuver is still in flight (`_maneuver_in_flight`: a maneuver set, the path not yet completed, within the stuck cap), the two soft handbacks (`no_enemy`, `lost_sight`) are suppressed — a maneuver is never broken mid-flight, only the hard stops (`dead`, `wounded`, `disabled`, `companion`) interrupt it. So a chase toward the enemy's last-known position (e.g. up a stairwell) runs to its end instead of being abandoned at the 2.5s mark.
+
 ### Lifecycle
 
 `npc_on_net_spawn` installs (sentinel-guarded); `npc_on_net_destroy` clears install + releases the cover reservation; `server_entity_on_unregister` drops the NPC's slot; `actor_on_first_update` resets the slot store + loads tunables (shell + doctrine); `on_option_change` / `mcm_option_restore_default` refresh the log level. Each `action:initialize()` (combat start) clears the slot's per-fight maneuver state (`maneuver`, `dest`, `enemy_id`) so `engage` reopens; the weapon/palette cache persists.
@@ -313,7 +317,7 @@ Plus the check/movement tunables (`hurt_frac` 0.25, `grenade_ms`, range hysteres
 | `find_point` / `find_cover` / `find_shot` | open move / firing vertex at cover (search anchorable via `search_pos`) / clear-shot sidestep |
 | `has_occluder_between` / `has_friendly_in_line` | wall raycast / squadmate-in-lane |
 | `is_indoor` | level-name table + surge-shelter proximity |
-| `claim_cover` / `release_cover` / `release_owner_cover` / `is_cover_stolen` / `get_cover_owner` | `db.used_level_vertex_ids` reservation |
+| `claim_cover` / `release_cover` | `db.used_level_vertex_ids` reservation (consumer holds the claimed lvid) |
 | `get_squad_ordinal` | per-NPC spread bucket |
 
 ---
