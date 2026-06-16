@@ -324,9 +324,13 @@ function iterate_disclosed(fn)
     end
 end
 
--- Same-faction friendly-fire damage gate. When a same-community stalker is the shooter, scale the hit power
--- by the MCM factor (0 = no friendly-fire damage). Runs on every hit, no throttle: a damage block must catch
--- each hit and the check is O(1). Never touches actor-dealt damage.
+-- Friendly-fire damage gate. Suppress damage unless the shooter and victim are actually enemies
+-- (npc:relation == game_object.enemy). relation() sums the community-to-community base (+/-2000, the dominant
+-- term) with personal/reputation/rank goodwill, so faction is paramount: same-faction NPCs (loner vs loner)
+-- are neutral at worst and never enemy, so they stay protected; a cross-faction pair (a loner vs a soured
+-- Clear Sky) damages each other only once their relation has actually gone hostile. Friend and neutral are
+-- both suppressed. Runs on every hit, no throttle: a damage block must catch each hit, O(1) (one luabind).
+-- Never touches actor-dealt damage.
 local function _on_before_hit(npc, shit, _bone_id, _flags)
     if not cfg.friendly_fire_enabled then return end
     if not (npc and shit) then return end
@@ -335,7 +339,7 @@ local function _on_before_hit(npc, shit, _bone_id, _flags)
     if attacker:id() == npc:id() then return end
     if not (IsStalker(attacker) and IsStalker(npc)) then return end
     if db.actor and attacker:id() == db.actor:id() then return end
-    if character_community(attacker) ~= character_community(npc) then return end
+    if attacker:relation(npc) == game_object.enemy then return end
     shit.power = shit.power * cfg.friendly_fire_factor
 end
 
