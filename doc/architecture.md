@@ -242,36 +242,15 @@ Blocking the combat planner removes the engine's per-tick aimer, so under takeov
 
 ### Maneuvers
 
-Each maneuver carries `handles` (the checks it answers), `move` (the destination resolver), `fire` (shoot / snipe / stow), and the selection tags factions / weapons / env. Posture + speed are rolled at maneuver start and held: crouch on `crouch_chance` (0.30, else stand), run on `run_chance` (0.30) when standing, crouch always walks (the engine has no crouch+run fire state). Names are the LTX section names.
+Each maneuver is one section in `at_combat_doctrine.ltx`, carrying `handles` (the checks it answers), `move` (the destination resolver), `fire` (shoot / snipe / stow), and the selection tags factions / weapons / env. Posture + speed are rolled at maneuver start and held (crouch / run chances and the stance-hold window are `at_combat_config.ltx` tunables; crouch always walks, since the engine has no crouch+run fire state). The catalog itself is data, not architecture — read `at_combat_doctrine.ltx` for the live maneuver list, their checks, and faction tags.
 
-| Maneuver | handles | move | fire |
-|---|---|---|---|
-| hold_fire | engage, is_target_changed | hold | shoot |
-| hold_snipe | engage, is_target_changed | hold | snipe |
-| cover_fire | engage, is_target_changed, is_grenade_near, is_blocked_wall | cover | shoot |
-| advance_open_fire | engage, is_target_changed, is_enemy_unseen | advance_open | shoot |
-| advance_cover_fire | engage, is_target_changed, is_enemy_unseen | advance_cover | shoot |
-| flank_open_fire | engage, is_target_changed, is_enemy_unseen | flank | shoot |
-| flank_cover_fire | engage, is_target_changed, is_enemy_unseen | flank_cover | shoot |
-| flank_open_stow | is_blocked_wall, is_enemy_unseen | flank | stow |
-| flank_cover_stow | is_blocked_wall, is_enemy_unseen | flank_cover | stow |
-| back_open_fire | is_hurt | withdraw | shoot |
-| back_cover_stow | is_hurt | withdraw | stow |
-| back_open_stow | is_grenade_near | withdraw | stow |
-| step_back_fire | is_too_close | step_back | shoot |
-| step_side_fire | is_blocked_wall, is_blocked_friendly | step_side | shoot |
-
-`move` dispatches to a resolver: hold = own node; advance_open = the NPC->enemy line, `advance_standoff_m` (10) short of the enemy; advance_cover = cover anchored at that forward point; cover = `find_cover` near the NPC; step_back / withdraw = away; step_side = `find_shot`; flank = lateral + forward offset (side by squad bucket parity); flank_cover = `find_cover` at that flank offset. advance_cover and flank_cover_fire search radially around their anchor for now; the directional forward/lateral cover search is a separate task. A resolve that returns the own node holds and fires in place (never fails to vanilla). Catalog in `at_combat_doctrine.ltx`.
+`move` dispatches to a resolver: hold = own node; advance_open = the NPC->enemy line, `advance_standoff_m` short of the enemy; advance_cover = cover anchored at that forward point; cover = `find_cover` near the NPC; step_back / withdraw = away; step_side = `find_shot`; flank = lateral + forward offset (side by squad bucket parity); flank_cover = `find_cover` at that flank offset. advance_cover and flank_cover_fire search radially around their anchor for now; the directional forward/lateral cover search is a separate task. A resolve that returns the own node holds and fires in place (never fails to vanilla). Catalog in `at_combat_doctrine.ltx`.
 
 ### Doctrine (faction palette)
 
 No groups, no lean flags. Each maneuver lists the communities it belongs to; an NPC's palette = the maneuvers matching its (community, weapon bucket, indoor/outdoor). `pick` rolls a random eligible maneuver, cached per NPC until the palette rebuilds. A check with no eligible maneuver is a no-op for that faction (how doctrine emerges):
 
-- cover factions (army, dolg, freedom, killer, isg, monolith, stalker, ecolog, csky) own cover_fire / advance_cover_fire, so they fight from and bound to cover; cover_fire also answers a grenade. Open factions (bandit, renegade, greh, zombied) have neither and fight in the open.
-- the flank maneuvers (flank_open_fire / flank_cover_fire, plus the stow variants flank_open_stow / flank_cover_stow that run to a flank weapon-down) belong to the military factions (army, dolg, freedom, killer, isg, monolith), close + rifle weapons, outdoors only.
-- is_hurt is answered by back_open_fire for the brave (army, dolg, freedom, killer, isg, stalker, bandit, greh) and back_cover_stow for the cowards (ecolog, csky, renegade); the fearless monolith and zombied have neither and never fall back. Everyone has back_open_stow (flee a grenade), step_back_fire (too close), and step_side_fire (wall / teammate in the lane). hold_snipe is sniper-weapon only.
-
-advance stops `advance_standoff_m` (10) short of the enemy for every weapon.
+Which factions fight from cover vs the open, who flanks, who falls back when hurt and who flees — those are the per-maneuver `factions` / `weapons` / `env` tags in `at_combat_doctrine.ltx`, not duplicated here. Behavior is emergent from the tags, with no group or lean code: a faction reacts to a check only if some maneuver in its palette handles it.
 
 ### Cover
 
@@ -279,7 +258,7 @@ advance stops `advance_standoff_m` (10) short of the enemy for every weapon.
 
 ### Handback to vanilla (`_should_manage`)
 
-Hard stops first, each returning `(false, reason)`: `combat_enabled` → id-hash vs `combat_share` → `alive` → not a companion → armed (else **unarmed** — AT blocks the engine's own rearm, so a weaponless NPC must yield). `wounded` is not checked here: it is a GOAP precondition on the action (`sidor_wounded_base = false`), engine-gated for free. Then two soft handbacks, both suppressed while a maneuver is in flight: **no_enemy** — `best_enemy()` is nil or dead (the engine's enemy manager has no target — died, despawned, or forgotten past its inertia window); and **lost_sight** — the enemy is still remembered but unsensed past `lost_sight_ms` (5s). Lost-sight reads the engine's own memory clock, `time_global() - npc:memory_time(enemy)`, which aggregates sight, sound, and hit (`memory_manager.cpp`) — the same signal vanilla uses to disengage (`xr_combat_ignore.script`); `best_enemy` is memory-derived with inertia (`enemy_manager.cpp`), so it does not flicker. The read is wrapped in `xcombat.enemy_unseen_ms`. The decision is recomputed off the hot path by `_on_update` (`npc_on_update`, throttled to `eval_period_ms`); the engine-polled evaluator only reads the cached `slot.eval`, so each `actual()` poll costs a flag read, not a recompute.
+Hard stops first, each returning `(false, reason)`: `combat_enabled` → id-hash vs `combat_share` → `alive` → not a companion → armed (else **unarmed** — AT blocks the engine's own rearm, so a weaponless NPC must yield). `wounded` is not checked here: it is a GOAP precondition on the action (`sidor_wounded_base = false`), engine-gated for free. Then two soft handbacks, both suppressed while a maneuver is in flight: **no_enemy** — `best_enemy()` is nil or dead (the engine's enemy manager has no target — died, despawned, or forgotten past its inertia window); and **lost_sight** — the enemy is still remembered but unsensed past `lost_sight_ms`. Lost-sight reads the engine's own memory clock, `time_global() - npc:memory_time(enemy)`, which aggregates sight, sound, and hit (`memory_manager.cpp`) — the same signal vanilla uses to disengage (`xr_combat_ignore.script`); `best_enemy` is memory-derived with inertia (`enemy_manager.cpp`), so it does not flicker. The read is wrapped in `xcombat.enemy_unseen_ms`. The decision is recomputed off the hot path by `_on_update` (`npc_on_update`, throttled to `eval_period_ms`); the engine-polled evaluator only reads the cached `slot.eval`, so each `actual()` poll costs a flag read, not a recompute.
 
 **Maneuver transaction.** While a committed maneuver is still in flight (`_maneuver_in_flight`: a maneuver set, the path not yet completed, within the stuck cap), both soft handbacks (`no_enemy`, `lost_sight`) are suppressed — a maneuver is never broken mid-flight; only the hard stops (`dead`, `wounded`, `unarmed`, `disabled`, `companion`) interrupt it. The chase target itself comes from memory: while the enemy is not currently seen, the scan resolves moves against `npc:memory_position(enemy)` (last-known), not the live position (`xcombat.enemy_track_pos`) — so a pursuit heads to where the enemy was lost and then yields to vanilla search, instead of trailing the live, fleeing target up a stairwell forever.
 
@@ -293,17 +272,7 @@ At DEBUG, `at_combat_trace` writes one `scan` line per done-scan (the readings t
 
 ### MCM + tunables
 
-| Key | Where | Default | Effect |
-|---|---|---|---|
-| `combat_enabled` | MCM | true | Master toggle |
-| `combat_share` | MCM | 1.0 | Stable per-id hash share AT vs vanilla |
-| `combat_ignore_companions` | MCM | true | Skip companions (`npcx_is_companion`) |
-| `aim/react/slow/context_period_ms` | `at_combat_config.ltx` | 200/500/1000/1000 | Scan + check periods |
-| `maneuver_max_ms` | `at_combat_config.ltx` | 8000 | Commitment stuck cap; arrival is the engine `path_completed` flag |
-| `lost_sight_ms` | `at_combat_config.ltx` | 5000 | Soft-handback hysteresis (enemy unseen this long, not mid-maneuver) |
-| `eval_period_ms` | `at_combat_config.ltx` | 250 | Takeover-decision recompute interval (`npc_on_update`); the evaluator reads the cached result |
-
-Plus the check/movement tunables (`hurt_frac` 0.25, `grenade_ms`, range hysteresis, `advance_standoff_m`, step distances, `flank_lateral_m` / `flank_forward_m`, `crouch_chance` / `run_chance`) in `at_combat_config.ltx`. The maneuver catalog is `at_combat_doctrine.ltx`.
+Three MCM toggles gate the takeover: a master enable, a stable per-id hash `combat_share` splitting NPCs between AT and vanilla, and a companion skip. Everything else is in `at_combat_config.ltx` — the scan and check periods, the commitment stuck cap, the handback hysteresis and recompute interval, and the check/movement readings (hurt threshold, grenade window, range hysteresis, standoff and step distances, flank offsets, posture chances). The maneuver catalog is `at_combat_doctrine.ltx`. Defaults live in those files, not here.
 
 ### xcombat primitives (xlibs)
 

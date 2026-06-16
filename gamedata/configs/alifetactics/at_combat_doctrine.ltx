@@ -4,7 +4,7 @@
 ; eligible maneuver, so listing the same check on several maneuvers spreads behavior across the squad.
 
 [doctrine]
-maneuvers = hold_fire, hold_snipe, cover_fire, advance_open_fire, advance_cover_fire, flank_open_fire, flank_cover_fire, flank_open_stow, flank_cover_stow, back_open_fire, back_cover_stow, back_open_stow, step_back_fire, step_side_fire
+maneuvers = hold_fire, hold_snipe, cover_fire, advance_open_fire, advance_cover_fire, flank_cover_fire, flank_cover_stow, back_open_fire, back_cover_stow, back_open_stow, step_back_fire, step_side_fire
 
 [hold_fire]
 handles  = engage, is_target_changed
@@ -34,7 +34,7 @@ env      = indoor, outdoor
 handles  = engage, is_target_changed, is_enemy_unseen
 move     = advance_open
 fire     = shoot
-factions = bandit, dolg, ecolog, freedom, killer, army, monolith, stalker, csky, zombied, greh, isg, renegade
+factions = bandit, ecolog, stalker, csky, zombied, greh, renegade
 weapons  = sniper, close, rifle
 env      = indoor, outdoor
 
@@ -46,26 +46,10 @@ factions = army, dolg, freedom, killer, isg, monolith, stalker, ecolog, csky
 weapons  = sniper, close, rifle
 env      = indoor, outdoor
 
-[flank_open_fire]
-handles  = engage, is_target_changed, is_enemy_unseen
-move     = flank
-fire     = shoot
-factions = army, dolg, freedom, killer, isg, monolith
-weapons  = close, rifle
-env      = outdoor
-
 [flank_cover_fire]
 handles  = engage, is_target_changed, is_enemy_unseen
 move     = flank_cover
 fire     = shoot
-factions = army, dolg, freedom, killer, isg, monolith
-weapons  = close, rifle
-env      = outdoor
-
-[flank_open_stow]
-handles  = is_blocked_wall, is_enemy_unseen
-move     = flank
-fire     = stow
 factions = army, dolg, freedom, killer, isg, monolith
 weapons  = close, rifle
 env      = outdoor
