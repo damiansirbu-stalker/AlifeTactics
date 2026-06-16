@@ -279,13 +279,13 @@ advance stops `advance_standoff_m` (10) short of the enemy for every weapon.
 
 ### Handback to vanilla (`_should_manage`)
 
-First failing check returns `(false, reason)`: `combat_enabled` → id-hash vs `combat_share` → `alive` → not `IsWounded` → not a companion → `best_enemy` alive (else **no_enemy** after `no_enemy_ms`) → seen within **lost_sight** (`lost_sight_ms`, a throttled `see` probe shared with the scan, so a lost enemy hands off to vanilla's own search). The two flickery conditions carry a 2.5s hysteresis so AT never oscillates with vanilla.
+Hard stops first, each returning `(false, reason)`: `combat_enabled` → id-hash vs `combat_share` → `alive` → not a companion → armed (else **unarmed** — AT blocks the engine's own rearm, so a weaponless NPC must yield). `wounded` is not checked here: it is a GOAP precondition on the action (`sidor_wounded_base = false`), engine-gated for free. Then two soft handbacks, both suppressed while a maneuver is in flight: **no_enemy** — `best_enemy()` is nil or dead (the engine's enemy manager has no target — died, despawned, or forgotten past its inertia window); and **lost_sight** — the enemy is still remembered but unsensed past `lost_sight_ms` (5s). Lost-sight reads the engine's own memory clock, `time_global() - npc:memory_time(enemy)`, which aggregates sight, sound, and hit (`memory_manager.cpp`) — the same signal vanilla uses to disengage (`xr_combat_ignore.script`); `best_enemy` is memory-derived with inertia (`enemy_manager.cpp`), so it does not flicker. The read is wrapped in `xcombat.enemy_unseen_ms`. The decision is recomputed off the hot path by `_on_update` (`npc_on_update`, throttled to `eval_period_ms`); the engine-polled evaluator only reads the cached `slot.eval`, so each `actual()` poll costs a flag read, not a recompute.
 
-**Maneuver transaction.** While a committed maneuver is still in flight (`_maneuver_in_flight`: a maneuver set, the path not yet completed, within the stuck cap), the two soft handbacks (`no_enemy`, `lost_sight`) are suppressed — a maneuver is never broken mid-flight, only the hard stops (`dead`, `wounded`, `disabled`, `companion`) interrupt it. So a chase toward the enemy's last-known position (e.g. up a stairwell) runs to its end instead of being abandoned at the 2.5s mark.
+**Maneuver transaction.** While a committed maneuver is still in flight (`_maneuver_in_flight`: a maneuver set, the path not yet completed, within the stuck cap), both soft handbacks (`no_enemy`, `lost_sight`) are suppressed — a maneuver is never broken mid-flight; only the hard stops (`dead`, `wounded`, `unarmed`, `disabled`, `companion`) interrupt it. The chase target itself comes from memory: while the enemy is not currently seen, the scan resolves moves against `npc:memory_position(enemy)` (last-known), not the live position (`xcombat.enemy_track_pos`) — so a pursuit heads to where the enemy was lost and then yields to vanilla search, instead of trailing the live, fleeing target up a stairwell forever.
 
 ### Lifecycle
 
-`npc_on_net_spawn` installs (sentinel-guarded); `npc_on_net_destroy` clears install + releases the cover reservation; `server_entity_on_unregister` drops the NPC's slot; `actor_on_first_update` resets the slot store + loads tunables (shell + doctrine); `on_option_change` / `mcm_option_restore_default` refresh the log level. Each `action:initialize()` (combat start) clears the slot's per-fight maneuver state (`maneuver`, `dest`, `enemy_id`) so `engage` reopens; the weapon/palette cache persists.
+`npc_on_net_spawn` installs (sentinel-guarded); `npc_on_update` recomputes the takeover decision per NPC (throttled to `eval_period_ms`, off the engine-polled evaluator's hot path); `npc_on_net_destroy` clears install + releases the cover reservation; `server_entity_on_unregister` drops the NPC's slot; `actor_on_first_update` resets the slot store + loads tunables (shell + doctrine); `on_option_change` / `mcm_option_restore_default` refresh the log level. Each `action:initialize()` (combat start) clears the slot's per-fight maneuver state (`maneuver`, `dest`, `enemy_id`) so `engage` reopens; the weapon/palette cache persists.
 
 ### Tracing
 
@@ -299,8 +299,9 @@ At DEBUG, `at_combat_trace` writes one `scan` line per done-scan (the readings t
 | `combat_share` | MCM | 1.0 | Stable per-id hash share AT vs vanilla |
 | `combat_ignore_companions` | MCM | true | Skip companions (`npcx_is_companion`) |
 | `aim/react/slow/context_period_ms` | `at_combat_config.ltx` | 200/500/1000/1000 | Scan + check periods |
-| `maneuver_max_ms` / `arrive_m` | `at_combat_config.ltx` | 8000 / 2.0 | Commitment done-signal (stuck cap / arrival radius) |
-| `no_enemy_ms` / `lost_sight_ms` | `at_combat_config.ltx` | 2500 | Handback hysteresis |
+| `maneuver_max_ms` | `at_combat_config.ltx` | 8000 | Commitment stuck cap; arrival is the engine `path_completed` flag |
+| `lost_sight_ms` | `at_combat_config.ltx` | 5000 | Soft-handback hysteresis (enemy unseen this long, not mid-maneuver) |
+| `eval_period_ms` | `at_combat_config.ltx` | 250 | Takeover-decision recompute interval (`npc_on_update`); the evaluator reads the cached result |
 
 Plus the check/movement tunables (`hurt_frac` 0.25, `grenade_ms`, range hysteresis, `advance_standoff_m`, step distances, `flank_lateral_m` / `flank_forward_m`, `crouch_chance` / `run_chance`) in `at_combat_config.ltx`. The maneuver catalog is `at_combat_doctrine.ltx`.
 

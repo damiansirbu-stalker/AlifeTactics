@@ -14,16 +14,16 @@
 --- One scan per tick (execute). Registered checks each carry a period and a wait flag:
 ---   aim (aim_period_ms)  re-points the weapon every tick - except during a flee (STOW), which faces the run path.
 ---   the rest            wait: they only fire once the current maneuver is done (npc:path_completed,
----                       or arrival distance, or the maneuver_max_ms stuck cap). The NPC is a turret by
+---                       or the maneuver_max_ms stuck cap). The NPC is a turret by
 ---                       default; a maneuver runs only when a check fires, is committed once started, and
 ---                       is never interrupted before it completes. No base/override, no resting maneuver.
 --- All per-NPC state lives in one flat slot (_combat[id]); nothing is stored on the engine object or the
 --- action instance. Tracing is noop when DEBUG is off.
 
-local IsStalker, IsWounded, time_global, tostring = IsStalker, IsWounded, time_global, tostring
+local IsStalker, time_global, tostring = IsStalker, time_global, tostring
 local math_sqrt, math_floor, math_random = math.sqrt, math.floor, math.random
 local RegisterScriptCallback = RegisterScriptCallback
-local vector, anim, game_object, level = vector, anim, game_object, level
+local vector, anim, game_object = vector, anim, game_object
 
 local log = xlog.get_logger("AT.COMBAT", { outfile = "alifetactics.log" })
 local _dbg = false
@@ -46,19 +46,17 @@ local EVAL_ID = ACT_ID
 local LTX_PATH    = "alifetactics\\at_combat_config.ltx"
 local LTX_SECTION = "at_combat"
 
-local AIM_MS, CONTEXT_MS, MANEUVER_MAX_MS, ARRIVE_M, NO_ENEMY_MS, LOST_SIGHT_MS, SEE_THROTTLE_MS
+local AIM_MS, CONTEXT_MS, MANEUVER_MAX_MS, LOST_SIGHT_MS, SEE_THROTTLE_MS, EVAL_PERIOD_MS
 
 local function _load_tunables()
     local ini = ini_file(LTX_PATH)
     local function i(k, d) local v = ini:r_float_ex(LTX_SECTION, k); return v and math_floor(v) or d end
-    local function f(k, d) return ini:r_float_ex(LTX_SECTION, k) or d end
     AIM_MS          = i("aim_period_ms",     200)
     CONTEXT_MS      = i("context_period_ms", 1000)
     MANEUVER_MAX_MS = i("maneuver_max_ms",   8000)
-    ARRIVE_M        = f("arrive_m",          2.0)
-    NO_ENEMY_MS     = i("no_enemy_ms",       2500)
-    LOST_SIGHT_MS   = i("lost_sight_ms",     2500)
+    LOST_SIGHT_MS   = i("lost_sight_ms",     5000)
     SEE_THROTTLE_MS = i("see_throttle_ms",   500)
+    EVAL_PERIOD_MS  = i("eval_period_ms",    250)
 end
 
 
@@ -80,15 +78,15 @@ local function _slot(id)
     return slot
 end
 
--- Throttled see() probe shared by the evaluator and the scan: at most one raycast per SEE_THROTTLE_MS,
--- cached in slot.sees with the success time in slot.seen_at.
+-- Throttled see() probe: at most one raycast per SEE_THROTTLE_MS, cached in slot.sees. This answers the
+-- tactical "can I see the enemy right now" question for the doctrine checks (is_blocked_wall, is_enemy_unseen)
+-- and for picking the movement track position. The handback does NOT use this - it reads the engine memory
+-- clock (xcombat.enemy_unseen_ms), which also counts sound and hits.
 local function _probe_see(npc, enemy, slot, tg)
     if tg - (slot.probe_at or 0) < SEE_THROTTLE_MS then return slot.sees end
-    local sees = npc:see(enemy)
+    slot.sees = npc:see(enemy)
     slot.probe_at = tg
-    slot.sees = sees
-    if sees then slot.seen_at = tg end
-    return sees
+    return slot.sees
 end
 
 
@@ -114,61 +112,62 @@ class "evaluator_at_combat" ( property_evaluator )
 function evaluator_at_combat:__init(name) super (nil, name)
 end
 
--- Maneuver transaction guard: a committed maneuver still in transit keeps AT driving. NO soft reason
--- (lost_sight, no_enemy) may break a maneuver mid-flight - only hard stops (dead/wounded/disabled/companion)
--- do. Bounded by path_completed (arrived) and the stuck cap so a finished or blocked move still yields.
-local function _maneuver_in_flight(npc, slot, tg)
-    if not slot.maneuver then return false end
-    local arrived = npc:path_completed()
-    return not arrived and (tg - (slot.maneuver_at or 0)) < MANEUVER_MAX_MS
+-- One source of truth for "has the committed maneuver finished travelling": the engine reports the path
+-- complete, or the stuck cap elapsed, or no maneuver is set. Both the action's done-check (when to re-decide)
+-- and the transaction guard below test arrival through this, so they cannot disagree. No distance proxy - a
+-- move ends where the engine says it ended (path_completed), not a fixed radius short of it.
+local function _maneuver_done(npc, slot, tg)
+    if not slot.maneuver then return true end
+    if npc:path_completed() then return true end
+    return (tg - (slot.maneuver_at or 0)) > MANEUVER_MAX_MS
 end
 
+-- Maneuver transaction guard: a committed maneuver still travelling keeps AT driving. NO soft reason
+-- (lost_sight, no_enemy) may break a maneuver mid-flight - only hard stops (dead/wounded/disabled/companion)
+-- do. In flight = a maneuver is set and not yet done, so it yields the instant the move arrives or the cap trips.
+local function _maneuver_in_flight(npc, slot, tg)
+    return slot.maneuver ~= nil and not _maneuver_done(npc, slot, tg)
+end
+
+-- Central handback decision, recomputed off the hot path in _on_update (throttled) and cached in slot.eval.
+-- Hard stops yield immediately, even mid-maneuver. Wounded is NOT checked here - it is a GOAP precondition on
+-- the action (sidor_wounded_base), engine-gated. Two soft handbacks, both guarded by the in-flight maneuver so
+-- a committed move always finishes first: no_enemy (the engine's enemy manager has no target - died, despawned,
+-- or forgotten past its inertia window) and lost_sight (the enemy is still remembered but unsensed past
+-- LOST_SIGHT_MS). Lost-sight reads the engine memory clock (time_global - memory_time, aggregating
+-- sight/sound/hit), the same signal vanilla uses to disengage (xr_combat_ignore.script:111); best_enemy is
+-- memory-derived with inertia (enemy_manager.cpp:30-32), so it does not flicker.
 local function _should_manage(npc, id, tg)
     if not cfg.combat_enabled then return false, "disabled" end
     if (id % 1000) >= (cfg.combat_share * 1000) then return false, "hash_out" end
     if not npc:alive() then return false, "dead" end
-    if IsWounded(npc) then return false, "wounded" end
     if cfg.combat_ignore_companions and npc:has_info("npcx_is_companion") then return false, "companion" end
+    -- A weaponless NPC cannot fight, and AT blocks the engine's own rearm (it lives inside action_combat_planner),
+    -- so an unarmed NPC under AT deadlocks - hand it back so the engine rearms or flees. TTL-cached, so a
+    -- weapon-switch transient (brief nil active_item) does not false-trigger.
+    if not xcombat.get_weapon_kind(npc) then return false, "unarmed" end
 
-    local enemy = npc:best_enemy()
     local slot = _slot(id)
-    if not (enemy and enemy:alive()) then
-        if tg - (slot.enemy_at or 0) > NO_ENEMY_MS then
-            if _maneuver_in_flight(npc, slot, tg) then return true, "finish_maneuver" end
-            return false, "no_enemy"
-        end
-        return true, "managed"
+    local enemy = npc:best_enemy()
+    if not enemy or not enemy:alive() then
+        slot.unseen_ms = nil
+        if _maneuver_in_flight(npc, slot, tg) then return true, "finish_maneuver" end
+        return false, "no_enemy"
     end
-    slot.enemy_at = tg
-
-    local sees = _probe_see(npc, enemy, slot, tg)
-    if not sees and not slot.seen_at then slot.seen_at = tg end
-    if tg - slot.seen_at > LOST_SIGHT_MS then
-        -- A committed maneuver (e.g. advancing to the last-known up a stairwell) finishes before we hand off.
+    local unseen = xcombat.enemy_unseen_ms(npc, enemy, tg)
+    slot.unseen_ms = unseen
+    if unseen > LOST_SIGHT_MS then
         if _maneuver_in_flight(npc, slot, tg) then return true, "pursue_to_lastknown" end
         return false, "lost_sight"
     end
     return true, "managed"
 end
 
+-- Pure read. The engine polls this every plan solve (more during a re-plan), so it must be a flag read, not a
+-- computation. The decision is recomputed off the hot path by _on_update (throttled) and stored in slot.eval;
+-- nil before the first _on_update tick reads as false, so vanilla drives until AT's first decision (safe).
 function evaluator_at_combat:evaluate()
-    local npc = self.object
-    local id = npc:id()
-    local tg = time_global()
-    local result, reason = _should_manage(npc, id, tg)
-    local slot = _slot(id)
-    slot.eval = result
-    slot.reason = reason
-    if _dbg then
-        at_combat_trace.eval(id, result, reason, slot, tg)
-        -- Action-state probe: what is THIS NPC's brain actually running this frame? current_action_id reads
-        -- the last committed top-level action (we are mid-solve here). eval=true + cur=COMBAT = the block
-        -- leaked; eval=false + cur=COMBAT = an expected handback. Guarded on initialized() so it never asserts.
-        local mgr = npc:motivation_action_manager()
-        local cur = (mgr and mgr:initialized()) and mgr:current_action_id() or nil
-        at_combat_trace.curact(id, result, _act_label(cur), cur)
-    end
-    return result
+    return _slot(self.object:id()).eval == true
 end
 
 
@@ -197,19 +196,13 @@ function action_at_combat:initialize()
     slot.fire        = nil
 end
 
--- A maneuver is done when nothing is running, the engine reports the path complete, the NPC is within the
--- arrival radius of the destination, or the stuck cap elapsed (a move that cannot reach / ping-pongs).
-function action_at_combat:_done(npc, slot, tg)
-    if not slot.maneuver then return true end
-    if npc:path_completed() then return true end
-    if slot.dest and npc:position():distance_to(level.vertex_position(slot.dest)) <= ARRIVE_M then return true end
-    return (tg - (slot.maneuver_at or 0)) > MANEUVER_MAX_MS
-end
-
 -- Per-scan context: positions, distance, direction, the enemy id (for is_target_changed), health.
+-- The enemy position is the LIVE position when the NPC currently sees the enemy, else its last-known position
+-- from memory (xcombat.enemy_track_pos) - so a chase toward an unseen enemy heads to where it was lost, not
+-- after the live fleeing target. slot.sees is refreshed by execute() just before this call.
 function action_at_combat:_gather(npc, id, enemy, slot, tg)
     local npc_pos   = npc:position()
-    local enemy_pos = enemy:position()
+    local enemy_pos = xcombat.enemy_track_pos(npc, enemy, slot.sees)
     local npc_lvid  = npc:level_vertex_id()
     local dx, dz    = enemy_pos.x - npc_pos.x, enemy_pos.z - npc_pos.z
     local dist      = math_sqrt(dx*dx + dz*dz)
@@ -278,7 +271,11 @@ function action_at_combat:execute()
     end
 
     -- the wait checks only fire once the current maneuver is done.
-    if not self:_done(npc, slot, tg) then return end
+    if not _maneuver_done(npc, slot, tg) then return end
+
+    -- refresh LOS first: _gather reads slot.sees to pick the track position (live vs last-known), and the
+    -- tactical checks (is_blocked_wall, is_enemy_unseen) consume it too.
+    _probe_see(npc, enemy, slot, tg)
 
     local prof = xprofiler.new_if(_dbg):start()
     local ctx = self:_gather(npc, id, enemy, slot, tg)
@@ -294,7 +291,6 @@ function action_at_combat:execute()
 
     prof = xprofiler.new_if(_dbg):start()
     doctrine.range_zone(slot, ctx.dist)
-    _probe_see(npc, enemy, slot, tg)
     local read_us = prof:stop():get_us()
 
     -- run every due check; a true one with an eligible maneuver becomes a candidate; shuffle-pick one.
@@ -357,6 +353,10 @@ local function _install(npc)
 
     local action = action_at_combat("act_at_combat")
     action:add_precondition(world_property(stalker_ids.property_alive, true))
+    -- Wounded yields to the engine wounded scheme, the way every vanilla planner-blocking scheme does
+    -- (axr_stalker_panic, axr_fight_from_cover, ...). The engine evaluates sidor_wounded_base for every stalker
+    -- already, so this adds no per-frame cost and replaces the old per-poll IsWounded check in the evaluator.
+    action:add_precondition(world_property(xr_evaluators_id.sidor_wounded_base, false))
     action:add_precondition(world_property(EVAL_ID, true))
     action:add_effect(world_property(EVAL_ID, false))
     manager:add_action(ACT_ID, action)
@@ -422,11 +422,33 @@ local function _on_first_update()
         _dbg and "true" or "false")
 end
 
+-- The takeover decision, recomputed off the hot path. npc_on_update fires every frame for every online stalker
+-- (xr_motivator.script:486), even while vanilla drives, so it keeps slot.eval fresh for the evaluator to read.
+-- Self-throttled to EVAL_PERIOD_MS (gate runs before any work); this is where best_enemy / see / has_info now
+-- live, off the engine-polled evaluator. _takeover_installed gate skips any stalker AT did not install on.
+local function _on_update(npc)
+    local id = npc:id()
+    if not _takeover_installed[id] then return end
+    local slot = _slot(id)
+    local tg = time_global()
+    if tg - (slot.eval_at or 0) < EVAL_PERIOD_MS then return end
+    slot.eval_at = tg
+    slot.eval, slot.reason = _should_manage(npc, id, tg)
+    if _dbg then
+        at_combat_trace.set_name(id, npc:name())
+        at_combat_trace.eval(id, slot.eval, slot.reason, slot)
+        local mgr = npc:motivation_action_manager()
+        local cur = (mgr and mgr:initialized()) and mgr:current_action_id() or nil
+        at_combat_trace.curact(id, slot.eval, _act_label(cur), cur)
+    end
+end
+
 function on_game_start()
     _load_tunables()
     doctrine.load_tunables()
     RegisterScriptCallback("npc_on_net_spawn",            _on_net_spawn)
     RegisterScriptCallback("npc_on_net_destroy",          _on_net_destroy)
+    RegisterScriptCallback("npc_on_update",               _on_update)
     RegisterScriptCallback("server_entity_on_unregister", _on_entity_unregister)
     RegisterScriptCallback("actor_on_first_update",       _on_first_update)
     RegisterScriptCallback("on_option_change",            _refresh_log)

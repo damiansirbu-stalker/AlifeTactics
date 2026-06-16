@@ -11,28 +11,33 @@ at_combat_trace = at_combat_trace or {}
 local _on = false
 local _logged_eval = {}
 local _last_act = {}
+local _names = {}
 
 -- nil-safe field stringifier for the trace lines (value, or "-" when absent)
 local function _s(v) return v ~= nil and tostring(v) or "-" end
+
+-- Per-id display name, cached by at_combat from npc:name() (raw ids are unreadable mid-fight).
+function at_combat_trace.set_name(id, name) _names[id] = name end
+local function _nm(id) return _names[id] or "-" end
 
 --- Enable/disable all tracing. at_combat calls this from its log-level refresh.
 function at_combat_trace.set_enabled(on) _on = on end
 
 --- Drop the eval-transition memory (level load / first update).
-function at_combat_trace.reset() _logged_eval = {} _last_act = {} end
+function at_combat_trace.reset() _logged_eval = {} _last_act = {} _names = {} end
 
 --- Drop one NPC's eval-transition memory on unregister.
-function at_combat_trace.forget(id) _logged_eval[id] = nil _last_act[id] = nil end
+function at_combat_trace.forget(id) _logged_eval[id] = nil _last_act[id] = nil _names[id] = nil end
 
 --- One line per done-scan: the readings the checks saw and the outcome (which check fired, which maneuver,
 --- or "-" for a turret tick where nothing fired). Skipped while a maneuver is committed (no work to log).
 function at_combat_trace.scan(id, ctx, check, maneuver, gather_us, refresh_us, read_us, checks_us)
     if not _on then return end
     local slot = ctx.slot
-    local age = slot.seen_at and (ctx.tg - slot.seen_at) or 0
-    log.debug("scan npc=%d dist=%.1f hp=%.2f zone=%s sees=%s fire=%s ene=%s age=%d pal=%s/%s/%s dest=%s cover=%s check=%s man=%s us[gather=%.0f refresh=%.0f read=%.0f checks=%.0f]",
-        id, ctx.dist, ctx.health, _s(slot.range_zone), slot.sees and "Y" or "N",
-        _s(slot.fire), _s(ctx.enemy_id), age,
+    local age = slot.unseen_ms or 0
+    log.debug("scan npc=%d(%s) dist=%.1f hp=%.2f zone=%s sees=%s fire=%s ene=%s(%s) age=%d pal=%s/%s/%s dest=%s cover=%s check=%s man=%s us[gather=%.0f refresh=%.0f read=%.0f checks=%.0f]",
+        id, _nm(id), ctx.dist, ctx.health, _s(slot.range_zone), slot.sees and "Y" or "N",
+        _s(slot.fire), _s(ctx.enemy_id), _s(ctx.enemy and ctx.enemy:name()), age,
         _s(slot.community), _s(slot.bucket_name), _s(slot.env),
         _s(slot.dest), _s(slot.cover_lvid),
         _s(check), _s(maneuver),
@@ -42,8 +47,8 @@ end
 --- Maneuver committed: the check that fired it, the rolled posture/speed, the apply + resolve costs.
 function at_combat_trace.decide(id, name, check, posture, movement, apply_ms, resolve_ms, ok, slot)
     if not _on then return end
-    log.debug("decide npc=%d man=%s check=%s posture=%s move=%s dest=%s cover=%s apply=%.3fms resolve=%.3fms ok=%s",
-        id, name, tostring(check), tostring(posture), tostring(movement),
+    log.debug("decide npc=%d(%s) man=%s check=%s posture=%s move=%s dest=%s cover=%s apply=%.3fms resolve=%.3fms ok=%s",
+        id, _nm(id), name, tostring(check), tostring(posture), tostring(movement),
         tostring(slot.dest or "-"), tostring(slot.cover_lvid or "-"), apply_ms, resolve_ms, tostring(ok))
 end
 
@@ -56,15 +61,15 @@ function at_combat_trace.curact(id, eval, label, cur)
     if not _on then return end
     if _last_act[id] == label then return end
     _last_act[id] = label
-    log.debug("act npc=%d eval=%s cur=%s(%s)", id, tostring(eval), label, tostring(cur))
+    log.debug("act npc=%d(%s) eval=%s cur=%s(%s)", id, _nm(id), tostring(eval), label, tostring(cur))
 end
 
 --- Eval result, logged only on transition (managed<->rejected) per NPC.
-function at_combat_trace.eval(id, result, reason, slot, tg)
+function at_combat_trace.eval(id, result, reason, slot)
     if not _on then return end
     local prev = _logged_eval[id]
     if prev == result then return end
     _logged_eval[id] = result
-    local age = (slot and slot.seen_at and tg) and (tg - slot.seen_at) or 0
-    log.debug("eval npc=%d %s->%s reason=%s age=%d", id, prev == nil and "init" or tostring(prev), tostring(result), reason, age)
+    local age = (slot and slot.unseen_ms) or 0
+    log.debug("eval npc=%d(%s) %s->%s reason=%s age=%d", id, _nm(id), prev == nil and "init" or tostring(prev), tostring(result), reason, age)
 end

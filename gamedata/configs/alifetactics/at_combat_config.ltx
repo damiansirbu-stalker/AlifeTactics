@@ -10,11 +10,10 @@ context_period_ms        = 1000   ; weapon / indoor-outdoor / faction change -> 
 
 ; Commitment (a maneuver runs until it reports done; the engine path flag is the truth)
 maneuver_max_ms          = 8000   ; a committed move with no arrival this long is treated as done (stuck / ping-pong stop)
-arrive_m                 = 2.0    ; within this distance of the destination also counts as done (path_completed fallback)
 
 ; Handback hysteresis (how long a flickery condition must hold before AT yields to vanilla)
-no_enemy_ms              = 2500   ; no live enemy this long before yielding to vanilla
-lost_sight_ms            = 2500   ; NPC has not seen its enemy this long before yielding to vanilla (it searches)
+eval_period_ms           = 250    ; takeover decision recompute interval off the hot path (npc_on_update); the engine-polled evaluator only reads the cached result
+lost_sight_ms            = 5000   ; NPC has not seen a live enemy this long before yielding to vanilla (it searches)
 see_throttle_ms          = 500    ; min interval between the evaluator's see() probes (perception throttle)
 
 ; Check readings
