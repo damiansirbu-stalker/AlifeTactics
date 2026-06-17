@@ -386,9 +386,11 @@ local function _install(npc)
     if not IsStalker(npc) then return end
     local id = npc:id()
     if _takeover_installed[id] then return end
+    local name = _dbg and npc:name() or nil
+    at_combat_trace.install(id, name, "attempt")
 
     local manager = npc:motivation_action_manager()
-    if not manager then return end
+    if not manager then at_combat_trace.install(id, name, "no_manager") return end
     _takeover_installed[id] = true
 
     manager:add_evaluator(EVAL_ID, at_combat_gate("eva_at_combat"))
@@ -414,6 +416,7 @@ local function _install(npc)
         local act = manager:action(blocked[i])
         if act then act:add_precondition(world_property(EVAL_ID, false)) end
     end
+    at_combat_trace.install(id, name, "installed")
 end
 
 local function _on_net_spawn(npc)
@@ -454,8 +457,6 @@ function get_maneuver(id)
 end
 
 local function _on_first_update()
-    _takeover_installed = {}
-    _combat    = {}
     at_combat_trace.reset()
     _refresh_log()
     log.info("Combat module initialized (enabled=%s share=%.2f dbg=%s)",

@@ -29,6 +29,12 @@ function at_combat_trace.reset() _logged_eval = {} _last_act = {} _names = {} en
 --- Drop one NPC's eval-transition memory on unregister.
 function at_combat_trace.forget(id) _logged_eval[id] = nil _last_act[id] = nil _names[id] = nil end
 
+--- Install outcome per NPC (attempt / no_manager / installed). Noop when DEBUG is off, like every trace fn.
+function at_combat_trace.install(id, name, reason)
+    if not _on then return end
+    log.debug("install npc=%s(%s) %s", tostring(id), tostring(name or "-"), reason)
+end
+
 --- One line per done-scan: the readings the checks saw and the outcome (which check fired, which maneuver,
 --- or "-" for a turret tick where nothing fired). Skipped while a maneuver is committed (no work to log).
 function at_combat_trace.scan(id, ctx, check, maneuver, scan_us)

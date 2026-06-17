@@ -264,11 +264,11 @@ Hard stops first, each returning `(false, reason)`: `combat_enabled` → id-hash
 
 ### Lifecycle
 
-`npc_on_net_spawn` installs (sentinel-guarded); `npc_on_update` recomputes the takeover decision per NPC (throttled to `eval_period_ms`, off the engine-polled evaluator's hot path); `npc_on_net_destroy` clears install + releases the cover reservation; `server_entity_on_unregister` drops the NPC's slot; `actor_on_first_update` resets the slot store + loads tunables (shell + doctrine); `on_option_change` / `mcm_option_restore_default` refresh the log level. Each `action:initialize()` (combat start) clears the slot's per-fight maneuver state (`maneuver`, `dest`, `enemy_id`) so `engage` reopens; the weapon/palette cache persists.
+`npc_on_net_spawn` installs (sentinel-guarded); `npc_on_update` recomputes the takeover decision per NPC (throttled to `eval_period_ms`, off the engine-polled evaluator's hot path); `npc_on_net_destroy` clears install + releases the cover reservation; `server_entity_on_unregister` drops the NPC's slot; `actor_on_first_update` resets the trace and refreshes the log level — it must not wipe the install/slot tables (the spawn/destroy lifecycle maintains those; wiping them here dropped every NPC installed during level load); tunables load in `on_game_start`; `on_option_change` / `mcm_option_restore_default` refresh the log level. Each `action:initialize()` (combat start) clears the slot's per-fight maneuver state (`maneuver`, `dest`, `enemy_id`) so `engage` reopens; the weapon/palette cache persists.
 
 ### Tracing
 
-At DEBUG, `at_combat_trace` writes one `scan` line per done-scan (the readings the checks saw, which check fired, which maneuver — or `-` for a turret tick), a `decide` line per committed maneuver (the rolled posture/speed plus the apply/resolve ms), and an `eval` line on each takeover/handback transition. No aggregate counters and no console command — the log lines are the telemetry. Noop when DEBUG is off (no string, no alloc on the off path).
+At DEBUG, `at_combat_trace` writes one `scan` line per done-scan (the readings the checks saw, which check fired, which maneuver — or `-` for a turret tick), a `decide` line per committed maneuver (the rolled posture/speed plus the apply/resolve ms), an `eval` line on each takeover/handback transition, and an `install` line per takeover graft (attempt / no_manager / installed). No aggregate counters and no console command — the log lines are the telemetry. Noop when DEBUG is off (no string, no alloc on the off path). The MCM tab settings are dumped once at `actor_on_first_update` as a single INFO `[MCM]` line.
 
 ### MCM + tunables
 

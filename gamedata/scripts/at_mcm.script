@@ -332,9 +332,21 @@ function set_version_text(_anchor, handlers)
     handlers.desc:SetText(_at_deps.get_version())
 end
 
+-- Dump every MCM setting to the debug log (like AlifePlus's [MCM] line): the runtime value per key, so a
+-- misread flag (combat_share, combat_enabled, ...) is visible at a glance after load_config has run.
+local function _log_mcm_settings()
+    local parts = {}
+    for key in pairs(defaults) do
+        parts[#parts + 1] = key .. "=" .. tostring(cfg[key])
+    end
+    table.sort(parts)
+    log.info("[MCM] %s", table.concat(parts, " "))
+end
+
 local function _on_first_update()
     log.set_level(get_config("log_level") or "WARN")
     log.info("AlifeTactics MCM loaded (log_level=%s)", get_config("log_level") or "WARN")
+    _log_mcm_settings()
 end
 
 local function _on_option_change()
