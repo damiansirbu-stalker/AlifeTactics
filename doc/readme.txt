@@ -127,25 +127,18 @@ mods install alongside without issue. The cases below are worth knowing about.
 
 
 Conflicts (pick one - running both breaks both):
+- NPC Limping and Healing (Vodoxleb): same limp/heal animations, different system; stacks animations, breaks the heal cue.
+- NPC Weapon Jamming, or any mod adding rank-based NPC jamming: Anomaly has no jam animation, so jammed NPCs just reload forever. AlifeTactics removes that; the jam mod adds it back.
+- Mods shipping xr_danger / xr_combat_* / xr_wounded as a file (ReDone Combat AI, REDONE Combat AI, RE:VISION, AI More Cover, G.A.M.M.A. AI Rework): full-file overrides of scripts AlifeTactics drives; later-loaded wins, the other does nothing. The whole AI-overhaul category.
 
-NPC Limping and Healing (Vodoxleb). Drives the same limp and heal animations AlifeTactics does, through a different system. Both
-running stacks animations and breaks the heal cue.
-
-
-Load order matters (both safe to install, the one loaded later wins):
-
-ReDone Combat AI, G.A.M.M.A. AI Rework. Both also override xr_danger.script. Put AlifeTactics later in MO2 if you want AlifeTactics's
-xr_danger fixes; put it earlier if you prefer the other mod's xr_danger.
-
-
-May have issues (untested combinations, listed because they touch the same systems):
-
-Animated NPC Healing, NPC Animation Overhaul Part 1. Replace NPC heal/movement animations through different paths. May fight
-AlifeTactics's heal and limp torso cues.
-
-Wuut AI Extension, NPC_Fleeing. Add forced-movement actions to the combat planner. AlifeTactics blocks the vanilla combat planner
-for the NPCs in its share, so these mods may not drive in-share NPCs as their authors intended. Out-of-share NPCs are unaffected.
-If you want full Wuut or NPC_Fleeing behavior, set AlifeTactics's combat share to 0 in MCM.
+Affects / coexists:
+- Wuut AI Extension, NPC_Fleeing, Mora's AI More Covered: add planner actions; blocked for in-share NPCs. Set combat share to 0 for full external behavior.
+- No More Companion Friendly Fire: different axis (actor-companion damage); AlifeTactics never touches your shots. No overlap.
+- NO NPC Gun Jamming: zeroes the engine-condition jam via ltx; different layer than the script-roll fix. Stack fine.
+- Tougher Important NPCs and Companions: damage reduction via npc_on_before_hit; composes.
+- Dynamic AI Aim Settings, Worse NPC Vision and Accuracy: perception tweaks; compose with the dispersion fix.
+- Animated NPC Healing, NPC Animation Overhaul Part 1: replace NPC heal/move animations; may fight the heal/limp cues.
+- Dynamic Emission Cover: emission-time movement, different trigger; coexists.
 
 Requirements:
 Anomaly 1.5.3
