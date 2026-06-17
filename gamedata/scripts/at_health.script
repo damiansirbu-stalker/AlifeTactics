@@ -199,10 +199,10 @@ end
 
 local function _on_npc_update(npc, st)
     if not st then return end
+    if not cfg.limping_anim_enabled then return end
     local id = npc:id()
     local tg = time_global()
 
-    if not cfg.limping_anim_enabled then return end
     -- Per-tick drop on ground-state transitions; the throttled eligibility check below
     -- would otherwise let the torso overlay loop on a prone body for up to 1s. The
     -- action transition into action_wounded / action_critically_wounded clears the
