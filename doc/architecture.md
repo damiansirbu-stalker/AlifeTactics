@@ -1,6 +1,6 @@
 # AlifeTactics Architecture
 
-Combat AI mod for STALKER Anomaly. Independent user-facing systems: a hit-share force-disclosure, a self-heal data + animation layer, a per-rank weapon accuracy curve, a full-file xr_danger override with bug fixes and three toggleable improvements, and a Pattern B planner takeover that injects an alternative combat AI on a configurable share of NPCs (slider, default 100% — coexists with vanilla / GAMMA / AI Rework / RCAI / Useful Idiots / Mora, zero vanilla file overrides). No shared substrate.
+Combat AI mod for STALKER Anomaly. Independent user-facing systems: a hit-share force-disclosure, a self-heal data + animation layer, a per-rank weapon accuracy curve, a full-file xr_danger override with bug fixes and three toggleable improvements, and a Pattern B planner takeover that injects an alternative combat AI on a configurable share of NPCs (the takeover overrides zero vanilla combat files, so it coexists with vanilla / GAMMA / AI Rework / RCAI / Useful Idiots / Mora). No shared substrate.
 
 Built on xlibs (xsquad, xttltable, xtime, xprofiler, xlog, xmcm, xslice, xcreature).
 
@@ -20,10 +20,10 @@ Version 1.0.0.
 | `at_hitresponse.script` | feature | done |
 | `at_health.script` | feature | done |
 | `at_accuracy.script` | feature | done |
-| `at_combat.script` | feature | Pattern B planner takeover; single per-tick scan of timed checks, turret baseline, committed maneuvers (done = `path_completed`); data-driven maneuver catalog (LTX), selected by a faction × weapon × terrain palette, random pick per NPC |
+| `at_combat.script` | feature | done (Pattern B planner takeover; reactive agent over a turret baseline; data-driven maneuver catalog and faction palette) |
 | `xr_danger.script` | feature | done (full-file override) |
 | `at_jam.script` | feature | done (modded-exes xr_weapon_jam.GetConditionMisfireProbability override; suppresses script-injected NPC misfire) |
-| `at_ammo.script` | feature | done (per-NPC virtual ledger drains highest-tier ammo each 5s combat tick down to MIN_SPARE; inventory boxes clamped to ledger to defeat engine try_advance_ammo top-up; npc_on_death_callback trims all boxes to MIN_SPARE so they survive decide_items_to_keep; AP sections gated by `min_ap_rank` LTX (default 12000 = RANK_VETERAN)) |
+| `at_ammo.script` | feature | done (per-NPC virtual ledger drives AP-then-FMJ selection; inventory and corpse boxes clamped to the ledger; veteran-rank gate) |
 | `zzz_at_health_patch.script` | feature | done (vanilla xr_eat_medkit re-roll suppressor) |
 | `configs/ai_tweaks/mod_xr_eat_medkit_at.ltx` | data | done |
 | `configs/ai_tweaks/xr_danger.ltx` | data | done |
@@ -121,13 +121,13 @@ Hooks `npc_on_hit_callback`. When a faction-enemy hits any squad member, the ent
 5. If the entry existed before the write (idempotency hit): return. The squad already engaged this shooter in this fight.
 6. Otherwise (first hit, or first hit since decay): call `_disclose(squad, who)`. Three engine APIs per online squadmate:
 
-   - **`force_set_goodwill(-2000, who)`**: writes RELATION_REGISTRY personal goodwill (`relation_registry.cpp:161-179`). `CAI_Stalker::tfGetRelationType` routes through RELATION_REGISTRY for stalkers so this drives every downstream `is_relation_enemy` check. Gated on `IsStalker(who) AND IsStalker(mem_npc)`: `ForceSetGoodwill` smart_casts both ids to `CSE_ALifeTraderAbstract` and logs an error if either side is non-stalker. Mutant shooters and mutant squadmates both skip the goodwill write.
+   - **`force_set_goodwill`** (hostile goodwill): writes RELATION_REGISTRY personal goodwill (`relation_registry.cpp:161-179`). `CAI_Stalker::tfGetRelationType` routes through RELATION_REGISTRY for stalkers so this drives every downstream `is_relation_enemy` check. Gated on `IsStalker(who) AND IsStalker(mem_npc)`: `ForceSetGoodwill` smart_casts both ids to `CSE_ALifeTraderAbstract` and logs an error if either side is non-stalker. Mutant shooters and mutant squadmates both skip the goodwill write.
    - **`enable_memory_object(who, true)`**: toggles `m_enabled` on existing visual/sound/hit memory entries (`memory_manager.cpp:151-156`). No-op when no prior entry. Receiver must be `CCustomMonster` (`script_game_object2.cpp:262`); stalkers and mutants qualify, the actor does not — irrelevant here since `mem_npc` is always a squad member.
    - **`register_in_combat()`**: sets the member's squad_mask bit in `CAgentMemberManager::m_combat_mask` (`agent_member_manager.cpp:114-132`). This is the unlock for engine-native squad memory propagation. With the whole squad's bits set, the next `agent_memory_manager` tick ORs the full combat_mask into the victim's hit-memory entry's `m_squad_mask`, propagating memory of the shooter across every member including distant patrols. Requires `CAI_Stalker` receiver (`script_game_object_inventory_owner.cpp:1945-1955`); safe here because `npc_on_hit_callback` is dispatched only by `motivator_binder` (stalker squads), never `generic_object_binder` (mutant squads), so `mem_npc` is always a stalker.
 
 ### Decay and re-engagement
 
-Decay tick fires every 5 seconds. Walks every `_disclosed[squad_id][shooter_id]` entry; prunes any whose timestamp is older than `hit_share_retention_min` minutes (MCM-tunable, default 2 game minutes). Pruning clears only the idempotency entry. Goodwill -2000 is RELATION_REGISTRY-persistent and survives independently for the rest of the game session.
+A periodic decay tick walks every `_disclosed[squad_id][shooter_id]` entry and prunes any older than the retention window (MCM-tunable). Pruning clears only the idempotency entry; the goodwill write is RELATION_REGISTRY-persistent and survives independently for the rest of the session.
 
 After decay, the next hit from that shooter against that squad triggers a fresh `_disclose` call. Distant patrol squadmates get re-pinned into combat_mask for the new engagement.
 
@@ -146,9 +146,9 @@ Both paths short-circuit quickly when no entries match. Most spawn events trigge
 
 - Engine handles audio-range squadmates on hit #1 (free, automatic).
 - Our hook handles distant patrol squadmates on hit #1 by forcing them into combat_mask, letting the engine's own propagation pipe carry the memory.
-- Hostility for the shooter is pinned at -2000 personal goodwill on every squadmate. The override survives community-relation drift and lasts the session.
+- Hostility for the shooter is pinned by a hostile personal-goodwill write on every squadmate. The override survives community-relation drift and lasts the session.
 - Sustained engagement: subsequent hits refresh the timestamp and return early via idempotency.
-- After `hit_share_retention_min` game minutes of no hits from a given shooter, the squad's pin on that shooter expires; the next hit re-fires the full pipeline.
+- After the retention window of no hits from a given shooter, the squad's pin on that shooter expires; the next hit re-fires the full pipeline.
 - Mid-fight replenishment: new squad members inherit existing disclosures on spawn.
 - Offline-shooter return: when a previously-offline tracked shooter comes back online, the spawn handler replays disclosure to every member of the squads tracking them. Members who joined while the shooter was offline get pinned at this moment.
 
@@ -156,7 +156,7 @@ Both paths short-circuit quickly when no entries match. Most spawn events trigge
 
 ## Friendly Fire
 
-Friendly-fire damage gate in `at_hitresponse.script`. `npc_on_before_hit` scales `shit.power` by the MCM factor unless the shooter and victim are actually enemies (`attacker:relation(npc) == game_object.enemy` -> full damage). Keyed on per-NPC relation, not community: same-faction NPCs are neutral at worst and never enemy (a loner never enemy to a loner), so they stay protected, while a soured cross-faction pair (a loner vs a hostile Clear Sky) still damages each other. `relation()` is faction-paramount (the community-to-community base, +/-2000, dominates personal goodwill, +/-300). Stalker-vs-stalker only (both `IsStalker`), the actor as shooter is excluded, O(1) with no throttle (a damage block must catch every hit). MCM Combat tab: `friendly_fire_enabled` (default on) + `friendly_fire_factor` (default 0.0 = no friendly-fire damage).
+Friendly-fire damage gate in `at_hitresponse.script`. `npc_on_before_hit` scales `shit.power` by the MCM factor unless the shooter and victim are actually enemies (`attacker:relation(npc) == game_object.enemy` -> full damage). Keyed on per-NPC relation, not community: same-faction NPCs are neutral at worst and never enemy (a loner never enemy to a loner), so they stay protected, while a soured cross-faction pair (a loner vs a hostile Clear Sky) still damages each other. `relation()` is faction-paramount (the community-to-community base dominates personal goodwill). Stalker-vs-stalker only (both `IsStalker`), the actor as shooter is excluded, O(1) with no throttle (a damage block must catch every hit). MCM Combat tab: `friendly_fire_enabled` + `friendly_fire_factor`.
 
 ---
 
@@ -174,9 +174,9 @@ Per-NPC self-healing. Vanilla `xr_eat_medkit.script` has a working stage machine
 
 | Hook | Mechanism | What it changes |
 |---|---|---|
-| Heal rate multiplier | `xr_eat_medkit.heal_hp = _patched_heal_hp` | Per-tick `change_health(0.05 * mult)` reads MCM each tick; reschedule via `xr_eat_medkit.heal_hp` lookup propagates the patch through all 13 ticks |
+| Heal rate multiplier | `xr_eat_medkit.heal_hp = _patched_heal_hp` | Per-tick `change_health` scaled by the MCM multiplier, read each tick; rescheduling via the `xr_eat_medkit.heal_hp` lookup keeps every tick on the patched function |
 | Bandage tick logging | `xr_eat_medkit.heal_bleed = _patched_heal_bleed` | Logging-only wrapper around vanilla bleed loop |
-| Per-rank healing-charge | `RegisterScriptCallback("npc_on_net_spawn", _on_net_spawn)` | Reads `ranks.get_obj_rank_name(npc)`, folds 8 rank names into 4 MCM tiers, rolls per-tier chance, overrides vanilla's flat 50% roll. Per-NPC `at_charge_processed` se_var prevents re-roll. |
+| Per-rank healing-charge | `RegisterScriptCallback("npc_on_net_spawn", _on_net_spawn)` | Reads `ranks.get_obj_rank_name(npc)`, folds the rank names into MCM tiers, rolls the per-tier chance, replacing vanilla's flat roll. Per-NPC `at_charge_processed` se_var prevents re-roll. |
 
 ### Visual layer (Path 1 script-queue overlay)
 
@@ -184,8 +184,8 @@ Two cosmetic cues using `npc:add_animation` directly. No state_mgr, no GOAP, no 
 
 | Cue | Trigger | Animation(s) |
 |---|---|---|
-| Limping | `npc_on_update` per-NPC: per-tick drop on `not alive() or IsWounded or critically_wounded` (bypasses the throttle so the overlay never outlives a wounded transition); 1s-throttled full eligibility check (`health < threshold`, `mental_state() == anim.free`, `body_state() == move.standing`, not zombied, not in smart_cover). Re-arms every 5s. Eligibility-lost branch drops tracking only; no `clear_animations()` (engine action transition or natural OMF expiry owns cleanup) | `dmg_norm_torso_<slot>_<idle\|walk\|run>_0` per `_pick_limp_anim` reading `active_slot()` + `movement_type()` (torso overlay; layers over engine-driven locomotion, legs stay attached to ground) |
-| Heal anim | One-shot via `_try_play_heal_anim` from the first tick of `_patched_heal_hp` / `_patched_heal_bleed` (`left == 15`). Gated on `not npc:best_enemy()`, `not IsWounded(npc)`, `not npc:critically_wounded()`. No movement freeze, no stage machine, no mid-flight aborts. Engine drains the queue when the gesture ends; action transitions clear it on the way to action_wounded / action_critically_wounded (`stalker_base_action.cpp:24-29`) | `dmg_norm_torso_11_attack_0` (medkit) / `norm_torso_12_attack_0` (bandage) |
+| Limping | `npc_on_update` per-NPC: per-tick drop on `not alive() or IsWounded or critically_wounded` (bypasses the throttle so the overlay never outlives a wounded transition); a throttled full eligibility check (`health < threshold`, `mental_state() == anim.free`, `body_state() == move.standing`, not zombied, not in smart_cover), periodically re-armed. Eligibility-lost branch drops tracking only; no `clear_animations()` (engine action transition or natural OMF expiry owns cleanup) | a per-slot `dmg_norm` torso overlay chosen from `active_slot()` + `movement_type()`; layers over engine-driven locomotion, legs stay attached to ground |
+| Heal anim | One-shot via `_try_play_heal_anim` on the first heal tick. Gated on `not npc:best_enemy()`, `not IsWounded(npc)`, `not npc:critically_wounded()`. No movement freeze, no stage machine, no mid-flight aborts. Engine drains the queue when the gesture ends; action transitions clear it on the way to action_wounded / action_critically_wounded (`stalker_base_action.cpp:24-29`) | a torso medkit / bandage gesture |
 
 Limping is independent of the healing master toggle (its callback registers unconditionally; gated at runtime by `limping_anim_enabled`). Heal cue is gated by `healing_anim_enabled` and the master toggle (it lives inside the heal_hp/heal_bleed patches that only install when healing is enabled).
 
@@ -201,9 +201,9 @@ Why script and not cvars: the engine rank curve degenerates on Anomaly gamedata.
 
 Math: `out = base * disp`. The engine already multiplied by `m_fRankDisperison` (= 0.8 for every Anomaly NPC after the rank clamp) before the callback fires, plus the per-state factor. We stack `disp` on top — `disp = 1.00` preserves the engine's vanilla cone, lower values tighten it.
 
-8 tiers (novice / trainee / experienced / professional / veteran / expert / master / legend) with defaults from 1.00 down to 0.38.
+Per-rank tiers (novice through legend): higher rank, tighter dispersion. The per-tier factors are MCM tunables.
 
-Per-shot hot path. Cost ~1.5μs per call when DEBUG off (2 luabind crossings via `ranks.get_obj_rank_name`, the rest pure Lua).
+Per-shot hot path: a rank-name lookup, then pure-Lua scaling of the dispersion the callback hands us.
 
 ---
 
@@ -217,28 +217,37 @@ The catalog and tunables are data, not code: numeric knobs in `configs/alifetact
 
 Blocking the combat planner removes the engine's per-tick aimer, so under takeover AT supplies aim, posture, movement, destination, and fire state. The engine keeps the trigger, the per-rank dispersion, and the `can_kill_member` friendly-fire hold. All NPC control routes through xcombat. See `doc/library/modding/npc-combat-control.md`, `npc-combat-effectiveness.md`.
 
+### The model: a reactive agent
+
+AT is a reactive agent over a turret baseline. The default behavior is the turret — aim at the engine's current enemy and let it fire; the NPC does nothing else until a problem appears. The reactions are deliberately sparse and negative-only: a maneuver runs only when a check detects something wrong (a grenade down nearby, the enemy inside the close band, the firing line blocked, the NPC hurt, the enemy lost), never on an opportunity. There is no "enemy exposed, push" trigger and no resting maneuver — finish a maneuver with nothing wrong and the NPC is the turret again.
+
+The checks are condition-action rules over that baseline. Each is a predicate that, when it holds, fires the maneuver its faction palette assigns. A maneuver, once started, is committed: it runs to completion and is never interrupted mid-flight; only a hard stop (dead, wounded, unarmed, disabled, companion) breaks it. So the agent is reactive in *what* triggers it and deliberate in *how long it holds*.
+
 ### Scan and checks
 
-`execute()` runs one scan per engine tick. A set of checks is registered to that scan; each check carries a period (its throttle), a predicate, and a `wait` flag. The scan runs every check whose period has elapsed, and a check whose predicate holds fires its event. A `wait = true` check fires only when the current maneuver has finished (`npc:path_completed()`); a `wait = false` check fires regardless. The NPC is a turret by default (aims and fires on its own); a maneuver runs only when a check fires on something significant, is committed once started, and is never interrupted before it completes. There is no default/resting maneuver: finish a fire maneuver with nothing pending and the NPC is just the turret again; finish a flee (weapon stowed) and it re-arms to `hold_fire` so it never idles weapon-down.
+`execute()` runs one scan per engine tick. Every timed operation — the aim, the context refresh, and each check — is one entry carrying its own period, a predicate, and a `wait` flag. The scan runs each entry whose period has elapsed. A `wait` check fires only once the current maneuver is done (`npc:path_completed()`); the aim runs every tick. When a check's predicate holds and the palette has a maneuver for it, that maneuver is a candidate; one of the candidates that fired this scan is chosen at random and committed. A finished flee (weapon stowed) with nothing pending re-arms to `hold_fire` so the NPC never idles weapon-down.
 
-| Check | Period | Predicate | wait | Result |
-|---|---|---|---|---|
-| aim | 200ms | always true | false | re-aim at current enemy |
-| engage | fight start | no maneuver yet | false | pick opening maneuver |
-| is_grenade_near | 500ms | grenade danger near (time-gated) | true | take cover, fast |
-| is_too_close | 500ms | enemy inside close range band | true | step back while firing |
-| is_target_changed | 500ms | best_enemy changed | true | re-pick maneuver on new target |
-| is_hurt | 500ms | health below 25% | true | fall back while firing |
-| is_blocked_wall | 500ms | wall on firing line | true | lateral step |
-| is_blocked_friendly | 500ms | teammate on firing line | true | lateral step (same event as wall) |
-| is_enemy_unseen | 1000ms | NPC has not seen the enemy for > threshold | true | close in (advance / flank / advance-to-cover) |
-| is_context_changed | 1000ms | faction / indoor-outdoor / weapon changed | true | rebuild eligible maneuver list |
+Every check is a negative condition — a problem to correct:
 
-"Done" is `npc:path_completed()` -- the engine path-traversal flag, which self-clears the instant a new destination is set, so a committed move reads done only on arrival and a non-moving command reads done at once. See `doc/library/modding/npc-combat-control.md`.
+| Check | Problem it detects | Reaction |
+|---|---|---|
+| engage | no maneuver yet (fight opener) | pick an opening maneuver |
+| is_grenade_near | a grenade is down nearby | take cover |
+| is_too_close | enemy inside the close band | step back while firing |
+| is_target_changed | the engine selected a new enemy | re-pick on the new target |
+| is_hurt | health below the hurt threshold | fall back while firing |
+| is_blocked_wall | a wall on the firing line | lateral step / re-cover |
+| is_blocked_friendly | a teammate on the firing line | lateral step |
+| is_enemy_unseen | the enemy unseen past the lost-sight window | close in (advance / flank) |
+| is_context_changed | faction / indoor-outdoor / weapon changed | rebuild the eligible maneuver list |
+
+The check periods and the thresholds they read (the hurt fraction, the range band, the lost-sight window) are `at_combat_config.ltx` tunables, not fixed here.
+
+"Done" is `npc:path_completed()` — the engine path-traversal flag, which self-clears when a new destination is set, so a committed move reads done only on arrival and a non-moving command reads done at once; a stuck cap forces done if a move never arrives. See `doc/library/modding/npc-combat-control.md`.
 
 ### Aim
 
-`xcombat.aim_at(npc, enemy_pos)` re-stamped every `aim_period_ms` (200, ≈ reaction time) while the weapon is up, so the NPC tracks the enemy as it advances or flanks. The engine fires along the sight with its own dispersion. Snipers additionally set `sniper_fire_mode` (head-line aim) via the SNIPE fire mode. A flee (a STOW maneuver) is the one exception: the aim is suppressed and `set_combat` passes no look target, so the state resolves to `path_dir` and the NPC turns its back and runs. When the flee finishes with nothing else pending, the turret re-arms to `hold_fire` (weapon back up, fire in place) so it never idles weapon-down.
+`xcombat.aim_at(npc, enemy_pos)` re-stamped every `aim_period_ms` (roughly reaction cadence) while the weapon is up, so the NPC tracks the enemy as it advances or flanks. The engine fires along the sight with its own dispersion. Snipers additionally set `sniper_fire_mode` (head-line aim) via the SNIPE fire mode. A flee (a STOW maneuver) is the one exception: the aim is suppressed and `set_combat` passes no look target, so the state resolves to `path_dir` and the NPC turns its back and runs. When the flee finishes with nothing else pending, the turret re-arms to `hold_fire` (weapon back up, fire in place) so it never idles weapon-down.
 
 ### Maneuvers
 
@@ -308,7 +317,7 @@ Full-file override of vanilla `xr_danger.script` (Alundaio). Six vanilla bug fix
 ### Improvements (MCM Danger tab, default on)
 
 - `danger_hit_bypass`: direct hits bypass the combat-ignore distance gate. Sniped NPCs respond regardless of attacker distance.
-- `danger_attack_sound`: script_action_danger_alert dispatch for `attack_sound` danger type. Includes actor-aim gate (dot product > 0.85) so actors walking past with rifle out do not trigger cover-seek. Vanilla had no script handler for this danger type.
+- `danger_attack_sound`: script_action_danger_alert dispatch for `attack_sound` danger type. Includes an actor-aim gate (the actor must be facing the NPC) so actors walking past with rifle out do not trigger cover-seek. Vanilla had no script handler for this danger type.
 - `danger_actor_tables`: read separate inertion and ignore tables from `[danger_inertion_actor]` and `[danger_object_actor]` when danger source is the actor. Tune player encounters independently of NPC-vs-NPC.
 
 ### Paired LTX
@@ -349,21 +358,19 @@ The engine functor lookup at `Weapon.cpp:1781` was added in demonized commit `f2
 
 ### MCM
 
-| Key | Type | Default | Effect |
-|---|---|---|---|
-| `jam_enabled` | check | true | On: override returns 0 for NPC misfire probability. Off: forward to original modded-exes function. Effective on next engine functor call, no restart. |
+`jam_enabled` master toggle: on, the override returns 0 for NPC misfire probability; off, it forwards to the original modded-exes function. Effective on the next engine functor call.
 
 ---
 
 ## NPC Ammo
 
-Master-rank NPCs fire AP from inventory until depleted, then revert to vanilla magic FMJ. Player loots the remainder.
+Veteran-rank-and-up NPCs fire AP from inventory until depleted, then revert to vanilla magic FMJ. Player loots the remainder.
 
 Engine context: NPCs do not consume real inventory ammo while `unlimited_ammo()` is TRUE, which is the default for every stalker (`xrServer_Objects_ALife_Monsters.cpp:2164`). The magic refill at `WeaponMagazined.cpp:520-571` produces copies of `m_DefaultCartridge`, keyed from `m_ammoTypes[m_ammoType]` at line 559-560. Setting `m_ammoType` re-keys those copies; inventory drain in this script is cosmetic for corpse-loot composition.
 
 ### Fixed AP set
 
-`AP_SECTIONS` is a hardcoded set of clean armor-piercing cartridge sections enumerated from vanilla Anomaly `configs/items/weapons/*.ltx` (14 entries covering 5.45x39, 5.56x45, 7.62x39, 7.62x51, 7.62x54, 7.92x33, 9x18, 9x19, 9x39, 12.7x55, 12x76). Degraded `_bad` / `_verybad` variants are intentionally excluded — they're treated as "carry but don't promote". Add new calibers to the table when modpacks introduce them.
+`AP_SECTIONS` is a hardcoded set of clean armor-piercing cartridge sections enumerated from vanilla Anomaly `configs/items/weapons/`, covering the base calibers. Degraded `_bad` / `_verybad` variants are intentionally excluded — they're treated as "carry but don't promote". Add new calibers to the table when modpacks introduce them.
 
 ### Per-NPC state
 
@@ -371,7 +378,7 @@ Engine context: NPCs do not consume real inventory ammo while `unlimited_ammo()`
 
 ### Tick algorithm
 
-`pick(npc)` is the public entry, subscribed to `npc_on_update` (5s throttle per NPC, gated on `best_enemy()`). Each tick:
+`pick(npc)` is the public entry, subscribed to `npc_on_update` (slow per-NPC throttle, gated on `best_enemy()`). Each tick:
 
 1. MCM gate (`ammo_enabled`), `npc:alive()` and `IsStalker(npc)` filter, `npc:character_rank() >= min_ap_rank` filter — sub-master returns immediately.
 2. `IsWeapon(npc:active_item())` filter.
@@ -380,11 +387,11 @@ Engine context: NPCs do not consume real inventory ammo while `unlimited_ammo()`
 5. If `left > MIN_SPARE`: set `m_ammoType = idx` and `_sync_box(npc, sec, left)` to defeat engine `try_advance_ammo` top-up.
 6. Else: set `m_ammoType = 0` (vanilla magic FMJ for the rest of the NPC's online session).
 
-Cost per tick per NPC: ~5-10 luabind. Sub-master NPCs early-exit at rank check; only luabind is `character_rank()`. For 50 active combat NPCs at 0.2Hz with mixed rank: ~30 luabind/sec total.
+Sub-rank NPCs early-exit at the rank check, paying only the `character_rank()` read; the full tick runs on a slow per-NPC throttle, gated on having an enemy.
 
 ### Rank gate
 
-`npc:character_rank() >= min_ap_rank`. Default `min_ap_rank = 12000` (veteran and up; the professional band caps at 11999 in `configs/creatures/game_relations.ltx [game_relations] rating`). Below-veteran NPCs never enter the picker. Their inventory AP boxes are untouched during life and trimmed at death by the death hook.
+`npc:character_rank() >= min_ap_rank`, the veteran band by default (the threshold maps onto the rank ratings in `configs/creatures/game_relations.ltx`). Below-threshold NPCs never enter the picker; their inventory AP boxes are untouched during life and trimmed at death by the death hook.
 
 This intentionally restricts AP to veteran+ to prevent armor degradation across the whole NPC population. Tune via LTX.
 
@@ -394,25 +401,13 @@ This intentionally restricts AP to veteran+ to prevent armor degradation across 
 
 Without this hook the engine's `try_advance_ammo` top-up at the last reload before death would leave boxes at `boxSize` and `decide_items_to_keep` would release them entirely. Player would see only `death_manager.try_spawn_ammo`'s procedural box. With the hook, player loots the actual remainder.
 
-### Tunables (`gamedata/configs/alifetactics/at_ammo.ltx`)
+### Tunables
 
-| Key | Default | Effect |
-|---|---|---|
-| `min_spare` | 3 | Floor for inventory boxes. Must be ≤ 5 to survive `decide_items_to_keep`. |
-| `min_ap_rank` | 12000 | `npc:character_rank()` threshold for AP eligibility. |
-| `drain_w_pistol` | 5 | Rounds drained per 5s tick when active weapon kind is `w_pistol`. |
-| `drain_w_shotgun` | 2 | Same for `w_shotgun`. |
-| `drain_w_smg` | 10 | Same for `w_smg`. |
-| `drain_w_rifle` | 8 | Same for `w_rifle`. |
-| `drain_w_sniper` | 2 | Same for `w_sniper`. |
-
-Script-side fallback defaults match the LTX defaults so a missing key or file won't crash.
+`gamedata/configs/alifetactics/at_ammo.ltx`: the box floor, the rank threshold, and a per-weapon-kind drain rate. The floor must stay at or below the `decide_items_to_keep` deletion cutoff so corpse boxes survive. Script-side fallbacks match so a missing key or file won't crash.
 
 ### MCM
 
-| Key | Type | Default | Effect |
-|---|---|---|---|
-| `ammo_enabled` | check | true | Master toggle. Off: tick early-exits, no `m_ammoType` writes, no inventory clamping, no death-time trim. Effective on next tick. |
+`ammo_enabled` master toggle: off, the tick early-exits with no `m_ammoType` writes, no inventory clamping, and no death-time trim.
 
 ### Scope and limits
 
@@ -433,8 +428,8 @@ The architecture principle is to feed engine memory and state, not fight it. Per
 | Hit Sharing | RELATION_REGISTRY personal goodwill, memory entry m_enabled, agent_member_manager m_combat_mask | `force_set_goodwill`, `enable_memory_object`, `register_in_combat` |
 | Healing | NPC health field, bleeding field, `healing_charge` se_var | `change_health`, direct `bleeding =` write, `se_save_var` |
 | Accuracy | Per-shot dispersion radius via callback return | (subscribes to `npc_shot_dispersion`) |
-| Combat | NPC GOAP action (at_combat_action), Pattern B preconditions on action_combat_planner/action_danger_planner/xr_danger.actid/state_mgr+2/alife, set_dest_level_vertex_id, state_mgr.set_state, set_body_state, set_movement_type, set_sight, `m_sniper_fire_mode` flag | GOAP `add_evaluator`/`add_action`/`add_precondition` (evaid/actid 188200), `npc:best_cover`, `level.vertex_in_direction`, `npc:sniper_fire_mode`, `db.used_level_vertex_ids` reservation |
-| Danger | NPC danger evaluator/action graft, `script_danger` per-id table for sound-source dispatch | Engine callbacks `npc_on_hear_callback`, `npc_on_death_callback`, GOAP planner graft (evaid/actid 188113) |
+| Combat | NPC GOAP action (at_combat_action), Pattern B preconditions on action_combat_planner/action_danger_planner/xr_danger.actid/state_mgr+2/alife, set_dest_level_vertex_id, state_mgr.set_state, set_body_state, set_movement_type, set_sight, `m_sniper_fire_mode` flag | GOAP `add_evaluator`/`add_action`/`add_precondition` (custom evaid/actid), `npc:best_cover`, `level.vertex_in_direction`, `npc:sniper_fire_mode`, `db.used_level_vertex_ids` reservation |
+| Danger | NPC danger evaluator/action graft, `script_danger` per-id table for sound-source dispatch | Engine callbacks `npc_on_hear_callback`, `npc_on_death_callback`, GOAP planner graft |
 | Weapon Jam | Module-level function table on `xr_weapon_jam` | Lua function assignment (`xr_weapon_jam.GetConditionMisfireProbability = ...`) read by engine functor lookup at `Weapon.cpp:1781` |
 | NPC Ammo | CWeapon `m_ammoType` field via `wpn:set_ammo_type(idx)` (re-keys `m_DefaultCartridge` for magic refill ballistics); per-NPC virtual ledger drives section selection; inventory boxes clamped to ledger via `obj:ammo_set_count` to defeat `try_advance_ammo` top-up; death hook trims boxes to MIN_SPARE for corpse loot survival | `npc:active_item`, `wpn:set_ammo_type`, `wpn:get_ammo_type`, `wpn:get_ammo_count_for_type`, `npc:best_enemy`, `npc:character_rank`, `npc:iterate_inventory`, `obj:ammo_get_count`, `obj:ammo_set_count` |
 
