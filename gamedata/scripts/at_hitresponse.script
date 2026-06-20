@@ -8,7 +8,6 @@ local log = xlog.get_logger("AT.HIT", { outfile = "alifetactics.log" })
 local _dbg = false
 local cfg = at_mcm.cfg
 
-local GOODWILL_HOSTILE   = -2000
 local TIMER_EV           = "at_hitresponse"
 local TIMER_DECAY        = "decay"
 local DECAY_INTERVAL_SEC = 5
@@ -27,28 +26,18 @@ local function _shooter_is_combat_enemy(npc, who)
     return game_relations.is_factions_enemies(npc_comm, who_comm)
 end
 
--- Goodwill gated by IsStalker pair: RELATION_REGISTRY::ForceSetGoodwill
--- (relation_registry.cpp:161-172) smart_casts both ids to CSE_ALifeTraderAbstract.
--- register_in_combat requires CAI_Stalker receiver
--- (script_game_object_inventory_owner.cpp:1945-1955); safe here because mem_npc
--- comes from a stalker squad's members (npc_on_hit_callback fires only via
--- motivator_binder, never generic_object_binder).
-local function _disclose_to_member(mem_npc, who, who_is_human)
-    if not mem_npc then return false end
-    if who_is_human and IsStalker(mem_npc) then
-        mem_npc:force_set_goodwill(GOODWILL_HOSTILE, who)
-    end
-    mem_npc:enable_memory_object(who, true)
-    mem_npc:register_in_combat()
-    return true
+-- Disclose the shooter to one squad member via xlibs (memory inject + combat register, no relation
+-- mutation). The disclosure gate already requires a faction enemy, so the engine engages the shooter
+-- without any goodwill write. Returns false on a nil member.
+local function _disclose_to_member(mem_npc, who)
+    return xcombat.disclose_enemy(mem_npc, who)
 end
 
 local function _disclose(squad, who)
     if squad:npc_count() == 0 then return 0 end
     local count = 0
-    local who_is_human = IsStalker(who)
     for member in squad:squad_members() do
-        if _disclose_to_member(level.object_by_id(member.id), who, who_is_human) then
+        if _disclose_to_member(level.object_by_id(member.id), who) then
             count = count + 1
         end
     end
@@ -240,7 +229,7 @@ local function _inherit_one(npc, shooter_id, npc_id)
     if shooter_id == npc_id then return false end
     local who = level.object_by_id(shooter_id)
     if not who then return false end
-    _disclose_to_member(npc, who, IsStalker(who))
+    _disclose_to_member(npc, who)
     return true
 end
 
@@ -256,19 +245,19 @@ local function _inherit_from_squad(npc, npc_id, squad_id, squad_map)
     end
 end
 
-local function _redisclose_member(mem_npc, who, who_is_human, shooter_id)
+local function _redisclose_member(mem_npc, who, shooter_id)
     if not mem_npc then return false end
     if mem_npc:id() == shooter_id then return false end
-    return _disclose_to_member(mem_npc, who, who_is_human)
+    return _disclose_to_member(mem_npc, who)
 end
 
-local function _redisclose_squad(squad_id, who, who_is_human, shooter_id)
+local function _redisclose_squad(squad_id, who, shooter_id)
     local sq = alife_object(squad_id)
     if not sq or not sq.squad_members then return 0 end
     if sq:npc_count() == 0 then return 0 end
     local count = 0
     for member in sq:squad_members() do
-        if _redisclose_member(level.object_by_id(member.id), who, who_is_human, shooter_id) then
+        if _redisclose_member(level.object_by_id(member.id), who, shooter_id) then
             count = count + 1
         end
     end
@@ -276,11 +265,10 @@ local function _redisclose_squad(squad_id, who, who_is_human, shooter_id)
 end
 
 local function _on_shooter_online(npc, npc_id)
-    local who_is_human = IsStalker(npc)
     local total = 0
     for squad_id, map in pairs(_disclosed) do
         if map[npc_id] then
-            total = total + _redisclose_squad(squad_id, npc, who_is_human, npc_id)
+            total = total + _redisclose_squad(squad_id, npc, npc_id)
         end
     end
     if _dbg and total > 0 then
