@@ -1,4 +1,4 @@
-<h3>Version: 1.0.0 (xlibs 1.7.6, demonized 20250908, AOEngine v0.55)</h3>
+<h3>Version: 1.0.0 (xlibs 1.7.6)</h3>
 <h3>GitHub: <a href="https://github.com/damiansirbu-stalker/AlifeTactics">https://github.com/damiansirbu-stalker/AlifeTactics</a></h3>
 <h3>Changelog: <a href="https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/changelog">doc/changelog</a> | <a href="https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/readme_ru.txt">Na russkom</a> | <a href="https://github.com/damiansirbu-stalker/AlifeTactics/issues">Bugs, suggestions</a></h3>
 <h2>Alife Collection</h2>
@@ -44,6 +44,11 @@
 <h2>Performance</h2>
 <p>Most systems above hook on engine callbacks but are throttled and situational.<br />All operations are done through xlibs which encapsulates best practices in workign with the engine and what Anomaly uses internally.<br />Also all operations are traced for performance and duration and can be checked if debug logging is activated.<br />Tests showed the perfromance impact is almost nonexistent.</p>
 <h2>Compatibility</h2>
+<ul>
+<li>Requires xlibs.</li>
+<li>Runs on themrdemonized modded exes 2025.9.10 or newer, or AOEngine v0.55 or newer.</li>
+<li>The full feature set needs the latest demonized build. A feature that needs a newer build stays inactive on older exes.</li>
+</ul>
 <p>Tested with vanilla Anomaly 1.5.3 and GAMMA. Mid-save install and uninstall both work. Friendly fire and same-community hits are filtered at the faction-relation gate, so story NPCs, companions, traders, and squadmates are never armed against their own faction.</p>
 <p>AlifeTactics overrides one Anomaly script (xr_danger.script) and hooks engine APIs for self-healing, accuracy, and combat AI. Most mods install alongside without issue. The cases below are worth knowing about.</p>
 <h3>Conflicts (pick one - running both breaks both)</h3>
@@ -63,7 +68,7 @@
 <li><b>Dynamic Emission Cover:</b> emission-time movement, different trigger; coexists.</li>
 </ul>
 <h2>Requirements</h2>
-<p>Anomaly 1.5.3<br /><a href="https://github.com/themrdemonized/xray-monolith">demonized</a> 20250908+ OR <a href="https://github.com/Mirrowel/AOEngine-Assets">AOEngine</a> v0.55+<br /><a href="https://www.moddb.com/mods/stalker-anomaly/addons/xlibs-1001">xlibs</a><br />MCM</p>
+<p>Anomaly 1.5.3<br /><a href="https://www.moddb.com/mods/stalker-anomaly/addons/xlibs-1001">xlibs</a><br />MCM</p>
 <h2>Install (MO2)</h2>
 <p>1. Install xlibs<br />2. Install AlifeTactics<br />3. Load order does not matter<br />4. Configure via MCM</p>
 <h2>Uninstall (MO2)</h2>
@@ -72,3 +77,13 @@
 <p>Altogolik - support, ideas, source materials</p>
 <h2>Usage and License</h2>
 <p>Modpacks: allowed and encouraged. Keep the readme and license files.<br />Addons, patches, integrations: allowed. Credit "AlifeTactics by Damian Sirbu" visibly on your mod page.<br />Reproducing the implementation in other software: not allowed, even with credit.<br />Full license in LICENSE file and on GitHub.</p>
+
+<h2>Reporting issues and suggestions</h2>
+<p>Open a <a href="https://github.com/damiansirbu-stalker/AlifeTactics/issues/new/choose">bug report or a suggestion on GitHub</a>.<br />Also discussed on the GAMMA, EFP, Anomaly, and Zona Discord servers.</p>
+<p>Before posting, read this readme and the MCM options.</p>
+<p>Include:</p>
+<ul>
+<li>Exact steps to reproduce, from a new game or a named save, with expected and actual result.</li>
+<li>xray.log and the mod debug log (MCM log level DEBUG), plus engine build, modlist, load order.</li>
+<li>Describe the behavior. With hundreds of mods and overrides, only the log shows whether this mod was involved and what caused it.</li>
+</ul>

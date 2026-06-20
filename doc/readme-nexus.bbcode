@@ -1,4 +1,4 @@
-Version: 1.0.0 (xlibs 1.7.6, demonized 20250908, AOEngine v0.55)
+Version: 1.0.0 (xlibs 1.7.6)
 
 [url=https://github.com/damiansirbu-stalker/AlifeTactics]GitHub[/url] | [url=https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/changelog]Changelog[/url] | [url=https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/readme_ru.txt]Na russkom[/url] | [url=https://github.com/damiansirbu-stalker/AlifeTactics/issues]Bugs, suggestions[/url]
 
@@ -102,6 +102,11 @@ Also all operations are traced for performance and duration and can be checked i
 Tests showed the perfromance impact is almost nonexistent.
 
 [size=3][b]Compatibility[/b][/size]
+[list]
+[*]Requires xlibs.
+[*]Runs on themrdemonized modded exes 2025.9.10 or newer, or AOEngine v0.55 or newer.
+[*]The full feature set needs the latest demonized build. A feature that needs a newer build stays inactive on older exes.
+[/list]
 Tested with vanilla Anomaly 1.5.3 and GAMMA. Mid-save install and uninstall both work.
 Friendly fire and same-community hits are filtered at the faction-relation gate, so story NPCs, companions, traders, and squadmates are never armed against their own faction.
 
@@ -130,7 +135,6 @@ AlifeTactics overrides one Anomaly script (xr_danger.script) and hooks engine AP
 [size=3][b]Requirements[/b][/size]
 [list]
 [*]Anomaly 1.5.3
-[*][url=https://github.com/themrdemonized/xray-monolith]demonized[/url] 20250908+ OR [url=https://github.com/Mirrowel/AOEngine-Assets]AOEngine[/url] v0.55+
 [*][url=https://www.nexusmods.com/stalkeranomaly/mods/102]xlibs[/url]
 [*]MCM
 [/list]
@@ -156,3 +160,16 @@ Reproducing the implementation in other software: not allowed, even with credit.
 Full license in LICENSE file and on GitHub.
 
 [line]
+
+[size=3][b]Reporting issues and suggestions[/b][/size]
+Open a bug report or a suggestion at https://github.com/damiansirbu-stalker/AlifeTactics/issues/new/choose.
+Also discussed on the GAMMA, EFP, Anomaly, and Zona Discord servers.
+
+Before posting, read this readme and the MCM options.
+
+Include:
+[list]
+[*]Exact steps to reproduce, from a new game or a named save, with expected and actual result.
+[*]xray.log and the mod debug log (MCM log level DEBUG), plus engine build, modlist, load order.
+[*]Describe the behavior. With hundreds of mods and overrides, only the log shows whether this mod was involved and what caused it.
+[/list]

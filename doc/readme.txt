@@ -1,5 +1,5 @@
 AlifeTactics: NPC combat behavior for STALKER Anomaly, by Damian
-Version: 1.0.0 (xlibs 1.7.6, demonized 20250908, AOEngine v0.55)
+Version: 1.0.0 (xlibs 1.7.6)
 GitHub: https://github.com/damiansirbu-stalker/AlifeTactics
 Changelog: https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/changelog
 Russian / Na russkom: https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/readme_ru.txt
@@ -119,6 +119,10 @@ Tests showed the performance impact is almost nonexistent.
 
 Compatibility:
 
+Requires xlibs.
+Runs on themrdemonized modded exes 2025.9.10 or newer, or AOEngine v0.55 or newer.
+The full feature set needs the latest demonized build. A feature that needs a newer build stays inactive on older exes.
+
 Tested with vanilla Anomaly 1.5.3 and GAMMA. Mid-save install and uninstall both work. Friendly fire and same-community hits are
 filtered at the faction-relation gate, so story NPCs, companions, traders, and squadmates are never armed against their own faction.
 
@@ -142,7 +146,6 @@ Affects / coexists:
 
 Requirements:
 Anomaly 1.5.3
-demonized 20250908+ (https://github.com/themrdemonized/xray-monolith) OR AOEngine v0.55+ (https://github.com/Mirrowel/AOEngine-Assets)
 xlibs (https://www.moddb.com/mods/stalker-anomaly/addons/xlibs-1001)
 MCM
 
@@ -163,3 +166,14 @@ Modpacks: allowed and encouraged. Keep the readme and license files.
 Addons, patches, integrations: allowed. Credit "AlifeTactics by Damian Sirbu" visibly on your mod page.
 Reproducing the implementation in other software: not allowed, even with credit.
 Full license in LICENSE file and on GitHub.
+
+Reporting issues and suggestions
+Open a bug report or a suggestion at https://github.com/damiansirbu-stalker/AlifeTactics/issues/new/choose.
+Also discussed on the GAMMA, EFP, Anomaly, and Zona Discord servers.
+
+Before posting, read this readme and the MCM options.
+
+Include:
+- Exact steps to reproduce, from a new game or a named save, with expected and actual result.
+- xray.log and the mod debug log (MCM log level DEBUG), plus engine build, modlist, load order.
+- Describe the behavior. With hundreds of mods and overrides, only the log shows whether this mod was involved and what caused it.

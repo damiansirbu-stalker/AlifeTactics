@@ -1,5 +1,5 @@
 AlifeTactics: Боевое поведение NPC для STALKER Anomaly, автор Damian
-Версия: 1.0.0 (xlibs 1.7.6, demonized 20250908, AOEngine v0.55)
+Версия: 1.0.0 (xlibs 1.7.6)
 GitHub: https://github.com/damiansirbu-stalker/AlifeTactics
 Список изменений: https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/changelog
 English: https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/readme.txt
@@ -102,6 +102,10 @@ NPC стреляют 2-3 патрона, заклинивают и переза�
 
 Совместимость:
 
+Требует xlibs.
+Работает на моддированных exe themrdemonized 2025.9.10 или новее, либо AOEngine v0.55 или новее.
+Полный набор функций требует последней сборки demonized. Функция, которой нужна более новая сборка, остаётся неактивной на старых exe.
+
 Протестирован на ванильном Anomaly 1.5.3 и GAMMA. Установка и удаление по ходу сохранения работают. Дружественный огонь и попадания по одной фракции фильтруются на воротах фракционных отношений, поэтому сюжетные NPC, компаньоны, торговцы и сокомандники по отряду никогда не активируются против своей фракции.
 
 AlifeTactics перекрывает один скрипт Anomaly (xr_danger.script) и хукает API движка для самолечения, точности и боевого ИИ. Большинство модов устанавливаются рядом без проблем. Случаи ниже стоит знать.
@@ -123,7 +127,6 @@ AlifeTactics перекрывает один скрипт Anomaly (xr_danger.scr
 
 Требования:
 Anomaly 1.5.3
-demonized 20250908+ (https://github.com/themrdemonized/xray-monolith) OR AOEngine v0.55+ (https://github.com/Mirrowel/AOEngine-Assets)
 xlibs (https://www.moddb.com/mods/stalker-anomaly/addons/xlibs-1001)
 MCM
 
@@ -144,3 +147,14 @@ Altogolik -- поддержка, идеи, исходные материалы
   Аддоны, патчи, интеграции: разрешены. Укажите "AlifeTactics by Damian Sirbu" заметно на странице вашего мода.
   Воспроизведение реализации в другом программном обеспечении: запрещено, даже с указанием авторства.
   Полная лицензия в файле LICENSE и на GitHub.
+
+Сообщения о проблемах и предложения
+Создайте баг-репорт или предложение на https://github.com/damiansirbu-stalker/AlifeTactics/issues/new/choose.
+Также обсуждается на Discord-серверах GAMMA, EFP, Anomaly и Zona.
+
+Перед публикацией прочитайте этот readme и опции MCM.
+
+Приложите:
+- Точные шаги воспроизведения, с новой игры или с названного сохранения, ожидаемый и фактический результат.
+- xray.log и отладочный лог мода (уровень логов DEBUG в MCM), сборку движка, список модов и порядок загрузки.
+- Опишите поведение. Среди сотен модов и переопределений только лог показывает, причастен ли этот мод и в чём причина.
