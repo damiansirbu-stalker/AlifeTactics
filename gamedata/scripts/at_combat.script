@@ -22,6 +22,7 @@
 local IsStalker, time_global, tostring = IsStalker, time_global, tostring
 local math_sqrt, math_floor, math_random = math.sqrt, math.floor, math.random
 local RegisterScriptCallback = RegisterScriptCallback
+local table_remove = table.remove
 local vector, anim, game_object = vector, anim, game_object
 
 local log = xlog.get_logger("AT.COMBAT", { outfile = "alifetactics.log" })
@@ -36,6 +37,11 @@ local STOW = xcombat.STOW
 -- so at_hud reads one source instead of re-hardcoding the literal. See doc/library/modding/goap-injection.md.
 ACT_ID = 188200
 local EVAL_ID = ACT_ID
+
+-- How long after install to keep retrying blocked-action grafts that were not yet on the manager at
+-- net_spawn (scheme actions like xr_danger can bind a frame or two later). After this window, any
+-- still-absent action is treated as legitimately not present on this NPC and left unblocked.
+local INSTALL_GRAFT_RETRY_MS = 3000
 
 
 -- =========================================================================
@@ -111,6 +117,10 @@ end
 
 local _takeover_installed = {}
 local _combat    = {}
+-- id -> { list = {ungrafted blocked action ids}, until_tg }. The EVAL_ID=false precondition graft onto
+-- the vanilla planners we block can miss at net_spawn when a scheme action (xr_danger) is not bound
+-- yet; these are retried from _on_update until grafted or the retry window lapses.
+local _blocks_pending = {}
 -- Reused scratch ctx for the aim-only path (maneuver in flight): execute is non-reentrant per frame, so one
 -- shared table is safe and avoids allocating a fresh ctx every tick while a maneuver travels.
 local _light_ctx = {}
@@ -381,6 +391,23 @@ end
 -- Lifecycle: install, unregister, MCM refresh
 -- =========================================================================
 
+-- Graft the EVAL_ID=false precondition onto every still-pending blocked action now present on the
+-- manager, removing it from the pending list so it is never grafted twice; clears the pending entry
+-- once all are done. Called at install and retried from _on_update for late-bound scheme actions.
+local function _graft_blocks(manager, id)
+    local pend = _blocks_pending[id]
+    if not (pend and manager) then return end
+    local list = pend.list
+    for i = #list, 1, -1 do
+        local act = manager:action(list[i])
+        if act then
+            act:add_precondition(world_property(EVAL_ID, false))
+            table_remove(list, i)
+        end
+    end
+    if #list == 0 then _blocks_pending[id] = nil end
+end
+
 local function _install(npc)
     if not npc then return end
     if not IsStalker(npc) then return end
@@ -405,17 +432,17 @@ local function _install(npc)
     action:add_effect(world_property(EVAL_ID, false))
     manager:add_action(ACT_ID, action)
 
-    local blocked = {
+    -- Block the vanilla planners. Any action not yet on the manager at this callback (e.g. a scheme
+    -- action like xr_danger bound a frame later) is left pending and retried from _on_update, so it
+    -- can never stay permanently unblocked under AT.
+    _blocks_pending[id] = { list = {
         stalker_ids.action_combat_planner,
         stalker_ids.action_danger_planner,
         xr_danger.actid,
         xr_actions_id.state_mgr + 2,
         xr_actions_id.alife,
-    }
-    for i = 1, #blocked do
-        local act = manager:action(blocked[i])
-        if act then act:add_precondition(world_property(EVAL_ID, false)) end
-    end
+    }, until_tg = time_global() + INSTALL_GRAFT_RETRY_MS }
+    _graft_blocks(manager, id)
     at_combat_trace.install(id, name, "installed")
 end
 
@@ -427,6 +454,7 @@ local function _on_net_destroy(npc)
     if not npc then return end
     local id = npc:id()
     _takeover_installed[id] = nil
+    _blocks_pending[id] = nil
     local slot = _combat[id]
     if slot then
         xcombat.release_cover(slot.cover_lvid, id)
@@ -438,6 +466,7 @@ local function _on_entity_unregister(se_obj)
     if not se_obj then return end
     local id = se_obj.id
     _takeover_installed[id] = nil
+    _blocks_pending[id] = nil
     local slot = _combat[id]
     if slot then xcombat.release_cover(slot.cover_lvid, id) end
     _combat[id] = nil
@@ -474,6 +503,13 @@ local function _on_update(npc)
     if not _takeover_installed[id] then return end
     local slot = _slot(id)
     local tg = time_global()
+    -- retry any blocked-action grafts deferred at install (late-bound scheme actions), bounded by the
+    -- retry window so legitimately-absent actions stop being polled.
+    local pend = _blocks_pending[id]
+    if pend then
+        if tg >= pend.until_tg then _blocks_pending[id] = nil
+        else _graft_blocks(npc:motivation_action_manager(), id) end
+    end
     if tg - (slot.eval_at or 0) < EVAL_PERIOD_MS then return end
     slot.eval_at = tg
     slot.eval, slot.reason = _should_manage(npc, id, tg)
