@@ -16,20 +16,42 @@
 local log = xlog.get_logger("AT.JAM", { outfile = "alifetactics.log" })
 
 local _original
+local _installed = false
+
+-- The engine only invokes GetConditionMisfireProbability (Weapon.cpp) on demonized builds >=
+-- 2026.6.1 (the tag that added the functor call site). On older builds the patch installs to a
+-- field the engine never calls -- a silent no-op. Report that honestly instead of "active".
+local JAM_MIN_DEMONIZED = 20260601
+
+local function _engine_calls_functor()
+    if type(get_modded_exes_version) == "function" then
+        return get_modded_exes_version() >= JAM_MIN_DEMONIZED
+    end
+    -- AOEngine / unknown build: not version-introspectable here. Don't block; rely on the
+    -- xr_weapon_jam presence guard and assume the overlay shipping the module also has the call site.
+    return true
+end
 
 local function _install()
-    if not xr_weapon_jam then
+    if _installed then return end          -- re-entrancy guard: on_game_start re-runs each load;
+    if not xr_weapon_jam then               -- never re-capture an already-patched _original.
         log.warn("xr_weapon_jam module not loaded; nothing to patch")
         return
     end
     _original = xr_weapon_jam.GetConditionMisfireProbability
     xr_weapon_jam.GetConditionMisfireProbability = function(weapon, npc, base_value)
         if at_mcm.get_config("jam_enabled") == false then
-            return _original(weapon, npc, base_value)
+            return _original and _original(weapon, npc, base_value) or base_value
         end
         return 0
     end
-    log.info("xr_weapon_jam.GetConditionMisfireProbability patched (NPC misfire suppression active)")
+    _installed = true
+    if _engine_calls_functor() then
+        log.info("xr_weapon_jam.GetConditionMisfireProbability patched (NPC misfire suppression active)")
+    else
+        log.warn("xr_weapon_jam patched, but this engine build does not call the misfire functor " ..
+                 "(needs demonized 2026.6.1+); NPC misfire suppression is INACTIVE on this build")
+    end
 end
 
 function on_game_start()
