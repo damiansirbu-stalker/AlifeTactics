@@ -8,8 +8,8 @@
 --- `k_hit`, `k_disp`). Inventory ammo is never consumed by the engine while
 --- `unlimited_ammo()` is TRUE, which is the default for every stalker.
 ---
---- Design: a fixed AP_SECTIONS set lists every clean armor-piercing cartridge
---- section in vanilla Anomaly. Per-NPC state tracks the SINGLE active AP section
+--- Design: AP is the weapon's top k_ap tier (xinventory.get_ammo_tier_map), since k_ap is
+--- caliber-relative -- no fixed section list. Per-NPC state tracks the SINGLE active AP section
 --- the NPC is firing and the virtual rounds remaining. Each 5s combat tick drains
 --- the virtual count by a per-weapon-kind rate. When virtual drops to MIN_SPARE
 --- the system reverts to `m_ammoType = 0` (vanilla magic FMJ) for the rest of the
@@ -28,35 +28,21 @@ local log = xlog.get_logger("AT.AMMO", { outfile = "alifetactics.log" })
 local _dbg = false
 
 local IsStalker, IsWeapon, time_global = IsStalker, IsWeapon, time_global
-local RegisterScriptCallback, parse_list = RegisterScriptCallback, parse_list
+local RegisterScriptCallback, parse_list, xinventory = RegisterScriptCallback, parse_list, xinventory
 local math_max, math_floor = math.max, math.floor
 
 local TICK_MS = 5000
 local LTX_PATH = "alifetactics\\at_ammo.ltx"
 local LTX_SECTION = "at_ammo"
 
--- Fixed list of clean armor-piercing ammo sections. Enumerated from
--- vanilla Anomaly `configs/items/weapons/` ammo_class scans. Excludes
--- `_bad` / `_verybad` degraded variants by design: sub-veteran NPCs
--- default to vanilla magic FMJ, and veteran-rank NPCs who
--- happen to carry only degraded AP variants also fall through to
--- vanilla rather than firing weak AP. Add new calibers here as needed.
-local AP_SECTIONS = {
-    ["ammo_5.45x39_ap"]  = true,
-    ["ammo_5.56x45_ap"]  = true,
-    ["ammo_7.62x39_ap"]  = true,
-    ["ammo_7.62x51_ap"]  = true,
-    ["ammo_7.62x54_ap"]  = true,
-    ["ammo_7.62x54_7h14"] = true,
-    ["ammo_7.92x33_ap"]  = true,
-    ["ammo_9x18_ap"]     = true,
-    ["ammo_9x19_ap"]     = true,
-    ["ammo_9x19_pbp"]    = true,
-    ["ammo_9x39_ap"]     = true,
-    ["ammo_9x39_pab9"]   = true,
-    ["ammo_12.7x55_ap"]  = true,
-    ["ammo_12x76_dart"]  = true,
-}
+-- AP detection. k_ap is caliber-relative -- a pistol AP round (~0.3-0.4) sits below a rifle FMJ
+-- (~0.4-0.5), so no absolute k_ap threshold or fixed section list separates AP from FMJ across
+-- calibers and modpacks. Rank each weapon's accepted ammo by k_ap instead and treat the top tier
+-- as AP, via xinventory.get_ammo_tier_map (the same primitive AlifePlus trade uses). Modpack-
+-- agnostic: any caliber any modpack adds is classified by its own k_ap, with zero maintenance.
+-- (Degraded _bad/_verybad AP variants share the AP k_ap, so they now rank AP too -- a veteran
+-- carrying only degraded AP fires it rather than falling through to vanilla FMJ.)
+local AP_TIERS = 2  -- top of 2 tiers = the weapon's AP half
 
 local MIN_SPARE, MIN_AP_RANK
 local DRAIN_PER_KIND = {}
@@ -73,8 +59,8 @@ local function _load_tunables()
     DRAIN_PER_KIND.w_sniper  = i("drain_w_sniper",   2)
 end
 
--- Per-NPC state. Set when a veteran-rank NPC is first observed carrying any
--- AP_SECTIONS entry in inventory; nil otherwise (those NPCs run vanilla).
+-- Per-NPC state. Set when a veteran-rank NPC is first observed carrying a top-tier
+-- AP round in inventory; nil otherwise (those NPCs run vanilla).
 -- Once `left` drops to MIN_SPARE the field stays at MIN_SPARE and the picker
 -- falls through to vanilla m_ammoType=0 every subsequent tick.
 -- Shape: { idx = u8, sec = string, left = int }
@@ -96,13 +82,14 @@ local function _get_ammo_class(wpn_sec)
     return list
 end
 
--- Walk weapon's ammo_class; return (idx, section) for the first entry that's
--- in AP_SECTIONS and currently has > 0 rounds in the NPC's inventory.
--- Returns nil if no eligible AP is carried.
-local function _find_ap(wpn, ammo_class)
+-- Walk weapon's ammo_class; return (idx, section) for the first entry that ranks in the weapon's
+-- top k_ap tier (AP) and currently has > 0 rounds in the NPC's inventory. Returns nil otherwise.
+local function _find_ap(wpn, ammo_class, wpn_sec)
+    local tier_map = xinventory.get_ammo_tier_map(wpn_sec, AP_TIERS)
+    if not tier_map then return nil, nil end
     for i = 1, #ammo_class do
         local section = ammo_class[i]
-        if AP_SECTIONS[section] and wpn:get_ammo_count_for_type(i - 1) > 0 then
+        if tier_map[section] == AP_TIERS and wpn:get_ammo_count_for_type(i - 1) > 0 then
             return i - 1, section
         end
     end
@@ -139,10 +126,10 @@ function pick(npc)
     local id = npc:id()
     local st = _state[id]
 
-    -- First observation of this NPC: scan inventory for any AP_SECTIONS entry
+    -- First observation of this NPC: scan inventory for a top-tier AP round
     -- in the weapon's ammo_class. If none, NPC stays on vanilla forever.
     if not st then
-        local idx, section = _find_ap(wpn, ammo_class)
+        local idx, section = _find_ap(wpn, ammo_class, wpn_sec)
         if not idx then return false end
         local count = wpn:get_ammo_count_for_type(idx)
         st = { idx = idx, sec = section, left = count }
@@ -199,6 +186,7 @@ end
 -- (death_manager.script:456-460). Runs before motivator_binder:death_callback's
 -- decide_items_to_keep call at xr_motivator.script:362.
 local function _on_death(victim, _who)
+    if at_mcm.get_config("ammo_enabled") == false then return end
     if not (victim and IsStalker(victim)) then return end
     local floor = MIN_SPARE or 3
     victim:iterate_inventory(function(_owner, item)
