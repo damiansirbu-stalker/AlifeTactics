@@ -223,6 +223,16 @@ AT is a reactive agent over a turret baseline. The default behavior is the turre
 
 The checks are condition-action rules over that baseline. Each is a predicate that, when it holds, fires the maneuver its faction palette assigns. A maneuver, once started, is committed: it runs to completion and is never interrupted mid-flight; only a hard stop (dead, wounded, unarmed, disabled, companion) breaks it. So the agent is reactive in *what* triggers it and deliberate in *how long it holds*.
 
+### Versus vanilla: commitment, not per-frame recompute
+
+Both the engine's C++ combat planner and Anomaly's Lua combat schemes are per-frame controllers: every frame they re-read perception and re-pick the whole tactical state (a state + destination + aim) from the current instant, holding almost no memory of what they were doing. Fluid, but it dithers when perception flickers (the enemy weaving through line of sight, marginal cover) — the plan flips and the NPC abandons a half-finished move, the headless-chicken stutter.
+
+AT grafts in the same way (blocks the combat planner, issues the same engine commands) but inverts the decision model: it picks a *maneuver* — a multi-second committed action (take that cover and fire, flank to there) — and runs it to completion, re-deciding only when the maneuver finishes (`npc:path_completed` or the stuck cap) or a hard stop hits. Commit, not recompute.
+
+This is a deliberate alternative on the commitment-vs-reactivity axis, not a strict upgrade. Better for the goal — stable, deliberate, aggressive maneuvering (real advance / flank / cover-to-cover a per-frame recompute cannot sustain, plus a push toward the enemy the engine never does) — at the cost of moment-to-moment reactivity inside a committed maneuver, which the reactive checks and the handback partially restore.
+
+Cost model (reasoned, not benchmarked): the commit model is cheaper per frame than a per-frame recompute — the heavy decision (the full scan: checks, palette, resolve, best_cover) runs only when a maneuver completes, every few seconds; between commits only the cheap aim re-point runs per tick, and the per-NPC eval is throttled with the expensive bridge calls gated behind it. It is still a Lua layer over the engine (which keeps running perception, memory, and the trigger), so total per-NPC cost is not necessarily below vanilla — the claim is the decision loop is lighter, not the whole NPC.
+
 ### Scan and checks
 
 `execute()` runs one scan per engine tick. Every timed operation — the aim, the context refresh, and each check — is one entry carrying its own period, a predicate, and a `wait` flag. The scan runs each entry whose period has elapsed. A `wait` check fires only once the current maneuver is done (`npc:path_completed()`); the aim runs every tick. When a check's predicate holds and the palette has a maneuver for it, that maneuver is a candidate; one of the candidates that fired this scan is chosen at random and committed. A finished flee (weapon stowed) with nothing pending re-arms to `hold_fire` so the NPC never idles weapon-down.
