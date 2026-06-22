@@ -60,6 +60,8 @@ Combat:
 
 This is the core of AlifeTactics. In a firefight, every move a stalker makes - posture, where it walks, when it shoots - is run by the engine's built-in combat planner. AlifeTactics takes that planner over: on the NPCs in its share it blocks the engine's combat and danger planners outright and drives the NPC itself. It is a full takeover, not a tweak layered on top of vanilla, which is what lets it give NPCs coherent faction tactics instead of the usual sit-in-cover-and-barely-shoot.
 
+Why it plays differently comes down to how the decision is made. Vanilla re-decides everything frame by frame, which is why stalkers so often dither in place - ducking and popping as they catch and lose sight of you, never quite going anywhere. AlifeTactics commits instead: an NPC picks a move - take that cover, flank to the side, push in - and sees it through before it decides again. Fights read as deliberate rather than twitchy, and NPCs actually close the distance instead of only shuffling between cover. It is a different way of driving combat, not a tweak to vanilla's: the engine and its schemes are per-frame reflexes; AlifeTactics fights in committed moves.
+
 It coexists with everything. A slider in MCM (default 100%) picks which NPCs run AlifeTactics combat and which stay on vanilla or your modpack's combat, by a stable per-NPC hash so the same NPC always lands the same side across save and load. AlifeTactics overrides no combat scripts, so out-of-share NPCs are completely untouched - you can watch AT and vanilla NPCs fight in the same battle. Set the share to 0 to disable combat without removing the mod.
 
 Your companions are left out of the takeover by default (MCM > Combat), so they keep their own follow and combat behavior under your command. Turn the toggle off to let companions fight with AlifeTactics doctrine too.
@@ -157,6 +159,10 @@ Install (MO2):
 
 Uninstall (MO2):
 Disable or remove in MO2.
+
+FAQ:
+Do I need modded exes?
+  Yes. AlifeTactics needs themrdemonized modded exes (2025.9.10 or newer) or AOEngine (v0.55 or newer). Vanilla Anomaly does not expose the APIs it relies on.
 
 Credits:
 Altogolik - support, ideas, source materials
