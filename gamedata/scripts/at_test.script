@@ -346,6 +346,118 @@ function at_spawn_ammo_test()
 end
 
 --------------------------------------------------------------------------------
+-- Maneuver lab: spawn one NPC, inject a single maneuver, observe it in detail.
+-- at_lab spawns the subject; at_lab_next cycles the catalog (at_combat.inject_maneuver
+-- pins it against the real execution path); at_lab_stop clears the injection. A 1s
+-- observer logs the subject's maneuver / distance / sight / position to alifetactics.log.
+--------------------------------------------------------------------------------
+
+-- Catalog order mirrors at_combat_doctrine.ltx [doctrine] maneuvers (12 entries).
+local LAB_MANEUVERS = {
+    "hold_fire", "hold_snipe", "cover_fire", "advance_open_fire", "advance_cover_fire",
+    "flank_cover_fire", "flank_cover_stow", "back_open_fire", "back_cover_stow",
+    "back_open_stow", "step_back_fire", "step_side_fire",
+}
+
+-- Lab subject id, the catalog index it is cycled to, the observer event counter, and the last magazine read.
+local _lab_id       = nil
+local _lab_idx      = 0
+local _lab_tick     = 0
+local _lab_last_mag = nil
+
+-- Live subject game object, or nil when gone (despawned / dead).
+local function _lab_subject()
+    if not _lab_id then return nil end
+    local npc = level.object_by_id(_lab_id)
+    if npc and npc:alive() then return npc end
+    return nil
+end
+
+-- Rounds fired since the last observer pass, from the magazine drop (a magazine increase is a reload -> -1).
+-- Returns fired, mag and updates the stored last-magazine reading.
+local function _lab_fired(npc)
+    local wpn = npc:active_item()
+    local mag = (wpn and IsWeapon(wpn)) and wpn:get_ammo_in_magazine() or -1
+    local fired = -1
+    if _lab_last_mag and mag >= 0 and mag <= _lab_last_mag then fired = _lab_last_mag - mag end
+    _lab_last_mag = (mag >= 0) and mag or nil
+    return fired, mag
+end
+
+-- One observer pass on the subject vs its current best_enemy: log maneuver, enemy id, distance, sight (sees),
+-- static occluder between the two (occ: a wall or tree blocks the line - the engine ray cannot tell them
+-- apart), and rounds fired since the last pass. occ=1 with sees=0 and fired>0 is firing into solid geometry.
+-- Returns false when the subject is gone.
+local function _lab_observe_once()
+    local npc = _lab_subject()
+    if not npc then return false end
+    local fired, mag = _lab_fired(npc)
+    local man = at_combat.get_maneuver(_lab_id) or "-"
+    local enemy = npc:best_enemy()
+    if not enemy then
+        log.info("[LAB] id=%d man=%s ene=none fired=%d mag=%d lvid=%d", _lab_id, man, fired, mag, npc:level_vertex_id())
+        return true
+    end
+    local npc_pos = npc:position()
+    local ene_pos = enemy:position()
+    local sees = npc:see(enemy) and 1 or 0
+    local occ = xcombat.has_occluder_between(npc_pos, ene_pos) and 1 or 0
+    log.info("[LAB] id=%d man=%s ene=%d dist=%.1f sees=%d occ=%d fired=%d mag=%d lvid=%d",
+        _lab_id, man, enemy:id(), npc_pos:distance_to(ene_pos), sees, occ, fired, mag, npc:level_vertex_id())
+    return true
+end
+
+-- Self-rescheduling 1s observer. A fresh event id each pass (a reused id while the current event is mid-fire
+-- would be rejected as a duplicate). Stops re-arming when the subject is gone.
+local function _lab_schedule()
+    _lab_tick = _lab_tick + 1
+    CreateTimeEvent(0, "at_lab_obs_" .. _lab_tick, 1, function()
+        if _lab_observe_once() then _lab_schedule() end
+        return true
+    end)
+end
+
+-- First server member id of a squad, or nil when empty.
+local function _first_member(squad)
+    if squad:npc_count() == 0 then return nil end
+    for member in squad:squad_members() do return member.id end
+    return nil
+end
+
+-- Spawn one hostile bandit 30m ahead as the lab subject and start the observer. at_lab_next picks the maneuver.
+--- @export console
+function at_lab()
+    local squad = _spawn("bandit_sim_squad_novice", 30, 0)
+    if not squad then return end
+    local id = _first_member(squad)
+    if not id then return end
+    _lab_id, _lab_idx, _lab_last_mag = id, 0, nil
+    log.info("[LAB] subject id=%d (at_lab_next to cycle maneuvers, at_lab_stop to clear)", _lab_id)
+    _tip(string_format("AT.LAB: subject id=%d", _lab_id))
+    _lab_schedule()
+end
+
+-- Advance the subject to the next maneuver in the catalog and pin it.
+--- @export console
+function at_lab_next()
+    if not _lab_id then _tip("AT.LAB: no subject - run at_lab first") return end
+    _lab_idx = (_lab_idx % #LAB_MANEUVERS) + 1
+    local name = LAB_MANEUVERS[_lab_idx]
+    at_combat.inject_maneuver(_lab_id, name)
+    log.info("[LAB] inject id=%d maneuver=%s (%d/%d)", _lab_id, name, _lab_idx, #LAB_MANEUVERS)
+    _tip(string_format("AT.LAB: %s (%d/%d)", name, _lab_idx, #LAB_MANEUVERS))
+end
+
+-- Clear the injection; the subject returns to normal scan-driven combat.
+--- @export console
+function at_lab_stop()
+    if _lab_id then at_combat.inject_clear(_lab_id) end
+    log.info("[LAB] stop id=%s", tostring(_lab_id))
+    _tip("AT.LAB: injection cleared")
+    _lab_id = nil
+end
+
+--------------------------------------------------------------------------------
 -- Multi-squad scenarios (combat planner stress tests)
 --------------------------------------------------------------------------------
 
