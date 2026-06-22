@@ -28,8 +28,10 @@ local log = xlog.get_logger("AT.COMBAT", { outfile = "alifetactics.log" })
 local _dbg = false
 local cfg = at_mcm.cfg
 local doctrine = at_combat_doctrine
--- weapon-stowed fire mode (a flee): the turret stops aiming and faces its run path.
-local STOW = xcombat.STOW
+-- weapon-stowed fire mode (a flee): the turret stops aiming and faces its run path. READY = weapon up, no
+-- trigger - the see-gated blind state: when the NPC cannot see the enemy it holds fire instead of shooting
+-- blind into the wall (mirrors KillEnemy::execute and every vanilla combat scheme).
+local STOW, READY = xcombat.STOW, xcombat.READY
 
 -- Custom GOAP evaluator + action id, grafted per stalker on its motivation_action_manager. The 188000+ band
 -- stays clear of the engine/Anomaly base ids; 188200 sits above xr_danger's 188113. ACT_ID is a module field
@@ -53,9 +55,55 @@ local REACT_MS, SLOW_MS
 -- rest only once the maneuver is done) and the run rule. Built by _build_scan after the LTX periods are read.
 local SCAN = {}
 
--- aim (wait=false): re-point at the live enemy every tick, unless stowed (a flee faces its run path). No candidate.
+-- Throttled see() probe: at most one raycast per SEE_THROTTLE_MS, cached in slot.sees. Answers the tactical
+-- "can I see the enemy right now" for the fire gate below and the doctrine checks (is_blocked_wall,
+-- is_enemy_unseen). The handback does NOT use this - it reads the engine memory clock (enemy_unseen_ms).
+local function _probe_see(npc, enemy, slot, tg)
+    if tg - (slot.probe_at or 0) < SEE_THROTTLE_MS then return slot.sees end
+    slot.sees = npc:see(enemy)
+    slot.probe_at = tg
+    return slot.sees
+end
+
+-- Throttled wall probe: at most one static raycast per SEE_THROTTLE_MS, cached in slot.blocked. Only meaningful
+-- while the NPC "sees" the enemy - the regime where the engine's fuzzy visual memory says fire but a wall is
+-- actually on the line (the not-seen case already goes READY via the see-gate). has_occluder_between is a
+-- chest-height static ray, so it false-positives on a window/railing the round would clear; the precise check is
+-- the can_kill geometry binding (demonized PR n020). Until that merges this coarse gate stops the wall-fire.
+local function _probe_occluder(npc, enemy, slot, tg)
+    if tg - (slot.blocked_at or 0) < SEE_THROTTLE_MS then return slot.blocked end
+    slot.blocked = xcombat.has_occluder_between(npc:position(), enemy:position())
+    slot.blocked_at = tg
+    return slot.blocked
+end
+
+-- Fire control - the turret's per-tick weapon + aim, the see-gate every vanilla scheme and KillEnemy::execute
+-- use, plus a wall gate. Fire only when the enemy is both SEEN and has a clear static line; otherwise drop to
+-- READY (weapon up, no trigger) at the SAME posture/movement and aim at the tracked position - so a blind OR
+-- wall-blocked NPC keeps the weapon up and aimed instead of dumping rounds into the wall. No holster: READY is
+-- unstrapped (aim-ready), never strapped. STOW (a flee) is left alone: weapon away, no aim, face the run path.
+-- Re-applies the state only on a fire/READY flip (slot.applied_fire guard), so the throttled probes bound how
+-- often set_combat re-issues. Before the first maneuver (slot.fire nil) it only aims (turret baseline).
+local function _fire_control(npc, slot, enemy, tg)
+    if slot.fire == STOW then return true end
+    local sees = _probe_see(npc, enemy, slot, tg)
+    -- the occluder probe runs only while seen (else we already hold fire); a wall on the line holds fire too
+    local can_fire = sees and not _probe_occluder(npc, enemy, slot, tg)
+    local ok = true
+    if slot.fire then
+        local want = can_fire and slot.fire or READY
+        if want ~= slot.applied_fire then
+            ok = xcombat.set_combat(npc, { fire = want, posture = slot.posture, movement = slot.movement, aim = sees and enemy or nil })
+            if ok then slot.applied_fire = want end
+        end
+    end
+    xcombat.aim_at(npc, xcombat.enemy_track_pos(npc, enemy, sees))
+    return ok
+end
+
+-- aim entry (wait=false): runs every tick - the see-gated fire control above. No candidate.
 local function _run_aim(ctx)
-    if ctx.slot.fire ~= STOW then xcombat.aim_at(ctx.npc, ctx.enemy:position()) end
+    _fire_control(ctx.npc, ctx.slot, ctx.enemy, ctx.tg)
 end
 
 -- context (wait=true): rebuild the eligible-maneuver palette and the cheap reads the checks consume. No candidate.
@@ -123,18 +171,6 @@ local function _slot(id)
     end
     return slot
 end
-
--- Throttled see() probe: at most one raycast per SEE_THROTTLE_MS, cached in slot.sees. This answers the
--- tactical "can I see the enemy right now" question for the doctrine checks (is_blocked_wall, is_enemy_unseen)
--- and for picking the movement track position. The handback does NOT use this - it reads the engine memory
--- clock (xcombat.enemy_unseen_ms), which also counts sound and hits.
-local function _probe_see(npc, enemy, slot, tg)
-    if tg - (slot.probe_at or 0) < SEE_THROTTLE_MS then return slot.sees end
-    slot.sees = npc:see(enemy)
-    slot.probe_at = tg
-    return slot.sees
-end
-
 
 -- DEBUG probe label: which top-level action an installed NPC is actually running. AT = our takeover
 -- (ACT_ID), COMBAT / DANGER = the vanilla planners we precondition-block, "-" = uninitialized. Resolved at
@@ -240,6 +276,9 @@ function at_combat_action:initialize()
     slot.dest        = nil
     slot.enemy_id    = nil
     slot.fire        = nil
+    slot.applied_fire = nil
+    slot.posture     = nil
+    slot.movement    = nil
 end
 
 -- Per-scan context: positions, distance, direction, the enemy id (for is_target_changed), health.
@@ -273,10 +312,20 @@ function at_combat_action:_start(name, ctx, slot, check)
     slot.enemy_id    = ctx.enemy_id
     slot.fire        = maneuver.fire
     local posture, movement = doctrine.roll(slot, maneuver.fire, doctrine.is_stationary(maneuver), ctx.tg)
+    -- Stash the resolved stance so the per-tick fire control can re-apply it when the see-gate flips the weapon
+    -- between the fire state and READY mid-maneuver; applied_fire nil forces the first application below.
+    slot.posture, slot.movement = posture, movement
+    slot.applied_fire = nil
     local atmr = xprofiler.new_if(_dbg):start()
-    -- a flee (STOW) faces its run path: no aim target, so set_combat leaves the sight on path_dir
-    local aim = (maneuver.fire == STOW) and nil or ctx.enemy
-    local ok = xcombat.set_combat(self.object, { fire = maneuver.fire, posture = posture, movement = movement, aim = aim })
+    local ok
+    if maneuver.fire == STOW then
+        -- a flee faces its run path: weapon away, no aim target, so the state resolves to path_dir
+        ok = xcombat.set_combat(self.object, { fire = STOW, posture = posture, movement = movement, aim = nil })
+        slot.applied_fire = STOW
+    else
+        -- see-gated: fire state + live aim when seen, READY + last-known aim when blind (no firing into the wall)
+        ok = _fire_control(self.object, slot, ctx.enemy, ctx.tg)
+    end
     local apply_ms = atmr:stop():get_ms()
     local mtmr = xprofiler.new_if(_dbg):start()
     local vid = doctrine.resolve(maneuver, self.object, ctx, slot)
@@ -310,6 +359,19 @@ local function _run_entry(entry, ctx, ran, tg)
     return entry.run(ctx)
 end
 
+-- True if any WAIT scan entry (the context refresh or a tactical check) has reached its period. Pure time
+-- comparisons over SCAN, no luabind. The done path gates its heavy read+decide (_observe + full scan) behind
+-- this, so a finished-maneuver turret pays only the period-gated aim/fire upkeep per frame, never a position
+-- read - the cost the architecture promises between commits.
+local function _decision_due(slot, tg)
+    local ran = slot.ran_at
+    for i = 1, #SCAN do
+        local entry = SCAN[i]
+        if entry.wait and tg - (ran[entry.name] or 0) >= entry.period then return true end
+    end
+    return false
+end
+
 -- Run every due scan entry once: a wait entry runs only when the maneuver is done, aim every tick. A check that
 -- fires returns its name. Collect the candidates and shuffle-pick one.
 function at_combat_action:_scan(ctx, slot, tg, done)
@@ -331,6 +393,14 @@ end
 -- Commit the scan outcome: the picked check rolls a maneuver through the palette and starts it; a finished flee
 -- (weapon stowed) with nothing else pending re-arms to hold_fire so the NPC never idles weapon-down.
 function at_combat_action:_commit(picked, ctx, slot, scan_us)
+    -- Test injection (at_test.inject_maneuver): pin one maneuver, re-issued every cycle against the real
+    -- execute -> _start path, bypassing the check gate. nil in normal play; only at_test writes it. Tagged
+    -- "inject" so the trace never reads a pinned commit as a real decision.
+    if slot.injected_maneuver then
+        self:_start(slot.injected_maneuver, ctx, slot, "inject")
+        at_combat_trace.scan(ctx.id, ctx, picked, slot.injected_maneuver, scan_us)
+        return
+    end
     local maneuver = picked and doctrine.pick(picked, slot)
     if maneuver then
         self:_start(maneuver, ctx, slot, picked)
@@ -349,14 +419,18 @@ function at_combat_action:execute()
     local id, tg = npc:id(), time_global()
     local slot = _slot(id)
 
-    -- maneuver still travelling: only aim runs (the wait entries skip), against a reused light ctx, no commit.
-    if not _maneuver_done(npc, slot, tg) then
-        _light_ctx.npc, _light_ctx.enemy, _light_ctx.slot = npc, enemy, slot
+    -- Light path - only the fire control runs (no _observe, no commit), against a reused light ctx. Taken in two
+    -- cases: a maneuver still travelling, AND a finished maneuver waiting with no check yet due. Both need only
+    -- the throttled aim/fire upkeep; the heavy read+decide is skipped until a wait-check's period elapses, so a
+    -- turret costs one period-gated fire-control call per frame, not a position read. The fire control still
+    -- flips fire<->READY on the see/wall gate, so a blind or wall-blocked NPC holds fire weapon-up either way.
+    if not _maneuver_done(npc, slot, tg) or not _decision_due(slot, tg) then
+        _light_ctx.npc, _light_ctx.enemy, _light_ctx.slot, _light_ctx.tg = npc, enemy, slot, tg
         self:_scan(_light_ctx, slot, tg, false)
         return
     end
 
-    -- maneuver done: observe the world, run the full scan, commit the picked maneuver.
+    -- a wait-check is due: observe the world, run the full scan, commit the picked maneuver.
     local prof = xprofiler.new_if(_dbg):start()
     local ctx = self:_observe(npc, id, enemy, slot, tg)
     local picked = self:_scan(ctx, slot, tg, true)
@@ -372,6 +446,7 @@ function at_combat_action:finalize()
         xcombat.release_cover(slot.cover_lvid, id)
         slot.cover_lvid = nil
         slot.fire = nil
+        slot.applied_fire = nil
     end
     npc:sniper_fire_mode(false)
 end
@@ -454,6 +529,18 @@ end
 function get_maneuver(id)
     local slot = _combat[id]
     return slot and slot.maneuver
+end
+
+--- Test override (at_test): pin a maneuver so _commit re-issues it every cycle against the real execution
+--- path. name must be a key in at_combat_doctrine.MANEUVERS. nil/unset in normal play.
+function inject_maneuver(id, name)
+    _slot(id).injected_maneuver = name
+end
+
+--- Clear a test maneuver injection; the NPC returns to the normal scan-driven decision.
+function inject_clear(id)
+    local slot = _combat[id]
+    if slot then slot.injected_maneuver = nil end
 end
 
 local function _on_first_update()

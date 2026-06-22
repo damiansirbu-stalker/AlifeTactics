@@ -31,6 +31,7 @@ next
   - Changed NPCs to keep the weapon up while repositioning. They holster only to flee when wounded.
   - Unarmed NPCs now sprint away from the enemy instead of fighting empty-handed, any faction.
   - Changed NPCs to re-aim at human reaction speed. No aimbot snapping, no stale aim on a moving target.
+  - Fixed NPCs firing into walls. A managed NPC holds fire with the weapon up when it cannot see the enemy or a wall blocks the shot, instead of emptying the magazine into cover, and resumes the moment the line clears.
   - Added Sniper aim mode for kind=w_sniper carriers (SVD, SVT40, Mosin, SKS, M82 and the rest of the class).
     When a sniper has line of sight, they crouch and engage the engine sniper-aim flag, which tracks the target head direction instead of the weapon barrel direction. More precise aim at range.
   - Removed Stance Switch as a standalone system. Sniper crouching is now handled inside Combat for in-share NPCs and inherited from the vanilla planner for out-of-share NPCs.
