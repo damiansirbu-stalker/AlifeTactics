@@ -163,20 +163,45 @@ end
 -- opener: true only while no maneuver has been picked this fight (slot.maneuver nil).
 -- =========================================================================
 
-local function _grenade_near(ctx)
-    local bd = ctx.npc:best_danger()
-    return bd ~= nil and bd:type() == danger_object.grenade and (ctx.tg - bd:time()) <= GRENADE_MS
+-- Read the engagement geometry fresh: NPC position, enemy track position (live when seen, else last-known from
+-- memory), and the flat distance between them. No cache - just a few cheap getters; if two checks (or a check
+-- and the resolver) want it on the same pass, they re-read, which is fine. The shared reader the geometry
+-- checks (wall / friendly / too_close) and the move resolvers all call. slot.sees is the throttled see cache,
+-- kept current by the aim check and by any check that calls can_see this pass.
+local function _geom(npc, enemy, slot)
+    local npc_pos   = npc:position()
+    local enemy_pos = xcombat.enemy_track_pos(npc, enemy, slot.sees)
+    local dx, dz    = enemy_pos.x - npc_pos.x, enemy_pos.z - npc_pos.z
+    return npc_pos, enemy_pos, math_sqrt(dx*dx + dz*dz)
 end
 
+-- Each check reads only what it needs, when its period fires. Signature (npc, enemy, slot, tg) - no shared
+-- read-all phase. is_too_close updates the range hysteresis here (its only consumer) from a fresh distance and
+-- the weapon band. is_blocked_wall / is_enemy_unseen read the throttled see cache via at_combat.can_see, passed
+-- in as slot.sees by the aim check; is_blocked_wall also confirms with a fresh static ray.
 local CHECKS = {
-    { name = "engage",              speed = "react", pred = function(_, s) return s.maneuver == nil end },
-    { name = "is_grenade_near",     speed = "react", pred = function(c, _) return _grenade_near(c) end },
-    { name = "is_too_close",        speed = "react", pred = function(_, s) return s.range_zone == "CLOSE" end },
-    { name = "is_target_changed",   speed = "react", pred = function(c, s) return s.enemy_id ~= nil and c.enemy_id ~= s.enemy_id end },
-    { name = "is_hurt",             speed = "react", pred = function(c, _) return c.health < HURT_FRAC end },
-    { name = "is_blocked_wall",     speed = "react", pred = function(c, s) return (not s.sees) and xcombat.has_occluder_between(c.npc_pos, c.enemy_pos) end },
-    { name = "is_blocked_friendly", speed = "react", pred = function(c, _) return xcombat.has_friendly_in_line(c.npc, c.npc_pos, c.enemy_pos, FRIENDLY_THRESH_M) end },
-    { name = "is_enemy_unseen",     speed = "slow",  pred = function(_, s) return not s.sees end },
+    { name = "engage",              speed = "react", pred = function(_, _, s, _) return s.maneuver == nil end },
+    { name = "is_grenade_near",     speed = "react", pred = function(npc, _, _, tg)
+        local bd = npc:best_danger()
+        return bd ~= nil and bd:type() == danger_object.grenade and (tg - bd:time()) <= GRENADE_MS
+    end },
+    { name = "is_too_close",        speed = "react", pred = function(npc, enemy, s, _)
+        local _, _, dist = _geom(npc, enemy, s)
+        local band = xcombat.get_weapon_range(xcombat.get_weapon_kind(npc) or "w_rifle")
+        return at_combat_doctrine.range_zone(s, band, dist) == "CLOSE"
+    end },
+    { name = "is_target_changed",   speed = "react", pred = function(_, enemy, s, _) return s.enemy_id ~= nil and enemy:id() ~= s.enemy_id end },
+    { name = "is_hurt",             speed = "react", pred = function(npc, _, _, _) return npc.health < HURT_FRAC end },
+    { name = "is_blocked_wall",     speed = "react", pred = function(npc, enemy, s, _)
+        if s.sees then return false end
+        local npc_pos, enemy_pos = _geom(npc, enemy, s)
+        return xcombat.has_occluder_between(npc_pos, enemy_pos)
+    end },
+    { name = "is_blocked_friendly", speed = "react", pred = function(npc, enemy, s, _)
+        local npc_pos, enemy_pos = _geom(npc, enemy, s)
+        return xcombat.has_friendly_in_line(npc, npc_pos, enemy_pos, FRIENDLY_THRESH_M)
+    end },
+    { name = "is_enemy_unseen",     speed = "slow",  pred = function(_, _, s, _) return not s.sees end },
 }
 at_combat_doctrine.CHECKS = CHECKS
 
@@ -185,41 +210,59 @@ at_combat_doctrine.CHECKS = CHECKS
 -- Movement resolution, dispatched by move. Returns a destination vertex or nil (nil -> the shell holds).
 -- =========================================================================
 
-local function _res_hold(_, ctx) return ctx.npc_lvid end
-local function _res_cover(npc, ctx) return xcombat.find_cover(npc, ctx.enemy_pos) end
+-- Unit NPC->enemy direction from the geometry the resolver already read. Allocates one vector for find_point /
+-- find_cover (per maneuver commit, not per tick).
+local function _dir_to(npc_pos, enemy_pos, dist)
+    local inv = dist > 0 and (1 / dist) or 0
+    return vector():set((enemy_pos.x - npc_pos.x) * inv, 0, (enemy_pos.z - npc_pos.z) * inv)
+end
+
+local function _res_hold(npc) return npc:level_vertex_id() end
+
+local function _res_cover(npc, enemy, slot)
+    local _, enemy_pos = _geom(npc, enemy, slot)
+    return xcombat.find_cover(npc, enemy_pos)
+end
 
 -- advance_open: a point on the NPC->enemy line, standoff metres short of the enemy (committed, walked in full).
-local function _res_advance_open(npc, ctx)
-    if ctx.dist <= ADVANCE_STANDOFF_M then return ctx.npc_lvid end
-    return xcombat.find_point(npc, ctx.dir_to, ctx.dist - ADVANCE_STANDOFF_M)
+local function _res_advance_open(npc, enemy, slot)
+    local npc_pos, enemy_pos, dist = _geom(npc, enemy, slot)
+    if dist <= ADVANCE_STANDOFF_M then return npc:level_vertex_id() end
+    return xcombat.find_point(npc, _dir_to(npc_pos, enemy_pos, dist), dist - ADVANCE_STANDOFF_M)
 end
 
 -- advance_cover: cover anchored at that same forward point (radial best_cover for now; t92 makes it directional).
-local function _res_advance_cover(npc, ctx)
-    if ctx.dist <= ADVANCE_STANDOFF_M then return xcombat.find_cover(npc, ctx.enemy_pos) end
-    local reach = ctx.dist - ADVANCE_STANDOFF_M
-    return xcombat.find_cover(npc, ctx.enemy_pos,
-        vector():set(ctx.npc_pos.x + ctx.dir_to.x * reach, ctx.npc_pos.y, ctx.npc_pos.z + ctx.dir_to.z * reach))
+local function _res_advance_cover(npc, enemy, slot)
+    local npc_pos, enemy_pos, dist = _geom(npc, enemy, slot)
+    if dist <= ADVANCE_STANDOFF_M then return xcombat.find_cover(npc, enemy_pos) end
+    local reach = dist - ADVANCE_STANDOFF_M
+    local dir = _dir_to(npc_pos, enemy_pos, dist)
+    return xcombat.find_cover(npc, enemy_pos,
+        vector():set(npc_pos.x + dir.x * reach, npc_pos.y, npc_pos.z + dir.z * reach))
 end
 
-local function _res_withdraw(npc, ctx)
-    if ctx.dist < 1 then return ctx.npc_lvid end
-    return xcombat.find_point(npc, vector():set(-ctx.dir_to.x, 0, -ctx.dir_to.z), BACK_STEP_M)
+local function _res_withdraw(npc, enemy, slot)
+    local npc_pos, enemy_pos, dist = _geom(npc, enemy, slot)
+    if dist < 1 then return npc:level_vertex_id() end
+    local dir = _dir_to(npc_pos, enemy_pos, dist)
+    return xcombat.find_point(npc, vector():set(-dir.x, 0, -dir.z), BACK_STEP_M)
 end
 
-local function _res_step_back(npc, ctx)
-    if ctx.dist < 1 then return ctx.npc_lvid end
-    return xcombat.find_point(npc, vector():set(-ctx.dir_to.x, 0, -ctx.dir_to.z), STEP_BACK_M)
+local function _res_step_back(npc, enemy, slot)
+    local npc_pos, enemy_pos, dist = _geom(npc, enemy, slot)
+    if dist < 1 then return npc:level_vertex_id() end
+    local dir = _dir_to(npc_pos, enemy_pos, dist)
+    return xcombat.find_point(npc, vector():set(-dir.x, 0, -dir.z), STEP_BACK_M)
 end
 
-local function _res_step_side(npc, ctx)
-    return xcombat.find_shot(npc, ctx.enemy_pos)
+local function _res_step_side(npc, enemy, slot)
+    local _, enemy_pos = _geom(npc, enemy, slot)
+    return xcombat.find_shot(npc, enemy_pos)
 end
 
 -- Flank offset: lateral (side by squad bucket parity, so squadmates fan to opposite sides) + forward bias
--- toward the enemy. Shared by both flank resolvers.
-local function _flank_offset(ctx, slot)
-    local dir = ctx.dir_to
+-- toward the enemy. Shared by both flank resolvers; takes the direction the resolver already read.
+local function _flank_offset(dir, slot)
     local sign = (slot.bucket % 2 == 0) and 1 or -1
     local fx = -dir.z * sign * FLANK_LAT_M + dir.x * FLANK_FWD_M
     local fz =  dir.x * sign * FLANK_LAT_M + dir.z * FLANK_FWD_M
@@ -227,20 +270,22 @@ local function _flank_offset(ctx, slot)
 end
 
 -- Open flank: the bare lateral+forward point.
-local function _res_flank(npc, ctx, slot)
-    if ctx.dist < 1 then return ctx.npc_lvid end
-    local fx, fz = _flank_offset(ctx, slot)
+local function _res_flank(npc, enemy, slot)
+    local npc_pos, enemy_pos, dist = _geom(npc, enemy, slot)
+    if dist < 1 then return npc:level_vertex_id() end
+    local fx, fz = _flank_offset(_dir_to(npc_pos, enemy_pos, dist), slot)
     local mag = math_sqrt(fx * fx + fz * fz)
-    if mag < 1 then return ctx.npc_lvid end
+    if mag < 1 then return npc:level_vertex_id() end
     return xcombat.find_point(npc, vector():set(fx / mag, 0, fz / mag), mag)
 end
 
 -- Cover flank: seek cover at the flank point (find_cover anchored at the offset, not at the NPC).
-local function _res_flank_cover(npc, ctx, slot)
-    if ctx.dist < 1 then return ctx.npc_lvid end
-    local fx, fz = _flank_offset(ctx, slot)
-    return xcombat.find_cover(npc, ctx.enemy_pos,
-        vector():set(ctx.npc_pos.x + fx, ctx.npc_pos.y, ctx.npc_pos.z + fz))
+local function _res_flank_cover(npc, enemy, slot)
+    local npc_pos, enemy_pos, dist = _geom(npc, enemy, slot)
+    if dist < 1 then return npc:level_vertex_id() end
+    local fx, fz = _flank_offset(_dir_to(npc_pos, enemy_pos, dist), slot)
+    return xcombat.find_cover(npc, enemy_pos,
+        vector():set(npc_pos.x + fx, npc_pos.y, npc_pos.z + fz))
 end
 
 local MOVE_RESOLVERS = {
@@ -249,9 +294,11 @@ local MOVE_RESOLVERS = {
     flank = _res_flank, flank_cover = _res_flank_cover,
 }
 
-function at_combat_doctrine.resolve(maneuver, npc, ctx, slot)
+-- Resolve a maneuver's destination vertex. Each resolver reads its own geometry; a move with no resolver, or a
+-- resolver that finds nothing, holds on the NPC's own node (never fails to vanilla).
+function at_combat_doctrine.resolve(maneuver, npc, enemy, slot)
     local resolver = MOVE_RESOLVERS[maneuver.move]
-    return resolver and resolver(npc, ctx, slot) or ctx.npc_lvid
+    return resolver and resolver(npc, enemy, slot) or npc:level_vertex_id()
 end
 
 
@@ -284,8 +331,7 @@ end
 -- Range zone (hysteresis on the weapon band): CLOSE / IN / FAR. Drives is_too_close.
 -- =========================================================================
 
-function at_combat_doctrine.range_zone(slot, dist)
-    local band = slot.range
+function at_combat_doctrine.range_zone(slot, band, dist)
     local zone = slot.range_zone or "IN"
     if zone == "FAR" then
         if dist < band.max - RANGE_HYSTERESIS_M then zone = "IN" end
@@ -306,7 +352,7 @@ end
 -- spread bucket). is_context_changed is just this call detecting a changed key.
 -- =========================================================================
 
-function at_combat_doctrine.refresh(slot, npc, npc_pos, npc_lvid)
+function at_combat_doctrine.refresh(slot, npc)
     if not slot.community then
         slot.community = character_community(npc) or "stalker"
         local squad = xsquad.get_squad_by_member(npc:id())
@@ -317,9 +363,10 @@ function at_combat_doctrine.refresh(slot, npc, npc_pos, npc_lvid)
     local kind = xcombat.get_weapon_kind(npc) or "w_rifle"
     slot.weapon      = kind
     slot.bucket_name = _weapon_bucket(kind)
+    local npc_lvid = npc:level_vertex_id()
     if slot._env_lvid ~= npc_lvid then
         slot._env_lvid = npc_lvid
-        slot.env = xcombat.is_indoor(npc_pos) and "INDOOR" or "OUTDOOR"
+        slot.env = xcombat.is_indoor(npc:position()) and "INDOOR" or "OUTDOOR"
     end
     local key = slot.community .. "|" .. slot.bucket_name .. "|" .. slot.env
     if key ~= slot.pal_key then

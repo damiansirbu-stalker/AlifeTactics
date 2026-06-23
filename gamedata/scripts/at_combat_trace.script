@@ -37,13 +37,13 @@ end
 
 --- One line per done-scan: the readings the checks saw and the outcome (which check fired, which maneuver,
 --- or "-" for a turret tick where nothing fired). Skipped while a maneuver is committed (no work to log).
-function at_combat_trace.scan(id, ctx, check, maneuver, scan_us)
+function at_combat_trace.scan(npc, enemy, slot, check, maneuver, scan_us)
     if not _on then return end
-    local slot = ctx.slot
+    local id = npc:id()
     local age = slot.unseen_ms or 0
     log.debug("scan npc=%d(%s) dist=%.1f hp=%.2f zone=%s sees=%s fire=%s ene=%s(%s) age=%d pal=%s/%s/%s dest=%s cover=%s check=%s man=%s us=%.0f",
-        id, _nm(id), ctx.dist, ctx.health, _s(slot.range_zone), slot.sees and "Y" or "N",
-        _s(slot.fire), _s(ctx.enemy_id), _s(ctx.enemy and ctx.enemy:name()), age,
+        id, _nm(id), npc:position():distance_to(enemy:position()), npc.health, _s(slot.range_zone), slot.sees and "Y" or "N",
+        _s(slot.fire), _s(enemy:id()), _s(enemy:name()), age,
         _s(slot.community), _s(slot.bucket_name), _s(slot.env),
         _s(slot.dest), _s(slot.cover_lvid),
         _s(check), _s(maneuver),
