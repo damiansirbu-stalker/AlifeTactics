@@ -77,14 +77,14 @@ local function _probe_occluder(npc, enemy, slot, tg)
     return slot.blocked
 end
 
--- Fire control - the turret's per-tick weapon + aim, the see-gate every vanilla scheme and KillEnemy::execute
--- use, plus a wall gate. Fire only when the enemy is both SEEN and has a clear static line; otherwise drop to
+-- Apply the see/wall-gated weapon state + aim - the turret's per-tick upkeep, the see-gate every vanilla scheme
+-- and KillEnemy::execute use, plus a wall gate. Fire only when the enemy is both SEEN and has a clear static line; otherwise drop to
 -- READY (weapon up, no trigger) at the SAME posture/movement and aim at the tracked position - so a blind OR
 -- wall-blocked NPC keeps the weapon up and aimed instead of dumping rounds into the wall. No holster: READY is
 -- unstrapped (aim-ready), never strapped. STOW (a flee) is left alone: weapon away, no aim, face the run path.
 -- Re-applies the state only on a fire/READY flip (slot.applied_fire guard), so the throttled probes bound how
 -- often set_combat re-issues. Before the first maneuver (slot.fire nil) it only aims (turret baseline).
-local function _fire_control(npc, slot, enemy, tg)
+local function _apply_fire(npc, slot, enemy, tg)
     if slot.fire == STOW then return true end
     local sees = _probe_see(npc, enemy, slot, tg)
     -- the occluder probe runs only while seen (else we already hold fire); a wall on the line holds fire too
@@ -101,9 +101,9 @@ local function _fire_control(npc, slot, enemy, tg)
     return ok
 end
 
--- aim entry (wait=false): runs every tick - the see-gated fire control above. No candidate.
+-- aim entry (wait=false): runs every tick - the see/wall-gated weapon upkeep above. No candidate.
 local function _run_aim(ctx)
-    _fire_control(ctx.npc, ctx.slot, ctx.enemy, ctx.tg)
+    _apply_fire(ctx.npc, ctx.slot, ctx.enemy, ctx.tg)
 end
 
 -- context (wait=true): rebuild the eligible-maneuver palette and the cheap reads the checks consume. No candidate.
@@ -324,7 +324,7 @@ function at_combat_action:_start(name, ctx, slot, check)
         slot.applied_fire = STOW
     else
         -- see-gated: fire state + live aim when seen, READY + last-known aim when blind (no firing into the wall)
-        ok = _fire_control(self.object, slot, ctx.enemy, ctx.tg)
+        ok = _apply_fire(self.object, slot, ctx.enemy, ctx.tg)
     end
     local apply_ms = atmr:stop():get_ms()
     local mtmr = xprofiler.new_if(_dbg):start()
@@ -360,10 +360,9 @@ local function _run_entry(entry, ctx, ran, tg)
 end
 
 -- True if any WAIT scan entry (the context refresh or a tactical check) has reached its period. Pure time
--- comparisons over SCAN, no luabind. The done path gates its heavy read+decide (_observe + full scan) behind
--- this, so a finished-maneuver turret pays only the period-gated aim/fire upkeep per frame, never a position
--- read - the cost the architecture promises between commits.
-local function _decision_due(slot, tg)
+-- comparisons over SCAN, no luabind. The done path gates its world read + decide (_observe + full scan) behind
+-- this, so a finished-maneuver turret runs only the period-gated aim/fire upkeep per frame, not a position read.
+local function _has_due_check(slot, tg)
     local ran = slot.ran_at
     for i = 1, #SCAN do
         local entry = SCAN[i]
@@ -419,12 +418,12 @@ function at_combat_action:execute()
     local id, tg = npc:id(), time_global()
     local slot = _slot(id)
 
-    -- Light path - only the fire control runs (no _observe, no commit), against a reused light ctx. Taken in two
+    -- Light path - only the weapon upkeep runs (no _observe, no commit), against a reused light ctx. Taken in two
     -- cases: a maneuver still travelling, AND a finished maneuver waiting with no check yet due. Both need only
-    -- the throttled aim/fire upkeep; the heavy read+decide is skipped until a wait-check's period elapses, so a
-    -- turret costs one period-gated fire-control call per frame, not a position read. The fire control still
-    -- flips fire<->READY on the see/wall gate, so a blind or wall-blocked NPC holds fire weapon-up either way.
-    if not _maneuver_done(npc, slot, tg) or not _decision_due(slot, tg) then
+    -- the throttled aim/fire upkeep; the world read + decide is skipped until a wait-check's period elapses, so a
+    -- turret runs one period-gated weapon call per frame, not a position read. _apply_fire still flips
+    -- fire<->READY on the see/wall gate, so a blind or wall-blocked NPC holds fire weapon-up either way.
+    if not _maneuver_done(npc, slot, tg) or not _has_due_check(slot, tg) then
         _light_ctx.npc, _light_ctx.enemy, _light_ctx.slot, _light_ctx.tg = npc, enemy, slot, tg
         self:_scan(_light_ctx, slot, tg, false)
         return
