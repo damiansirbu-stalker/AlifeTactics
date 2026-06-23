@@ -209,13 +209,27 @@ Per-shot hot path: a rank-name lookup, then pure-Lua scaling of the dispersion t
 
 ## Combat
 
-GOAP planner takeover (Pattern B), split across two files: `at_combat` (the engine half - GOAP classes, the single per-tick scan, the per-NPC slot store, cover reservation, handback, lifecycle) and `at_combat_doctrine` (the pure decision half - the checks, the maneuver catalog, the faction palette, movement resolution). `_install` grafts one evaluator + one action into each stalker's motivation manager and adds `world_property(EVAL_ID, false)` as a precondition to vanilla `action_combat_planner` / `action_danger_planner` / `xr_danger` / `state_mgr+2` / `alife`. Takeover gate true = AT drives the NPC; false = vanilla resumes.
+GOAP planner takeover (Pattern B), split across two files: `at_combat` (the engine half - the GOAP evaluator + action, the check loop, the per-NPC slot store, cover reservation, the handback decision, lifecycle) and `at_combat_doctrine` (the pure decision half - the checks, the maneuver catalog, the faction palette, movement resolution). `_install` grafts one evaluator + one action into each stalker's motivation manager and adds `world_property(EVAL_ID, false)` as a precondition to vanilla `action_combat_planner` / `action_danger_planner` / `xr_danger` / `state_mgr+2` / `alife`. Evaluator true = AT drives the NPC; false = vanilla resumes.
 
-The takeover is inversion of control, not a loop. `_install` registers an evaluator (a boolean "should AT drive this NPC?" sensor) and an action (the behavior) into the engine brain; the engine pumps that brain every frame and calls them - the evaluator on every plan solve, the action's `execute` every frame it is the current action. AT has no scheduler of its own. Both read `npc:best_enemy()` at entry, which is the engine's per-NPC target from the memory manager one layer below the blocked planner (`enemy_manager.cpp` via `memory_manager.cpp`): AT consumes the target, it never computes it. The takeover owns *what to do*, not *who the enemy is*. See `doc/library/modding/stalker-combat-brain.md`.
+Inversion of control, not a loop. The engine pumps the brain and calls us - the evaluator on every plan solve, the action's `execute` on the NPC's AI scheduler tick while it is the current action (not the render frame, and not a loop we run). Both read `npc:best_enemy()` at entry, which is the engine's per-NPC target from the memory manager one layer below the blocked planner (`enemy_manager.cpp` via `memory_manager.cpp`): AT consumes the target, it never computes it. The takeover owns *what to do*, not *who the enemy is*. See `doc/library/modding/stalker-combat-brain.md`.
 
 The catalog and tunables are data, not code: numeric knobs in `configs/alifetactics/at_combat_config.ltx`, the maneuver catalog in `configs/alifetactics/at_combat_doctrine.ltx`. `load_config` reads both at game start and builds `MANEUVERS` in place; the script holds no literal catalog.
 
 Blocking the combat planner removes the engine's per-tick aimer, so under takeover AT supplies aim, posture, movement, destination, and fire state. The engine keeps the trigger, the per-rank dispersion, and the `can_kill_member` friendly-fire hold. All NPC control routes through xcombat. See `doc/library/modding/npc-combat-control.md`, `npc-combat-effectiveness.md`.
+
+### Invariants
+
+The rules the combat loop must not break. Most encode a mistake already made and reverted; keep them.
+
+1. **The engine owns the clock.** It pumps `execute()` on the NPC's AI scheduler tick - not the render frame, not a loop we run. Add no loop, and no throttle in front of the checks.
+2. **Everything is a check** - `{ name, period, wait, run }`. Aim is a check (the fastest, ~200ms). "Is the maneuver finished" is a check too (throttled by its caller, with the `maneuver_max_ms` stuck cap). Nothing per-tick runs outside the check list.
+3. **One throttle per check** - its own `period`. Never a master gate in front of the checks.
+4. **Each check reads only what it needs, when its period fires.** There is no observe / read-all phase and no shared context. Two checks that coincide on a pass and want the same value re-read it (a couple of cheap getters); we do not cache across checks.
+5. **No allocation on the per-tick path.** `vector()` / `{}` happen only inside a maneuver commit (the destination geometry), never on the turret tick.
+6. **Maneuvers are committed.** While one is in flight only aim and the hard-stop handback run; tactical checks wait for `path_completed` or the stuck cap. No soft reason interrupts a committed maneuver.
+7. **The turret is the baseline.** Aim at the enemy and fire when the shot is clear (sight-gated + wall-gated), hold weapon-up otherwise; a flee (STOW) is the one maneuver that suppresses aim and faces the run path. Checks are negative - they fire on a problem, never on an opportunity.
+8. **Handback is not a combat check.** "Should AT drive this NPC at all" is a separate throttled decision (`_decide_takeover` in `_on_update`), cached in `slot.eval` for the evaluator to read.
+9. **Consume engine primitives, do not reinvent them.** `best_enemy` (target), perception / memory, `can_kill_member` (friendly fire), `best_cover`. Reusable engine wraps live in xcombat; AT calls them.
 
 ### The model: a reactive agent
 
@@ -231,13 +245,13 @@ AT grafts in the same way (blocks the combat planner, issues the same engine com
 
 This is a deliberate alternative on the commitment-vs-reactivity axis, not a strict upgrade. Better for the goal — stable, deliberate, aggressive maneuvering (real advance / flank / cover-to-cover a per-frame recompute cannot sustain, plus a push toward the enemy the engine never does) — at the cost of moment-to-moment reactivity inside a committed maneuver, which the reactive checks and the handback partially restore.
 
-Cost model (reasoned, not benchmarked): the commit model is cheaper per frame than a per-frame recompute — the heavy decision (the full scan: checks, palette, resolve, best_cover) runs only when a maneuver completes, every few seconds; between commits only the cheap aim re-point runs per tick, and the per-NPC eval is throttled with the expensive bridge calls gated behind it. It is still a Lua layer over the engine (which keeps running perception, memory, and the trigger), so total per-NPC cost is not necessarily below vanilla — the claim is the decision loop is lighter, not the whole NPC.
+Cost model (reasoned, not benchmarked): the commit model is cheaper per frame than a per-frame recompute — the heavy decision (the checks, palette, resolve, best_cover) runs only when a maneuver completes, every few seconds; between commits only the cheap aim re-point runs per tick, and the per-NPC eval is throttled with the expensive bridge calls gated behind it. It is still a Lua layer over the engine (which keeps running perception, memory, and the trigger), so total per-NPC cost is not necessarily below vanilla — the claim is the decision loop is lighter, not the whole NPC.
 
-### Scan and checks
+### The check loop
 
-`execute()` runs one scan per engine tick. Every timed operation — the aim, the context refresh, and each check — is one entry carrying its own period, a predicate, and a `wait` flag. The scan runs each entry whose period has elapsed. A `wait` check fires only once the current maneuver is done (`npc:path_completed()`); the aim runs every tick. When a check's predicate holds and the palette has a maneuver for it, that maneuver is a candidate; one of the candidates that fired this scan is chosen at random and committed. A finished flee (weapon stowed) with nothing pending re-arms to `hold_fire` so the NPC never idles weapon-down.
+`execute()` runs one loop over the check list each AI tick. Every check carries its own `period`, a `run`, and a `wait` flag. A check runs when its period has elapsed AND it is eligible this pass: aim (`wait=false`) runs every tick — you keep aiming while you move; the tactical checks (`wait=true`) run only once the current maneuver is finished. Each check reads its own world when it fires; there is no shared read-all phase. When a tactical check's predicate holds and the palette has a maneuver for it, that maneuver is a candidate; among the candidates that fired this pass one is chosen at random and committed. A finished flee (weapon stowed) with nothing pending re-arms to `hold_fire` so the NPC never idles weapon-down.
 
-Every check is a negative condition — a problem to correct:
+Every tactical check is a negative condition — a problem to correct (the last row, `is_context_changed`, is the exception: it rebuilds the palette on its period and never fires a maneuver):
 
 | Check | Problem it detects | Reaction |
 |---|---|---|
@@ -253,11 +267,11 @@ Every check is a negative condition — a problem to correct:
 
 The check periods and the thresholds they read (the hurt fraction, the range band, the lost-sight window) are `at_combat_config.ltx` tunables, not fixed here.
 
-"Done" is `npc:path_completed()` — the engine path-traversal flag, which self-clears when a new destination is set, so a committed move reads done only on arrival and a non-moving command reads done at once; a stuck cap forces done if a move never arrives. See `doc/library/modding/npc-combat-control.md`.
+"Finished" is `_is_maneuver_finished`: `npc:path_completed()` (the engine path-traversal flag, which self-clears when a new destination is set, so a committed move reads finished only on arrival and a non-moving command at once), or no maneuver set, or the `maneuver_max_ms` stuck cap forcing it after a move that never arrives. See `doc/library/modding/npc-combat-control.md`.
 
-### Aim
+### Aim — the turret (`_aim_at_enemy`)
 
-`xcombat.aim_at(npc, enemy_pos)` re-stamped every `aim_period_ms` (roughly reaction cadence) while the weapon is up, so the NPC tracks the enemy as it advances or flanks. The engine fires along the sight with its own dispersion. Snipers additionally set `sniper_fire_mode` (head-line aim) via the SNIPE fire mode. A flee (a STOW maneuver) is the one exception: the aim is suppressed and `set_combat` passes no look target, so the state resolves to `path_dir` and the NPC turns its back and runs. When the flee finishes with nothing else pending, the turret re-arms to `hold_fire` (weapon back up, fire in place) so it never idles weapon-down.
+The aim check, every `aim_period_ms` (≈ reaction cadence): re-aim at the enemy and choose the weapon state. It fires (the maneuver's fire state) only when the NPC both sees the enemy (`_can_see` — the throttled `npc:see`) AND has a clear static line (`_has_wall_between`); otherwise it drops to READY — weapon up, no trigger, same posture/movement — and aims at the last-known position. That mirrors the engine's `KillEnemy::execute` and every vanilla scheme: fire on sight, hold weapon-up otherwise — no firing into walls, no holster. The engine fires along the sight with its own dispersion; snipers add `sniper_fire_mode` (head-line aim) through the SNIPE fire state. The aim re-stamps a static point each tick (`xcombat.aim_at`), so the NPC trails a strafing enemy at human cadence rather than tracking like an aimbot, and keeps aiming while a maneuver travels. A flee (STOW) is the one exception: aim is suppressed, `set_combat` passes no look target, the state resolves to `path_dir`, and the NPC turns its back and runs; when it finishes with nothing pending the turret re-arms to `hold_fire`. The wall gate is coarse — a chest-height static ray that false-positives on a window or railing the round would clear — so the precise check is the engine's `can_kill` geometry, pending a fork PR.
 
 ### Maneuvers
 
@@ -275,11 +289,11 @@ Which factions fight from cover vs the open, who flanks, who falls back when hur
 
 `find_cover(npc, enemy_pos, search_pos)` (xlibs): `best_cover` locates the nearest obstacle around `search_pos` (defaults to the NPC), then a ring of probes around it (8 directions × increasing radius) returns the nearest free vertex with a clear shot — the NPC stands there with cover adjacent. No clear ring vertex → hold and fire. flank_cover passes `search_pos` = the flank offset, advance_cover the forward point. `find_shot` is the same ring centred on the NPC (the sidestep), no cover required. The search is radial around the anchor today; the directional forward/lateral cover search is a separate task.
 
-### Handback to vanilla (`_should_manage`)
+### Handback to vanilla (`_decide_takeover`)
 
 Hard stops first, each returning `(false, reason)`: `combat_enabled` → id-hash vs `combat_share` → `alive` → not a companion → armed (else **unarmed** — AT blocks the engine's own rearm, so a weaponless NPC must yield). `wounded` is not checked here: it is a GOAP precondition on the action (`sidor_wounded_base = false`), engine-gated for free. Then two soft handbacks, both suppressed while a maneuver is in flight: **no_enemy** — `best_enemy()` is nil or dead (the engine's enemy manager has no target — died, despawned, or forgotten past its inertia window); and **lost_sight** — the enemy is still remembered but unsensed past `lost_sight_ms`. Lost-sight reads the engine's own memory clock, `time_global() - npc:memory_time(enemy)`, which aggregates sight, sound, and hit (`memory_manager.cpp`) — the same signal vanilla uses to disengage (`xr_combat_ignore.script`); `best_enemy` is memory-derived with inertia (`enemy_manager.cpp`), so it does not flicker. The read is wrapped in `xcombat.enemy_unseen_ms`. The decision is recomputed off the hot path by `_on_update` (`npc_on_update`, throttled to `eval_period_ms`); the engine-polled evaluator only reads the cached `slot.eval`, so each `actual()` poll costs a flag read, not a recompute.
 
-**Maneuver transaction.** While a committed maneuver is still in flight (`_maneuver_in_flight`: a maneuver set, the path not yet completed, within the stuck cap), both soft handbacks (`no_enemy`, `lost_sight`) are suppressed — a maneuver is never broken mid-flight; only the hard stops (`dead`, `wounded`, `unarmed`, `disabled`, `companion`) interrupt it. The chase target itself comes from memory: while the enemy is not currently seen, the scan resolves moves against `npc:memory_position(enemy)` (last-known), not the live position (`xcombat.enemy_track_pos`) — so a pursuit heads to where the enemy was lost and then yields to vanilla search, instead of trailing the live, fleeing target up a stairwell forever.
+**Maneuver transaction.** While a committed maneuver is still in flight (`_is_maneuver_running`: a maneuver set, the path not yet completed, within the stuck cap), both soft handbacks (`no_enemy`, `lost_sight`) are suppressed — a maneuver is never broken mid-flight; only the hard stops (`dead`, `wounded`, `unarmed`, `disabled`, `companion`) interrupt it. The chase target itself comes from memory: while the enemy is not currently seen, a move resolver targets `npc:memory_position(enemy)` (last-known), not the live position (`xcombat.enemy_track_pos`) — so a pursuit heads to where the enemy was lost and then yields to vanilla search, instead of trailing the live, fleeing target up a stairwell forever.
 
 ### Lifecycle
 
@@ -287,7 +301,7 @@ Hard stops first, each returning `(false, reason)`: `combat_enabled` → id-hash
 
 ### Tracing
 
-At DEBUG, `at_combat_trace` writes one `scan` line per done-scan (the readings the checks saw, which check fired, which maneuver — or `-` for a turret tick), a `decide` line per committed maneuver (the rolled posture/speed plus the apply/resolve ms), an `eval` line on each takeover/handback transition, and an `install` line per takeover graft (attempt / no_manager / installed). No aggregate counters and no console command — the log lines are the telemetry. Noop when DEBUG is off (no string, no alloc on the off path). The MCM tab settings are dumped once at `actor_on_first_update` as a single INFO `[MCM]` line.
+At DEBUG, `at_combat_trace` writes one `scan` line per decision pass (the readings the checks saw, which check fired, which maneuver — or `-` for a turret tick), a `decide` line per committed maneuver (the rolled posture/speed plus the apply/resolve ms), an `eval` line on each takeover/handback transition, and an `install` line per takeover graft (attempt / no_manager / installed). No aggregate counters and no console command — the log lines are the telemetry. Noop when DEBUG is off (no string, no alloc on the off path). The MCM tab settings are dumped once at `actor_on_first_update` as a single INFO `[MCM]` line.
 
 ### MCM + tunables
 
