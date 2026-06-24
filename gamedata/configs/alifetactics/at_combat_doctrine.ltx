@@ -70,10 +70,10 @@ factions = army, dolg, freedom, killer, isg, stalker, bandit, greh
 weapons  = sniper, close, rifle
 env      = indoor, outdoor
 
-; timid factions flee - stow the weapon and run. move=withdraw is a placeholder until the flee resolver (t83).
+; timid factions flee - stow the weapon and run away from the danger (the grenade, or the enemy when hurt).
 [flee_open_stow]
 handles  = is_hurt, is_grenade_near
-move     = withdraw
+move     = flee
 fire     = stow
 factions = ecolog, csky, renegade
 weapons  = sniper, close, rifle

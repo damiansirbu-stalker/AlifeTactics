@@ -58,7 +58,7 @@ local DOCTRINE_PATH    = "alifetactics\\at_combat_doctrine.ltx"
 local DOCTRINE_SECTION = "doctrine"
 
 local GRENADE_MS, FRIENDLY_THRESH_M, RANGE_HYSTERESIS_M, HURT_FRAC, CROUCH_CHANCE, RUN_CHANCE
-local ADVANCE_STANDOFF_M, BACK_STEP_M, STEP_BACK_M, FLANK_LAT_M, FLANK_FWD_M
+local ADVANCE_STANDOFF_M, BACK_STEP_M, STEP_BACK_M, FLANK_LAT_M, FLANK_FWD_M, FLEE_DISTANCE_M
 local SQUAD_BUCKETS, STANCE_HOLD_MS
 
 -- Maneuver catalog, filled from at_combat_doctrine.ltx. Each entry: handles (the checks it answers),
@@ -96,6 +96,7 @@ function at_combat_doctrine.load_config()
     ADVANCE_STANDOFF_M = read_float("advance_standoff_m",     10)
     BACK_STEP_M        = read_float("back_step_m",            12)
     STEP_BACK_M        = read_float("step_back_m",            6)
+    FLEE_DISTANCE_M    = read_float("flee_distance_m",        30)
     FLANK_LAT_M        = read_float("flank_lateral_m",        12)
     FLANK_FWD_M        = read_float("flank_forward_m",        6)
     SQUAD_BUCKETS      = read_int("squad_buckets",          5)
@@ -181,9 +182,14 @@ end
 -- in as state.sees by the aim check; is_blocked_wall also confirms with a fresh static ray.
 local CHECKS = {
     { name = "engage",              speed = "react", pred = function(_, _, state, _) return state.maneuver == nil end },
-    { name = "is_grenade_near",     speed = "react", pred = function(npc, _, _, tg)
+    { name = "is_grenade_near",     speed = "react", pred = function(npc, _, state, tg)
         local danger = npc:best_danger()
-        return danger ~= nil and danger:type() == danger_object.grenade and (tg - danger:time()) <= GRENADE_MS
+        if danger and danger:type() == danger_object.grenade and (tg - danger:time()) <= GRENADE_MS then
+            state.flee_danger_pos = danger:position()
+            return true
+        end
+        state.flee_danger_pos = nil
+        return false
     end },
     { name = "is_too_close",        speed = "react", pred = function(npc, enemy, state, _)
         local _, _, dist = _get_geometry(npc, enemy, state)
@@ -248,6 +254,19 @@ local function _resolve_withdraw(npc, enemy, state)
     return xcombat.find_point(npc, vector():set(-dir.x, 0, -dir.z), BACK_STEP_M)
 end
 
+-- flee: a far destination away from the danger - the grenade position (stashed by is_grenade_near) when fleeing
+-- a grenade, else the enemy track. Replaces the 12m withdraw for the stow flee: each leg runs FLEE_DISTANCE_M
+-- away and the flee re-fires on arrival while the check still holds, so the NPC keeps running until lost_sight
+-- hands it back. Unlike withdraw it moves away from the GRENADE, not the enemy line.
+local function _resolve_flee(npc, enemy, state)
+    local npc_pos = npc:position()
+    local danger_pos = state.flee_danger_pos or xcombat.get_track_pos(npc, enemy, state.sees)
+    local dx, dz = npc_pos.x - danger_pos.x, npc_pos.z - danger_pos.z
+    local mag = math_sqrt(dx*dx + dz*dz)
+    if mag < 1 then return npc:level_vertex_id() end
+    return xcombat.find_point(npc, vector():set(dx / mag, 0, dz / mag), FLEE_DISTANCE_M)
+end
+
 local function _resolve_step_back(npc, enemy, state)
     local npc_pos, enemy_pos, dist = _get_geometry(npc, enemy, state)
     if dist < 1 then return npc:level_vertex_id() end
@@ -290,7 +309,7 @@ end
 
 local MOVE_RESOLVERS = {
     hold = _resolve_hold, cover = _resolve_cover, advance_open = _resolve_advance_open, advance_cover = _resolve_advance_cover,
-    withdraw = _resolve_withdraw, step_back = _resolve_step_back, step_side = _resolve_step_side,
+    withdraw = _resolve_withdraw, flee = _resolve_flee, step_back = _resolve_step_back, step_side = _resolve_step_side,
     flank = _resolve_flank, flank_cover = _resolve_flank_cover,
 }
 
