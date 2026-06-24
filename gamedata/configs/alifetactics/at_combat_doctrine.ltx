@@ -4,7 +4,7 @@
 ; eligible maneuver, so listing the same check on several maneuvers spreads behavior across the squad.
 
 [doctrine]
-maneuvers = hold_fire, hold_snipe, cover_fire, advance_open_fire, advance_cover_fire, flank_cover_fire, flank_cover_stow, back_open_fire, back_cover_stow, back_open_stow, step_back_fire, step_side_fire
+maneuvers = hold_fire, hold_snipe, cover_fire, advance_open_fire, advance_cover_fire, flank_cover_fire, flank_cover_stow, back_open_fire, flee_open_stow, step_back_fire, step_side_fire
 
 [hold_fire]
 handles  = engage, is_target_changed
@@ -23,7 +23,7 @@ weapons  = sniper
 env      = outdoor
 
 [cover_fire]
-handles  = engage, is_target_changed, is_grenade_near, is_blocked_wall
+handles  = engage, is_target_changed, is_blocked_wall
 move     = cover
 fire     = shoot
 factions = army, dolg, freedom, killer, isg, monolith, stalker, ecolog, csky
@@ -63,28 +63,19 @@ weapons  = close, rifle
 env      = outdoor
 
 [back_open_fire]
-handles  = is_hurt
+handles  = is_hurt, is_grenade_near
 move     = withdraw
 fire     = shoot
 factions = army, dolg, freedom, killer, isg, stalker, bandit, greh
 weapons  = sniper, close, rifle
 env      = indoor, outdoor
 
-; cowards fall back to cover with the weapon stowed.
-[back_cover_stow]
-handles  = is_hurt
+; timid factions flee - stow the weapon and run. move=withdraw is a placeholder until the flee resolver (t83).
+[flee_open_stow]
+handles  = is_hurt, is_grenade_near
 move     = withdraw
 fire     = stow
 factions = ecolog, csky, renegade
-weapons  = sniper, close, rifle
-env      = indoor, outdoor
-
-; grenade flee: every faction can bolt; cover factions also answer is_grenade_near with cover_fire.
-[back_open_stow]
-handles  = is_grenade_near
-move     = withdraw
-fire     = stow
-factions = bandit, dolg, ecolog, freedom, killer, army, monolith, stalker, csky, zombied, greh, isg, renegade
 weapons  = sniper, close, rifle
 env      = indoor, outdoor
 

@@ -352,11 +352,11 @@ end
 -- observer logs the subject's maneuver / distance / sight / position to alifetactics.log.
 --------------------------------------------------------------------------------
 
--- Catalog order mirrors at_combat_doctrine.ltx [doctrine] maneuvers (12 entries).
+-- Catalog order mirrors at_combat_doctrine.ltx [doctrine] maneuvers (11 entries).
 local LAB_MANEUVERS = {
     "hold_fire", "hold_snipe", "cover_fire", "advance_open_fire", "advance_cover_fire",
-    "flank_cover_fire", "flank_cover_stow", "back_open_fire", "back_cover_stow",
-    "back_open_stow", "step_back_fire", "step_side_fire",
+    "flank_cover_fire", "flank_cover_stow", "back_open_fire", "flee_open_stow",
+    "step_back_fire", "step_side_fire",
 }
 
 -- Lab subject id, the catalog index it is cycled to, the observer event counter, and the last magazine read.
