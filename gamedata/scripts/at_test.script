@@ -217,6 +217,21 @@ function at_spawn_zomb()
     _spawn("zombied_sim_squad_novice", 40, 0)
 end
 
+--- @export console
+function at_spawn_csky()
+    _spawn("csky_sim_squad_novice", 50, 0)
+end
+
+--- @export console
+function at_spawn_ecolog()
+    _spawn("ecolog_sim_squad_novice", 50, 0)
+end
+
+--- @export console
+function at_spawn_renegade()
+    _spawn("renegade_sim_squad_novice", 50, 0)
+end
+
 -- Spawn an armed military squad, then strip every weapon 3s later so each member reads as unarmed.
 -- Tests the unarmed-flee path: a gunless NPC should sprint away from the enemy regardless of faction.
 --- @export console
