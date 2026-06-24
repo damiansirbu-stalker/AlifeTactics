@@ -232,6 +232,16 @@ function at_spawn_renegade()
     _spawn("renegade_sim_squad_novice", 50, 0)
 end
 
+-- Give the actor a Glock + three boxes of 9x19, so you can engage a spawned squad and hurt them (the flee test).
+--- @export console
+function at_give_pistol()
+    local id = db.actor and db.actor:id()
+    if not id then return end
+    xinventory.create_item("wpn_glock", id)
+    for _ = 1, 3 do xinventory.create_item("ammo_9x19_fmj", id) end
+    _tip("AT.TEST: Glock + 3 boxes 9x19 given")
+end
+
 -- Spawn an armed military squad, then strip every weapon 3s later so each member reads as unarmed.
 -- Tests the unarmed-flee path: a gunless NPC should sprint away from the enemy regardless of faction.
 --- @export console
