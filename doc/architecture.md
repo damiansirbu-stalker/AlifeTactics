@@ -256,10 +256,10 @@ Every tactical check is a negative condition — a problem to correct (the last 
 | Check | Problem it detects | Reaction |
 |---|---|---|
 | engage | no maneuver yet (fight opener) | pick an opening maneuver |
-| is_grenade_near | a grenade is down nearby | take cover |
+| is_grenade_near | a grenade is down nearby | retreat: kite (brave) or flee (timid) |
 | is_too_close | enemy inside the close band | step back while firing |
 | is_target_changed | the engine selected a new enemy | re-pick on the new target |
-| is_hurt | health below the hurt threshold | fall back while firing |
+| is_hurt | health below the hurt threshold | retreat: kite (brave) or flee (timid) |
 | is_blocked_wall | a wall on the firing line | lateral step / re-cover |
 | is_blocked_friendly | a teammate on the firing line | lateral step |
 | is_enemy_unseen | the enemy unseen past the lost-sight window | close in (advance / flank) |
@@ -279,13 +279,15 @@ Who points the weapon depends on sight. While the NPC sees the enemy in a fire s
 
 Each maneuver is one section in `at_combat_doctrine.ltx`, carrying `handles` (the checks it answers), `move` (the destination resolver), `fire` (shoot / snipe / stow), and the selection tags factions / weapons / env. Posture + speed are rolled at maneuver start and held (crouch / run chances and the stance-hold window are `at_combat_config.ltx` tunables; crouch always walks, since the engine has no crouch+run fire state). The catalog itself is data, not architecture — read `at_combat_doctrine.ltx` for the live maneuver list, their checks, and faction tags.
 
-`move` dispatches to a resolver: hold = own node; advance_open = the NPC->enemy line, `advance_standoff_m` short of the enemy; advance_cover = cover anchored at that forward point; cover = `find_cover` near the NPC; step_back / withdraw = away; step_side = `find_shot`; flank = lateral + forward offset (side by squad bucket parity); flank_cover = `find_cover` at that flank offset. advance_cover and flank_cover_fire search radially around their anchor for now; the directional forward/lateral cover search is a separate task. A resolve that returns the own node holds and fires in place (never fails to vanilla). Catalog in `at_combat_doctrine.ltx`.
+`move` dispatches to a resolver: hold = own node; advance_open = the NPC->enemy line, `advance_standoff_m` short of the enemy; advance_cover = cover anchored at that forward point; cover = `find_cover` near the NPC; step_back / withdraw = a short back-step away; flee = run `flee_distance_m` away from the danger (the grenade itself when fleeing a grenade, else the enemy), re-firing on arrival so the NPC keeps running until it breaks contact; step_side = `find_shot`; flank = lateral + forward offset (side by squad bucket parity); flank_cover = `find_cover` at that flank offset. advance_cover and flank_cover_fire search radially around their anchor for now; the directional forward/lateral cover search is a separate task. A resolve that returns the own node holds and fires in place (never fails to vanilla). Catalog in `at_combat_doctrine.ltx`.
 
 ### Doctrine (faction palette)
 
 No groups, no lean flags. Each maneuver lists the communities it belongs to; an NPC's palette = the maneuvers matching its (community, weapon bucket, indoor/outdoor). `pick_maneuver` rolls a random eligible maneuver, cached per NPC until the palette rebuilds. A check with no eligible maneuver is a no-op for that faction (how doctrine emerges):
 
 Which factions fight from cover vs the open, who flanks, who falls back when hurt and who flees — those are the per-maneuver `factions` / `weapons` / `env` tags in `at_combat_doctrine.ltx`, not duplicated here. Behavior is emergent from the tags, with no group or lean code: a faction reacts to a check only if some maneuver in its palette handles it.
+
+Retreat is exactly two behaviors: brave factions kite (`back_open_fire`: withdraw, weapon up, still firing); timid factions flee (`flee_open_stow`: stow the weapon and run `flee_distance_m` away from the danger via the `flee` resolver, re-firing on arrival to keep running). Both answer `is_hurt` and `is_grenade_near`; fearless factions (zombied, monolith) do neither.
 
 ### Cover
 
