@@ -1,9 +1,9 @@
 --- at_combat_doctrine: the pure decision half of the combat takeover. Data + pure functions only - no
---- engine class, no per-NPC store, no callbacks. Given a per-scan context and a per-NPC slot it answers
+--- engine class, no per-NPC store, no callbacks. Given a per-scan context and a per-NPC state it answers
 --- "what should this NPC do": the registered checks (each a predicate + period), which maneuver answers a
---- fired check (each maneuver declares the checks it handles; the palette inverts that and pick() rolls a
+--- fired check (each maneuver declares the checks it handles; the palette inverts that and pick_maneuver() rolls a
 --- random eligible one), where the destination is (resolve, by move), and the posture/speed roll. The shell
---- (at_combat.script) owns the GOAP classes, the single scan, the slot store, and the xcombat commands.
+--- (at_combat.script) owns the GOAP classes, the single scan, the state store, and the xcombat commands.
 ---
 --- Behavior is emergent, not flagged: a faction reacts to a check only if some maneuver in its palette
 --- handles it. No cover maneuver in a faction's palette = it never takes cover. The only per-faction data is
@@ -85,21 +85,21 @@ end
 
 function at_combat_doctrine.load_config()
     local ini = ini_file(CONFIG_PATH)
-    local function f(k, d) return ini:r_float_ex(CONFIG_SECTION, k) or d end
-    local function i(k, d) local v = ini:r_float_ex(CONFIG_SECTION, k); return v and math_floor(v) or d end
-    GRENADE_MS         = i("grenade_ms",             3000)
-    FRIENDLY_THRESH_M  = f("friendly_line_thresh_m", 1.5)
-    RANGE_HYSTERESIS_M = f("range_hysteresis_m",     3)
-    HURT_FRAC          = f("hurt_frac",              0.25)
-    CROUCH_CHANCE      = f("crouch_chance",          0.30)
-    RUN_CHANCE         = f("run_chance",             0.30)
-    ADVANCE_STANDOFF_M = f("advance_standoff_m",     10)
-    BACK_STEP_M        = f("back_step_m",            12)
-    STEP_BACK_M        = f("step_back_m",            6)
-    FLANK_LAT_M        = f("flank_lateral_m",        12)
-    FLANK_FWD_M        = f("flank_forward_m",        6)
-    SQUAD_BUCKETS      = i("squad_buckets",          5)
-    STANCE_HOLD_MS     = i("stance_hold_ms",         5000)
+    local function read_float(k, d) return ini:r_float_ex(CONFIG_SECTION, k) or d end
+    local function read_int(k, d) local v = ini:r_float_ex(CONFIG_SECTION, k); return v and math_floor(v) or d end
+    GRENADE_MS         = read_int("grenade_ms",             3000)
+    FRIENDLY_THRESH_M  = read_float("friendly_line_thresh_m", 1.5)
+    RANGE_HYSTERESIS_M = read_float("range_hysteresis_m",     3)
+    HURT_FRAC          = read_float("hurt_frac",              0.25)
+    CROUCH_CHANCE      = read_float("crouch_chance",          0.30)
+    RUN_CHANCE         = read_float("run_chance",             0.30)
+    ADVANCE_STANDOFF_M = read_float("advance_standoff_m",     10)
+    BACK_STEP_M        = read_float("back_step_m",            12)
+    STEP_BACK_M        = read_float("step_back_m",            6)
+    FLANK_LAT_M        = read_float("flank_lateral_m",        12)
+    FLANK_FWD_M        = read_float("flank_forward_m",        6)
+    SQUAD_BUCKETS      = read_int("squad_buckets",          5)
+    STANCE_HOLD_MS     = read_int("stance_hold_ms",         5000)
     _load_maneuvers()
 end
 
@@ -116,42 +116,42 @@ end
 -- Palette: filter the catalog by (community, weapon bucket, environment) into a check -> maneuver-list map.
 -- =========================================================================
 
-local function _weapon_bucket(kind)
+local function _get_weapon_bucket(kind)
     if xcombat.SNIPER_KINDS[kind] then return BUCKET_SNIPER end
     if xcombat.AGGRESSOR_KINDS[kind] then return BUCKET_CLOSE end
     return BUCKET_RIFLE
 end
 
 -- Append a maneuver under each check it handles (check -> list of eligible maneuver names).
-local function _add_handlers(pal, name, handles)
+local function _add_handlers(palette, name, handles)
     for check in pairs(handles) do
-        local list = pal[check]
-        if not list then list = {} pal[check] = list end
+        local list = palette[check]
+        if not list then list = {} palette[check] = list end
         list[#list + 1] = name
     end
 end
 
 local function _build_palette(community, bucket, env)
-    local pal = {}
-    for name, m in pairs(MANEUVERS) do
-        local fac_ok = (m.factions == nil) or m.factions[community]
-        local wpn_ok = (m.weapons == nil) or m.weapons[bucket]
-        local env_ok = (m.env == nil) or m.env[env]
-        if fac_ok and wpn_ok and env_ok then _add_handlers(pal, name, m.handles) end
+    local palette = {}
+    for name, maneuver in pairs(MANEUVERS) do
+        local fac_ok = (maneuver.factions == nil) or maneuver.factions[community]
+        local wpn_ok = (maneuver.weapons == nil) or maneuver.weapons[bucket]
+        local env_ok = (maneuver.env == nil) or maneuver.env[env]
+        if fac_ok and wpn_ok and env_ok then _add_handlers(palette, name, maneuver.handles) end
     end
-    return pal
+    return palette
 end
 
--- Check -> a random eligible maneuver from the palette, or nil. The roll is cached per slot so it holds until
+-- Check -> a random eligible maneuver from the palette, or nil. The roll is cached per state so it holds until
 -- the palette rebuilds (no per-pick thrash); different NPCs still roll different maneuvers.
-function at_combat_doctrine.pick(check, slot)
-    local list = slot.palette and slot.palette[check]
+function at_combat_doctrine.pick_maneuver(check, state)
+    local list = state.palette and state.palette[check]
     if not list then return nil end
     if #list == 1 then return list[1] end
-    local chosen = slot.event_pick[check]
+    local chosen = state.event_pick[check]
     if not chosen then
         chosen = list[math_random(#list)]
-        slot.event_pick[check] = chosen
+        state.event_pick[check] = chosen
     end
     return chosen
 end
@@ -160,48 +160,48 @@ end
 -- =========================================================================
 -- Checks. Each is a predicate + period. The shell runs every check whose period elapsed once the current
 -- maneuver is done, shuffles among the true ones, and fires its maneuver through the palette. engage is the
--- opener: true only while no maneuver has been picked this fight (slot.maneuver nil).
+-- opener: true only while no maneuver has been picked this fight (state.maneuver nil).
 -- =========================================================================
 
 -- Read the engagement geometry fresh: NPC position, enemy track position (live when seen, else last-known from
 -- memory), and the flat distance between them. No cache - just a few cheap getters; if two checks (or a check
 -- and the resolver) want it on the same pass, they re-read, which is fine. The shared reader the geometry
--- checks (wall / friendly / too_close) and the move resolvers all call. slot.sees is the throttled see cache,
+-- checks (wall / friendly / too_close) and the move resolvers all call. state.sees is the throttled see cache,
 -- kept current by the aim check and by any check that calls can_see this pass.
-local function _geom(npc, enemy, slot)
+local function _get_geometry(npc, enemy, state)
     local npc_pos   = npc:position()
-    local enemy_pos = xcombat.enemy_track_pos(npc, enemy, slot.sees)
+    local enemy_pos = xcombat.get_track_pos(npc, enemy, state.sees)
     local dx, dz    = enemy_pos.x - npc_pos.x, enemy_pos.z - npc_pos.z
     return npc_pos, enemy_pos, math_sqrt(dx*dx + dz*dz)
 end
 
--- Each check reads only what it needs, when its period fires. Signature (npc, enemy, slot, tg) - no shared
+-- Each check reads only what it needs, when its period fires. Signature (npc, enemy, state, tg) - no shared
 -- read-all phase. is_too_close updates the range hysteresis here (its only consumer) from a fresh distance and
 -- the weapon band. is_blocked_wall / is_enemy_unseen read the throttled see cache via at_combat.can_see, passed
--- in as slot.sees by the aim check; is_blocked_wall also confirms with a fresh static ray.
+-- in as state.sees by the aim check; is_blocked_wall also confirms with a fresh static ray.
 local CHECKS = {
-    { name = "engage",              speed = "react", pred = function(_, _, s, _) return s.maneuver == nil end },
+    { name = "engage",              speed = "react", pred = function(_, _, state, _) return state.maneuver == nil end },
     { name = "is_grenade_near",     speed = "react", pred = function(npc, _, _, tg)
-        local bd = npc:best_danger()
-        return bd ~= nil and bd:type() == danger_object.grenade and (tg - bd:time()) <= GRENADE_MS
+        local danger = npc:best_danger()
+        return danger ~= nil and danger:type() == danger_object.grenade and (tg - danger:time()) <= GRENADE_MS
     end },
-    { name = "is_too_close",        speed = "react", pred = function(npc, enemy, s, _)
-        local _, _, dist = _geom(npc, enemy, s)
+    { name = "is_too_close",        speed = "react", pred = function(npc, enemy, state, _)
+        local _, _, dist = _get_geometry(npc, enemy, state)
         local band = xcombat.get_weapon_range(xcombat.get_weapon_kind(npc) or "w_rifle")
-        return at_combat_doctrine.range_zone(s, band, dist) == "CLOSE"
+        return at_combat_doctrine.update_range_zone(state, band, dist) == "CLOSE"
     end },
-    { name = "is_target_changed",   speed = "react", pred = function(_, enemy, s, _) return s.enemy_id ~= nil and enemy:id() ~= s.enemy_id end },
+    { name = "is_target_changed",   speed = "react", pred = function(_, enemy, state, _) return state.enemy_id ~= nil and enemy:id() ~= state.enemy_id end },
     { name = "is_hurt",             speed = "react", pred = function(npc, _, _, _) return npc.health < HURT_FRAC end },
-    { name = "is_blocked_wall",     speed = "react", pred = function(npc, enemy, s, _)
-        if s.sees then return false end
-        local npc_pos, enemy_pos = _geom(npc, enemy, s)
+    { name = "is_blocked_wall",     speed = "react", pred = function(npc, enemy, state, _)
+        if state.sees then return false end
+        local npc_pos, enemy_pos = _get_geometry(npc, enemy, state)
         return xcombat.has_occluder_between(npc_pos, enemy_pos)
     end },
-    { name = "is_blocked_friendly", speed = "react", pred = function(npc, enemy, s, _)
-        local npc_pos, enemy_pos = _geom(npc, enemy, s)
+    { name = "is_blocked_friendly", speed = "react", pred = function(npc, enemy, state, _)
+        local npc_pos, enemy_pos = _get_geometry(npc, enemy, state)
         return xcombat.has_friendly_in_line(npc, npc_pos, enemy_pos, FRIENDLY_THRESH_M)
     end },
-    { name = "is_enemy_unseen",     speed = "slow",  pred = function(_, _, s, _) return not s.sees end },
+    { name = "is_enemy_unseen",     speed = "slow",  pred = function(_, _, state, _) return not state.sees end },
 }
 at_combat_doctrine.CHECKS = CHECKS
 
@@ -212,93 +212,93 @@ at_combat_doctrine.CHECKS = CHECKS
 
 -- Unit NPC->enemy direction from the geometry the resolver already read. Allocates one vector for find_point /
 -- find_cover (per maneuver commit, not per tick).
-local function _dir_to(npc_pos, enemy_pos, dist)
+local function _get_direction(npc_pos, enemy_pos, dist)
     local inv = dist > 0 and (1 / dist) or 0
     return vector():set((enemy_pos.x - npc_pos.x) * inv, 0, (enemy_pos.z - npc_pos.z) * inv)
 end
 
-local function _res_hold(npc) return npc:level_vertex_id() end
+local function _resolve_hold(npc) return npc:level_vertex_id() end
 
-local function _res_cover(npc, enemy, slot)
-    local _, enemy_pos = _geom(npc, enemy, slot)
+local function _resolve_cover(npc, enemy, state)
+    local _, enemy_pos = _get_geometry(npc, enemy, state)
     return xcombat.find_cover(npc, enemy_pos)
 end
 
 -- advance_open: a point on the NPC->enemy line, standoff metres short of the enemy (committed, walked in full).
-local function _res_advance_open(npc, enemy, slot)
-    local npc_pos, enemy_pos, dist = _geom(npc, enemy, slot)
+local function _resolve_advance_open(npc, enemy, state)
+    local npc_pos, enemy_pos, dist = _get_geometry(npc, enemy, state)
     if dist <= ADVANCE_STANDOFF_M then return npc:level_vertex_id() end
-    return xcombat.find_point(npc, _dir_to(npc_pos, enemy_pos, dist), dist - ADVANCE_STANDOFF_M)
+    return xcombat.find_point(npc, _get_direction(npc_pos, enemy_pos, dist), dist - ADVANCE_STANDOFF_M)
 end
 
 -- advance_cover: cover anchored at that same forward point (radial best_cover for now; t92 makes it directional).
-local function _res_advance_cover(npc, enemy, slot)
-    local npc_pos, enemy_pos, dist = _geom(npc, enemy, slot)
+local function _resolve_advance_cover(npc, enemy, state)
+    local npc_pos, enemy_pos, dist = _get_geometry(npc, enemy, state)
     if dist <= ADVANCE_STANDOFF_M then return xcombat.find_cover(npc, enemy_pos) end
     local reach = dist - ADVANCE_STANDOFF_M
-    local dir = _dir_to(npc_pos, enemy_pos, dist)
+    local dir = _get_direction(npc_pos, enemy_pos, dist)
     return xcombat.find_cover(npc, enemy_pos,
         vector():set(npc_pos.x + dir.x * reach, npc_pos.y, npc_pos.z + dir.z * reach))
 end
 
-local function _res_withdraw(npc, enemy, slot)
-    local npc_pos, enemy_pos, dist = _geom(npc, enemy, slot)
+local function _resolve_withdraw(npc, enemy, state)
+    local npc_pos, enemy_pos, dist = _get_geometry(npc, enemy, state)
     if dist < 1 then return npc:level_vertex_id() end
-    local dir = _dir_to(npc_pos, enemy_pos, dist)
+    local dir = _get_direction(npc_pos, enemy_pos, dist)
     return xcombat.find_point(npc, vector():set(-dir.x, 0, -dir.z), BACK_STEP_M)
 end
 
-local function _res_step_back(npc, enemy, slot)
-    local npc_pos, enemy_pos, dist = _geom(npc, enemy, slot)
+local function _resolve_step_back(npc, enemy, state)
+    local npc_pos, enemy_pos, dist = _get_geometry(npc, enemy, state)
     if dist < 1 then return npc:level_vertex_id() end
-    local dir = _dir_to(npc_pos, enemy_pos, dist)
+    local dir = _get_direction(npc_pos, enemy_pos, dist)
     return xcombat.find_point(npc, vector():set(-dir.x, 0, -dir.z), STEP_BACK_M)
 end
 
-local function _res_step_side(npc, enemy, slot)
-    local _, enemy_pos = _geom(npc, enemy, slot)
+local function _resolve_step_side(npc, enemy, state)
+    local _, enemy_pos = _get_geometry(npc, enemy, state)
     return xcombat.find_shot(npc, enemy_pos)
 end
 
 -- Flank offset: lateral (side by squad bucket parity, so squadmates fan to opposite sides) + forward bias
 -- toward the enemy. Shared by both flank resolvers; takes the direction the resolver already read.
-local function _flank_offset(dir, slot)
-    local sign = (slot.bucket % 2 == 0) and 1 or -1
+local function _get_flank_offset(dir, state)
+    local sign = (state.bucket % 2 == 0) and 1 or -1
     local fx = -dir.z * sign * FLANK_LAT_M + dir.x * FLANK_FWD_M
     local fz =  dir.x * sign * FLANK_LAT_M + dir.z * FLANK_FWD_M
     return fx, fz
 end
 
 -- Open flank: the bare lateral+forward point.
-local function _res_flank(npc, enemy, slot)
-    local npc_pos, enemy_pos, dist = _geom(npc, enemy, slot)
+local function _resolve_flank(npc, enemy, state)
+    local npc_pos, enemy_pos, dist = _get_geometry(npc, enemy, state)
     if dist < 1 then return npc:level_vertex_id() end
-    local fx, fz = _flank_offset(_dir_to(npc_pos, enemy_pos, dist), slot)
+    local fx, fz = _get_flank_offset(_get_direction(npc_pos, enemy_pos, dist), state)
     local mag = math_sqrt(fx * fx + fz * fz)
     if mag < 1 then return npc:level_vertex_id() end
     return xcombat.find_point(npc, vector():set(fx / mag, 0, fz / mag), mag)
 end
 
 -- Cover flank: seek cover at the flank point (find_cover anchored at the offset, not at the NPC).
-local function _res_flank_cover(npc, enemy, slot)
-    local npc_pos, enemy_pos, dist = _geom(npc, enemy, slot)
+local function _resolve_flank_cover(npc, enemy, state)
+    local npc_pos, enemy_pos, dist = _get_geometry(npc, enemy, state)
     if dist < 1 then return npc:level_vertex_id() end
-    local fx, fz = _flank_offset(_dir_to(npc_pos, enemy_pos, dist), slot)
+    local fx, fz = _get_flank_offset(_get_direction(npc_pos, enemy_pos, dist), state)
     return xcombat.find_cover(npc, enemy_pos,
         vector():set(npc_pos.x + fx, npc_pos.y, npc_pos.z + fz))
 end
 
 local MOVE_RESOLVERS = {
-    hold = _res_hold, cover = _res_cover, advance_open = _res_advance_open, advance_cover = _res_advance_cover,
-    withdraw = _res_withdraw, step_back = _res_step_back, step_side = _res_step_side,
-    flank = _res_flank, flank_cover = _res_flank_cover,
+    hold = _resolve_hold, cover = _resolve_cover, advance_open = _resolve_advance_open, advance_cover = _resolve_advance_cover,
+    withdraw = _resolve_withdraw, step_back = _resolve_step_back, step_side = _resolve_step_side,
+    flank = _resolve_flank, flank_cover = _resolve_flank_cover,
 }
 
 -- Resolve a maneuver's destination vertex. Each resolver reads its own geometry; a move with no resolver, or a
 -- resolver that finds nothing, holds on the NPC's own node (never fails to vanilla).
-function at_combat_doctrine.resolve(maneuver, npc, enemy, slot)
+function at_combat_doctrine.resolve(maneuver, npc, enemy, state)
     local resolver = MOVE_RESOLVERS[maneuver.move]
-    return resolver and resolver(npc, enemy, slot) or npc:level_vertex_id()
+    return resolver and resolver(npc, enemy, state) or npc:level_vertex_id()
 end
 
 
@@ -309,12 +309,12 @@ end
 -- preference to a combo the engine ships, so this function holds no state-matrix knowledge.
 -- =========================================================================
 
-function at_combat_doctrine.roll(slot, fire, stationary, tg)
-    if not slot.crouch_until or tg >= slot.crouch_until then
-        slot.want_crouch  = math_random() < CROUCH_CHANCE
-        slot.crouch_until = tg + STANCE_HOLD_MS
+function at_combat_doctrine.roll_stance(state, fire, stationary, tg)
+    if not state.crouch_until or tg >= state.crouch_until then
+        state.want_crouch  = math_random() < CROUCH_CHANCE
+        state.crouch_until = tg + STANCE_HOLD_MS
     end
-    local posture = slot.want_crouch and CROUCH or STAND
+    local posture = state.want_crouch and CROUCH or STAND
     local movement
     if stationary then
         movement = STILL
@@ -331,8 +331,8 @@ end
 -- Range zone (hysteresis on the weapon band): CLOSE / IN / FAR. Drives is_too_close.
 -- =========================================================================
 
-function at_combat_doctrine.range_zone(slot, band, dist)
-    local zone = slot.range_zone or "IN"
+function at_combat_doctrine.update_range_zone(state, band, dist)
+    local zone = state.range_zone or "IN"
     if zone == "FAR" then
         if dist < band.max - RANGE_HYSTERESIS_M then zone = "IN" end
     elseif zone == "CLOSE" then
@@ -341,37 +341,38 @@ function at_combat_doctrine.range_zone(slot, band, dist)
         if dist > band.max then zone = "FAR"
         elseif dist < band.min then zone = "CLOSE" end
     end
-    slot.range_zone = zone
+    state.range_zone = zone
     return zone
 end
 
 
 -- =========================================================================
 -- Slot context refresh: weapon bucket / environment + the eligible-maneuver palette. Rebuilds the
--- palette only when (community, weapon bucket, env) changes. Fills the static fields once (community, squad,
--- spread bucket). is_context_changed is just this call detecting a changed key.
+-- palette when the (community, weapon bucket, env) key changes; community / squad / spread bucket are filled
+-- once and never change, so in practice only weapon bucket or env trigger a rebuild. is_context_changed is
+-- just this call detecting a changed key.
 -- =========================================================================
 
-function at_combat_doctrine.refresh(slot, npc)
-    if not slot.community then
-        slot.community = character_community(npc) or "stalker"
+function at_combat_doctrine.refresh_context(state, npc)
+    if not state.community then
+        state.community = character_community(npc) or "stalker"
         local squad = xsquad.get_squad_by_member(npc:id())
-        slot.squad_id = squad and squad.id or nil
-        slot.bucket   = xcombat.get_squad_ordinal(slot.squad_id, npc:id()) % SQUAD_BUCKETS
-        slot.event_pick = slot.event_pick or {}
+        state.squad_id = squad and squad.id or nil
+        state.bucket   = xcombat.get_squad_ordinal(state.squad_id, npc:id()) % SQUAD_BUCKETS
+        state.event_pick = state.event_pick or {}
     end
     local kind = xcombat.get_weapon_kind(npc) or "w_rifle"
-    slot.weapon      = kind
-    slot.bucket_name = _weapon_bucket(kind)
+    state.weapon      = kind
+    state.bucket_name = _get_weapon_bucket(kind)
     local npc_lvid = npc:level_vertex_id()
-    if slot._env_lvid ~= npc_lvid then
-        slot._env_lvid = npc_lvid
-        slot.env = xcombat.is_indoor(npc:position()) and "INDOOR" or "OUTDOOR"
+    if state._env_lvid ~= npc_lvid then
+        state._env_lvid = npc_lvid
+        state.env = xcombat.is_indoor(npc:position()) and "INDOOR" or "OUTDOOR"
     end
-    local key = slot.community .. "|" .. slot.bucket_name .. "|" .. slot.env
-    if key ~= slot.pal_key then
-        slot.pal_key = key
-        slot.palette = _build_palette(slot.community, slot.bucket_name, slot.env)
-        slot.event_pick = {}
+    local key = state.community .. "|" .. state.bucket_name .. "|" .. state.env
+    if key ~= state.pal_key then
+        state.pal_key = key
+        state.palette = _build_palette(state.community, state.bucket_name, state.env)
+        state.event_pick = {}
     end
 end
