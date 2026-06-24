@@ -403,9 +403,10 @@ function at_combat_action:finalize()
         state.maneuver = nil
         state.maneuver_at = nil
     end
-    -- Leave the squad combat group joined in initialize (the engine's own unregister, in the blocked
-    -- combat planner's finalize, never runs - so without this the squad treats a handed-back NPC as in combat).
-    npc:unregister_in_combat()
+    -- Leave the squad combat group joined in initialize (the engine's own unregister, in the blocked combat
+    -- planner's finalize, never runs). Guarded on alive: finalize also fires on death, where the engine has
+    -- already torn down the agent member state and unregister_in_combat faults on the stale object.
+    if npc:alive() then npc:unregister_in_combat() end
     npc:sniper_fire_mode(false)
 end
 
