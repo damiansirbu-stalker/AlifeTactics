@@ -232,14 +232,14 @@ function at_spawn_renegade()
     _spawn("renegade_sim_squad_novice", 50, 0)
 end
 
--- Give the actor a Glock + three boxes of 9x19, so you can engage a spawned squad and hurt them (the flee test).
+-- Give the actor a Fort-17 + three boxes of 9x18, so you can engage a spawned squad and hurt them (the flee test).
 --- @export console
 function at_give_pistol()
     local id = db.actor and db.actor:id()
     if not id then return end
-    xinventory.create_item("wpn_glock", id)
-    for _ = 1, 3 do xinventory.create_item("ammo_9x19_fmj", id) end
-    _tip("AT.TEST: Glock + 3 boxes 9x19 given")
+    xinventory.create_item("wpn_fort", id)
+    for _ = 1, 3 do xinventory.create_item("ammo_9x18_fmj", id) end
+    _tip("AT.TEST: Fort-17 + 3 boxes 9x18 given")
 end
 
 -- Spawn an armed military squad, then strip every weapon 3s later so each member reads as unarmed.
