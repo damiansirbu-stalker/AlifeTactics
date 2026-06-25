@@ -59,7 +59,7 @@ local DOCTRINE_SECTION = "doctrine"
 
 local GRENADE_MS, FRIENDLY_THRESH_M, RANGE_HYSTERESIS_M, HURT_FRAC, CROUCH_CHANCE, RUN_CHANCE
 local ADVANCE_STANDOFF_M, BACK_STEP_M, STEP_BACK_M, FLANK_LAT_M, FLANK_FWD_M, FLEE_DISTANCE_M
-local SQUAD_BUCKETS, STANCE_HOLD_MS
+local SQUAD_BUCKETS, STANCE_HOLD_MS, FLEE_LANE_ARC_DEG, FLEE_LANE_SPREAD_DEG
 
 -- Maneuver catalog, filled from at_combat_doctrine.ltx. Each entry: handles (the checks it answers),
 -- move (destination resolver), fire (xcombat mode), factions / weapons / env selection sets.
@@ -96,7 +96,9 @@ function at_combat_doctrine.load_config()
     ADVANCE_STANDOFF_M = read_float("advance_standoff_m",     10)
     BACK_STEP_M        = read_float("back_step_m",            12)
     STEP_BACK_M        = read_float("step_back_m",            6)
-    FLEE_DISTANCE_M    = read_float("flee_distance_m",        30)
+    FLEE_DISTANCE_M    = read_float("flee_distance_m",        50)
+    FLEE_LANE_ARC_DEG    = read_float("flee_lane_arc_deg",        20)
+    FLEE_LANE_SPREAD_DEG = read_float("flee_lane_max_spread_deg", 80)
     FLANK_LAT_M        = read_float("flank_lateral_m",        12)
     FLANK_FWD_M        = read_float("flank_forward_m",        6)
     SQUAD_BUCKETS      = read_int("squad_buckets",          5)
@@ -257,14 +259,17 @@ end
 -- flee: a far destination away from the danger - the grenade position (stashed by is_grenade_near) when fleeing
 -- a grenade, else the enemy track. Replaces the 12m withdraw for the stow flee: each leg runs FLEE_DISTANCE_M
 -- away and the flee re-fires on arrival while the check still holds, so the NPC keeps running until lost_sight
--- hands it back. Unlike withdraw it moves away from the GRENADE, not the enemy line.
+-- hands it back. Unlike withdraw it moves away from the GRENADE, not the enemy line. The destination is a
+-- heading whose run lane is clear for the full distance (find_flee_lane fans off straight-away until a vertex
+-- that far out has no static wall on the line), so the NPC does not turn and run into a corner.
 local function _resolve_flee(npc, enemy, state)
     local npc_pos = npc:position()
     local danger_pos = state.flee_danger_pos or xcombat.get_track_pos(npc, enemy, state.sees)
     local dx, dz = npc_pos.x - danger_pos.x, npc_pos.z - danger_pos.z
     local mag = math_sqrt(dx*dx + dz*dz)
     if mag < 1 then return npc:level_vertex_id() end
-    return xcombat.find_point(npc, vector():set(dx / mag, 0, dz / mag), FLEE_DISTANCE_M)
+    return xcombat.find_flee_lane(npc, vector():set(dx / mag, 0, dz / mag),
+        FLEE_DISTANCE_M, FLEE_LANE_ARC_DEG, FLEE_LANE_SPREAD_DEG)
 end
 
 local function _resolve_step_back(npc, enemy, state)

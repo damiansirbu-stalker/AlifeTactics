@@ -31,7 +31,9 @@ stance_hold_ms           = 5000   ; hold the crouch/stand choice this long acros
 advance_standoff_m       = 10     ; advance stops this far short of the enemy
 back_step_m              = 12     ; withdraw pull-back distance from the enemy
 step_back_m              = 6      ; step_back short nudge away when the enemy is in your face
-flee_distance_m          = 30     ; flee leg distance away from the danger (re-fires on arrival while the check holds)
+flee_distance_m          = 50     ; flee leg distance away from the danger, also the clear-lane length required (re-fires on arrival while the check holds)
+flee_lane_arc_deg        = 20     ; flee heading fan step: try straight-away, then +-this many degrees per step, until a lane is clear
+flee_lane_max_spread_deg = 80     ; flee heading fan: maximum deviation from straight-away before falling back to the best partial
 flank_lateral_m          = 12     ; flank sideways offset (side chosen by squad bucket parity)
 flank_forward_m          = 6      ; flank forward bias toward the enemy while moving lateral
 
