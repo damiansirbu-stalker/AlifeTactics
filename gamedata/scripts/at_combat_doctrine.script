@@ -261,7 +261,8 @@ end
 -- away and the flee re-fires on arrival while the check still holds, so the NPC keeps running until lost_sight
 -- hands it back. Unlike withdraw it moves away from the GRENADE, not the enemy line. The destination is a
 -- heading whose run lane is clear for the full distance (find_flee_lane fans off straight-away until a vertex
--- that far out has no static wall on the line), so the NPC does not turn and run into a corner.
+-- that far out has no wall or object (a crate the navmesh routes through) on the line), so the NPC does not
+-- turn and run into a corner.
 local function _resolve_flee(npc, enemy, state)
     local npc_pos = npc:position()
     local danger_pos = state.flee_danger_pos or xcombat.get_track_pos(npc, enemy, state.sees)
