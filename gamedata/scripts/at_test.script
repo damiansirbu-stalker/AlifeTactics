@@ -380,7 +380,7 @@ end
 -- Catalog order mirrors at_combat_doctrine.ltx [doctrine] maneuvers (11 entries).
 local LAB_MANEUVERS = {
     "hold_fire", "hold_snipe", "cover_fire", "advance_open_fire", "advance_cover_fire",
-    "flank_cover_fire", "flank_cover_stow", "back_open_fire", "flee_open_stow",
+    "flank_cover_fire", "flank_cover_stow", "back_open_fire", "flee_open_ready",
     "step_back_fire", "step_side_fire",
 }
 

@@ -41,11 +41,11 @@ function at_combat_trace.scan(npc, enemy, state, check, maneuver, scan_us)
     if not _on then return end
     local id = npc:id()
     local age = state.unseen_ms or 0
-    log.debug("scan npc=%d(%s) dist=%.1f hp=%.2f zone=%s sees=%s fire=%s ene=%s(%s) age=%d pal=%s/%s/%s dest=%s cover=%s check=%s man=%s us=%.0f",
+    log.debug("scan npc=%d(%s) dist=%.1f hp=%.2f zone=%s sees=%s fire=%s ene=%s(%s) age=%d pal=%s/%s/%s dest=%s rout=%s cover=%s check=%s man=%s us=%.0f",
         id, _get_name(id), npc:position():distance_to(enemy:position()), npc.health, _show(state.range_zone), state.sees and "Y" or "N",
         _show(state.fire), _show(enemy:id()), _show(enemy:name()), age,
         _show(state.community), _show(state.bucket_name), _show(state.env),
-        _show(state.dest), _show(state.cover_lvid),
+        _show(state.dest), _show(state.rout), _show(state.cover_lvid),
         _show(check), _show(maneuver),
         scan_us)
 end
@@ -53,9 +53,9 @@ end
 --- Maneuver committed: the check that fired it, the rolled posture/speed, the apply + resolve costs.
 function at_combat_trace.decide(id, name, check, posture, movement, apply_ms, resolve_ms, ok, state)
     if not _on then return end
-    log.debug("decide npc=%d(%s) man=%s check=%s posture=%s move=%s dest=%s cover=%s apply=%.3fms resolve=%.3fms ok=%s",
+    log.debug("decide npc=%d(%s) man=%s check=%s posture=%s move=%s dest=%s rout=%s cover=%s apply=%.3fms resolve=%.3fms ok=%s",
         id, _get_name(id), name, tostring(check), tostring(posture), tostring(movement),
-        tostring(state.dest or "-"), tostring(state.cover_lvid or "-"), apply_ms, resolve_ms, tostring(ok))
+        tostring(state.dest or "-"), tostring(state.rout or "-"), tostring(state.cover_lvid or "-"), apply_ms, resolve_ms, tostring(ok))
 end
 
 --- Action-state probe, logged only when an installed NPC's current top-level action changes. cur is the

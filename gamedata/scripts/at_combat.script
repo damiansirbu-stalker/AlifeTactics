@@ -86,9 +86,9 @@ end
 -- object-track owns the aim (set_combat handed it the enemy). When blind we set NO aim: the READY state carries
 -- no look target, so the engine's own direction sub-planner faces the NPC down path_dir - a script-set static
 -- point is overwritten by that sub-planner every cycle (state_mgr_goap.script:486-499), so re-stamping one is
--- dead work. STOW (a flee) is left alone: weapon away, no aim, run path.
+-- dead work. A face-run-path maneuver (STOW, or the weapon-up READY flee) is left alone: no aim, run path.
 local function _aim_at_enemy(npc, state, enemy, tg)
-    if state.fire == STOW then return true end
+    if state.fire == STOW or state.fire == READY then return true end
     local sees = _can_see(npc, enemy, state, tg)
     -- the occluder probe runs only while seen (else we already hold fire); a wall on the line holds fire too
     local can_fire = sees and not _has_wall_between(npc, enemy, state, tg)
@@ -299,15 +299,18 @@ function at_combat_action:_begin_maneuver(name, npc, enemy, state, tg, check)
     state.applied_fire = nil
     local atmr = xprofiler.new_if(_dbg):start()
     local ok
-    if maneuver.fire == STOW then
-        -- a flee faces its run path: weapon away, no aim target, so the state resolves to path_dir
-        ok = xcombat.set_combat(npc, { fire = STOW, posture = posture, movement = movement, aim = nil })
-        state.applied_fire = STOW
+    if maneuver.fire == STOW or maneuver.fire == READY then
+        -- a flee/stow faces its run path: no aim target, so the state resolves to path_dir. Weapon up for the
+        -- READY flee (no holster delay), away for the STOW flank.
+        ok = xcombat.set_combat(npc, { fire = maneuver.fire, posture = posture, movement = movement, aim = nil })
+        state.applied_fire = maneuver.fire
     else
         -- see-gated: fire state + live aim when seen, READY + last-known aim when blind (no firing into the wall)
         ok = _aim_at_enemy(npc, state, enemy, tg)
     end
     local apply_ms = atmr:stop():get_ms()
+    -- the flee resolver sets state.rout to the routed smart name (or "lane"); cleared here so it is fresh per commit
+    state.rout = nil
     local mtmr = xprofiler.new_if(_dbg):start()
     local vid = doctrine.resolve(maneuver, npc, enemy, state)
     local resolve_ms = mtmr:stop():get_ms()
@@ -346,11 +349,30 @@ function at_combat_action:_choose_maneuver(npc, enemy, state, tg, picked, scan_u
     local maneuver = picked and doctrine.pick_maneuver(picked, state)
     if maneuver then
         self:_begin_maneuver(maneuver, npc, enemy, state, tg, picked)
-    elseif state.fire == STOW then
+    elseif state.fire == STOW or state.fire == READY then
         maneuver = "hold_fire"
         self:_begin_maneuver("hold_fire", npc, enemy, state, tg, "rearm")
     end
     at_combat_trace.scan(npc, enemy, state, picked, maneuver, scan_us)
+end
+
+-- Survival precedence: a fired retreat trigger (is_hurt / is_grenade_near) overrides the rest, so a hurt or
+-- grenade-pressed NPC commits to retreating and the pick never shuffles a flee against advancing into the
+-- enemy (which sent a routing NPC charging back). Among same-precedence candidates the pick stays uniform.
+local SURVIVAL = { is_hurt = true, is_grenade_near = true }
+local function _pick(fired, count)
+    if count == 0 then return nil end
+    local surv = 0
+    for i = 1, count do
+        if SURVIVAL[fired[i]] then surv = surv + 1 end
+    end
+    if surv == 0 then return fired[math_random(count)] end
+    local target, seen = math_random(surv), 0
+    for i = 1, count do
+        local name = fired[i]
+        if SURVIVAL[name] then seen = seen + 1 end
+        if seen == target and SURVIVAL[name] then return name end
+    end
 end
 
 function at_combat_action:execute()
@@ -384,8 +406,8 @@ function at_combat_action:execute()
 
     -- mid-maneuver: only aim ran, no re-decision.
     if not done then return end
-    -- maneuver finished: shuffle-pick one fired check and commit (a finished flee re-arms to hold_fire).
-    self:_choose_maneuver(npc, enemy, state, tg, count > 0 and fired[math_random(count)] or nil, prof:stop():get_us())
+    -- maneuver finished: pick one fired check (survival triggers take precedence) and commit.
+    self:_choose_maneuver(npc, enemy, state, tg, _pick(fired, count), prof:stop():get_us())
 end
 
 function at_combat_action:finalize()

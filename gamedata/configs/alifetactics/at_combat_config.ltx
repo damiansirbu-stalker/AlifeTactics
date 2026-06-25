@@ -20,7 +20,7 @@ see_throttle_ms          = 500    ; min interval between the evaluator's see() p
 grenade_ms               = 3000   ; how recent a grenade danger counts as "near" (the flee/cover window)
 friendly_line_thresh_m   = 1.5    ; lateral half-width of the firing lane for the squadmate-block check
 range_hysteresis_m       = 3      ; hysteresis on the weapon-band in/out boundaries
-hurt_frac                = 0.25   ; health below this fires is_hurt
+hurt_frac                = 0.50   ; health below this fires is_hurt (retreat) - flee with a buffer, not at near-death
 
 ; Posture / speed (rolled per maneuver, held for its life)
 crouch_chance            = 0.30   ; chance a maneuver crouches (else stands); a crouch always walks (no crouch+run fire state)
@@ -31,7 +31,7 @@ stance_hold_ms           = 5000   ; hold the crouch/stand choice this long acros
 advance_standoff_m       = 10     ; advance stops this far short of the enemy
 back_step_m              = 12     ; withdraw pull-back distance from the enemy
 step_back_m              = 6      ; step_back short nudge away when the enemy is in your face
-flee_distance_m          = 50     ; flee leg distance away from the danger, also the clear-lane length required (re-fires on arrival while the check holds)
+flee_distance_m          = 25     ; flee leg distance away from the danger, also the clear-lane length required (re-fires on arrival while the check holds)
 flee_lane_arc_deg        = 20     ; flee heading fan step: try straight-away, then +-this many degrees per step, until a lane is clear
 flee_lane_max_spread_deg = 80     ; flee heading fan: maximum deviation from straight-away before falling back to the best partial
 flank_lateral_m          = 12     ; flank sideways offset (side chosen by squad bucket parity)

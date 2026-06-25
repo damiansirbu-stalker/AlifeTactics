@@ -16,7 +16,7 @@ local character_community, vector = character_community, vector
 at_combat_doctrine = at_combat_doctrine or {}
 
 -- xcombat fire-mode aliases (the weapon state the engine runs)
-local SHOOT, SNIPE, STOW = xcombat.FIRE, xcombat.SNIPE, xcombat.STOW
+local SHOOT, SNIPE, READY, STOW = xcombat.FIRE, xcombat.SNIPE, xcombat.READY, xcombat.STOW
 local STAND, CROUCH      = xcombat.STAND, xcombat.CROUCH
 local STILL, WALK, RUN   = xcombat.STILL, xcombat.WALK, xcombat.RUN
 
@@ -24,7 +24,7 @@ local STILL, WALK, RUN   = xcombat.STILL, xcombat.WALK, xcombat.RUN
 local BUCKET_SNIPER, BUCKET_CLOSE, BUCKET_RIFLE = "SNIPER", "CLOSE", "RIFLE"
 
 -- LTX token -> xcombat fire constant (the doctrine LTX uses lowercase tokens).
-local FIRE_TOKENS = { shoot = SHOOT, snipe = SNIPE, stow = STOW }
+local FIRE_TOKENS = { shoot = SHOOT, snipe = SNIPE, ready = READY, stow = STOW }
 
 -- Split a comma/space-separated LTX list into an array of tokens (whitespace trimmed).
 local function _split(raw)
@@ -257,13 +257,23 @@ local function _resolve_withdraw(npc, enemy, state)
 end
 
 -- flee: a far destination away from the danger - the grenade position (stashed by is_grenade_near) when fleeing
--- a grenade, else the enemy track. Replaces the 12m withdraw for the stow flee: each leg runs FLEE_DISTANCE_M
+-- a grenade, else the enemy track. Replaces the 12m withdraw for the flee: each leg runs FLEE_DISTANCE_M
 -- away and the flee re-fires on arrival while the check still holds, so the NPC keeps running until lost_sight
 -- hands it back. Unlike withdraw it moves away from the GRENADE, not the enemy line. The destination is a
 -- heading whose run lane is clear for the full distance (find_flee_lane fans off straight-away until a vertex
 -- that far out has no wall or object (a crate the navmesh routes through) on the line), so the NPC does not
 -- turn and run into a corner.
 local function _resolve_flee(npc, enemy, state)
+    -- rout out of the fight to the nearest friendly base on the level (AT drives set_dest there, weapon up);
+    -- if no base qualifies, fall back to the in-place clear-lane flee away from the danger.
+    local base = xsmart.find_friendly_base(character_community(npc), npc:position(), xlevel.get_actor_level_id())
+    if base then
+        state.rout = base:name()
+        local vid = base.m_level_vertex_id
+        if not vid or vid >= 4294967295 then vid = level.vertex_id(base.position) end
+        return vid
+    end
+    state.rout = "lane"
     local npc_pos = npc:position()
     local danger_pos = state.flee_danger_pos or xcombat.get_track_pos(npc, enemy, state.sees)
     local dx, dz = npc_pos.x - danger_pos.x, npc_pos.z - danger_pos.z
@@ -335,6 +345,11 @@ end
 -- =========================================================================
 
 function at_combat_doctrine.roll_stance(state, fire, stationary, tg)
+    -- the flee (the only maneuver declaring fire=READY): always stand and sprint away, weapon up - never
+    -- crouch or walk a retreat, so it does not roll posture/speed like the other maneuvers.
+    if fire == READY then
+        return xcombat.resolve_stance(fire, STAND, RUN)
+    end
     if not state.crouch_until or tg >= state.crouch_until then
         state.want_crouch  = math_random() < CROUCH_CHANCE
         state.crouch_until = tg + STANCE_HOLD_MS

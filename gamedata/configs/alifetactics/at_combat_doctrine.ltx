@@ -1,10 +1,10 @@
 ; AlifeTactics combat doctrine: maneuver catalog. Paired with gamedata/scripts/at_combat_doctrine.script.
-; handles = the checks (problems) this maneuver answers   move = destination resolver   fire = shoot|snipe|stow
+; handles = the checks (problems) this maneuver answers   move = destination resolver   fire = shoot|snipe|ready|stow
 ; factions / weapons / env = selection sets (listed in full, no shorthand). A check is answered by a random
 ; eligible maneuver, so listing the same check on several maneuvers spreads behavior across the squad.
 
 [doctrine]
-maneuvers = hold_fire, hold_snipe, cover_fire, advance_open_fire, advance_cover_fire, flank_cover_fire, flank_cover_stow, back_open_fire, flee_open_stow, step_back_fire, step_side_fire
+maneuvers = hold_fire, hold_snipe, cover_fire, advance_open_fire, advance_cover_fire, flank_cover_fire, flank_cover_stow, back_open_fire, flee_open_ready, step_back_fire, step_side_fire
 
 [hold_fire]
 handles  = engage, is_target_changed
@@ -71,10 +71,10 @@ weapons  = sniper, close, rifle
 env      = indoor, outdoor
 
 ; timid factions flee - stow the weapon and run away from the danger (the grenade, or the enemy when hurt).
-[flee_open_stow]
+[flee_open_ready]
 handles  = is_hurt, is_grenade_near
 move     = flee
-fire     = stow
+fire     = ready
 factions = ecolog, csky, renegade
 weapons  = sniper, close, rifle
 env      = indoor, outdoor

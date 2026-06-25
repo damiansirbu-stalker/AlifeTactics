@@ -28,7 +28,7 @@ next
     Military, Duty, Freedom, ISG, and mercs fight from cover and keep firing as they reposition.
     Monolith presses forward firing and never retreats. Bandits, renegades, and Sin come head-on.
     Loners, ecologists, and Clear Sky fight cautiously and fall back when badly hurt.
-  - Changed NPCs to keep the weapon up while repositioning. A fleeing NPC holsters and runs clear of the danger (the grenade, or the enemy when badly hurt) down an escape route checked open for its full length, so it breaks away down a clear lane instead of into a wall, and keeps running until it breaks contact, instead of a single step back.
+  - Changed NPCs to keep the weapon up while repositioning. A timid NPC (ecologist, Clear Sky, renegade) hurt to half health, or pressed by a grenade, routs out of the fight: it runs to the nearest friendly base on the level (a place its enemies do not hold) weapon up, no holster delay, and commits to the run instead of charging back in. If no base is reachable it breaks away down a clear escape route checked open for its full length, instead of a single step back. Other factions kite (fall back while still firing).
   - Unarmed NPCs now sprint away from the enemy instead of fighting empty-handed, any faction.
   - Fixed NPCs firing into walls. A managed NPC holds fire with the weapon up when it cannot see the enemy or a wall blocks the shot, instead of emptying the magazine into cover, and resumes the moment the line clears.
   - Added Sniper aim mode for kind=w_sniper carriers (SVD, SVT40, Mosin, SKS, M82 and the rest of the class).
