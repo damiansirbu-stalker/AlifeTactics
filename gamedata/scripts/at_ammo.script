@@ -1,93 +1,89 @@
---- at_ammo: veteran-rank NPCs fire AP from inventory until depleted, then revert
---- to vanilla magic FMJ. Player loots the depletion remainder.
+--- at_ammo: veteran-rank-and-up NPCs fire AP from the loose ammo they carry;
+--- each engagement has a rank- and fire-rate-weighted chance to consume one AP
+--- box, until the NPC runs out and reverts to vanilla magic FMJ.
 ---
---- Engine context: NPCs fire copies of `m_DefaultCartridge` via the magic-refill
---- path (`WeaponMagazined.cpp:520-571`) regardless of inventory; `m_DefaultCartridge`
---- is keyed from `m_ammoTypes[m_ammoType]` at line 559-560. Setting `m_ammoType`
---- via `wpn:set_ammo_type(idx)` re-keys to the section's ballistic params (`k_ap`,
---- `k_hit`, `k_disp`). Inventory ammo is never consumed by the engine while
---- `unlimited_ammo()` is TRUE, which is the default for every stalker.
+--- Engine model: NPCs fire copies of m_DefaultCartridge keyed from
+--- m_ammoTypes[m_ammoType] (WeaponMagazined.cpp:559-571); while unlimited_ammo()
+--- is TRUE (the stalker default, ai_stalker.cpp:78,1585) the refill never
+--- consumes inventory and the reload never re-derives m_ammoType, so
+--- set_ammo_type(idx) re-keys what is fired and holds for the online session.
+--- get_ammo_count_for_type sums loose belt+ruck boxes (Weapon.cpp:1727), so the
+--- AP an NPC carries comes from AlifePlus trade/loot -- vanilla gives NPCs zero
+--- loose ammo (xrs_rnd_npc_loadout.script:215, ammo-give block commented out).
 ---
---- Design: a fixed AP_SECTIONS set lists every clean armor-piercing cartridge
---- section in vanilla Anomaly. Per-NPC state tracks the SINGLE active AP section
---- the NPC is firing and the virtual rounds remaining. Each 5s combat tick drains
---- the virtual count by a per-weapon-kind rate. When virtual drops to MIN_SPARE
---- the system reverts to `m_ammoType = 0` (vanilla magic FMJ) for the rest of the
---- NPC's online session.
+--- Budget is the inventory itself: the NPC's AP boxes (box_size 15 rifle / 16
+--- pistol). No virtual ledger. Decay deletes one whole AP box (alife_release) at
+--- a fight's end on a probabilistic roll; the engine top-up (try_advance_ammo,
+--- object_actions.cpp:131-169) refills rounds inside surviving boxes but cannot
+--- recreate a deleted box, so counting boxes sidesteps the top-up entirely.
 ---
---- Rank gate: only NPCs with `character_rank >= min_ap_rank` (default 12000 = veteran and up; the
---- professional band caps at 11999 in `configs/creatures/game_relations.ltx [game_relations] rating`)
---- ever pick AP. Lower-rank NPCs run pure vanilla (m_ammoType=0) and we don't touch them.
+--- No death hook: vanilla decide_items_to_keep releases every ammo box > 5 on
+--- death (death_manager.script:457) and an AP box is 15 rounds, so NPCs drop no
+--- AP boxes without any help from this module.
 ---
---- Death hook: trims every ammo box in the dead NPC's inventory to MIN_SPARE so
---- it survives `death_manager.script:456-460`'s `>5` deletion filter. Player loots
---- the depletion trail instead of just `death_manager.try_spawn_ammo`'s procedural
---- box.
-
-local log = xlog.get_logger("AT.AMMO", { outfile = "alifetactics.log" })
-local _dbg = false
+--- Decay chance per fight = ap_decay_base * (rpm / rpm_ref) * rank_weight, where
+--- rank_weight falls from 1.0 at min_ap_rank to rank_weight_floor at
+--- rank_ceiling. Fast weapons burn AP quickly; high rank conserves it (a legend
+--- bolt-action shoots AP almost always).
 
 local IsStalker, IsWeapon, time_global = IsStalker, IsWeapon, time_global
 local RegisterScriptCallback, parse_list = RegisterScriptCallback, parse_list
-local math_max, math_floor = math.max, math.floor
+local alife_object, alife_release = alife_object, alife_release
+local math_random, math_min, math_max = math.random, math.min, math.max
 
 local TICK_MS = 5000
 local LTX_PATH = "alifetactics\\at_ammo.ltx"
 local LTX_SECTION = "at_ammo"
 
--- Fixed list of clean armor-piercing ammo sections. Enumerated from
--- vanilla Anomaly `configs/items/weapons/` ammo_class scans. Excludes
--- `_bad` / `_verybad` degraded variants by design: sub-veteran NPCs
--- default to vanilla magic FMJ, and veteran-rank NPCs who
--- happen to carry only degraded AP variants also fall through to
--- vanilla rather than firing weak AP. Add new calibers here as needed.
+-- Clean armor-piercing cartridge sections enumerated from vanilla Anomaly
+-- configs/items/weapons ammo_class scans. Degraded _bad / _verybad variants are
+-- excluded by design. Add new calibers here as modpacks introduce them.
 local AP_SECTIONS = {
-    ["ammo_5.45x39_ap"]  = true,
-    ["ammo_5.56x45_ap"]  = true,
-    ["ammo_7.62x39_ap"]  = true,
-    ["ammo_7.62x51_ap"]  = true,
-    ["ammo_7.62x54_ap"]  = true,
+    ["ammo_5.45x39_ap"]   = true,
+    ["ammo_5.56x45_ap"]   = true,
+    ["ammo_7.62x39_ap"]   = true,
+    ["ammo_7.62x51_ap"]   = true,
+    ["ammo_7.62x54_ap"]   = true,
     ["ammo_7.62x54_7h14"] = true,
-    ["ammo_7.92x33_ap"]  = true,
-    ["ammo_9x18_ap"]     = true,
-    ["ammo_9x19_ap"]     = true,
-    ["ammo_9x19_pbp"]    = true,
-    ["ammo_9x39_ap"]     = true,
-    ["ammo_9x39_pab9"]   = true,
-    ["ammo_12.7x55_ap"]  = true,
-    ["ammo_12x76_dart"]  = true,
+    ["ammo_7.92x33_ap"]   = true,
+    ["ammo_9x18_ap"]      = true,
+    ["ammo_9x19_ap"]      = true,
+    ["ammo_9x19_pbp"]     = true,
+    ["ammo_9x39_ap"]      = true,
+    ["ammo_9x39_pab9"]    = true,
+    ["ammo_12.7x55_ap"]   = true,
+    ["ammo_12x76_dart"]   = true,
 }
 
-local MIN_SPARE, MIN_AP_RANK
-local DRAIN_PER_KIND = {}
+local MIN_AP_RANK, RANK_CEILING, AP_DECAY_BASE, RPM_REF, RANK_WEIGHT_FLOOR, PEACE_DEBOUNCE_MS
 
 local function _load_tunables()
     local ini = ini_file(LTX_PATH)
-    local function i(k, d) local v = ini:r_float_ex(LTX_SECTION, k); return v and math_floor(v) or d end
-    MIN_SPARE                = i("min_spare",        3)
-    MIN_AP_RANK              = i("min_ap_rank",      12000)
-    DRAIN_PER_KIND.w_pistol  = i("drain_w_pistol",   5)
-    DRAIN_PER_KIND.w_shotgun = i("drain_w_shotgun",  2)
-    DRAIN_PER_KIND.w_smg     = i("drain_w_smg",      10)
-    DRAIN_PER_KIND.w_rifle   = i("drain_w_rifle",    8)
-    DRAIN_PER_KIND.w_sniper  = i("drain_w_sniper",   2)
+    local function read(key, default)
+        local value = ini:r_float_ex(LTX_SECTION, key)
+        return value or default
+    end
+    MIN_AP_RANK       = read("min_ap_rank",       12000)
+    RANK_CEILING      = read("rank_ceiling",      27000)
+    AP_DECAY_BASE     = read("ap_decay_base",     0.5)
+    RPM_REF           = read("rpm_ref",           600)
+    RANK_WEIGHT_FLOOR = read("rank_weight_floor", 0.1)
+    PEACE_DEBOUNCE_MS = read("peace_debounce_ms", 15000)
 end
 
--- Per-NPC state. Set when a veteran-rank NPC is first observed carrying any
--- AP_SECTIONS entry in inventory; nil otherwise (those NPCs run vanilla).
--- Once `left` drops to MIN_SPARE the field stays at MIN_SPARE and the picker
--- falls through to vanilla m_ammoType=0 every subsequent tick.
--- Shape: { idx = u8, sec = string, left = int }
+-- Per-NPC fight state. Shape: { fighting, last_seen, wpn_sec, idx, sec }.
+-- idx/sec are the active AP ammo index+section, cached on combat entry; idx nil
+-- means "no AP this engagement" (the NPC fires vanilla FMJ).
 local _state = {}
-
--- Per-NPC last tick timestamp (time_global ms). Throttle gate sits BEFORE any
--- luabind call so non-tick callbacks pay only a hash lookup.
 local _last_tick = {}
-
--- Per-weapon-section ammo_class cache. Weapons are LTX-fixed; cache is
--- one-shot per section seen.
 local _ammo_class_cache = {}
+local _rpm_cache = {}
 
+local _enabled = true
+local _dbg = false
+local log = xlog.get_logger("AT.AMMO", { outfile = "alifetactics.log" })
+
+-- Weapon ammo_class list, cached per weapon section (LTX-fixed).
 local function _get_ammo_class(wpn_sec)
     local cached = _ammo_class_cache[wpn_sec]
     if cached ~= nil then return cached end
@@ -96,9 +92,16 @@ local function _get_ammo_class(wpn_sec)
     return list
 end
 
--- Walk weapon's ammo_class; return (idx, section) for the first entry that's
--- in AP_SECTIONS and currently has > 0 rounds in the NPC's inventory.
--- Returns nil if no eligible AP is carried.
+-- Weapon rpm (effective fire rate), cached per weapon section.
+local function _get_rpm(wpn_sec)
+    local cached = _rpm_cache[wpn_sec]
+    if cached ~= nil then return cached end
+    local value = ini_sys:r_float_ex(wpn_sec, "rpm") or RPM_REF
+    _rpm_cache[wpn_sec] = value
+    return value
+end
+
+-- First ammo_class entry that is AP and currently carried (count > 0).
 local function _find_ap(wpn, ammo_class)
     for i = 1, #ammo_class do
         local section = ammo_class[i]
@@ -109,77 +112,81 @@ local function _find_ap(wpn, ammo_class)
     return nil, nil
 end
 
--- Iterate NPC inventory; for ammo boxes matching `section`, clamp count down
--- to `target_count` if currently above. Defeats engine try_advance_ammo top-up
--- (object_actions.cpp:131-169) for the active AP section between our ticks.
-local function _sync_box(npc, section, target_count)
-    npc:iterate_inventory(function(_owner, item)
-        if item and item:is_ammo() and item:section() == section
-            and item:ammo_get_count() > target_count
-        then
-            item:ammo_set_count(target_count)
-        end
-    end, npc)
+-- Per-fight chance to consume one AP box: faster weapons and lower rank decay sooner.
+local function _decay_chance(npc, wpn_sec)
+    local span = RANK_CEILING - MIN_AP_RANK
+    local progress = (span > 0) and math_max(0, math_min(1, (npc:character_rank() - MIN_AP_RANK) / span)) or 0
+    local rank_weight = 1.0 - progress * (1.0 - RANK_WEIGHT_FLOOR)
+    local chance = AP_DECAY_BASE * (_get_rpm(wpn_sec) / RPM_REF) * rank_weight
+    return math_max(0, math_min(1, chance))
 end
 
---- Run one tick of the ammo state machine on `npc`. Public so test helpers
---- (at_test) can drive it on demand. Returns true if m_ammoType changed.
-function pick(npc)
-    if at_mcm.get_config("ammo_enabled") == false then return false end
-    if not (npc and npc:alive() and IsStalker(npc)) then return false end
-    if npc:character_rank() < MIN_AP_RANK then return false end
+-- Release one inventory ammo box of `section`. Capture the id during iteration,
+-- release after, so inventory is not mutated mid-walk.
+local function _delete_one_ap_box(npc, section)
+    local target_id
+    npc:iterate_inventory(function(_owner, item)
+        if not target_id and item and item:is_ammo() and item:section() == section then
+            target_id = item:id()
+        end
+    end, npc)
+    if not target_id then return end
+    local se_item = alife_object(target_id)
+    if se_item then alife_release(se_item) end
+end
 
+-- Combat tick: (re)scan AP on entry or weapon change, then hold AP as the loaded type.
+local function _on_combat_tick(npc, wpn, wpn_sec, ammo_class, st, now)
+    if not st.fighting or st.wpn_sec ~= wpn_sec then
+        st.fighting = true
+        st.wpn_sec = wpn_sec
+        st.idx, st.sec = _find_ap(wpn, ammo_class)
+    end
+    st.last_seen = now
+    if st.idx and wpn:get_ammo_type() ~= st.idx then
+        wpn:set_ammo_type(st.idx)
+        if _dbg then log.debug("[AP] npc=%d ammo_type=%d sec=%s", npc:id(), st.idx, st.sec) end
+    end
+end
+
+-- Peace tick: once the enemy has been gone past the debounce, end the fight and
+-- roll the AP-box decay. Revert to FMJ if the active AP section is now empty.
+local function _on_peace_tick(npc, wpn, st, now)
+    if not st.fighting then return end
+    if now - (st.last_seen or 0) < PEACE_DEBOUNCE_MS then return end
+    st.fighting = false
+    if not st.idx then return end
+    local chance = _decay_chance(npc, st.wpn_sec)
+    if math_random() < chance then
+        _delete_one_ap_box(npc, st.sec)
+        if _dbg then log.debug("[AP] npc=%d drop box sec=%s p=%.2f", npc:id(), st.sec, chance) end
+    end
+    if wpn:get_ammo_count_for_type(st.idx) <= 0 and wpn:get_ammo_type() ~= 0 then
+        wpn:set_ammo_type(0)
+    end
+end
+
+--- Run one tick of the ammo state machine on `npc`. Public so test helpers drive it.
+function pick(npc, now)
+    if not _enabled then return end
+    if not (npc and npc:alive() and IsStalker(npc)) then return end
+    if npc:character_rank() < MIN_AP_RANK then return end
     local wpn = npc:active_item()
-    if not (wpn and IsWeapon(wpn)) then return false end
-
+    if not (wpn and IsWeapon(wpn)) then return end
     local wpn_sec = wpn:section()
     local ammo_class = _get_ammo_class(wpn_sec)
-    if not (ammo_class and #ammo_class > 0) then return false end
+    if not (ammo_class and #ammo_class > 0) then return end
 
+    now = now or time_global()
     local id = npc:id()
     local st = _state[id]
+    if not st then st = { fighting = false }; _state[id] = st end
 
-    -- First observation of this NPC: scan inventory for any AP_SECTIONS entry
-    -- in the weapon's ammo_class. If none, NPC stays on vanilla forever.
-    if not st then
-        local idx, section = _find_ap(wpn, ammo_class)
-        if not idx then return false end
-        local count = wpn:get_ammo_count_for_type(idx)
-        st = { idx = idx, sec = section, left = count }
-        _state[id] = st
+    if npc:best_enemy() then
+        _on_combat_tick(npc, wpn, wpn_sec, ammo_class, st, now)
+    else
+        _on_peace_tick(npc, wpn, st, now)
     end
-
-    local kind = ini_sys:r_string_ex(wpn_sec, "kind") or ""
-    local drain = DRAIN_PER_KIND[kind] or 5
-    st.left = math_max(MIN_SPARE, st.left - drain)
-
-    local target_type = (st.left > MIN_SPARE) and st.idx or 0
-    local current_type = wpn:get_ammo_type()
-    local changed = false
-    if current_type ~= target_type then
-        wpn:set_ammo_type(target_type)
-        changed = true
-        if _dbg then
-            log.debug("[AMMO] npc=%d wpn=%s ammo_type %d->%d sec=%s left=%d",
-                id, wpn_sec, current_type, target_type,
-                (target_type == st.idx and st.sec) or "-", st.left)
-        end
-    end
-
-    -- Sync inventory box of the active AP section to ledger value. Defeats
-    -- engine top-up between our ticks. Skipped once depleted to avoid pinning
-    -- the box at MIN_SPARE forever; death hook will trim at end-of-life.
-    if target_type == st.idx then
-        _sync_box(npc, st.sec, st.left)
-    end
-
-    if _dbg then
-        log.debug("[AMMO] tick npc=%d rank=%d wpn=%s firing=%d:%s ap_left=%d",
-            id, npc:character_rank(), wpn_sec, target_type,
-            (target_type == st.idx and st.sec) or "vanilla_fmj", st.left)
-    end
-
-    return changed
 end
 
 local function _on_update(npc)
@@ -189,23 +196,7 @@ local function _on_update(npc)
     local last = _last_tick[id]
     if last and (now - last) < TICK_MS then return end
     _last_tick[id] = now
-
-    if not npc:best_enemy() then return end
-    pick(npc)
-end
-
--- Trim every ammo box in the dead NPC's inventory to MIN_SPARE so it survives
--- death_manager.decide_items_to_keep's >5 deletion filter
--- (death_manager.script:456-460). Runs before motivator_binder:death_callback's
--- decide_items_to_keep call at xr_motivator.script:362.
-local function _on_death(victim, _who)
-    if not (victim and IsStalker(victim)) then return end
-    local floor = MIN_SPARE or 3
-    victim:iterate_inventory(function(_owner, item)
-        if item and item:is_ammo() and item:ammo_get_count() > floor then
-            item:ammo_set_count(floor)
-        end
-    end, victim)
+    pick(npc, now)
 end
 
 local function _on_entity_unregister(se_obj)
@@ -215,17 +206,17 @@ local function _on_entity_unregister(se_obj)
     _last_tick[id] = nil
 end
 
-local function _refresh_log()
+local function _refresh_cfg()
+    _enabled = at_mcm.get_config("ammo_enabled") ~= false
     log.set_level(at_mcm.get_config("log_level") or "WARN")
     _dbg = log.get_level() >= 5
 end
 
 function on_game_start()
     _load_tunables()
-    _refresh_log()
+    _refresh_cfg()
     RegisterScriptCallback("npc_on_update",               _on_update)
-    RegisterScriptCallback("npc_on_death_callback",       _on_death)
     RegisterScriptCallback("server_entity_on_unregister", _on_entity_unregister)
-    RegisterScriptCallback("on_option_change",            _refresh_log)
-    RegisterScriptCallback("mcm_option_restore_default",  _refresh_log)
+    RegisterScriptCallback("on_option_change",            _refresh_cfg)
+    RegisterScriptCallback("mcm_option_restore_default",  _refresh_cfg)
 end

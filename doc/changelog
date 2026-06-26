@@ -5,12 +5,10 @@ next
     An NPC that hits a teammate of its own faction deals no damage by default.
     A slider scales same-faction damage from zero up to full vanilla.
     Damage you deal is never affected.
-  - Added simulated NPC ammo consumption.
-    Vanilla NPCs always fire the first ammo type in their weapon's list regardless of what they carry. AlifeTactics promotes veteran-rank and higher NPCs who carry armor-piercing ammo to fire AP-class rounds with real ballistics.
-    NPCs fire AP for a tracked window (drain rate by weapon kind: pistol, shotgun, SMG, rifle, sniper) then revert to vanilla magic FMJ when their virtual AP supply runs out. Drain rates live in configs/alifetactics/at_ammo.ltx.
-    NPC corpses keep at least 3 rounds of each ammo box, so the player loots the remainder instead of just a procedural spawn.
-    Armor-piercing is restricted to veteran rank and above by default. The fixed AP section list covers vanilla calibers (5.45x39, 5.56x45, 7.62x39, 7.62x51, 7.62x54, 7.92x33, 9x18, 9x19, 9x39, 12.7x55, 12x76). Add modpack calibers to the script's AP_SECTIONS table when needed.
-    MCM > Fixes > NPC Ammo, default on.
+  - Added NPC armor-piercing ammo. NPCs use the real ammo boxes they carry instead of magic-refilling one fixed type.
+    Veteran-rank and higher NPCs fire the AP rounds they hold, with real ballistics. Each engagement has a chance to spend a box, scaled by weapon rate of fire and rank, until they run out and revert to vanilla FMJ.
+    Restricted to veteran rank and above. AP section list covers vanilla calibers (5.45x39, 5.56x45, 7.62x39, 7.62x51, 7.62x54, 7.92x33, 9x18, 9x19, 9x39, 12.7x55, 12x76); add modpack calibers to the script's AP_SECTIONS table.
+    Tunables in configs/alifetactics/at_ammo.ltx. MCM > Fixes > NPC Ammo, default on.
   - Added NPC weapon jam suppression.
     Demonized modded exes add a per-rank jam roll separate from weapon condition. NPCs fire 2-3 rounds, jam, and reload in a tight loop.
     AlifeTactics blocks the roll for NPCs. Actor jams stay vanilla.

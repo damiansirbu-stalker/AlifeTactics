@@ -1,29 +1,36 @@
 ; AlifeTactics ammo system tuning. Paired with gamedata/scripts/at_ammo.script.
 ; All keys have script-side fallback defaults so a missing key won't crash.
 ;
-; The script maintains a per-NPC virtual ledger of remaining rounds per ammo
-; section in the weapon's ammo_class. Each 5s combat tick drains the highest
-; tier above MIN_SPARE by the drain rate; inventory boxes are clamped to the
-; ledger value to defeat the engine's try_advance_ammo top-up
-; (object_actions.cpp:131-169). On death, all ammo boxes are trimmed to
-; MIN_SPARE so they survive death_manager.decide_items_to_keep's >5 deletion
-; filter (death_manager.script:456-460), preserving the depletion trail as
-; player corpse loot.
+; Each veteran-and-up NPC fires AP from the loose ammo it carries (stocked by
+; AlifePlus trade/loot). The budget is the inventory itself -- its AP boxes
+; (box_size 15 rifle / 16 pistol). At the end of each engagement there is a
+; chance to consume one whole AP box; when the NPC runs out it reverts to
+; vanilla magic FMJ. No death hook is needed: vanilla decide_items_to_keep
+; already releases every ammo box > 5 on death (death_manager.script:457), so
+; the 15-round AP boxes never drop as loot.
+;
+; Per-fight delete chance = ap_decay_base * (weapon rpm / rpm_ref) * rank_weight,
+; where rank_weight falls from 1.0 at min_ap_rank to rank_weight_floor at
+; rank_ceiling. Fast weapons burn AP quickly; high rank conserves it.
 
 [at_ammo]
-; Floor for inventory boxes. Must be <= 5 to survive decide_items_to_keep.
-min_spare         = 3
-
-; Rounds drained per 5s combat tick, per weapon kind LTX field.
-drain_w_pistol    = 5
-drain_w_shotgun   = 2
-drain_w_smg       = 10
-drain_w_rifle     = 8
-drain_w_sniper    = 2
-
-; NPC character_rank threshold for AP-class ammo eligibility.
-; Sections whose name contains "_ap" require npc:character_rank() >= min_ap_rank.
-; Default 12000 = veteran and up (professional band caps at 11999 in creatures/game_relations.ltx [game_relations] rating).
-; Lower-rank NPCs skip AP tiers and fire FMJ; AP inventory they carry stays
-; untouched during life, gets trimmed to min_spare at death by the death hook.
+; NPC character_rank floor for AP. 12000 = veteran (professional caps at 11999
+; in creatures/game_relations.ltx [game_relations] rating). Below = vanilla FMJ.
 min_ap_rank       = 12000
+
+; Rank at which rank_weight reaches rank_weight_floor. 27000 = legend.
+rank_ceiling      = 27000
+
+; Base per-fight chance to consume one AP box (before rpm and rank weighting).
+ap_decay_base     = 0.5
+
+; Fire-rate pivot. A weapon at this rpm decays at the base rate; faster weapons
+; decay sooner, slower (snipers, bolt-actions) much later.
+rpm_ref           = 600
+
+; rank_weight at rank_ceiling. Lower = more permanent elite AP (0 = legends
+; never decay past the ceiling).
+rank_weight_floor = 0.1
+
+; No-enemy duration (ms) that ends an engagement and triggers the decay roll.
+peace_debounce_ms = 15000

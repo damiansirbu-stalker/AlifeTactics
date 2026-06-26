@@ -23,7 +23,7 @@ Version 1.0.0.
 | `at_combat.script` | feature | done (Pattern B planner takeover; reactive agent over a turret baseline; data-driven maneuver catalog and faction palette) |
 | `xr_danger.script` | feature | done (full-file override) |
 | `at_jam.script` | feature | done (modded-exes xr_weapon_jam.GetConditionMisfireProbability override; suppresses script-injected NPC misfire) |
-| `at_ammo.script` | feature | done (per-NPC virtual ledger drives AP-then-FMJ selection; inventory and corpse boxes clamped to the ledger; veteran-rank gate) |
+| `at_ammo.script` | feature | done (AP fired from carried boxes; per-engagement rank/rpm-weighted box-delete decay reverts to FMJ when out; veteran-rank gate; no death hook) |
 | `zzz_at_health_patch.script` | feature | done (vanilla xr_eat_medkit re-roll suppressor) |
 | `configs/ai_tweaks/mod_xr_eat_medkit_at.ltx` | data | done |
 | `configs/ai_tweaks/xr_danger.ltx` | data | done |
@@ -380,57 +380,47 @@ The engine functor lookup at `Weapon.cpp:1781` was added in demonized commit `f2
 
 ## NPC Ammo
 
-Veteran-rank-and-up NPCs fire AP from inventory until depleted, then revert to vanilla magic FMJ. Player loots the remainder.
+Veteran-rank-and-up NPCs fire AP from the loose ammo they carry; each engagement has a rank- and fire-rate-weighted chance to consume one AP box, until the NPC runs out and reverts to vanilla magic FMJ. NPCs drop no AP boxes as loot.
 
-Engine context: NPCs do not consume real inventory ammo while `unlimited_ammo()` is TRUE, which is the default for every stalker (`xrServer_Objects_ALife_Monsters.cpp:2164`). The magic refill at `WeaponMagazined.cpp:520-571` produces copies of `m_DefaultCartridge`, keyed from `m_ammoTypes[m_ammoType]` at line 559-560. Setting `m_ammoType` re-keys those copies; inventory drain in this script is cosmetic for corpse-loot composition.
+Engine context: while `unlimited_ammo()` is TRUE (the stalker default, `ai_stalker.cpp:78,1585`) the magic refill at `WeaponMagazined.cpp:559-571` copies `m_DefaultCartridge` keyed from `m_ammoTypes[m_ammoType]` and never consumes inventory, and the reload does not re-derive `m_ammoType` -- so `wpn:set_ammo_type(idx)` re-keys what is fired and holds for the online session. `get_ammo_count_for_type` sums loose belt+ruck boxes only (`Weapon.cpp:1727`), so the AP an NPC carries comes from AlifePlus trade/loot; vanilla gives NPCs zero loose ammo (`xrs_rnd_npc_loadout.script:215`, ammo-give block commented out).
 
-### Fixed AP set
+### Budget is the inventory
 
-`AP_SECTIONS` is a hardcoded set of clean armor-piercing cartridge sections enumerated from vanilla Anomaly `configs/items/weapons/`, covering the base calibers. Degraded `_bad` / `_verybad` variants are intentionally excluded — they're treated as "carry but don't promote". Add new calibers to the table when modpacks introduce them.
-
-### Per-NPC state
-
-`_state[id] = { idx, sec, left }`. Set when a veteran-rank NPC is first observed carrying any `AP_SECTIONS` entry in inventory; nil otherwise (those NPCs run vanilla forever). Cleared on `server_entity_on_unregister`. Not save-persisted.
+No virtual ledger. The budget is the NPC's AP boxes themselves (box_size 15 rifle / 16 pistol; stocked to 1 box by trade, up to 3 by looting, per the box-aligned policy unification). `_find_ap` returns the first `AP_SECTIONS` entry in the weapon's `ammo_class` with a loose count > 0. `AP_SECTIONS` is the hardcoded clean-AP set; degraded `_bad` / `_verybad` variants are excluded.
 
 ### Tick algorithm
 
-`pick(npc)` is the public entry, subscribed to `npc_on_update` (slow per-NPC throttle, gated on `best_enemy()`). Each tick:
+`pick(npc, now)` is the public entry, subscribed to `npc_on_update` (per-NPC throttle). Gates: cached `ammo_enabled`, `alive`/`IsStalker`, `character_rank() >= min_ap_rank`, `IsWeapon(active_item)`, non-empty `ammo_class`. Then it splits on `best_enemy()`:
 
-1. MCM gate (`ammo_enabled`), `npc:alive()` and `IsStalker(npc)` filter, `npc:character_rank() >= min_ap_rank` filter — sub-master returns immediately.
-2. `IsWeapon(npc:active_item())` filter.
-3. If `_state[id]` nil: scan `ammo_class` for the first entry in `AP_SECTIONS` with inventory count > 0; seed `_state[id]` with that idx, section, and starting count. If no AP found, leave `_state[id]` nil so the NPC stays on vanilla.
-4. Drain `_state[id].left` by `DRAIN_PER_KIND[kind]`, clamped at `MIN_SPARE`.
-5. If `left > MIN_SPARE`: set `m_ammoType = idx` and `_sync_box(npc, sec, left)` to defeat engine `try_advance_ammo` top-up.
-6. Else: set `m_ammoType = 0` (vanilla magic FMJ for the rest of the NPC's online session).
+- Combat tick: on combat entry or weapon change, `_find_ap` caches `idx`/`sec`; while AP is carried, hold `m_ammoType = idx` (re-asserted only if changed). AP is held for the whole fight, no mid-fight revert.
+- Peace tick: once `best_enemy()` has been nil past `peace_debounce_ms`, the engagement ends -- roll `_decay_chance`; on a hit, `alife_release` one AP box of `sec`; if that section is now empty, set `m_ammoType = 0`.
 
-Sub-rank NPCs early-exit at the rank check, paying only the `character_rank()` read; the full tick runs on a slow per-NPC throttle, gated on having an enemy.
+### Decay chance
+
+`ap_decay_base * (rpm / rpm_ref) * rank_weight`, clamped to [0,1]. `rpm` is the weapon's effective fire rate (bolt 25, SVD 60, rifle 600, SMG/MG 900). `rank_weight` lerps from 1.0 at `min_ap_rank` to `rank_weight_floor` at `rank_ceiling`. So fast weapons burn AP quickly and high rank conserves it -- a legend bolt-action shoots AP almost always. Deleting a whole box is permanent: `try_advance_ammo` (`object_actions.cpp:131-169`) refills rounds inside surviving boxes but cannot recreate a deleted box, so counting boxes never fights the top-up.
+
+### No death hook
+
+Vanilla `decide_items_to_keep` (`xr_motivator.script:362` -> `death_manager.script:457`) `alife_release`s every ammo box with > 5 rounds on death. An AP box is 15 rounds, so NPCs drop no AP boxes with no module help. `npc_on_death_callback` fires at `xr_motivator.script:396`, after that release, so a death-time trim could not preserve AP anyway -- the old hook was removed.
 
 ### Rank gate
 
-`npc:character_rank() >= min_ap_rank`, the veteran band by default (the threshold maps onto the rank ratings in `configs/creatures/game_relations.ltx`). Below-threshold NPCs never enter the picker; their inventory AP boxes are untouched during life and trimmed at death by the death hook.
-
-This intentionally restricts AP to veteran+ to prevent armor degradation across the whole NPC population. Tune via LTX.
-
-### Death hook
-
-`npc_on_death_callback` walks the dead NPC's inventory and trims every ammo box where `ammo_get_count() > MIN_SPARE` down to MIN_SPARE. Runs before `motivator_binder:death_callback`'s `decide_items_to_keep` call at `xr_motivator.script:362`. Boxes ≤ 5 survive `death_manager.script:456-460`'s `>5` deletion filter, so the depletion trail persists as corpse loot.
-
-Without this hook the engine's `try_advance_ammo` top-up at the last reload before death would leave boxes at `boxSize` and `decide_items_to_keep` would release them entirely. Player would see only `death_manager.try_spawn_ammo`'s procedural box. With the hook, player loots the actual remainder.
+`character_rank() >= min_ap_rank`, veteran by default (12000 = veteran floor in `configs/creatures/game_relations.ltx [game_relations] rating`; professional caps at 11999, legend starts at 27000). Below-threshold NPCs early-exit at the rank read.
 
 ### Tunables
 
-`gamedata/configs/alifetactics/at_ammo.ltx`: the box floor, the rank threshold, and a per-weapon-kind drain rate. The floor must stay at or below the `decide_items_to_keep` deletion cutoff so corpse boxes survive. Script-side fallbacks match so a missing key or file won't crash.
+`gamedata/configs/alifetactics/at_ammo.ltx`: `min_ap_rank`, `rank_ceiling`, `ap_decay_base`, `rpm_ref`, `rank_weight_floor`, `peace_debounce_ms`. Script-side fallbacks match so a missing key or file won't crash.
 
 ### MCM
 
-`ammo_enabled` master toggle: off, the tick early-exits with no `m_ammoType` writes, no inventory clamping, and no death-time trim.
+`ammo_enabled` master toggle (cached, refreshed on `on_option_change`): off, `pick` early-exits with no `m_ammoType` writes and no box deletion.
 
 ### Scope and limits
 
-- Active weapon only. NPC swapping weapons mid-fight: state stays bound to the original AP section / idx until offline cycle resets state.
-- Drain is by-time, not by-shots-fired. No NPC fire callback exists in vanilla. A rifle NPC firing constantly drains the same as one in cover. Acceptable proxy.
-- Save/load resets `_state` unless marshal hook is added. Re-seeds on next tick for any NPC still carrying AP.
-- Degraded `_ap_bad` / `_ap_verybad` variants are not promoted. NPCs carrying only degraded variants fall through to vanilla magic FMJ and the degraded boxes survive death hook trimming for player loot.
+- Active weapon only; state re-scans on weapon change or next engagement.
+- Decay is per-engagement, not per-shot (no NPC fire callback exists). A continuous siege counts as one engagement.
+- Save/load resets `_state`, but depletion lives in the inventory (boxes are released, not tracked), so it persists for free; `_state` re-seeds on the next engagement.
+- Requires a loose-AP source (AlifePlus trade/loot) and the magazine system off; with NPC ammo encapsulated in magazine items, `get_ammo_count_for_type` reads 0 and the NPC stays on FMJ.
 - No interaction with `at_jam`; different engine paths, compose freely.
 
 ---
@@ -447,7 +437,7 @@ The architecture principle is to feed engine memory and state, not fight it. Per
 | Combat | NPC GOAP action (at_combat_action), Pattern B preconditions on action_combat_planner/action_danger_planner/xr_danger.actid/state_mgr+2/alife, set_dest_level_vertex_id, state_mgr.set_state, set_body_state, set_movement_type, set_sight, `m_sniper_fire_mode` flag | GOAP `add_evaluator`/`add_action`/`add_precondition` (custom evaid/actid), `npc:best_cover`, `level.vertex_in_direction`, `npc:sniper_fire_mode`, `db.used_level_vertex_ids` reservation |
 | Danger | NPC danger evaluator/action graft, `script_danger` per-id table for sound-source dispatch | Engine callbacks `npc_on_hear_callback`, `npc_on_death_callback`, GOAP planner graft |
 | Weapon Jam | Module-level function table on `xr_weapon_jam` | Lua function assignment (`xr_weapon_jam.GetConditionMisfireProbability = ...`) read by engine functor lookup at `Weapon.cpp:1781` |
-| NPC Ammo | CWeapon `m_ammoType` field via `wpn:set_ammo_type(idx)` (re-keys `m_DefaultCartridge` for magic refill ballistics); per-NPC virtual ledger drives section selection; inventory boxes clamped to ledger via `obj:ammo_set_count` to defeat `try_advance_ammo` top-up; death hook trims boxes to MIN_SPARE for corpse loot survival | `npc:active_item`, `wpn:set_ammo_type`, `wpn:get_ammo_type`, `wpn:get_ammo_count_for_type`, `npc:best_enemy`, `npc:character_rank`, `npc:iterate_inventory`, `obj:ammo_get_count`, `obj:ammo_set_count` |
+| NPC Ammo | CWeapon `m_ammoType` field via `wpn:set_ammo_type(idx)` (re-keys `m_DefaultCartridge` for magic refill ballistics); per-engagement box-delete decay (`alife_release` one AP box on a rank/rpm-weighted roll); reverts to `m_ammoType = 0` when the section is empty | `npc:active_item`, `wpn:set_ammo_type`, `wpn:get_ammo_type`, `wpn:get_ammo_count_for_type`, `npc:best_enemy`, `npc:character_rank`, `npc:iterate_inventory`, `alife_release` |
 
 The engine then runs its own combat detection (property_enemy, m_combat_mask, agent_memory propagation) on the state we wrote. No system reimplements engine behavior; each one nudges engine state to produce the desired outcome.
 
