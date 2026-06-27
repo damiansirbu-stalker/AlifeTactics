@@ -1,6 +1,6 @@
 # AlifeTactics Architecture
 
-Combat AI mod for STALKER Anomaly. Independent user-facing systems: a hit-share force-disclosure, a self-heal data + animation layer, a per-rank weapon accuracy curve, a full-file xr_danger override with bug fixes and three toggleable improvements, and a Pattern B planner takeover that injects an alternative combat AI on a configurable share of NPCs (the takeover overrides zero vanilla combat files, so it coexists with vanilla / GAMMA / AI Rework / RCAI / Useful Idiots / Mora). No shared substrate.
+Combat AI mod for STALKER Anomaly. Independent user-facing systems: a hit-share force-disclosure, a self-heal data + animation layer, a per-rank weapon accuracy curve, a full-file xr_danger override with bug fixes and three toggleable improvements, and an intermittent combat takeover that briefly borrows an NPC from vanilla for one committed maneuver where vanilla is weak (the takeover overrides zero vanilla combat files, so it coexists with vanilla / GAMMA / AI Rework / RCAI / Useful Idiots / Mora). No shared substrate.
 
 Built on xlibs (xsquad, xttltable, xtime, xprofiler, xlog, xmcm, xslice, xcreature).
 
@@ -20,7 +20,7 @@ Version 1.0.0.
 | `at_hitresponse.script` | feature | done |
 | `at_health.script` | feature | done |
 | `at_accuracy.script` | feature | done |
-| `at_combat.script` | feature | done (Pattern B planner takeover; reactive agent over a turret baseline; data-driven maneuver catalog and faction palette) |
+| `at_combat.script` | feature | re-architecture in progress (intermittent takeover transaction model — see Combat section + t122; shipped code is still the prior full-takeover) |
 | `xr_danger.script` | feature | done (full-file override) |
 | `at_jam.script` | feature | done (modded-exes xr_weapon_jam.GetConditionMisfireProbability override; suppresses script-injected NPC misfire) |
 | `at_ammo.script` | feature | done (AP fired from carried boxes; per-engagement rank/rpm-weighted box-delete decay reverts to FMJ when out; veteran-rank gate; no death hook) |
@@ -209,111 +209,44 @@ Per-shot hot path: a rank-name lookup, then pure-Lua scaling of the dispersion t
 
 ## Combat
 
-GOAP planner takeover (Pattern B), split across two files: `at_combat` (the engine half - the GOAP evaluator + action, the check loop, the per-NPC state store, cover reservation, the handback decision, lifecycle) and `at_combat_doctrine` (the pure decision half - the checks, the maneuver catalog, the faction palette, movement resolution). `_install` grafts one evaluator + one action into each stalker's motivation manager and adds `world_property(EVAL_ID, false)` as a precondition to vanilla `action_combat_planner` / `action_danger_planner` / `xr_danger` / `state_mgr+2` / `alife`. Evaluator true = AT drives the NPC; false = vanilla resumes.
+Status: re-architecture in progress. The shipped code in `at_combat.script` / `at_combat_doctrine.script` still implements the prior full-takeover (AT as the combat brain over a turret baseline); this section describes the target design now being built. Full design and ordered build plan: `stalker-dev/doc/todo/todo-alifetactics-next.md` t122. The full-takeover code is preserved on the `combat_takeover` branch and in `.deleted/`.
 
-Inversion of control, not a loop. The engine pumps the brain and calls us - the evaluator on every plan solve, the action's `execute` on the NPC's AI scheduler tick while it is the current action (not the render frame, and not a loop we run). Both read `npc:best_enemy()` at entry, which is the engine's per-NPC target from the memory manager one layer below the blocked planner (`enemy_manager.cpp` via `memory_manager.cpp`): AT consumes the target, it never computes it. The takeover owns *what to do*, not *who the enemy is*. See `doc/library/modding/stalker-combat-brain.md`.
+### The model: a takeover transaction
 
-The catalog and tunables are data, not code: numeric knobs in `configs/alifetactics/at_combat_config.ltx`, the maneuver catalog in `configs/alifetactics/at_combat_doctrine.ltx`. `load_config` reads both at game start and builds `MANEUVERS` in place; the script holds no literal catalog.
+Vanilla owns every NPC by default (autocommit). AT does not run combat; it briefly borrows one NPC inside a transaction — BEGIN one maneuver, run it atomically to completion, COMMIT — then hands control back. AT is an interrupt handler over vanilla, not the combat brain. Between transactions AT is absent: no engine state written, no aim set, nothing while the gate is off.
 
-Blocking the combat planner removes the engine's per-tick aimer, so under takeover AT supplies aim, posture, movement, destination, and fire state. The engine keeps the trigger, the per-rank dispersion, and the `can_kill_member` friendly-fire hold. All NPC control routes through xcombat. See `doc/library/modding/npc-combat-control.md`, `npc-combat-effectiveness.md`.
+Three NPC states, real cost only in the last:
+- Idle — not in a fight, zero AT work.
+- Monitored — in a fight; one cheap throttled predicate "should I BEGIN now", engine-memory reads only, no raycasts.
+- Under-transaction — one committed maneuver: aim upkeep, drive to the destination, watch for completion.
 
-### Invariants
+### Fight detection
 
-The rules the combat loop must not break. Most encode a mistake already made and reverted; keep them.
+Idle and Monitored switch off the engine combat mask, which Hit Sharing's `register_in_combat` already sets on every faction-enemy hit (`at_hitresponse` -> `xcombat.disclose_enemy`). A hit is fight-start regardless of shooter range, so no separate long-range entry is needed. Edge-triggered; while Idle the NPC is invisible to AT.
 
-1. **The engine owns the clock.** It pumps `execute()` on the NPC's AI scheduler tick - not the render frame, not a loop we run. Add no loop, and no throttle in front of the checks.
-2. **Everything is a check** - `{ name, period, wait, run }`. Aim is a check (the fastest, ~200ms). "Is the maneuver finished" is a check too (throttled by its caller, with the `maneuver_max_ms` stuck cap). Nothing per-tick runs outside the check list.
-3. **One throttle per check** - its own `period`. Never a master gate in front of the checks.
-4. **Each check reads only what it needs, when its period fires.** There is no observe / read-all phase and no shared context. Two checks that coincide on a pass and want the same value re-read it (a couple of cheap getters); we do not cache across checks.
-5. **No allocation on the per-tick path.** `vector()` / `{}` happen only inside a maneuver commit (the destination geometry), never on the turret tick - the seen turret rides the engine object-track and a blind NPC sets no aim, so neither allocates.
-6. **Maneuvers are committed.** While one is in flight only aim and the hard-stop handback run; tactical checks wait for `path_completed` or the stuck cap. No soft reason interrupts a committed maneuver.
-7. **The turret is the baseline.** Aim at the enemy and fire when the shot is clear (sight-gated + wall-gated), hold weapon-up otherwise; a flee (READY) is the one maneuver that suppresses aim and faces the run path, weapon up. Checks are negative - they fire on a problem, never on an opportunity.
-8. **Handback is not a combat check.** "Should AT drive this NPC at all" is a separate throttled decision (`_decide_takeover` in `_on_update`), cached in `state.eval` for the evaluator to read.
-9. **Consume engine primitives, do not reinvent them.** `best_enemy` (target), perception / memory, `can_kill_member` (friendly fire), `best_cover`, `register_in_combat` (squad memory-sharing - joined on `initialize`, left on `finalize`, since the blocked combat planner no longer does it). Reusable engine wraps live in xcombat; AT calls them.
+### BEGIN — the trigger decides when
 
-### The model: a reactive agent
+While Monitored, a predicate fires only where vanilla is weak or absent: too_close, hurt, stalled (holding too long, no re-engage), grenade, and hit-from-unanswerable-range (range defense, reading the hit vector not `best_enemy`). On a fire, AT picks the faction-flavored intervention and BEGINs by flipping the GOAP gate. The things vanilla does well — the opener, re-target, search, cover, turret, grenade throw and dodge, squad coordination — are not triggers.
 
-AT is a reactive agent over a turret baseline. The default behavior is the turret — aim at the engine's current enemy and let it fire; the NPC does nothing else until a problem appears. The reactions are deliberately sparse and negative-only: a maneuver runs only when a check detects something wrong (a grenade down nearby, the enemy inside the close band, the firing line blocked, the NPC hurt, the enemy lost), never on an opportunity. There is no "enemy exposed, push" trigger and no resting maneuver — finish a maneuver with nothing wrong and the NPC is the turret again.
+### The body, COMMIT, ABORT
 
-The checks are condition-action rules over that baseline. Each is a predicate that, when it holds, fires the maneuver its faction palette assigns. A maneuver, once started, is committed: it runs to completion and is never interrupted mid-flight; only a hard stop (dead, wounded, unarmed, disabled, companion) breaks it. So the agent is reactive in *what* triggers it and deliberate in *how long it holds*.
-
-### Versus vanilla: commitment, not per-frame recompute
-
-Both the engine's C++ combat planner and Anomaly's Lua combat schemes are per-frame controllers: every frame they re-read perception and re-pick the whole tactical state (a state + destination + aim) from the current instant, holding almost no memory of what they were doing. Fluid, but it dithers when perception flickers (the enemy weaving through line of sight, marginal cover) — the plan flips and the NPC abandons a half-finished move, the headless-chicken stutter.
-
-AT grafts in the same way (blocks the combat planner, issues the same engine commands) but inverts the decision model: it picks a *maneuver* — a multi-second committed action (take that cover and fire, flank to there) — and runs it to completion, re-deciding only when the maneuver finishes (`npc:path_completed` or the stuck cap) or a hard stop hits. Commit, not recompute.
-
-This is a deliberate alternative on the commitment-vs-reactivity axis, not a strict upgrade. Better for the goal — stable, deliberate, aggressive maneuvering (real advance / flank / cover-to-cover a per-frame recompute cannot sustain, plus a push toward the enemy the engine never does) — at the cost of moment-to-moment reactivity inside a committed maneuver, which the reactive checks and the handback partially restore.
-
-Cost model (reasoned, not benchmarked): the commit model is cheaper per frame than a per-frame recompute — the heavy decision (the checks, palette, resolve, best_cover) runs only when a maneuver completes, every few seconds; between commits only the cheap aim re-point runs per tick, and the per-NPC eval is throttled with the expensive bridge calls gated behind it. It is still a Lua layer over the engine (which keeps running perception, memory, and the trigger), so total per-NPC cost is not necessarily below vanilla — the claim is the decision loop is lighter, not the whole NPC.
-
-### The check loop
-
-`execute()` runs one loop over the check list each AI tick. Every check carries its own `period`, a `run`, and a `wait` flag. A check runs when its period has elapsed AND it is eligible this pass: aim (`wait=false`) runs every tick — you keep aiming while you move; the tactical checks (`wait=true`) run only once the current maneuver is finished. Each check reads its own world when it fires; there is no shared read-all phase. When a tactical check's predicate holds and the palette has a maneuver for it, that maneuver is a candidate; among the candidates that fired this pass one is chosen at random and committed — except a survival trigger (`is_hurt` / `is_grenade_near`) takes precedence: when one fires, the pick draws only among the retreat maneuvers, so a hurt or grenade-pressed NPC commits to retreating instead of shuffling a retreat against advancing into the enemy. A finished flee (weapon up, no holster) with nothing pending re-arms to `hold_fire` so the NPC never idles weapon-down.
-
-Every tactical check is a negative condition — a problem to correct (the last row, `is_context_changed`, is the exception: it rebuilds the palette on its period and never fires a maneuver):
-
-| Check | Problem it detects | Reaction |
-|---|---|---|
-| engage | no maneuver yet (fight opener) | pick an opening maneuver |
-| is_grenade_near | a grenade is down nearby | retreat: kite (brave) or flee (timid) |
-| is_too_close | enemy inside the close band | step back while firing |
-| is_target_changed | the engine selected a new enemy | re-pick on the new target |
-| is_hurt | health below the hurt threshold | retreat: kite (brave) or flee (timid) |
-| is_blocked_wall | a wall on the firing line | lateral step / re-cover |
-| is_blocked_friendly | a teammate on the firing line | lateral step |
-| is_enemy_unseen | the enemy unseen past the lost-sight window | close in (advance / flank) |
-| is_context_changed | indoor-outdoor / weapon bucket changed | rebuild the eligible maneuver list |
-
-The check periods and the thresholds they read (the hurt fraction, the range band, the lost-sight window) are `at_combat_config.ltx` tunables, not fixed here.
-
-"Finished" is `_is_maneuver_finished`: `npc:path_completed()` (the engine path-traversal flag, which self-clears when a new destination is set, so a committed move reads finished only on arrival and a non-moving command at once), or no maneuver set, or the `maneuver_max_ms` stuck cap forcing it after a move that never arrives. See `doc/library/modding/npc-combat-control.md`.
-
-### Aim — the turret (`_aim_at_enemy`)
-
-The aim check, every `aim_period_ms`: choose the weapon state and point the weapon. It applies the maneuver's fire state only when the NPC both sees the enemy (`_can_see` — the throttled `npc:see`) AND has a clear static line (`_has_wall_between`); otherwise it drops to READY — weapon up, no trigger, same posture/movement. That mirrors the engine's `KillEnemy::execute` and every vanilla scheme: fire on sight, hold weapon-up otherwise — no firing into walls, no holster.
-
-Who points the weapon depends on sight. While the NPC sees the enemy in a fire state, `set_combat` hands the state a `look_object`, so the engine's own object-track owns the aim — it re-reads the enemy each frame and leads it, and the engine fires along that sight with its per-rank dispersion (snipers add `sniper_fire_mode`, head-line aim, through the SNIPE fire state). When the NPC is blind or pre-maneuver it drops to READY and sets no aim target; the engine's own direction sub-planner then faces it down `path_dir`. The takeover stamps no static last-known point: a script-set `eSightTypeFirePosition` is never the direction the state's own sub-planner wants for a no-look-target state, so it is overwritten within a frame of being set (proven against `state_mgr_goap.script:486-499` + `state_mgr_direction.script:160-217`). A flee (READY) is the exception: aim is suppressed, `set_combat` passes no look target, the state resolves to `path_dir`, and the NPC turns its back and runs weapon up (no holster delay); finishing with nothing pending re-arms the turret to `hold_fire`. The wall gate is coarse — a chest-height static ray that false-positives on a window or railing the round would clear — so the precise check is the engine's `can_kill` geometry, pending a fork PR.
+The maneuver body is atomic and isolated: it runs to completion, and no new trigger or perception flicker interrupts it mid-flight — this is what kills the per-frame headless-chicken dither. COMMIT releases the NPC in a state vanilla accepts so it does not undo the maneuver: open-ending maneuvers (flee, kite, advance) need no reconcile; the one cover-ending maneuver (flank) delivers the NPC to the engine's own `best_cover` so vanilla continues the cover cycle without relocating. ABORT is immediate on a hard stop (dead, wounded, unarmed, no_enemy), even mid-body. At most one open transaction per NPC.
 
 ### Maneuvers
 
-Each maneuver is one section in `at_combat_doctrine.ltx`, carrying `handles` (the checks it answers), `move` (the destination resolver), `fire` (shoot / snipe / stow), and the selection tags factions / weapons / env. Posture + speed are rolled at maneuver start and held (crouch / run chances and the stance-hold window are `at_combat_config.ltx` tunables; crouch always walks, since the engine has no crouch+run fire state). The catalog itself is data, not architecture — read `at_combat_doctrine.ltx` for the live maneuver list, their checks, and faction tags.
+Keep only what vanilla cannot do: flee (timid rout-to-base), kite (back-and-fire — vanilla `get_distance` is dead), flank (disciplined — vanilla detour is gated and rare), advance (open charge — vanilla never advances in the open). Drop every duplicate of a vanilla operator (turret, cover-seek, sidestep). Two families: pure-AT (flee, kite, advance — end in the open, AT drives start to finish) and cover-handoff (flank — deliver to engine cover, release). Advance ends in the open, never in held forward cover, so vanilla's evaluator never disagrees and walks the NPC back.
 
-`move` dispatches to a resolver: hold = own node; advance_open = the NPC->enemy line, `advance_standoff_m` short of the enemy; advance_cover = cover anchored at that forward point; cover = `find_cover` near the NPC; step_back / withdraw = a short back-step away; flee = rout to the nearest friendly base (`xsmart.find_friendly_base`), or when none qualifies run `flee_distance_m` away from the danger (the grenade itself when fleeing a grenade, else the enemy) down a lane checked clear for the full distance (`find_flee_lane` fans the heading off straight-away in `flee_lane_arc_deg` steps to `flee_lane_max_spread_deg` until one has a reachable vertex that far out with no wall or object (a crate the navmesh would route through) on the line, so the NPC does not turn and run into a corner), re-committing on arrival so the NPC keeps running until it breaks contact; step_side = `find_shot`; flank = lateral + forward offset (side by squad bucket parity); flank_cover = `find_cover` at that flank offset. advance_cover and flank_cover_fire search radially around their anchor for now; the directional forward/lateral cover search is a separate task. A resolve that returns the own node holds and fires in place (never fails to vanilla). Catalog in `at_combat_doctrine.ltx`.
+### The GOAP graft (the control point, unchanged)
 
-### Doctrine (faction palette)
+`_install` grafts one evaluator and one action per stalker and adds `world_property(EVAL_ID, false)` as a precondition on the vanilla combat and danger planners. This precondition block is the only GAMMA-proof control point, so it is kept. The evaluator is true only while a transaction is open. The trigger detection (decide to BEGIN) runs always-on in `_on_update` under vanilla, engine-memory only, throttled; the thin runner (aim upkeep and completion watch) runs in the action's execute, only while the transaction holds.
 
-No groups, no lean flags. Each maneuver lists the communities it belongs to; an NPC's palette = the maneuvers matching its (community, weapon bucket, indoor/outdoor). `pick_maneuver` rolls a random eligible maneuver, cached per NPC until the palette rebuilds. A check with no eligible maneuver is a no-op for that faction (how doctrine emerges):
+### Range defense and active reach
 
-Which factions fight from cover vs the open, who flanks, who falls back when hurt and who flees — those are the per-maneuver `factions` / `weapons` / `env` tags in `at_combat_doctrine.ltx`, not duplicated here. Behavior is emergent from the tags, with no group or lean code: a faction reacts to a check only if some maneuver in its palette handles it.
-
-Retreat is exactly two behaviors: brave factions kite (`back_open_fire`: withdraw, weapon up, still firing); timid factions flee (`flee_open_ready`: rout out of the fight to the nearest friendly base on the level — `xsmart.find_friendly_base`, the nearest `is_base` smart its enemies do not hold, reusing the `find_smart` + `is_base` query AlifePlus's flee uses — running there weapon up, no holster, AT driving `set_dest` the whole way; if no base qualifies, fall back to running `flee_distance_m` away from the danger down a clear lane via `find_flee_lane`). Both answer `is_hurt` and `is_grenade_near`; fearless factions (zombied, monolith) do neither.
-
-### Cover
-
-`find_cover(npc, enemy_pos, search_pos)` (xlibs): `best_cover` locates the nearest obstacle around `search_pos` (defaults to the NPC), then a ring of probes around it (8 directions × increasing radius) returns the nearest free vertex with a clear shot — the NPC stands there with cover adjacent. No clear ring vertex → hold and fire. flank_cover passes `search_pos` = the flank offset, advance_cover the forward point. `find_shot` is the same ring centred on the NPC (the sidestep), no cover required. The search is radial around the anchor today; the directional forward/lateral cover search is a separate task.
-
-### Handback to vanilla (`_decide_takeover`)
-
-Hard stops first, each returning `(false, reason)`: `combat_enabled` → id-hash vs `combat_share` → `alive` → not a companion → armed (else **unarmed** — AT blocks the engine's own rearm, so a weaponless NPC must yield). `wounded` is not checked here: it is a GOAP precondition on the action (`sidor_wounded_base = false`), engine-gated for free. Then two soft handbacks, both suppressed while a maneuver is in flight: **no_enemy** — `best_enemy()` is nil or dead (the engine's enemy manager has no target — died, despawned, or forgotten past its inertia window); and **lost_sight** — the enemy is still remembered but unsensed past `lost_sight_ms`. Lost-sight reads the engine's own memory clock, `time_global() - npc:memory_time(enemy)`, which aggregates sight, sound, and hit (`memory_manager.cpp`) — the same signal vanilla uses to disengage (`xr_combat_ignore.script`); `best_enemy` is memory-derived with inertia (`enemy_manager.cpp`), so it does not flicker. The read is wrapped in `xcombat.get_unseen_ms`. The decision is recomputed off the hot path by `_on_update` (`npc_on_update`, throttled to `eval_period_ms`); the engine-polled evaluator only reads the cached `state.eval`, so each `actual()` poll costs a flag read, not a recompute.
-
-**Maneuver transaction.** While a committed maneuver is still in flight (`_is_maneuver_running`: a maneuver set, the path not yet completed, within the stuck cap), both soft handbacks (`no_enemy`, `lost_sight`) are suppressed — a maneuver is never broken mid-flight; only the hard stops (`dead`, `wounded`, `unarmed`, `disabled`, `companion`) interrupt it. The chase target itself comes from memory: while the enemy is not currently seen, a move resolver targets `npc:memory_position(enemy)` (last-known), not the live position (`xcombat.get_track_pos`) — so a pursuit heads to where the enemy was lost and then yields to vanilla search, instead of trailing the live, fleeing target up a stairwell forever.
-
-### Lifecycle
-
-`npc_on_net_spawn` installs (sentinel-guarded); `npc_on_update` recomputes the takeover decision per NPC (throttled to `eval_period_ms`, off the engine-polled evaluator's hot path); `npc_on_net_destroy` clears install + releases the cover reservation; `server_entity_on_unregister` drops the NPC's state; `actor_on_first_update` resets the trace and refreshes the log level — it must not wipe the install/state tables (the spawn/destroy lifecycle maintains those; wiping them here dropped every NPC installed during level load); tunables load in `on_game_start`; `on_option_change` / `mcm_option_restore_default` refresh the log level. Each `action:initialize()` (combat start) registers the NPC in the squad combat mask (the blocked combat planner no longer does, so this restores squad memory-sharing - `register_in_combat`, the engine's own call at `stalker_combat_planner.cpp:182`) and clears the state's per-fight maneuver fields (`maneuver`, `dest`, `enemy_id`) so `engage` reopens; the weapon/palette cache persists, and `finalize` unregisters from the mask and clears the maneuver on handback so the in-flight guard never reads a stale one.
-
-### Tracing
-
-At DEBUG, `at_combat_trace` writes one `scan` line per decision pass (the readings the checks saw, which check fired, which maneuver — or `-` for a turret tick), a `decide` line per committed maneuver (the rolled posture/speed plus the apply/resolve ms), an `eval` line on each takeover/handback transition, and an `install` line per takeover graft (attempt / no_manager / installed). No aggregate counters and no console command — the log lines are the telemetry. Noop when DEBUG is off (no string, no alloc on the off path). The MCM tab settings are dumped once at `actor_on_first_update` as a single INFO `[MCM]` line.
-
-### Configuration model
-
-The takeover is gated by three MCM toggles — a master enable, a per-id `combat_share` split between AT and vanilla, and a companion skip. Everything else is data, not code: numeric tuning in `at_combat_config.ltx`, the maneuver catalog in `at_combat_doctrine.ltx`. The scripts carry only script-side fallbacks, so the values themselves live in the LTX, never here.
+Range defense is a trigger inside the model: a hit from a range the NPC cannot answer BEGINs a break-contact-to-cover transaction. The complementary active reach — letting an NPC register and shoot back at a far shooter by widening the combat-ignore gate (LOS-gated) — is a separate below-planner feature (t92), not part of the takeover.
 
 ### xcombat boundary
 
-AT owns *what to do*; xcombat (xlibs) owns *how to issue it to the engine*. Every NPC command — weapon state, aim, movement, cover and clear-shot search, the line-of-fire and enemy-memory reads, the cover reservation — goes through an xcombat primitive; AT makes no raw engine combat call. The primitive surface and its per-call costs are documented in `stalker-mods/xlibs/doc/architecture.md`, not duplicated here.
+AT owns what to do; xcombat (xlibs) owns how to issue it to the engine, and is where precision wrappers live (for example `can_kill` shot-clearance over a coarse ray). Every NPC command — weapon state, aim, movement, cover and clear-shot search, the line-of-fire and memory reads, the cover reservation — goes through an xcombat primitive; AT makes no raw engine combat call.
 
 ---
 
