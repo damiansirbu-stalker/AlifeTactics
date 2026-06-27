@@ -1,4 +1,6 @@
---- at_hud: Live debug HUD listing nearby NPCs with their current behavior
+--- at_hud: live debug HUD listing nearby NPCs with their logic scheme, combat action, and target.
+--- Per NPC: the active xr_logic section (scheme@subsection), the engine combat operator + physical state, and
+--- the selected enemy with distance and an aim flag (blind = cannot see it, OFF = body pointed away from it).
 
 local pairs, table_sort, math_floor = pairs, table.sort, math.floor
 local string_sub, string_format = string.sub, string.format
@@ -9,18 +11,23 @@ local cfg = at_mcm.cfg
 
 local REFRESH_INTERVAL_SEC = 1
 
-local ROW_H     = 14
-local PAD       = 6
-local TAG_W     = 28
-local NAME_W    = 155
-local BEH_W     = 160
-local TOTAL_W   = TAG_W + NAME_W + BEH_W + PAD * 2
-local MARGIN    = 15
-local MAX_ROWS  = 50
-local NAME_MAX  = 20
+local ROW_H    = 13
+local PAD      = 6
+local TAG_W    = 20
+local NAME_W   = 110
+local LOGIC_W  = 120
+local COMBAT_W = 115
+local TARGET_W = 180
+local TOTAL_W  = TAG_W + NAME_W + LOGIC_W + COMBAT_W + TARGET_W + PAD * 2
+local MARGIN   = 15
+local MAX_ROWS = 50
+local NAME_MAX = 15
+local CELL_MAX = 18
+local TARGET_NAME_MAX = 10
+-- body-to-enemy angle above this many degrees reads as "pointed away" (the weird-aim flag)
+local FACING_DEG = 60
 
--- Colors built lazily; GetARGB is an engine global not present at module-load
--- under the static validator. Initialized on first HUD construction.
+-- Colors built lazily; GetARGB is not present at module-load under the static validator.
 local CLR_TITLE, CLR_AT, CLR_NORMAL, CLR_DIM = nil, nil, nil, nil
 
 local function _init_colors()
@@ -53,40 +60,45 @@ end
 
 
 -- =========================================================================
--- Behavior derivation: AT first, then vanilla combat state, then scheme
+-- Per-NPC derivation: logic scheme, combat operator + state, target + aim flag
 -- =========================================================================
 
-local function _derive(npc, st)
-    -- 1. AT_combat actively driving (its slot holds a maneuver)
-    local maneuver = at_combat.get_maneuver(npc:id())
-    if maneuver then
-        return "AT", maneuver, true
-    end
-
-    -- 2. Vanilla / other-mod combat: state_mgr target_state with active enemy
-    local sm = st.state_mgr
-    if sm and sm.target_state and npc:best_enemy() then
-        return nil, sm.target_state, true
-    end
-
-    -- 3. Active xr_logic scheme (walker, sleeper, smart_terrain job, etc)
-    if st.active_scheme then
-        return nil, st.active_scheme, false
-    end
-
-    -- 4. Fallback
-    return nil, "?", false
-end
-
-local function _name_truncate(s)
+local function _truncate(s, limit)
     if not s or s == "" then return "?" end
-    if #s > NAME_MAX then return string_sub(s, 1, NAME_MAX) end
+    if #s > limit then return string_sub(s, 1, limit) end
     return s
 end
 
+-- Enemy name + distance + aim flag: "blind" when the NPC cannot see it, "OFF" when its body is pointed away.
+local function _target_desc(npc, enemy)
+    local epos = enemy:position()
+    local dist = math_floor(npc:position():distance_to(epos))
+    local name = _truncate(enemy:character_name() or enemy:name(), TARGET_NAME_MAX)
+    local flag = ""
+    if not npc:see(enemy) then
+        flag = " (no sight)"
+    elseif xcombat.get_facing_offset(npc, epos) >= FACING_DEG then
+        flag = " (turned away)"
+    end
+    return string_format("%s %dm%s", name, dist, flag)
+end
+
+-- tag (AT when our maneuver drives), logic section, combat operator/state, target, in_combat
+local function _derive(npc, st)
+    local tag = at_combat.get_maneuver(npc:id()) and "AT" or nil
+    local logic = _truncate(st.active_section or st.active_scheme or "-", CELL_MAX)
+    local enemy = npc:best_enemy()
+    if not enemy then
+        return tag, logic, "-", "-", false
+    end
+    local sm = st.state_mgr
+    local state = (sm and sm.target_state) or "-"
+    return tag, logic, xcombat.get_operator(npc) .. "/" .. state, _target_desc(npc, enemy), true
+end
+
 
 -- =========================================================================
--- Row builder: walk db.storage, derive state per NPC, sort, cap
+-- Row builder: walk db.storage, derive per NPC, sort, cap
 -- =========================================================================
 
 local function _row_for(id, st, ax, r2, actor_id, show_idle)
@@ -96,12 +108,14 @@ local function _row_for(id, st, ax, r2, actor_id, show_idle)
     if not IsStalker(npc) then return nil end
     if not npc:alive() then return nil end
     if ax:distance_to_sqr(npc:position()) >= r2 then return nil end
-    local tag, behavior, is_combat = _derive(npc, st)
+    local tag, logic, combat, target, is_combat = _derive(npc, st)
     if not (show_idle or is_combat) then return nil end
     return {
         tag       = tag,
-        name      = _name_truncate(npc:character_name() or npc:name()),
-        behavior  = behavior,
+        name      = _truncate(npc:character_name() or npc:name(), NAME_MAX),
+        logic     = logic,
+        combat    = combat,
+        target    = target,
         is_combat = is_combat,
     }
 end
@@ -121,22 +135,15 @@ local function _build_rows()
     end
 
     table_sort(rows, function(a, b)
-        if (a.tag == "AT") ~= (b.tag == "AT") then
-            return a.tag == "AT"
-        end
-        if a.behavior ~= b.behavior then return a.behavior < b.behavior end
+        if (a.tag == "AT") ~= (b.tag == "AT") then return a.tag == "AT" end
+        if a.is_combat ~= b.is_combat then return a.is_combat end
         return a.name < b.name
     end)
 
     if #rows > MAX_ROWS then
         local extra = #rows - MAX_ROWS
         for i = #rows, MAX_ROWS + 1, -1 do rows[i] = nil end
-        rows[#rows + 1] = {
-            tag = nil,
-            name = string_format("+%d more", extra),
-            behavior = "",
-            is_overflow = true,
-        }
+        rows[#rows + 1] = { name = string_format("+%d more", extra), logic = "", combat = "", target = "", is_overflow = true }
     end
 
     return rows
@@ -144,7 +151,7 @@ end
 
 
 -- =========================================================================
--- UIDebugHUD: CUIScriptWnd that paints one static-text widget per cell
+-- UIDebugHUD: CUIScriptWnd painting one static-text widget per cell
 -- =========================================================================
 
 class "UIDebugHUD" (CUIScriptWnd)
@@ -154,7 +161,7 @@ function UIDebugHUD:__init(rows) super()
     self:SetAutoDelete(true)
     self:Enable(true)
 
-    -- +2 rows for title + spacer
+    -- +2 rows for the header + spacer
     local panel_h = (#rows + 2) * ROW_H + PAD * 2
     local pos = _calc_position(panel_h)
     self:SetWndPos(vector2():set(pos[1], pos[2]))
@@ -163,27 +170,29 @@ function UIDebugHUD:__init(rows) super()
     local xml = CScriptXmlInit()
     xml:ParseFile("ui_at_stats.xml")
 
-    self:_text(xml, PAD + TAG_W, PAD, NAME_W + BEH_W, "SQUAD BEHAVIORS", CLR_TITLE)
+    self:_row(xml, PAD, "", "NAME", "SCHEME", "ACTION", "TARGET", CLR_TITLE)
 
     for i = 1, #rows do
         local row = rows[i]
-        local row_y = PAD + (i + 1) * ROW_H
         local color
-        if row.is_overflow then
-            color = CLR_DIM
-        elseif row.tag == "AT" then
-            color = CLR_AT
-        else
-            color = CLR_NORMAL
-        end
+        if row.is_overflow then color = CLR_DIM
+        elseif row.tag == "AT" then color = CLR_AT
+        else color = CLR_NORMAL end
         local tag_text = row.tag and ("[" .. row.tag .. "]") or ""
-        self:_text(xml, PAD,                  row_y, TAG_W,  tag_text,     color)
-        self:_text(xml, PAD + TAG_W,          row_y, NAME_W, row.name,     color)
-        self:_text(xml, PAD + TAG_W + NAME_W, row_y, BEH_W,  row.behavior, color)
+        self:_row(xml, PAD + (i + 1) * ROW_H, tag_text, row.name, row.logic, row.combat, row.target, color)
     end
 end
 
-function UIDebugHUD:_text(xml, x, y, w, text, color)
+function UIDebugHUD:_row(xml, y, tag, name, logic, combat, target, color)
+    local col_x = PAD
+    self:_cell(xml, col_x, y, TAG_W, tag, color);      col_x = col_x + TAG_W
+    self:_cell(xml, col_x, y, NAME_W, name, color);    col_x = col_x + NAME_W
+    self:_cell(xml, col_x, y, LOGIC_W, logic, color);  col_x = col_x + LOGIC_W
+    self:_cell(xml, col_x, y, COMBAT_W, combat, color); col_x = col_x + COMBAT_W
+    self:_cell(xml, col_x, y, TARGET_W, target, color)
+end
+
+function UIDebugHUD:_cell(xml, x, y, w, text, color)
     local st = xml:InitStatic("line", self)
     st:SetWndPos(vector2():set(x, y))
     st:SetWndSize(vector2():set(w, ROW_H - 2))
@@ -228,11 +237,7 @@ local function _tick()
         _hide()
         return true
     end
-    if _is_visible() then
-        _refresh()
-    else
-        _hide()
-    end
+    if _is_visible() then _refresh() else _hide() end
     ResetTimeEvent("at_hud", "tick", REFRESH_INTERVAL_SEC)
 end
 
@@ -242,9 +247,7 @@ local function _start()
     RemoveTimeEvent("at_hud", "tick")
     CreateTimeEvent("at_hud", "tick", REFRESH_INTERVAL_SEC, _tick)
     log.info("Debug HUD enabled (position=%s, radius=%dm, show_idle=%s)",
-        cfg.hud_position or "center_right",
-        cfg.hud_radius or 100,
-        cfg.hud_show_idle ~= false and "true" or "false")
+        cfg.hud_position or "center_right", cfg.hud_radius or 100, cfg.hud_show_idle ~= false and "true" or "false")
 end
 
 local function _stop()

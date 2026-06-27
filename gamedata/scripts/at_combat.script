@@ -84,31 +84,34 @@ local function _on_update(npc)
     if tg - (state.mon_at or 0) < MONITOR_MS then return end
     state.mon_at = tg
 
-    if _dbg then trace.set_name(id, npc:name()) end
-
     if not _manages(npc, id) then state.fighting = false return end
 
     state.fighting = _is_fighting(npc, state, tg)
-    if not state.fighting then
-        state.stall_set = false
-        if _dbg then trace.monitor(id, state, "idle") end
-        return
-    end
+    if not state.fighting then state.stall_set = false return end
+
+    if _dbg then trace.set_name(id, npc:name()) end
 
     local enemy = npc:best_enemy()
     if not enemy then
+        state.enemy_id = nil
         if _dbg then trace.monitor(id, state, "no_enemy") end
         return
     end
     state.enemy_id = enemy:id()
 
     if not _can_seize(npc) then
-        if _dbg then trace.monitor(id, state, "cant_seize") end
+        if _dbg then trace.monitor(id, state, "cannot_seize") end
         return
     end
 
     local fired = doctrine.eval_triggers(npc, enemy, state, tg)
-    if _dbg then trace.monitor(id, state, fired) end
+    if _dbg then
+        state.enemy_name = enemy:character_name() or enemy:name()
+        state.operator   = xcombat.get_operator(npc)
+        state.aim_off    = math_floor(xcombat.get_facing_offset(npc, enemy:position()))
+        state.seen       = npc:see(enemy)
+        trace.monitor(id, state, fired or "none")
+    end
 end
 
 
@@ -133,7 +136,7 @@ local function _install(npc)
     local id = npc:id()
     if _installed[id] then return end
     _installed[id] = true
-    if _dbg then trace.install(id, npc:name(), "tracked") end
+    if _dbg then trace.installed(id, npc:name()) end
 end
 
 -- A hit stamps the fight clock so the far-shooter case (best_enemy still nil) reads as fighting in the monitor.

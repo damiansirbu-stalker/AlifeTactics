@@ -197,25 +197,25 @@
   </string>
   <!-- ==================== COMBAT TAB ==================== -->
   <string id="ui_mcm_at_combat_desc">
-    <text>AlifeTactics replaces vanilla combat behavior on a share of NPCs. Each NPC picks a maneuver from its faction's doctrine each tick, based on equipped weapon class, current health, line of sight, and nearby cover. The share slider below decides how much your existing combat AI (vanilla or modpack) stays in charge versus how much of the squad fights with AlifeTactics doctrine.</text>
+    <text>AlifeTactics does not replace your combat AI. Vanilla - or whatever modpack AI you run - drives every fight. AlifeTactics watches, and when an NPC reaches a moment vanilla handles badly, it briefly takes that one NPC over for a single maneuver and then hands control straight back. The share slider below sets how many NPCs it may do this to; the rest fight entirely on your existing AI.</text>
   </string>
   <string id="ui_mcm_at_combat_combat_enabled">
-    <text>Enable Combat AI injection</text>
+    <text>Enable combat takeover</text>
   </string>
   <string id="ui_mcm_at_combat_combat_enabled_desc">
-    <text>When off, every NPC keeps the combat AI you had before AlifeTactics. When on, the share slider below decides how many switch.</text>
+    <text>When off, AlifeTactics never touches combat and every fight runs on your existing AI. When on, it may briefly take an NPC over for one maneuver, up to the share set below. Default: on.</text>
   </string>
   <string id="ui_mcm_at_combat_combat_share">
-    <text>Share of NPCs running AlifeTactics combat</text>
+    <text>Share of NPCs AlifeTactics may take over</text>
   </string>
   <string id="ui_mcm_at_combat_combat_share_desc">
-    <text>Fraction of stalkers that switch to AlifeTactics combat. At 0%, every NPC keeps the combat AI you had. At 50%, half the squad fights with the new doctrine and the other half stays on vanilla, so both run in the same engagement. At 100%, every stalker switches. The choice is per-NPC and stable across save and reload.</text>
+    <text>Fraction of stalkers AlifeTactics is allowed to step in on. At 0%, it never intervenes and every fight is pure vanilla. At 50%, half the stalkers can be briefly taken over while the rest stay fully on your existing AI, both in the same engagement. At 100%, any stalker can be. A takeover is always momentary - one maneuver, then control returns. The choice is per-NPC and stable across save and reload.</text>
   </string>
   <string id="ui_mcm_at_combat_combat_ignore_companions">
     <text>Ignore companions</text>
   </string>
   <string id="ui_mcm_at_combat_combat_ignore_companions_desc">
-    <text>When on, AlifeTactics never takes over your companions; their own follow and combat AI and your commands stay in control. Turn off to let companions fight with AlifeTactics doctrine too. Default: on.</text>
+    <text>When on, AlifeTactics never takes over your companions; their own follow and combat AI and your commands stay in control. Turn off to let it take them over too. Default: on.</text>
   </string>
   <string id="ui_mcm_at_combat_hdr_friendly_fire">
     <text>Friendly fire</text>
@@ -318,7 +318,7 @@
     <text>Enable Debug HUD</text>
   </string>
   <string id="ui_mcm_at_development_hud_enabled_desc">
-    <text>Show a live overlay listing every nearby NPC's name and current behavior. [AT] prefix marks NPCs running the AlifeTactics combat AI; untagged rows are running vanilla or another mod's combat AI. Refreshes every second while visible. Hides automatically when PDA is open. Default: off.</text>
+    <text>Show a live overlay of every nearby NPC: name, active logic scheme, current combat action and state, and the enemy it targets with distance (flagged "(no sight)" when it has no line of sight to the target, "(turned away)" when its body is turned from it). An [AT] prefix marks an NPC AlifeTactics is currently driving. Refreshes every second while visible, hides while the PDA is open. Default: off.</text>
   </string>
   <string id="ui_mcm_at_development_hud_position">
     <text>HUD position</text>

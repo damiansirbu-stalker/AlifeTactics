@@ -10,13 +10,17 @@ at_combat_trace = at_combat_trace or {}
 local _on = false
 local _names = {}
 
-local function _yn(v) return v and "Y" or "N" end
-local function _show(v) return v ~= nil and tostring(v) or "-" end
+-- The monitor outcomes that mean "the NPC was fighting and the triggers were evaluated this tick" (so the
+-- line carries distance + every trigger value). Any other outcome is a skip before evaluation (short line).
+local SCAN_RESULTS = { too_close = true, grenade = true, hurt = true, stalled = true, none = true }
+
+local function _yes_no(v) return v and "yes" or "no" end
+local function _show(v) return v ~= nil and tostring(v) or "unknown" end
 
 --- Cache a per-id display name (raw ids are unreadable in a fight log).
 function at_combat_trace.set_name(id, name) _names[id] = name end
 
---- Enable/disable all tracing. The shell mirrors its _dbg flag here from the log-level refresh.
+--- Enable/disable all tracing. The shell mirrors its debug flag here from the log-level refresh.
 function at_combat_trace.set_enabled(on) _on = on end
 
 --- Drop all per-id memory (level load / first update).
@@ -25,17 +29,24 @@ function at_combat_trace.reset() _names = {} end
 --- Drop one NPC's memory on unregister.
 function at_combat_trace.forget(id) _names[id] = nil end
 
---- Install outcome per NPC (tracked / not_stalker).
-function at_combat_trace.install(id, name, result)
+--- One line when AT starts tracking a stalker.
+function at_combat_trace.installed(id, name)
     if not _on then return end
-    log.info("inst id=%s name=%s result=%s", _show(id), _show(name), result)
+    log.info("installed id=%s name=%s", _show(id), _show(name))
 end
 
---- One line per monitor tick: fight state, the selected enemy, and every trigger's value plus which fired.
---- `fired` is the scan outcome (a trigger name, or a skip reason like idle / no_enemy / cant_seize / none).
-function at_combat_trace.monitor(id, state, fired)
+--- One line per monitor tick for a fighting NPC: the selected enemy and the outcome. When the triggers were
+--- evaluated (result is a trigger name or "none") the line also carries the distance and every trigger value;
+--- when the NPC was skipped before evaluation (no_enemy / cannot_seize) the line is short.
+function at_combat_trace.monitor(id, state, result)
     if not _on then return end
-    log.info("mon id=%s name=%s fight=%s ene=%s dist=%.1f too_close=%s hurt=%s gren=%s stall=%s -> %s",
-        _show(id), _show(_names[id]), _yn(state.fighting), _show(state.enemy_id), state.dist or -1,
-        _yn(state.t_too_close), _yn(state.t_hurt), _yn(state.t_grenade), _yn(state.t_stalled), fired or "none")
+    if SCAN_RESULTS[result] then
+        log.info("monitor id=%s name=%s fighting=yes target=%s(%s) distance=%.1f seen=%s aim=%ddeg operator=%s too_close=%s hurt=%s grenade=%s stalled=%s result=%s",
+            _show(id), _show(_names[id]), _show(state.enemy_id), _show(state.enemy_name), state.dist or -1,
+            _yes_no(state.seen), state.aim_off or -1, _show(state.operator),
+            _yes_no(state.t_too_close), _yes_no(state.t_hurt), _yes_no(state.t_grenade), _yes_no(state.t_stalled), result)
+    else
+        log.info("monitor id=%s name=%s fighting=yes target=%s result=%s",
+            _show(id), _show(_names[id]), _show(state.enemy_id), result)
+    end
 end
