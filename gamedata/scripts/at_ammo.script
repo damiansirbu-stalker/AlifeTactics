@@ -141,11 +141,11 @@ local function _on_combat_tick(npc, wpn, wpn_sec, ammo_class, st, now)
         st.fighting = true
         st.wpn_sec = wpn_sec
         st.idx, st.sec = _find_ap(wpn, ammo_class)
+        if _dbg then log.debug("[AP] engage npc=%d wpn=%s ap=%s", npc:id(), wpn_sec, st.sec or "none") end
     end
     st.last_seen = now
     if st.idx and wpn:get_ammo_type() ~= st.idx then
         wpn:set_ammo_type(st.idx)
-        if _dbg then log.debug("[AP] npc=%d ammo_type=%d sec=%s", npc:id(), st.idx, st.sec) end
     end
 end
 
@@ -157,12 +157,13 @@ local function _on_peace_tick(npc, wpn, st, now)
     st.fighting = false
     if not st.idx then return end
     local chance = _decay_chance(npc, st.wpn_sec)
-    if math_random() < chance then
-        _delete_one_ap_box(npc, st.sec)
-        if _dbg then log.debug("[AP] npc=%d drop box sec=%s p=%.2f", npc:id(), st.sec, chance) end
-    end
-    if wpn:get_ammo_count_for_type(st.idx) <= 0 and wpn:get_ammo_type() ~= 0 then
-        wpn:set_ammo_type(0)
+    local dropped = math_random() < chance
+    if dropped then _delete_one_ap_box(npc, st.sec) end
+    local left = wpn:get_ammo_count_for_type(st.idx)
+    if left <= 0 and wpn:get_ammo_type() ~= 0 then wpn:set_ammo_type(0) end
+    if _dbg then
+        log.debug("[AP] disengage npc=%d ap=%s p=%.2f %s left=%d%s", npc:id(), st.sec, chance,
+            dropped and "DROP" or "keep", left, (left <= 0) and " fmj" or "")
     end
 end
 
