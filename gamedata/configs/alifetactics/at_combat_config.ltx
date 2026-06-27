@@ -1,41 +1,14 @@
-; AlifeTactics combat AI tuning constants. Paired with gamedata/scripts/at_combat.script + at_combat_doctrine.script.
-; All keys have script-side fallback defaults, so missing keys won't crash.
+; AlifeTactics combat takeover (v2) tuning. Paired with gamedata/scripts/at_combat.script + at_combat_doctrine.script.
+; All keys have script-side fallback defaults, so a missing key or file won't crash.
 
 [at_combat]
-; Scan periods (one scan per tick; each registered check runs on its own period)
-aim_period_ms            = 200    ; re-aim interval (always on; the turret tracking cadence, never gated by a maneuver)
-react_period_ms          = 500    ; reactive checks (grenade, in-your-face, target-changed, hurt, wall, teammate)
-slow_period_ms           = 1000   ; slow checks (enemy unseen for a while)
-context_period_ms        = 1000   ; weapon / indoor-outdoor / faction change -> rebuild the eligible maneuver list
+; Monitor (npc_on_update, throttled) - the always-on decision tick per installed stalker
+monitor_period_ms = 500    ; min interval between monitor decisions
+hit_fight_ms      = 5000    ; a recent hit counts as "fighting" this long (far-shooter entry, best_enemy still nil)
 
-; Commitment (a maneuver runs until it reports done; the engine path flag is the truth)
-maneuver_max_ms          = 8000   ; a committed move with no arrival this long is treated as done (stuck / ping-pong stop)
-
-; Handback hysteresis (how long a flickery condition must hold before AT yields to vanilla)
-eval_period_ms           = 250    ; takeover decision recompute interval off the hot path (npc_on_update); the engine-polled evaluator only reads the cached result
-lost_sight_ms            = 5000   ; NPC has not seen a live enemy this long before yielding to vanilla (it searches)
-see_throttle_ms          = 500    ; min interval between the evaluator's see() probes (perception throttle)
-
-; Check readings
-grenade_ms               = 3000   ; how recent a grenade danger counts as "near" (the flee/cover window)
-friendly_line_thresh_m   = 1.5    ; lateral half-width of the firing lane for the squadmate-block check
-range_hysteresis_m       = 3      ; hysteresis on the weapon-band in/out boundaries
-hurt_frac                = 0.50   ; health below this fires is_hurt (retreat) - flee with a buffer, not at near-death
-
-; Posture / speed (rolled per maneuver, held for its life)
-crouch_chance            = 0.30   ; chance a maneuver crouches (else stands); a crouch always walks (no crouch+run fire state)
-run_chance               = 0.30   ; chance a standing moving-fire maneuver runs (else walks)
-stance_hold_ms           = 5000   ; hold the crouch/stand choice this long across re-commits (vanilla keep_body_state cadence; stops posture flicker)
-
-; Movement distances
-advance_standoff_m       = 10     ; advance stops this far short of the enemy
-back_step_m              = 12     ; withdraw pull-back distance from the enemy
-step_back_m              = 6      ; step_back short nudge away when the enemy is in your face
-flee_distance_m          = 25     ; flee leg distance away from the danger, also the clear-lane length required (re-fires on arrival while the check holds)
-flee_lane_arc_deg        = 20     ; flee heading fan step: try straight-away, then +-this many degrees per step, until a lane is clear
-flee_lane_max_spread_deg = 80     ; flee heading fan: maximum deviation from straight-away before falling back to the best partial
-flank_lateral_m          = 12     ; flank sideways offset (side chosen by squad bucket parity)
-flank_forward_m          = 6      ; flank forward bias toward the enemy while moving lateral
-
-; Squad spread
-squad_buckets            = 5      ; per-NPC bucket count for flank-side fan-out
+; Triggers (when AT seizes - only where vanilla is weak)
+hurt_frac     = 0.50       ; health below this fires the hurt trigger (retreat with a buffer, not at near-death)
+grenade_ms    = 3000       ; how recently a grenade danger counts as "near"
+stall_ms      = 4000       ; held position with the enemy not closing this long fires the stalled trigger
+stall_move_m  = 2          ; movement under this counts as "held position"
+stall_close_m = 2          ; enemy gaining more than this much ground resets the stall timer

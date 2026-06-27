@@ -54,7 +54,6 @@ AlifeTactics/
 │   │   │   └── xr_danger.ltx                  # paired with xr_danger override
 │   │   ├── alifetactics/
 │   │   │   ├── at_combat_config.ltx           # Combat numeric tunables
-│   │   │   ├── at_combat_doctrine.ltx         # Combat maneuver catalog
 │   │   │   └── at_ammo.ltx                    # NPC Ammo tunables
 │   │   └── text/eng/ui_st_mcm_at.xml          # English MCM strings
 │   ├── scripts/

@@ -320,22 +320,13 @@ function at_arm_ap()
 end
 
 --------------------------------------------------------------------------------
--- Maneuver lab: spawn one NPC, inject a single maneuver, observe it in detail.
--- at_lab spawns the subject; at_lab_next cycles the catalog (at_combat.inject_maneuver
--- pins it against the real execution path); at_lab_stop clears the injection. A 1s
--- observer logs the subject's maneuver / distance / sight / position to alifetactics.log.
+-- Combat lab: spawn one hostile NPC and observe it in detail. at_lab spawns the
+-- subject; at_lab_stop drops it. A 1s observer logs the subject's distance / sight /
+-- position to alifetactics.log, alongside the monitor's own [AT.COMBAT] mon lines.
 --------------------------------------------------------------------------------
 
--- Catalog order mirrors at_combat_doctrine.ltx [doctrine] maneuvers (11 entries).
-local LAB_MANEUVERS = {
-    "hold_fire", "hold_snipe", "cover_fire", "advance_open_fire", "advance_cover_fire",
-    "flank_cover_fire", "flank_cover_stow", "back_open_fire", "flee_open_ready",
-    "step_back_fire", "step_side_fire",
-}
-
--- Lab subject id, the catalog index it is cycled to, the observer event counter, and the last magazine read.
+-- Lab subject id, the observer event counter, and the last magazine read.
 local _lab_id       = nil
-local _lab_idx      = 0
 local _lab_tick     = 0
 local _lab_last_mag = nil
 
@@ -398,36 +389,24 @@ local function _first_member(squad)
     return nil
 end
 
--- Spawn one hostile bandit 30m ahead as the lab subject and start the observer. at_lab_next picks the maneuver.
+-- Spawn one hostile bandit 30m ahead as the lab subject and start the observer.
 --- @export console
 function at_lab()
     local squad = _spawn("bandit_sim_squad_novice", 30, 0)
     if not squad then return end
     local id = _first_member(squad)
     if not id then return end
-    _lab_id, _lab_idx, _lab_last_mag = id, 0, nil
-    log.info("[LAB] subject id=%d (at_lab_next to cycle maneuvers, at_lab_stop to clear)", _lab_id)
+    _lab_id, _lab_last_mag = id, nil
+    log.info("[LAB] subject id=%d (at_lab_stop to drop)", _lab_id)
     _tip(string_format("AT.LAB: subject id=%d", _lab_id))
     _lab_schedule()
 end
 
--- Advance the subject to the next maneuver in the catalog and pin it.
---- @export console
-function at_lab_next()
-    if not _lab_id then _tip("AT.LAB: no subject - run at_lab first") return end
-    _lab_idx = (_lab_idx % #LAB_MANEUVERS) + 1
-    local name = LAB_MANEUVERS[_lab_idx]
-    at_combat.inject_maneuver(_lab_id, name)
-    log.info("[LAB] inject id=%d maneuver=%s (%d/%d)", _lab_id, name, _lab_idx, #LAB_MANEUVERS)
-    _tip(string_format("AT.LAB: %s (%d/%d)", name, _lab_idx, #LAB_MANEUVERS))
-end
-
--- Clear the injection; the subject returns to normal scan-driven combat.
+-- Drop the lab subject; the observer stops on its next pass.
 --- @export console
 function at_lab_stop()
-    if _lab_id then at_combat.inject_clear(_lab_id) end
     log.info("[LAB] stop id=%s", tostring(_lab_id))
-    _tip("AT.LAB: injection cleared")
+    _tip("AT.LAB: subject dropped")
     _lab_id = nil
 end
 

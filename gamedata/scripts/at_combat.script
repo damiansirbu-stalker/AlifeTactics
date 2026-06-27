@@ -1,565 +1,188 @@
---- at_combat: the engine half of the combat takeover (Pattern B). Owns the GOAP evaluator + action, the
---- single per-tick scan, the per-NPC state store, the cover reservation, the handback hysteresis, and the
---- lifecycle. The decision half - which check fires, which maneuver answers it, where to move - lives in
---- at_combat_doctrine; this file turns those answers into xcombat commands.
+--- at_combat: the v2 intermittent takeover - the monitor (shell). Vanilla owns every NPC by default; AT
+--- watches a fight and decides the one moment to seize for a single committed maneuver where vanilla is weak.
+--- This file is the always-on monitor: per installed stalker it reads the fight state and, while fighting,
+--- scans the trigger table for a seize candidate. The GOAP graft that acts on a fired trigger, the maneuver
+--- body, and the BEGIN/COMMIT/ABORT lifecycle land next; at this stage the monitor only decides and traces, so
+--- the decision is observable in the log before any NPC is taken over.
 ---
---- INVERSION OF CONTROL - this file runs no loop of its own. _install grafts two probes into each stalker's
---- engine GOAP brain (motivation_action_manager): an evaluator (a boolean sensor the engine polls every plan
---- solve - "should AT drive this NPC?") and an action (the behavior the engine runs every frame the evaluator
---- wins). The engine pumps the brain and calls into us; we never schedule ourselves. Both callbacks read
---- npc:best_enemy() at entry - the engine's own per-NPC target, chosen in the memory manager one layer below
---- the blocked combat planner (enemy_manager + memory_manager, see doc/library/modding/stalker-combat-brain.md).
---- We consume that target; we never compute it. The takeover owns what to do, not who the enemy is.
----
---- THE CHECKS are one table (SCAN), one loop, no shared read. Every timed operation is a check { name, period,
---- wait, run }: aim (wait=false) re-aims every tick and gates fire on sight + a clear line - except during a
---- flee (STOW), which faces the run path; context-refresh and the tactical checks (wait=true) fire only once the
---- current maneuver is finished (npc:path_completed, or the maneuver_max_ms stuck cap). Each check reads only
---- what it needs when its period fires - there is no observe / read-all phase. The NPC is a turret by default; a
---- maneuver runs only when a check fires, is committed once started, and is never interrupted before it
---- completes. All per-NPC state lives in one flat record (_states[id], via _get_state); nothing is stored on the
---- engine object or the action instance. Tracing is noop when DEBUG off.
+--- INVERSION OF CONTROL: the monitor runs under npc_on_update - the engine pumps it; it never loops itself.
+--- One decision point lives here (the monitor); the per-NPC state is one flat record (_state(id)); the
+--- decision half (fight detection helpers, trigger predicates) is at_combat_doctrine; tracing is noop when off.
 
 local IsStalker, time_global, tostring = IsStalker, time_global, tostring
-local math_floor, math_random = math.floor, math.random
-local RegisterScriptCallback = RegisterScriptCallback
-local anim, game_object = anim, game_object
+local math_floor, RegisterScriptCallback = math.floor, RegisterScriptCallback
 
-local log = xlog.get_logger("AT.COMBAT", { outfile = "alifetactics.log" })
-local _dbg = false
 local cfg = at_mcm.cfg
 local doctrine = at_combat_doctrine
--- weapon-stowed fire mode (a flee): the turret stops aiming and faces its run path. READY = weapon up, no
--- trigger - the see-gated blind state: when the NPC cannot see the enemy it holds fire instead of shooting
--- blind into the wall (mirrors KillEnemy::execute and every vanilla combat scheme).
-local STOW, READY = xcombat.STOW, xcombat.READY
-
--- Custom GOAP evaluator + action id, grafted per stalker on its motivation_action_manager. The 188000+ band
--- stays clear of the engine/Anomaly base ids; 188200 sits above xr_danger's 188113. ACT_ID is a module field
--- so at_hud reads one source instead of re-hardcoding the literal. See doc/library/modding/goap-injection.md.
-ACT_ID = 188200
-local EVAL_ID = ACT_ID
-
-
--- =========================================================================
--- LTX tunables (scan plumbing + handback hysteresis; the doctrine half loads its own). Deferred load.
--- =========================================================================
+local trace = at_combat_trace
+local log = xlog.get_logger("AT.COMBAT", { outfile = "alifetactics.log" })
+local _dbg = false
 
 local LTX_PATH    = "alifetactics\\at_combat_config.ltx"
 local LTX_SECTION = "at_combat"
+local MONITOR_MS, HIT_FIGHT_MS
 
-local AIM_MS, CONTEXT_MS, MANEUVER_MAX_MS, LOST_SIGHT_MS, SEE_THROTTLE_MS, EVAL_PERIOD_MS
-local REACT_MS, SLOW_MS
-
--- The scan table: every timed operation is one entry { name, period, wait, run }. aim and context-refresh are
--- entries exactly like the tactical checks - the only difference is the wait flag (aim runs every tick, the
--- rest only once the maneuver is done) and the run rule. Built by _build_scan after the LTX periods are read.
-local SCAN = {}
-
--- Throttled see() probe: at most one raycast per SEE_THROTTLE_MS, cached in state.sees. Answers the tactical
--- "can I see the enemy right now" for the fire gate below and the doctrine checks (is_blocked_wall,
--- is_enemy_unseen). The handback does NOT use this - it reads the engine memory clock (get_unseen_ms).
-local function _can_see(npc, enemy, state, tg)
-    if tg - (state.probe_at or 0) < SEE_THROTTLE_MS then return state.sees end
-    state.sees = npc:see(enemy)
-    state.probe_at = tg
-    return state.sees
-end
-
--- Throttled wall probe: at most one static raycast per SEE_THROTTLE_MS, cached in state.blocked. Only meaningful
--- while the NPC "sees" the enemy - the regime where the engine's fuzzy visual memory says fire but a wall is
--- actually on the line (the not-seen case already goes READY via the see-gate). has_occluder_between is a
--- chest-height static ray, so it false-positives on a window/railing the round would clear; the precise check is
--- the can_kill geometry binding (demonized PR n020). Until that merges this coarse gate stops the wall-fire.
-local function _has_wall_between(npc, enemy, state, tg)
-    if tg - (state.blocked_at or 0) < SEE_THROTTLE_MS then return state.blocked end
-    state.blocked = xcombat.has_occluder_between(npc:position(), enemy:position())
-    state.blocked_at = tg
-    return state.blocked
-end
-
--- The turret's per-tick weapon upkeep: the see + wall gate every vanilla scheme and KillEnemy::execute use.
--- Apply the fire state only when the enemy is SEEN and the static line is clear; otherwise drop to READY
--- (weapon up, no trigger) at the SAME posture/movement - a blind or wall-blocked NPC holds fire instead of
--- dumping rounds into the wall. No holster: READY is unstrapped (aim-ready), never strapped. State re-applies
--- only on a fire/READY flip (state.applied_fire guard). While SEEN with a committed fire state the engine
--- object-track owns the aim (set_combat handed it the enemy). When blind we set NO aim: the READY state carries
--- no look target, so the engine's own direction sub-planner faces the NPC down path_dir - a script-set static
--- point is overwritten by that sub-planner every cycle (state_mgr_goap.script:486-499), so re-stamping one is
--- dead work. A face-run-path maneuver (STOW, or the weapon-up READY flee) is left alone: no aim, run path.
-local function _aim_at_enemy(npc, state, enemy, tg)
-    if state.fire == STOW or state.fire == READY then return true end
-    local sees = _can_see(npc, enemy, state, tg)
-    -- the occluder probe runs only while seen (else we already hold fire); a wall on the line holds fire too
-    local can_fire = sees and not _has_wall_between(npc, enemy, state, tg)
-    local ok = true
-    if state.fire then
-        local want = can_fire and state.fire or READY
-        if want ~= state.applied_fire then
-            ok = xcombat.set_combat(npc, { fire = want, posture = state.posture, movement = state.movement, aim = sees and enemy or nil })
-            if ok then state.applied_fire = want end
-        end
-    end
-    return ok
-end
-
--- Factory: wrap a doctrine check as a scan run with the uniform (npc, enemy, state, tg) signature. Defined
--- outside _build_scan's loop so no closure is created literally inside the loop. Returns the check name as a
--- candidate when its predicate holds and the palette has an eligible maneuver for it.
-local function _make_check_run(name, pred)
-    return function(npc, enemy, state, tg)
-        if pred(npc, enemy, state, tg) and state.palette[name] then return name end
-    end
-end
-
--- Build the check list once, after the LTX periods are read. Every check is { name, period, wait, run } and run
--- has the uniform signature (npc, enemy, state, tg) -> candidate name or nil. aim (wait=false) is the turret: it
--- runs every tick and never returns a candidate. context (wait=true) rebuilds the palette. Each tactical check
--- (wait=true) returns its name when its predicate holds. Each check reads only what it needs when its period
--- fires - there is no shared read-all phase.
-local function _build_scan()
-    SCAN = {
-        { name = "aim",     period = AIM_MS,     wait = false,
-          run = function(npc, enemy, state, tg) _aim_at_enemy(npc, state, enemy, tg) end },
-        { name = "context", period = CONTEXT_MS, wait = true,
-          run = function(npc, _, state, _) doctrine.refresh_context(state, npc) end },
-    }
-    local speed_ms = { react = REACT_MS, slow = SLOW_MS }
-    local checks = doctrine.CHECKS
-    for i = 1, #checks do
-        SCAN[#SCAN + 1] = { name = checks[i].name, period = speed_ms[checks[i].speed], wait = true,
-            run = _make_check_run(checks[i].name, checks[i].pred) }
-    end
-end
-
-local function _load_config()
-    local ini = ini_file(LTX_PATH)
-    local function read_int(k, d) local v = ini:r_float_ex(LTX_SECTION, k); return v and math_floor(v) or d end
-    AIM_MS          = read_int("aim_period_ms",     200)
-    CONTEXT_MS      = read_int("context_period_ms", 1000)
-    MANEUVER_MAX_MS = read_int("maneuver_max_ms",   8000)
-    LOST_SIGHT_MS   = read_int("lost_sight_ms",     5000)
-    SEE_THROTTLE_MS = read_int("see_throttle_ms",   500)
-    EVAL_PERIOD_MS  = read_int("eval_period_ms",    250)
-    REACT_MS        = read_int("react_period_ms",   500)
-    SLOW_MS         = read_int("slow_period_ms",     1000)
-    _build_scan()
-end
+local COMPANION_INFO = "npcx_is_companion"
+local SHARE_BUCKETS  = 1000
 
 
 -- =========================================================================
--- Per-NPC state store. One flat record per NPC, created on first touch; holds the evaluator hysteresis, the
--- weapon/community/palette cache, the running maneuver, the held cover vertex, and the per-check last-run
--- timestamps. squad_id is a field (nil = solo). Cleared on unregister; never saved.
+-- Per-NPC state store. One flat record per installed NPC, created on first touch: the monitor throttle clock,
+-- the fight/trigger readings (for the trace), the stall tracker, and (later) the open transaction. Never saved.
 -- =========================================================================
 
-local _takeover_installed = {}
+local _installed = {}
 local _states    = {}
 
-local function _get_state(id)
+local function _state(id)
     local state = _states[id]
-    if not state then
-        state = { ran_at = {} }
-        _states[id] = state
-    end
+    if not state then state = {} _states[id] = state end
     return state
 end
 
--- DEBUG probe label: which top-level action an installed NPC is actually running. AT = our takeover
--- (ACT_ID), COMBAT / DANGER = the vanilla planners we precondition-block, "-" = uninitialized. Resolved at
--- call time (under _dbg only) so the module still loads where stalker_ids is absent (the validator stub).
-local function _get_action_label(cur)
-    if cur == nil then return "-" end
-    if cur == ACT_ID then return "AT" end
-    if cur == stalker_ids.action_combat_planner then return "COMBAT" end
-    if cur == stalker_ids.action_danger_planner then return "DANGER" end
-    return tostring(cur)
+
+-- =========================================================================
+-- Fight detection and the two seize gates. Each is one named predicate - no inline conditions in the monitor.
+-- =========================================================================
+
+-- In a fight = the engine selected an enemy, OR a hit landed recently (the far-shooter case, where the enemy is
+-- out of the distance gate so best_enemy is still nil but the NPC is plainly under fire).
+local function _is_fighting(npc, state, tg)
+    if npc:best_enemy() ~= nil then return true end
+    return state.hit_at ~= nil and (tg - state.hit_at) < HIT_FIGHT_MS
+end
+
+-- Eligibility: does AT manage this NPC at all. Enabled, inside the share, not a companion. Changes rarely.
+local function _manages(npc, id)
+    if not cfg.combat_enabled then return false end
+    if (id % SHARE_BUCKETS) >= (cfg.combat_share * SHARE_BUCKETS) then return false end
+    if cfg.combat_ignore_companions and npc:has_info(COMPANION_INFO) then return false end
+    return true
+end
+
+-- Seizability: can AT take this NPC right now. Armed (an unarmed NPC under AT would deadlock - the engine's
+-- own rearm lives in the blocked combat planner), and not already in a smart cover (vanilla owns that micro).
+local function _can_seize(npc)
+    if not xcombat.get_weapon_kind(npc) then return false end
+    if npc:in_smart_cover() then return false end
+    return true
 end
 
 
 -- =========================================================================
--- TAKEOVER GATE. The engine polls this evaluator while planning: true = AT drives the NPC (vanilla
--- combat/danger/alife planners are precondition-blocked), false = vanilla resumes.
+-- THE MONITOR. npc_on_update fires every frame per online stalker; this self-throttles to MONITOR_MS and reads
+-- top-down: installed, due, eligible, fighting, an enemy selected, seizable, then scans the triggers. Each line
+-- is one named concern. A fired trigger is the seize candidate (acted on once the graft lands); for now it is
+-- traced. Skip reasons (idle / no_enemy / cant_seize / none) are traced too, so the whole decision is legible.
 -- =========================================================================
 
-class "at_combat_evaluator" ( property_evaluator )
-
-function at_combat_evaluator:__init(name) super (nil, name)
-end
-
--- One source of truth for "has the committed maneuver finished travelling": the engine reports the path
--- complete, or the stuck cap elapsed, or no maneuver is set. Both the action's done-check (when to re-decide)
--- and the transaction guard below test arrival through this, so they cannot disagree. No distance proxy - a
--- move ends where the engine says it ended (path_completed), not a fixed radius short of it.
-local function _is_maneuver_finished(npc, state, tg)
-    if not state.maneuver then return true end
-    if npc:path_completed() then return true end
-    return (tg - (state.maneuver_at or 0)) > MANEUVER_MAX_MS
-end
-
--- Maneuver transaction guard: a committed maneuver still travelling keeps AT driving. NO soft reason
--- (lost_sight, no_enemy) may break a maneuver mid-flight - only hard stops (dead/wounded/disabled/companion)
--- do. In flight = a maneuver is set and not yet done, so it yields the instant the move arrives or the cap trips.
-local function _is_maneuver_running(npc, state, tg)
-    return state.maneuver ~= nil and not _is_maneuver_finished(npc, state, tg)
-end
-
--- Central handback decision, recomputed off the hot path in _on_update (throttled) and cached in state.eval.
--- Hard stops yield immediately, even mid-maneuver. Wounded is NOT checked here - it is a GOAP precondition on
--- the action (sidor_wounded_base), engine-gated. Two soft handbacks, both guarded by the in-flight maneuver so
--- a committed move always finishes first: no_enemy (the engine's enemy manager has no target - died, despawned,
--- or forgotten past its inertia window) and lost_sight (the enemy is still remembered but unsensed past
--- LOST_SIGHT_MS). Lost-sight reads the engine memory clock (time_global - memory_time, aggregating
--- sight/sound/hit), the same signal vanilla uses to disengage (xr_combat_ignore.script:111); best_enemy is
--- memory-derived with inertia (enemy_manager.cpp:30-32), so it does not flicker.
-local function _decide_takeover(npc, id, tg)
-    if not cfg.combat_enabled then return false, "disabled" end
-    if (id % 1000) >= (cfg.combat_share * 1000) then return false, "hash_out" end
-    if not npc:alive() then return false, "dead" end
-    if cfg.combat_ignore_companions and npc:has_info("npcx_is_companion") then return false, "companion" end
-    -- A weaponless NPC cannot fight, and AT blocks the engine's own rearm (it lives inside action_combat_planner),
-    -- so an unarmed NPC under AT deadlocks - hand it back so the engine rearms or flees. TTL-cached, so a
-    -- weapon-switch transient (brief nil active_item) does not false-trigger.
-    if not xcombat.get_weapon_kind(npc) then return false, "unarmed" end
-
-    local state = _get_state(id)
-    local enemy = npc:best_enemy()
-    if not enemy or not enemy:alive() then
-        state.unseen_ms = nil
-        if _is_maneuver_running(npc, state, tg) then return true, "finish_maneuver" end
-        return false, "no_enemy"
-    end
-    local unseen = xcombat.get_unseen_ms(npc, enemy, tg)
-    state.unseen_ms = unseen
-    if unseen > LOST_SIGHT_MS then
-        if _is_maneuver_running(npc, state, tg) then return true, "pursue_to_lastknown" end
-        return false, "lost_sight"
-    end
-    return true, "managed"
-end
-
--- Pure read. The engine polls this every plan solve (more during a re-plan), so it must be a flag read, not a
--- computation. The decision is recomputed off the hot path by _on_update (throttled) and stored in state.eval;
--- nil before the first _on_update tick reads as false, so vanilla drives until AT's first decision (safe).
-function at_combat_evaluator:evaluate()
-    return _get_state(self.object:id()).eval == true
-end
-
-
--- =========================================================================
--- Action
--- =========================================================================
-
-class "at_combat_action" ( action_base )
-
-function at_combat_action:__init(name) super (nil, name)
-end
-
-function at_combat_action:initialize()
-    action_base.initialize(self)
-    local npc = self.object
-    npc:set_desired_position()
-    npc:set_desired_direction()
-    npc:set_path_type(game_object.level_path)
-    npc:set_mental_state(anim.danger)
-    -- Join the squad combat group (the engine does this in CStalkerCombatPlanner::initialize, which our block
-    -- stops): without it an AT NPC stays out of squad memory-sharing until at_hitresponse registers it on the
-    -- squad's first hit. finalize leaves the group (the engine's own unregister, in the blocked planner's
-    -- finalize, never runs either).
-    npc:register_in_combat()
-    -- Fresh fight: clear the per-fight maneuver state (engage reopens). The cache (weapon/palette) persists.
-    local state = _get_state(npc:id())
-    state.maneuver    = nil
-    state.maneuver_at = nil
-    state.dest        = nil
-    state.enemy_id    = nil
-    state.fire        = nil
-    state.applied_fire = nil
-    state.posture     = nil
-    state.movement    = nil
-end
-
--- Commit a maneuver: release any held cover, record it, roll posture/speed, write the combat state, resolve +
--- send the destination (cover targets reserved; a nil-resolving move holds and fires on the own node). Reads
--- its own world (enemy id, the destination geometry via resolve) - no shared context is threaded in.
-function at_combat_action:_begin_maneuver(name, npc, enemy, state, tg, check)
-    local maneuver = doctrine.MANEUVERS[name]
-    if not maneuver then return end
+local function _on_update(npc)
     local id = npc:id()
-    xcombat.release_cover(state.cover_lvid, id)
-    state.cover_lvid  = nil
-    state.maneuver    = name
-    state.maneuver_at = tg
-    state.enemy_id    = enemy:id()
-    state.fire        = maneuver.fire
-    local posture, movement = doctrine.roll_stance(state, maneuver.fire, doctrine.is_stationary(maneuver), tg)
-    -- Stash the resolved stance so the aim check can re-apply it when the see-gate flips the weapon between the
-    -- fire state and READY mid-maneuver; applied_fire nil forces the first application below.
-    state.posture, state.movement = posture, movement
-    state.applied_fire = nil
-    local atmr = xprofiler.new_if(_dbg):start()
-    local ok
-    if maneuver.fire == STOW or maneuver.fire == READY then
-        -- a flee/stow faces its run path: no aim target, so the state resolves to path_dir. Weapon up for the
-        -- READY flee (no holster delay), away for the STOW flank.
-        ok = xcombat.set_combat(npc, { fire = maneuver.fire, posture = posture, movement = movement, aim = nil })
-        state.applied_fire = maneuver.fire
-    else
-        -- see-gated: fire state + live aim when seen, READY + last-known aim when blind (no firing into the wall)
-        ok = _aim_at_enemy(npc, state, enemy, tg)
-    end
-    local apply_ms = atmr:stop():get_ms()
-    -- the flee resolver sets state.rout to the routed smart name (or "lane"); cleared here so it is fresh per commit
-    state.rout = nil
-    local mtmr = xprofiler.new_if(_dbg):start()
-    local vid = doctrine.resolve(maneuver, npc, enemy, state)
-    local resolve_ms = mtmr:stop():get_ms()
-    if doctrine.is_cover(maneuver) and vid ~= npc:level_vertex_id() and xcombat.claim_cover(vid, id) then state.cover_lvid = vid end
-    state.dest = xcombat.send_to(npc, vid)
-    at_combat_trace.decide(id, name, check, posture, movement, apply_ms, resolve_ms, ok, state)
-end
+    if not _installed[id] then return end
+    local state = _state(id)
+    local tg = time_global()
+    if tg - (state.mon_at or 0) < MONITOR_MS then return end
+    state.mon_at = tg
 
+    if _dbg then trace.set_name(id, npc:name()) end
 
--- =========================================================================
--- THE SCAN: one loop over the check list. aim runs every tick; the tactical checks (wait) only once the maneuver
--- is finished. Each check reads its own world when its period fires - no observe phase, no shared context.
--- =========================================================================
+    if not _manages(npc, id) then state.fighting = false return end
 
--- Run a check if its period has elapsed: nil when not yet due, else stamp the last-run time and run it. The
--- eligibility gate (aim always; a wait check only once the maneuver is finished) is applied by the caller, so
--- the execute loop stays at two levels.
-local function _run_if_due(entry, npc, enemy, state, tg)
-    local ran = state.ran_at
-    if tg - (ran[entry.name] or 0) < entry.period then return nil end
-    ran[entry.name] = tg
-    return entry.run(npc, enemy, state, tg)
-end
-
--- Commit the scan outcome: the picked check rolls a maneuver through the palette and starts it; a finished flee
--- (weapon stowed) with nothing else pending re-arms to hold_fire so the NPC never idles weapon-down.
-function at_combat_action:_choose_maneuver(npc, enemy, state, tg, picked, scan_us)
-    -- Test injection (at_test.inject_maneuver): pin one maneuver, re-issued every cycle against the real
-    -- execute -> _begin_maneuver path, bypassing the check gate. nil in normal play; only at_test writes it. Tagged
-    -- "inject" so the trace never reads a pinned commit as a real decision.
-    if state.injected_maneuver then
-        self:_begin_maneuver(state.injected_maneuver, npc, enemy, state, tg, "inject")
-        at_combat_trace.scan(npc, enemy, state, picked, state.injected_maneuver, scan_us)
+    state.fighting = _is_fighting(npc, state, tg)
+    if not state.fighting then
+        state.stall_set = false
+        if _dbg then trace.monitor(id, state, "idle") end
         return
     end
-    local maneuver = picked and doctrine.pick_maneuver(picked, state)
-    if maneuver then
-        self:_begin_maneuver(maneuver, npc, enemy, state, tg, picked)
-    elseif state.fire == STOW or state.fire == READY then
-        maneuver = "hold_fire"
-        self:_begin_maneuver("hold_fire", npc, enemy, state, tg, "rearm")
-    end
-    at_combat_trace.scan(npc, enemy, state, picked, maneuver, scan_us)
-end
 
--- Survival precedence: a fired retreat trigger (is_hurt / is_grenade_near) overrides the rest, so a hurt or
--- grenade-pressed NPC commits to retreating and the pick never shuffles a flee against advancing into the
--- enemy (which sent a routing NPC charging back). Among same-precedence candidates the pick stays uniform.
-local SURVIVAL = { is_hurt = true, is_grenade_near = true }
-local function _pick(fired, count)
-    if count == 0 then return nil end
-    local surv = 0
-    for i = 1, count do
-        if SURVIVAL[fired[i]] then surv = surv + 1 end
-    end
-    if surv == 0 then return fired[math_random(count)] end
-    local target, seen = math_random(surv), 0
-    for i = 1, count do
-        local name = fired[i]
-        if SURVIVAL[name] then seen = seen + 1 end
-        if seen == target and SURVIVAL[name] then return name end
-    end
-end
-
-function at_combat_action:execute()
-    action_base.execute(self)
-    local npc = self.object
     local enemy = npc:best_enemy()
-    if not (enemy and enemy:alive()) then return end
-    local id, tg = npc:id(), time_global()
-    local state = _get_state(id)
-    local done = _is_maneuver_finished(npc, state, tg)
+    if not enemy then
+        if _dbg then trace.monitor(id, state, "no_enemy") end
+        return
+    end
+    state.enemy_id = enemy:id()
 
-    -- Refresh the throttled see cache once when re-deciding, so the wall / unseen checks read a current value no
-    -- matter which check fires (a flee or a non-due aim could otherwise leave it stale). One throttled bit, only
-    -- on a decision pass - not a position read-all.
-    if done then _can_see(npc, enemy, state, tg) end
-
-    -- One loop over the checks. aim (wait=false) runs every tick - the turret keeps aiming while a maneuver
-    -- travels. The tactical checks (wait=true) only run once the maneuver is finished. Each check self-throttles
-    -- on its own period and reads its own world; a fired check returns its name as a candidate.
-    local prof = xprofiler.new_if(_dbg):start()
-    local fired, count = nil, 0
-    for i = 1, #SCAN do
-        local entry = SCAN[i]
-        local candidate = (done or not entry.wait) and _run_if_due(entry, npc, enemy, state, tg) or nil
-        if candidate then
-            count = count + 1
-            fired = fired or {}
-            fired[count] = candidate
-        end
+    if not _can_seize(npc) then
+        if _dbg then trace.monitor(id, state, "cant_seize") end
+        return
     end
 
-    -- mid-maneuver: only aim ran, no re-decision.
-    if not done then return end
-    -- maneuver finished: pick one fired check (survival triggers take precedence) and commit.
-    self:_choose_maneuver(npc, enemy, state, tg, _pick(fired, count), prof:stop():get_us())
-end
-
-function at_combat_action:finalize()
-    action_base.finalize(self)
-    local npc = self.object
-    local id = npc:id()
-    local state = _states[id]
-    if state then
-        xcombat.release_cover(state.cover_lvid, id)
-        state.cover_lvid = nil
-        state.fire = nil
-        state.applied_fire = nil
-        -- AT is no longer driving, so the maneuver is over: clear it so the in-flight guard (_decide_takeover)
-        -- cannot read a stale maneuver and spuriously re-take a handed-back NPC inside the stuck-cap window.
-        state.maneuver = nil
-        state.maneuver_at = nil
-    end
-    -- Leave the squad combat group joined in initialize (the engine's own unregister, in the blocked combat
-    -- planner's finalize, never runs). Guarded on alive: finalize also fires on death, where the engine has
-    -- already torn down the agent member state and unregister_in_combat faults on the stale object.
-    if npc:alive() then npc:unregister_in_combat() end
-    npc:sniper_fire_mode(false)
+    local fired = doctrine.eval_triggers(npc, enemy, state, tg)
+    if _dbg then trace.monitor(id, state, fired) end
 end
 
 
 -- =========================================================================
--- Lifecycle: install, unregister, MCM refresh
+-- Public API consumed by at_hud (the running-maneuver readout) and the at_test observer. Returns nil until the
+-- body that drives a maneuver lands.
 -- =========================================================================
 
-local function _install(npc)
-    if not npc then return end
-    if not IsStalker(npc) then return end
-    local id = npc:id()
-    if _takeover_installed[id] then return end
-    local name = _dbg and npc:name() or nil
-    at_combat_trace.install(id, name, "attempt")
-
-    local manager = npc:motivation_action_manager()
-    if not manager then at_combat_trace.install(id, name, "no_manager") return end
-    _takeover_installed[id] = true
-
-    manager:add_evaluator(EVAL_ID, at_combat_evaluator("eva_at_combat"))
-
-    local action = at_combat_action("act_at_combat")
-    action:add_precondition(world_property(stalker_ids.property_alive, true))
-    -- Wounded yields to the engine wounded scheme, the way every vanilla planner-blocking scheme does
-    -- (axr_stalker_panic, axr_fight_from_cover, ...). The engine evaluates sidor_wounded_base for every stalker
-    -- already, so this adds no per-frame cost and replaces the old per-poll IsWounded check in the evaluator.
-    action:add_precondition(world_property(xr_evaluators_id.sidor_wounded_base, false))
-    action:add_precondition(world_property(EVAL_ID, true))
-    action:add_effect(world_property(EVAL_ID, false))
-    manager:add_action(ACT_ID, action)
-
-    local blocked = {
-        stalker_ids.action_combat_planner,
-        stalker_ids.action_danger_planner,
-        xr_danger.actid,
-        xr_actions_id.state_mgr + 2,
-        xr_actions_id.alife,
-    }
-    for i = 1, #blocked do
-        local act = manager:action(blocked[i])
-        if act then act:add_precondition(world_property(EVAL_ID, false)) end
-    end
-    at_combat_trace.install(id, name, "installed")
-end
-
-local function _on_net_spawn(npc)
-    _install(npc)
-end
-
-local function _on_net_destroy(npc)
-    if not npc then return end
-    local id = npc:id()
-    _takeover_installed[id] = nil
-    local state = _states[id]
-    if state then
-        xcombat.release_cover(state.cover_lvid, id)
-        state.cover_lvid = nil
-    end
-end
-
-local function _on_entity_unregister(se_obj)
-    if not se_obj then return end
-    local id = se_obj.id
-    _takeover_installed[id] = nil
-    local state = _states[id]
-    if state then xcombat.release_cover(state.cover_lvid, id) end
-    _states[id] = nil
-    at_combat_trace.forget(id)
-end
-
-local function _refresh_log()
-    log.set_level(at_mcm.get_config("log_level") or "WARN")
-    _dbg = log.get_level() >= 5
-    at_combat_trace.set_enabled(_dbg)
-end
-
---- Current maneuver name for an NPC (at_hud reads it), or nil when AT is not driving one.
+--- Current maneuver name for an NPC, or nil when AT is not driving one.
 function get_maneuver(id)
     local state = _states[id]
     return state and state.maneuver
 end
 
---- Test override (at_test): pin a maneuver so _choose_maneuver re-issues it every cycle against the real execution
---- path. name must be a key in at_combat_doctrine.MANEUVERS. nil/unset in normal play.
-function inject_maneuver(id, name)
-    _get_state(id).injected_maneuver = name
+
+-- =========================================================================
+-- Lifecycle: install on spawn, stamp the far-shooter fight entry on hit, clean up on destroy / unregister.
+-- =========================================================================
+
+local function _install(npc)
+    if not npc or not IsStalker(npc) then return end
+    local id = npc:id()
+    if _installed[id] then return end
+    _installed[id] = true
+    if _dbg then trace.install(id, npc:name(), "tracked") end
 end
 
---- Clear a test maneuver injection; the NPC returns to the normal scan-driven decision.
-function inject_clear(id)
-    local state = _states[id]
-    if state then state.injected_maneuver = nil end
+-- A hit stamps the fight clock so the far-shooter case (best_enemy still nil) reads as fighting in the monitor.
+local function _on_hit(npc, amount)
+    if not npc or not amount or amount <= 0 then return end
+    local id = npc:id()
+    if _installed[id] then _state(id).hit_at = time_global() end
+end
+
+local function _on_net_destroy(npc)
+    if not npc then return end
+    _installed[npc:id()] = nil
+end
+
+local function _on_entity_unregister(se_obj)
+    if not se_obj then return end
+    local id = se_obj.id
+    _installed[id] = nil
+    _states[id] = nil
+    if _dbg then trace.forget(id) end
+end
+
+local function _load_config()
+    local ini = ini_file(LTX_PATH)
+    local function read_int(k, d) local v = ini:r_float_ex(LTX_SECTION, k) return v and math_floor(v) or d end
+    MONITOR_MS   = read_int("monitor_period_ms", 500)
+    HIT_FIGHT_MS = read_int("hit_fight_ms",      5000)
+end
+
+local function _refresh_log()
+    log.set_level(at_mcm.get_config("log_level") or "WARN")
+    _dbg = log.get_level() >= 5
+    trace.set_enabled(_dbg)
 end
 
 local function _on_first_update()
-    at_combat_trace.reset()
+    trace.reset()
     _refresh_log()
-    log.info("Combat module initialized (enabled=%s share=%.2f dbg=%s)",
-        cfg.combat_enabled and "true" or "false",
-        cfg.combat_share or 1.0,
-        _dbg and "true" or "false")
-end
-
--- The takeover decision, recomputed off the hot path. npc_on_update fires every frame for every online stalker
--- (xr_motivator.script:486), even while vanilla drives, so it keeps state.eval fresh for the evaluator to read.
--- Self-throttled to EVAL_PERIOD_MS (gate runs before any work); this is where best_enemy / see / has_info now
--- live, off the engine-polled evaluator. _takeover_installed gate skips any stalker AT did not install on.
-local function _on_update(npc)
-    local id = npc:id()
-    if not _takeover_installed[id] then return end
-    local state = _get_state(id)
-    local tg = time_global()
-    if tg - (state.eval_at or 0) < EVAL_PERIOD_MS then return end
-    state.eval_at = tg
-    state.eval, state.reason = _decide_takeover(npc, id, tg)
-    if _dbg then
-        at_combat_trace.set_name(id, npc:name())
-        at_combat_trace.eval(id, state.eval, state.reason, state)
-        local mgr = npc:motivation_action_manager()
-        local cur = (mgr and mgr:initialized()) and mgr:current_action_id() or nil
-        at_combat_trace.current_action(id, state.eval, _get_action_label(cur), cur)
-    end
+    log.info("Combat monitor initialized (enabled=%s share=%.2f dbg=%s)",
+        tostring(cfg.combat_enabled), cfg.combat_share or 1.0, tostring(_dbg))
 end
 
 function on_game_start()
     _load_config()
     doctrine.load_config()
-    RegisterScriptCallback("npc_on_net_spawn",            _on_net_spawn)
-    RegisterScriptCallback("npc_on_net_destroy",          _on_net_destroy)
+    RegisterScriptCallback("npc_on_net_spawn",            _install)
+    RegisterScriptCallback("npc_on_hit_callback",         _on_hit)
     RegisterScriptCallback("npc_on_update",               _on_update)
+    RegisterScriptCallback("npc_on_net_destroy",          _on_net_destroy)
     RegisterScriptCallback("server_entity_on_unregister", _on_entity_unregister)
     RegisterScriptCallback("actor_on_first_update",       _on_first_update)
     RegisterScriptCallback("on_option_change",            _refresh_log)
