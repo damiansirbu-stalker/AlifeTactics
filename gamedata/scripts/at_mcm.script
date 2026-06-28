@@ -25,7 +25,6 @@ local defaults = {
     acc_disp_master        = 0.45,
     acc_disp_legend        = 0.38,
     combat_enabled = true,
-    combat_share   = 1.0,
     combat_ignore_companions = true,
     friendly_fire_enabled    = true,
     friendly_fire_factor     = 0.0,
@@ -66,7 +65,6 @@ local _key_to_tab = {
     acc_disp_master        = "accuracy",
     acc_disp_legend        = "accuracy",
     combat_enabled = "combat",
-    combat_share   = "combat",
     combat_ignore_companions = "combat",
     friendly_fire_enabled = "combat",
     friendly_fire_factor  = "combat",
@@ -213,7 +211,6 @@ function on_mcm_load()
                         text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
                     { id = "desc", type = "desc", text = "ui_mcm_at_combat_desc" },
                     { id = "combat_enabled", type = "check", val = 1, def = true },
-                    { id = "combat_share", type = "track", val = 2, min = 0.0, max = 1.0, step = 0.05, def = 1.0 },
                     { id = "combat_ignore_companions", type = "check", val = 1, def = true },
 
                     { id = "div_friendly_fire", type = "line" },
@@ -333,7 +330,7 @@ function set_version_text(_anchor, handlers)
 end
 
 -- Dump every MCM setting to the debug log (like AlifePlus's [MCM] line): the runtime value per key, so a
--- misread flag (combat_share, combat_enabled, ...) is visible at a glance after load_config has run.
+-- misread flag (combat_enabled, ...) is visible at a glance after load_config has run.
 local function _log_mcm_settings()
     local parts = {}
     for key in pairs(defaults) do

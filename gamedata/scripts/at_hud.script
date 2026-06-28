@@ -73,7 +73,7 @@ end
 local function _target_desc(npc, enemy)
     local epos = enemy:position()
     local dist = math_floor(npc:position():distance_to(epos))
-    local name = _truncate(enemy:character_name() or enemy:name(), TARGET_NAME_MAX)
+    local name = _truncate(xcreature.get_name(enemy:id()), TARGET_NAME_MAX)
     local flag = ""
     if not npc:see(enemy) then
         flag = " (no sight)"
@@ -85,7 +85,8 @@ end
 
 -- tag (AT when our maneuver drives), logic section, combat operator/state, target, in_combat
 local function _derive(npc, st)
-    local tag = at_combat.get_maneuver(npc:id()) and "AT" or nil
+    local maneuver = at_combat.get_maneuver(npc:id())
+    local tag = maneuver and "AT" or nil
     local logic = _truncate(st.active_section or st.active_scheme or "-", CELL_MAX)
     local enemy = npc:best_enemy()
     if not enemy then
@@ -93,7 +94,8 @@ local function _derive(npc, st)
     end
     local sm = st.state_mgr
     local state = (sm and sm.target_state) or "-"
-    return tag, logic, xcombat.get_operator(npc) .. "/" .. state, _target_desc(npc, enemy), true
+    local op = maneuver or xcombat.get_operator(npc)
+    return tag, logic, op .. "/" .. state, _target_desc(npc, enemy), true
 end
 
 

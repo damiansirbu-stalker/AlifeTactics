@@ -50,3 +50,17 @@ function at_combat_trace.monitor(id, state, result)
             _show(id), _show(_names[id]), _show(state.enemy_id), result)
     end
 end
+
+--- One line when AT seizes an NPC: the maneuver and the trigger that fired it.
+function at_combat_trace.begin(id, maneuver, trigger)
+    if not _on then return end
+    log.info("begin id=%s name=%s maneuver=%s trigger=%s",
+        _show(id), _show(_names[id]), _show(maneuver), _show(trigger))
+end
+
+--- One line when a maneuver completes and AT hands the NPC back to vanilla.
+function at_combat_trace.commit(id, maneuver, reason, dur_ms)
+    if not _on then return end
+    log.info("commit id=%s name=%s maneuver=%s reason=%s dur=%dms",
+        _show(id), _show(_names[id]), _show(maneuver), _show(reason), dur_ms or -1)
+end

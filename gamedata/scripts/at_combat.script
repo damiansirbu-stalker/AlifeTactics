@@ -1,9 +1,9 @@
 --- at_combat: the v2 intermittent takeover - the monitor (shell). Vanilla owns every NPC by default; AT
 --- watches a fight and decides the one moment to seize for a single committed maneuver where vanilla is weak.
---- This file is the always-on monitor: per installed stalker it reads the fight state and, while fighting,
---- scans the trigger table for a seize candidate. The GOAP graft that acts on a fired trigger, the maneuver
---- body, and the BEGIN/COMMIT/ABORT lifecycle land next; at this stage the monitor only decides and traces, so
---- the decision is observable in the log before any NPC is taken over.
+--- This file is the always-on monitor plus the transaction it drives: per installed stalker it reads the fight
+--- state and, while fighting, fires the trigger table; on too_close it BEGINs kite (Phase 1). The GOAP
+--- graft lives in xcombat (install_takeover); AT supplies the spec (gate + on_begin) and the committed maneuver
+--- to arrival or its cap, then COMMITs - the whole transaction is legible in the log (begin -> commit).
 ---
 --- INVERSION OF CONTROL: the monitor runs under npc_on_update - the engine pumps it; it never loops itself.
 --- One decision point lives here (the monitor); the per-NPC state is one flat record (_state(id)); the
@@ -11,6 +11,7 @@
 
 local IsStalker, time_global, tostring = IsStalker, time_global, tostring
 local math_floor, RegisterScriptCallback = math.floor, RegisterScriptCallback
+local math_sqrt, vector = math.sqrt, vector
 
 local cfg = at_mcm.cfg
 local doctrine = at_combat_doctrine
@@ -20,10 +21,9 @@ local _dbg = false
 
 local LTX_PATH    = "alifetactics\\at_combat_config.ltx"
 local LTX_SECTION = "at_combat"
-local MONITOR_MS, HIT_FIGHT_MS
+local MONITOR_MS, WATCH_MS, HIT_FIGHT_MS, KITE_BACK_M, KITE_ARC_DEG, KITE_SPREAD_DEG, MANEUVER_MAX_MS
 
 local COMPANION_INFO = "npcx_is_companion"
-local SHARE_BUCKETS  = 1000
 
 
 -- =========================================================================
@@ -36,7 +36,7 @@ local _states    = {}
 
 local function _state(id)
     local state = _states[id]
-    if not state then state = {} _states[id] = state end
+    if not state then state = { id = id } _states[id] = state end
     return state
 end
 
@@ -53,9 +53,8 @@ local function _is_fighting(npc, state, tg)
 end
 
 -- Eligibility: does AT manage this NPC at all. Enabled, inside the share, not a companion. Changes rarely.
-local function _manages(npc, id)
+local function _manages(npc)
     if not cfg.combat_enabled then return false end
-    if (id % SHARE_BUCKETS) >= (cfg.combat_share * SHARE_BUCKETS) then return false end
     if cfg.combat_ignore_companions and npc:has_info(COMPANION_INFO) then return false end
     return true
 end
@@ -70,48 +69,125 @@ end
 
 
 -- =========================================================================
--- THE MONITOR. npc_on_update fires every frame per online stalker; this self-throttles to MONITOR_MS and reads
--- top-down: installed, due, eligible, fighting, an enemy selected, seizable, then scans the triggers. Each line
--- is one named concern. A fired trigger is the seize candidate (acted on once the graft lands); for now it is
--- traced. Skip reasons (idle / no_enemy / cant_seize / none) are traced too, so the whole decision is legible.
+-- The transaction. BEGIN (the monitor) raises the gate and names the maneuver; the graft issues it ONCE via
+-- SPEC.on_begin when AT takes control, then the engine state machine carries it - AT runs no per-frame code. The
+-- monitor watches the end on its throttled tick (arrival for movers, the time cap for holds) and COMMITs,
+-- lowering the gate to hand back. Phase 1 ships one maneuver, kite: back-step KITE_BACK_M from the enemy, firing.
 -- =========================================================================
+
+-- BEGIN: raise the gate, name the maneuver. The body starts it on its next execute, under AT control - issuing
+-- movement now would fight vanilla, which still drives this frame.
+local function _begin(state, maneuver, trigger, tg)
+    state.gate = true
+    state.maneuver = maneuver
+    state.maneuver_at = nil
+    state.begin_at = tg
+    if _dbg then trace.begin(state.id, maneuver, trigger) end
+end
+
+-- COMMIT: lower the gate, clear the maneuver. Vanilla resumes from the backed-up spot (open-ending, no reconcile).
+local function _commit(state, tg, reason)
+    if _dbg then trace.commit(state.id, state.maneuver, reason, math_floor(tg - (state.begin_at or tg))) end
+    state.gate = false
+    state.maneuver = nil
+    state.maneuver_at = nil
+    state.begin_at = nil
+end
+
+-- Resolve and issue kite: a clear back-lane KITE_BACK_M from the enemy - find_flee_lane fans the heading
+-- straight-back -> +-45 -> +-90 and ray-checks each for a wall or obstacle, first clear lane wins (falls back to
+-- the farthest reachable partial when fully boxed in). Then walk it firing: the binder pumps state_mgr every
+-- frame, so the engine holds the walk+fire state and tracks the look_object (the enemy) without us re-driving it.
+local function _start_kite(npc, state, tg)
+    local enemy = npc:best_enemy()
+    if not enemy then _commit(state, tg, "no_enemy") return end
+    local np, ep = npc:position(), enemy:position()
+    local dx, dz = np.x - ep.x, np.z - ep.z
+    local mag = math_sqrt(dx * dx + dz * dz)
+    local dir = (mag > 0) and vector():set(dx / mag, 0, dz / mag) or npc:direction()
+    xcombat.send_to(npc, xcombat.find_flee_lane(npc, dir, KITE_BACK_M, KITE_ARC_DEG, KITE_SPREAD_DEG))
+    xcombat.set_combat(npc, { fire = xcombat.FIRE, posture = xcombat.STAND, movement = xcombat.WALK, aim = enemy })
+    state.maneuver_at = tg
+end
+
+-- on_begin: the graft calls this ONCE when AT takes the NPC (the action's initialize). Issue the named maneuver
+-- here, under AT control - the single place AT writes the engine. The engine state machine then carries it; AT
+-- runs nothing per frame. Arrival and the stuck cap are watched by the monitor on its throttled tick.
+local function _on_begin(npc)
+    local state = _states[npc:id()]
+    if not state or not state.maneuver then return end
+    if state.maneuver == "kite" then _start_kite(npc, state, time_global()) end
+end
+
+-- One spec drives every AT NPC: gate = the per-NPC transaction flag the grafted evaluator polls; on_begin = the
+-- one-time maneuver start the grafted action calls. Per-NPC state lives in _states, keyed by id.
+local SPEC = {
+    gate = function(npc) local state = _states[npc:id()] return state ~= nil and state.gate == true end,
+    on_begin = _on_begin,
+}
+
+
+-- =========================================================================
+-- THE MONITOR. npc_on_update fires every frame per online stalker; _on_update self-throttles (MONITOR_MS while
+-- deciding, WATCH_MS while a maneuver runs) and dispatches: gate up -> _watch the running maneuver for its end;
+-- gate down -> _decide whether to take over. Each is one helper so the dispatch stays flat.
+-- =========================================================================
+
+-- Gate up: commit when the maneuver finished. Movers end on is_arrived; the cap (measured from begin_at, the
+-- gate-raise time) ends everything - including a gate that never started a maneuver (a precondition blocked the
+-- action), so a raised gate can never wedge the NPC.
+local function _watch(npc, state, tg)
+    if state.maneuver_at and xcombat.is_arrived(npc) then _commit(state, tg, "arrived")
+    elseif (tg - (state.begin_at or tg)) >= MANEUVER_MAX_MS then _commit(state, tg, "cap") end
+end
+
+-- Debug-only per-tick decision trace, gated here so the bridge reads (name, operator, facing, sight) never run
+-- when tracing is off.
+local function _trace_decision(npc, state, enemy, fired)
+    if not _dbg then return end
+    state.enemy_name = xcreature.get_name(enemy:id())
+    state.operator   = xcombat.get_operator(npc)
+    state.aim_off    = math_floor(xcombat.get_facing_offset(npc, enemy:position()))
+    state.seen       = npc:see(enemy)
+    trace.monitor(state.id, state, fired or "none")
+end
+
+-- Gate down: decide whether to take the NPC over. Eligible, fighting, an enemy selected, seizable, then the
+-- trigger table; on too_close BEGIN kite (Phase 1). Skip reasons are traced (trace noops when off).
+local function _decide(npc, id, state, tg)
+    if not _manages(npc) then state.fighting = false return end
+    state.fighting = _is_fighting(npc, state, tg)
+    if not state.fighting then state.stall_set = false return end
+    if _dbg then trace.set_name(id, npc:name()) end
+
+    local enemy = npc:best_enemy()
+    if not enemy then
+        state.enemy_id = nil
+        trace.monitor(id, state, "no_enemy")
+        return
+    end
+    state.enemy_id = enemy:id()
+
+    if not _can_seize(npc) then
+        trace.monitor(id, state, "cannot_seize")
+        return
+    end
+
+    local fired = doctrine.eval_triggers(npc, enemy, state, tg)
+    if fired == "too_close" then _begin(state, "kite", fired, tg) end
+    _trace_decision(npc, state, enemy, fired)
+end
 
 local function _on_update(npc)
     local id = npc:id()
     if not _installed[id] then return end
     local state = _state(id)
     local tg = time_global()
-    if tg - (state.mon_at or 0) < MONITOR_MS then return end
+    local due = state.gate and WATCH_MS or MONITOR_MS
+    if tg - (state.mon_at or 0) < due then return end
     state.mon_at = tg
-
-    if not _manages(npc, id) then state.fighting = false return end
-
-    state.fighting = _is_fighting(npc, state, tg)
-    if not state.fighting then state.stall_set = false return end
-
-    if _dbg then trace.set_name(id, npc:name()) end
-
-    local enemy = npc:best_enemy()
-    if not enemy then
-        state.enemy_id = nil
-        if _dbg then trace.monitor(id, state, "no_enemy") end
-        return
-    end
-    state.enemy_id = enemy:id()
-
-    if not _can_seize(npc) then
-        if _dbg then trace.monitor(id, state, "cannot_seize") end
-        return
-    end
-
-    local fired = doctrine.eval_triggers(npc, enemy, state, tg)
-    if _dbg then
-        state.enemy_name = enemy:character_name() or enemy:name()
-        state.operator   = xcombat.get_operator(npc)
-        state.aim_off    = math_floor(xcombat.get_facing_offset(npc, enemy:position()))
-        state.seen       = npc:see(enemy)
-        trace.monitor(id, state, fired or "none")
-    end
+    if state.gate then _watch(npc, state, tg)
+    else _decide(npc, id, state, tg) end
 end
 
 
@@ -136,6 +212,7 @@ local function _install(npc)
     local id = npc:id()
     if _installed[id] then return end
     _installed[id] = true
+    xcombat.install_takeover(npc, SPEC)
     if _dbg then trace.installed(id, npc:name()) end
 end
 
@@ -148,7 +225,10 @@ end
 
 local function _on_net_destroy(npc)
     if not npc then return end
-    _installed[npc:id()] = nil
+    local id = npc:id()
+    xcombat.release_takeover(npc)
+    _installed[id] = nil
+    _states[id] = nil
 end
 
 local function _on_entity_unregister(se_obj)
@@ -162,8 +242,13 @@ end
 local function _load_config()
     local ini = ini_file(LTX_PATH)
     local function read_int(k, d) local v = ini:r_float_ex(LTX_SECTION, k) return v and math_floor(v) or d end
-    MONITOR_MS   = read_int("monitor_period_ms", 500)
-    HIT_FIGHT_MS = read_int("hit_fight_ms",      5000)
+    MONITOR_MS      = read_int("monitor_period_ms", 500)
+    WATCH_MS        = read_int("watch_period_ms",   200)
+    HIT_FIGHT_MS    = read_int("hit_fight_ms",      5000)
+    KITE_BACK_M     = read_int("kite_back_m",       6)
+    KITE_ARC_DEG    = read_int("kite_arc_deg",      45)
+    KITE_SPREAD_DEG = read_int("kite_spread_deg",   90)
+    MANEUVER_MAX_MS = read_int("maneuver_max_ms",   8000)
 end
 
 local function _refresh_log()
@@ -175,8 +260,8 @@ end
 local function _on_first_update()
     trace.reset()
     _refresh_log()
-    log.info("Combat monitor initialized (enabled=%s share=%.2f dbg=%s)",
-        tostring(cfg.combat_enabled), cfg.combat_share or 1.0, tostring(_dbg))
+    log.info("Combat monitor initialized (enabled=%s dbg=%s)",
+        tostring(cfg.combat_enabled), tostring(_dbg))
 end
 
 function on_game_start()

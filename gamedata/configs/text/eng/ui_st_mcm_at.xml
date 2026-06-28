@@ -203,13 +203,7 @@
     <text>Enable combat takeover</text>
   </string>
   <string id="ui_mcm_at_combat_combat_enabled_desc">
-    <text>When off, AlifeTactics never touches combat and every fight runs on your existing AI. When on, it may briefly take an NPC over for one maneuver, up to the share set below. Default: on.</text>
-  </string>
-  <string id="ui_mcm_at_combat_combat_share">
-    <text>Share of NPCs AlifeTactics may take over</text>
-  </string>
-  <string id="ui_mcm_at_combat_combat_share_desc">
-    <text>Fraction of stalkers AlifeTactics is allowed to step in on. At 0%, it never intervenes and every fight is pure vanilla. At 50%, half the stalkers can be briefly taken over while the rest stay fully on your existing AI, both in the same engagement. At 100%, any stalker can be. A takeover is always momentary - one maneuver, then control returns. The choice is per-NPC and stable across save and reload.</text>
+    <text>When off, AlifeTactics never touches combat and every fight runs on your existing AI. When on, it may briefly take an NPC over for one maneuver. Default: on.</text>
   </string>
   <string id="ui_mcm_at_combat_combat_ignore_companions">
     <text>Ignore companions</text>

@@ -208,44 +208,49 @@ Per-shot hot path: a rank-name lookup, then pure-Lua scaling of the dispersion t
 
 ## Combat
 
-Status: re-architecture in progress. The shipped code in `at_combat.script` / `at_combat_doctrine.script` still implements the prior full-takeover (AT as the combat brain over a turret baseline); this section describes the target design now being built. Full design and ordered build plan: `stalker-dev/doc/todo/todo-alifetactics-next.md` t122. The full-takeover code is preserved on the `combat_takeover` branch and in `.deleted/`.
+Status: re-architecture in progress, built in four phases. The observe-only monitor, trace, HUD, and the xcombat takeover constants are on `main`; the graft, maneuvers, squad coordination, and enemy openings are the phases. Full phase plan + the self-contained decision record: `stalker-dev/doc/todo/todo-combat-takeover-v2.md` (t130-t133 + the Plan section). The full-takeover v1 is preserved on the `combat_takeover` branch.
+
+### Scope: vs the player, decoupled
+
+The takeover is designed against the player and, for now, only runs when an NPC's enemy is the actor. NPC-vs-NPC is dropped (too many corner cases; the actor is always online, has a stable id, never despawns mid-fight, and exposes facing/health/reload). The restriction is one predicate, `_target_eligible(enemy)`; every maneuver, viability check, and read takes a generic `enemy` game_object, so widening the scope later is a one-line change. No readme or MCM surface mentions it.
 
 ### The model: a takeover transaction
 
-Vanilla owns every NPC by default (autocommit). AT does not run combat; it briefly borrows one NPC inside a transaction — BEGIN one maneuver, run it atomically to completion, COMMIT — then hands control back. AT is an interrupt handler over vanilla, not the combat brain. Between transactions AT is absent: no engine state written, no aim set, nothing while the gate is off.
+Vanilla owns every NPC by default. AT does not run combat; it seizes one NPC for one committed, time-boxed maneuver, then releases. AT is an interrupt over vanilla, not the combat brain. There is no global share knob — an NPC is seized only when a trigger and a viability check both fire for it, so selectivity is inherent. At most one open transaction per NPC.
 
 Three NPC states, real cost only in the last:
 - Idle — not in a fight, zero AT work.
-- Monitored — in a fight; one cheap throttled predicate "should I BEGIN now", engine-memory reads only, no raycasts.
-- Under-transaction — one committed maneuver: aim upkeep, drive to the destination, watch for completion.
+- Monitored — in a fight; the decision pipeline runs throttled, engine-memory reads only, no raycasts.
+- Under-transaction — one committed maneuver running to its end.
 
-### Fight detection
+### The decision pipeline
 
-Idle and Monitored switch off the engine combat mask, which Hit Sharing's `register_in_combat` already sets on every faction-enemy hit (`at_hitresponse` -> `xcombat.disclose_enemy`). A hit is fight-start regardless of shooter range, so no separate long-range entry is needed. Edge-triggered; while Idle the NPC is invisible to AT.
+Per monitor tick (npc_on_update, throttled) the pipeline evaluates pluggable predicates grouped as own_state, own_geometry, enemy_state, team_state. There is no shared read-all: each predicate reads its own world, and a value reused within a cycle is memoized lazily for that cycle only. Each maneuver registers two gates — a trigger (a situation is present: too_close, hurt, grenade, enemy_unseen, stalled, an enemy opening) and a viability (it makes sense given geometry, the enemy, and the team — the engine "fire makes sense" analogue). A maneuver is a candidate only if both pass. The things vanilla does well — the opener, re-target, search, turret, grenade dodge — are not triggers.
 
-### BEGIN — the trigger decides when
+### The maneuvers and their roles
 
-While Monitored, a predicate fires only where vanilla is weak or absent: too_close, hurt, stalled (holding too long, no re-engage), grenade, and hit-from-unanswerable-range (range defense, reading the hit vector not `best_enemy`). On a fire, AT picks the faction-flavored intervention and BEGINs by flipping the GOAP gate. The things vanilla does well — the opener, re-target, search, cover, turret, grenade throw and dodge, squad coordination — are not triggers.
+Eight maneuvers (names locked) across three tactical roles:
+- Base of fire (hold and fire to pin the enemy): suppress, snipe.
+- Maneuver element (reposition offensively, only safe under a base of fire): assault (open charge, no cover), push (advance to cover), flank.
+- Break contact (individual survival): kite (back ~6m), retreat (to cover), flee (rout).
 
-### The body, COMMIT, ABORT
+too_close always answers with kite; the pressure response (retreat vs flee) is per-faction temperament. snipe is a fire-mode hold, not a movement. kite's trigger is settled (raw proximity — enemy inside the weapon's minimum range); the rest are being decided one maneuver at a time.
 
-The maneuver body is atomic and isolated: it runs to completion, and no new trigger or perception flicker interrupts it mid-flight — this is what kills the per-frame headless-chicken dither. COMMIT releases the NPC in a state vanilla accepts so it does not undo the maneuver: open-ending maneuvers (flee, kite, advance) need no reconcile; the one cover-ending maneuver (flank) delivers the NPC to the engine's own `best_cover` so vanilla continues the cover cycle without relocating. ABORT is immediate on a hard stop (dead, wounded, unarmed, no_enemy), even mid-body. At most one open transaction per NPC.
+### The maneuver pattern
 
-### Maneuvers
+Every maneuver follows one shape, no per-maneuver invention and no per-frame code: a `start` issued ONCE when AT takes the NPC (the GOAP action's `initialize` — the single place AT writes the engine, setting the move and fire state), an `ends_on` (`arrival` for movers, `time` for holds), and a `max_ms` cap. The action's `execute` does nothing — the engine's own per-frame state machine carries the maneuver (aims at the enemy, fires, walks); AT runs zero per-frame logic. The monitor watches the end on its throttled tick — `is_arrived` (over `path_completed`) for movers, elapsed time for holds — and COMMITs, lowering the gate. Two throttle rates: the decide tick (gate down, 500ms, runs for every fighting NPC) and the watch tick (gate up, 200ms, runs only for the few NPCs mid-maneuver, so hand-back is prompt). No early release, no soft interrupt. Aborts come free from the action's preconditions failing (alive, armed, not wounded, has-enemy); a held NPC simply eats a rare grenade rather than AT re-implementing vanilla's reactions. A mover's end position is sticky for free; a held mode reverts on release, which is correct.
 
-Keep only what vanilla cannot do: flee (timid rout-to-base), kite (back-and-fire — vanilla `get_distance` is dead), flank (disciplined — vanilla detour is gated and rare), advance (open charge — vanilla never advances in the open). Drop every duplicate of a vanilla operator (turret, cover-seek, sidestep). Two families: pure-AT (flee, kite, advance — end in the open, AT drives start to finish) and cover-handoff (flank — deliver to engine cover, release). Advance ends in the open, never in held forward cover, so vanilla's evaluator never disagrees and walks the NPC back.
+### Squad coordination, decentralized
 
-### The GOAP graft (the control point, unchanged)
+A squad fighting the player coordinates fire and movement, but with no central brain. Role eligibility is biased by `get_squad_ordinal`; a maneuver-element's viability requires that the enemy is being pinned, so one NPC flanking alone (a death wish) cannot fire. The reliable pin signal is an AT NPC committed to a base-of-fire maneuver; the coordination is emergent from each NPC's local read of its squad.
 
-`_install` grafts one evaluator and one action per stalker and adds `world_property(EVAL_ID, false)` as a precondition on the vanilla combat and danger planners. This precondition block is the only GAMMA-proof control point, so it is kept. The evaluator is true only while a transaction is open. The trigger detection (decide to BEGIN) runs always-on in `_on_update` under vanilla, engine-memory only, throttled; the thin runner (aim upkeep and completion watch) runs in the action's execute, only while the transaction holds.
+### The GOAP graft (the control point)
 
-### Range defense and active reach
-
-Range defense is a trigger inside the model: a hit from a range the NPC cannot answer BEGINs a break-contact-to-cover transaction. The complementary active reach — letting an NPC register and shoot back at a far shooter by widening the combat-ignore gate (LOS-gated) — is a separate below-planner feature (t92), not part of the takeover.
+The graft adds one evaluator and one action per stalker and `world_property(EVAL_ID, false)` as a precondition on each entry of `xcombat.get_blocked_planners()`. While the per-NPC gate flag is true the vanilla combat/danger/alife chain is gated off and the grafted action is the only producer of the `EVAL_ID=false` the brain now requires, so it runs; clear the flag and vanilla resumes. The graft mechanism is encapsulated in `xcombat.install_takeover(npc, spec)` / `release_takeover(npc)`, where the spec is `{ gate, on_begin }` — the gate flag the evaluator polls and the one-time maneuver start the action's `initialize` calls; AT owns the spec, xcombat owns the GOAP classes.
 
 ### xcombat boundary
 
-AT owns what to do; xcombat (xlibs) owns how to issue it to the engine, and is where precision wrappers live (for example `can_kill` shot-clearance over a coarse ray). Every NPC command — weapon state, aim, movement, cover and clear-shot search, the line-of-fire and memory reads, the cover reservation — goes through an xcombat primitive; AT makes no raw engine combat call.
+AT owns what to do; xcombat (xlibs) owns how to issue it to the engine. Every NPC command and read — weapon state, aim, movement, cover and clear-shot search, the line-of-fire and memory reads, arrival, the cover reservation, the enemy-eval override, the enemy-state reads — goes through an xcombat primitive; AT makes no raw engine combat call. New primitives for this rebuild: `install_takeover`/`release_takeover`, `is_arrived`, `is_reloading`, `is_bleeding`, `is_moving`, suppressive fire via `set_combat`, and `set_enemy_eval`; the rest is reuse.
 
 ---
 
