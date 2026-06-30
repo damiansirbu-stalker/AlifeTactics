@@ -230,7 +230,8 @@ local function is_danger(npc,best_danger,script)
 		best_danger_object = best_danger:dependent_object()
 	end
 
-	if _enabled.hit_bypass and best_danger_object and (best_danger:perceive_type() == danger_object.hit) then
+	if _enabled.hit_bypass and best_danger_object and (best_danger:perceive_type() == danger_object.hit)
+		and not xr_combat_ignore.ignore_enemy_by_overrides(npc, best_danger_object) then
 		if _dbg then log.debug("hit-type bypass npc=%s src=%s", npc:name(), best_danger_object:name()) end
 		return danger_in_radius(npc, best_danger, bd_type)
 	end
