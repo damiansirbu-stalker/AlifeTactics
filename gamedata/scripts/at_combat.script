@@ -1,9 +1,10 @@
 --- at_combat: the v2 intermittent takeover - the monitor (shell). Vanilla owns every NPC by default; AT
 --- watches a fight and decides the one moment to seize for a single committed maneuver where vanilla is weak.
 --- This file is the always-on monitor plus the transaction it drives: per installed stalker it reads the fight
---- state and, while fighting, fires the trigger table; on too_close it BEGINs kite (Phase 1). The GOAP
---- graft lives in xcombat (install_takeover); AT supplies the spec (gate + on_begin) and the committed maneuver
---- to arrival or its cap, then COMMITs - the whole transaction is legible in the log (begin -> commit).
+--- state and, while fighting the actor, fires the trigger table; a fired trigger picks a catalog maneuver (from
+--- at_combat_doctrine) and BEGINs it. The GOAP graft lives in xcombat (install_takeover); AT supplies the spec
+--- (gate + on_begin) and runs the committed maneuver to its end (arrival or cap), then COMMITs - the whole
+--- transaction is legible in the log (begin -> commit).
 ---
 --- INVERSION OF CONTROL: the monitor runs under npc_on_update - the engine pumps it; it never loops itself.
 --- One decision point lives here (the monitor); the per-NPC state is one flat record (_state(id)); the
@@ -11,7 +12,6 @@
 
 local IsStalker, time_global, tostring = IsStalker, time_global, tostring
 local math_floor, RegisterScriptCallback = math.floor, RegisterScriptCallback
-local math_sqrt, vector = math.sqrt, vector
 
 local cfg = at_mcm.cfg
 local doctrine = at_combat_doctrine
@@ -21,7 +21,7 @@ local _dbg = false
 
 local LTX_PATH    = "alifetactics\\at_combat_config.ltx"
 local LTX_SECTION = "at_combat"
-local MONITOR_MS, WATCH_MS, HIT_FIGHT_MS, KITE_BACK_M, KITE_ARC_DEG, KITE_SPREAD_DEG, MANEUVER_MAX_MS
+local MONITOR_MS, WATCH_MS, HIT_FIGHT_MS
 
 local COMPANION_INFO = "npcx_is_companion"
 
@@ -67,56 +67,62 @@ local function _can_seize(npc)
     return true
 end
 
-
--- =========================================================================
--- The transaction. BEGIN (the monitor) raises the gate and names the maneuver; the graft issues it ONCE via
--- SPEC.on_begin when AT takes control, then the engine state machine carries it - AT runs no per-frame code. The
--- monitor watches the end on its throttled tick (arrival for movers, the time cap for holds) and COMMITs,
--- lowering the gate to hand back. Phase 1 ships one maneuver, kite: back-step KITE_BACK_M from the enemy, firing.
--- =========================================================================
-
--- BEGIN: raise the gate, name the maneuver. The body starts it on its next execute, under AT control - issuing
--- movement now would fight vanilla, which still drives this frame.
-local function _begin(state, maneuver, trigger, tg)
-    state.gate = true
-    state.maneuver = maneuver
-    state.maneuver_at = nil
-    state.begin_at = tg
-    if _dbg then trace.begin(state.id, maneuver, trigger) end
+-- Scope gate: the takeover runs only against the actor. NPC-vs-NPC is out (the actor is always online, has a
+-- stable id, never despawns mid-fight, exposes facing/health). One predicate; every maneuver and read downstream
+-- takes a generic enemy, so widening to NPC-vs-NPC later is this line alone. No readme / MCM surface.
+local function _target_eligible(enemy)
+    return enemy:id() == AC_ID
 end
 
--- COMMIT: lower the gate, clear the maneuver. Vanilla resumes from the backed-up spot (open-ending, no reconcile).
+
+-- =========================================================================
+-- The transaction. BEGIN (the monitor) raises the gate and records the chosen maneuver + its resolved
+-- destination; the graft issues it ONCE via SPEC.on_begin when AT takes control, then the engine state machine
+-- carries it - AT runs no per-frame code. The monitor watches the end on its throttled tick (arrival for movers,
+-- the time cap for holds) and COMMITs, lowering the gate to hand back. The maneuver catalog (handles, palette,
+-- resolver, fire spec) lives in at_combat_doctrine; the shell is maneuver-agnostic.
+-- =========================================================================
+
+-- BEGIN: raise the gate, record the maneuver (a catalog row) and its cached destination. The body issues it on
+-- its next execute, under AT control - issuing movement now would fight vanilla, which still drives this frame.
+local function _begin(state, maneuver, dest, trigger, tg)
+    state.gate = true
+    state.maneuver = maneuver
+    state.dest = dest
+    state.maneuver_at = nil
+    state.begin_at = tg
+    if _dbg then trace.begin(state.id, maneuver.name, trigger) end
+end
+
+-- COMMIT: lower the gate, clear the maneuver and its destination. Vanilla resumes from where AT left the NPC.
 local function _commit(state, tg, reason)
-    if _dbg then trace.commit(state.id, state.maneuver, reason, math_floor(tg - (state.begin_at or tg))) end
+    if _dbg then trace.commit(state.id, state.maneuver and state.maneuver.name, reason, math_floor(tg - (state.begin_at or tg))) end
     state.gate = false
     state.maneuver = nil
+    state.dest = nil
     state.maneuver_at = nil
     state.begin_at = nil
 end
 
--- Resolve and issue kite: a clear back-lane KITE_BACK_M from the enemy - find_flee_lane fans the heading
--- straight-back -> +-45 -> +-90 and ray-checks each for a wall or obstacle, first clear lane wins (falls back to
--- the farthest reachable partial when fully boxed in). Then walk it firing: the binder pumps state_mgr every
--- frame, so the engine holds the walk+fire state and tracks the look_object (the enemy) without us re-driving it.
-local function _start_kite(npc, state, tg)
+-- Issue the maneuver: send the NPC to its cached destination and set the maneuver's fire/posture/movement with
+-- the enemy as look_object, so the engine state machine carries the walk+fire (the binder pumps state_mgr every
+-- frame). The single place AT writes the engine; AT then runs nothing per frame. Arrival and the cap are watched.
+local function _issue(npc, state, tg)
+    local maneuver = state.maneuver
     local enemy = npc:best_enemy()
     if not enemy then _commit(state, tg, "no_enemy") return end
-    local np, ep = npc:position(), enemy:position()
-    local dx, dz = np.x - ep.x, np.z - ep.z
-    local mag = math_sqrt(dx * dx + dz * dz)
-    local dir = (mag > 0) and vector():set(dx / mag, 0, dz / mag) or npc:direction()
-    xcombat.send_to(npc, xcombat.find_flee_lane(npc, dir, KITE_BACK_M, KITE_ARC_DEG, KITE_SPREAD_DEG))
-    xcombat.set_combat(npc, { fire = xcombat.FIRE, posture = xcombat.STAND, movement = xcombat.WALK, aim = enemy })
+    xcombat.send_to(npc, state.dest)
+    xcombat.set_combat(npc, { fire = maneuver.fire, posture = maneuver.posture, movement = maneuver.movement, aim = enemy })
     state.maneuver_at = tg
 end
 
--- on_begin: the graft calls this ONCE when AT takes the NPC (the action's initialize). Issue the named maneuver
--- here, under AT control - the single place AT writes the engine. The engine state machine then carries it; AT
--- runs nothing per frame. Arrival and the stuck cap are watched by the monitor on its throttled tick.
+-- on_begin: the graft calls this ONCE when AT takes the NPC (the action's initialize). Issue the maneuver under
+-- AT control. The engine state machine then carries it; AT runs nothing per frame. Arrival and the stuck cap are
+-- watched by the monitor on its throttled tick.
 local function _on_begin(npc)
     local state = _states[npc:id()]
     if not state or not state.maneuver then return end
-    if state.maneuver == "kite" then _start_kite(npc, state, time_global()) end
+    _issue(npc, state, time_global())
 end
 
 -- One spec drives every AT NPC: gate = the per-NPC transaction flag the grafted evaluator polls; on_begin = the
@@ -133,12 +139,17 @@ local SPEC = {
 -- gate down -> _decide whether to take over. Each is one helper so the dispatch stays flat.
 -- =========================================================================
 
--- Gate up: commit when the maneuver finished. Movers end on is_arrived; the cap (measured from begin_at, the
--- gate-raise time) ends everything - including a gate that never started a maneuver (a precondition blocked the
--- action), so a raised gate can never wedge the NPC.
+-- Gate up: commit when the maneuver finished. Movers (ends_on=arrival) end on is_arrived; the per-maneuver
+-- timeout (measured from begin_at, the gate-raise time) ends everything - including a gate that never started a
+-- maneuver (a precondition blocked the action), so a raised gate can never wedge the NPC. Holds (ends_on=time)
+-- carry no arrival condition (their dest is the NPC's own node, trivially arrived) and end only on the timeout.
 local function _watch(npc, state, tg)
-    if state.maneuver_at and xcombat.is_arrived(npc) then _commit(state, tg, "arrived")
-    elseif (tg - (state.begin_at or tg)) >= MANEUVER_MAX_MS then _commit(state, tg, "cap") end
+    local maneuver = state.maneuver
+    if maneuver and maneuver.ends_on == "arrival" and state.maneuver_at and xcombat.is_arrived(npc) then
+        _commit(state, tg, "arrived")
+    elseif (tg - (state.begin_at or tg)) >= ((maneuver and maneuver.timeout) or 8000) then
+        _commit(state, tg, "cap")
+    end
 end
 
 -- Debug-only per-tick decision trace, gated here so the bridge reads (name, operator, facing, sight) never run
@@ -152,8 +163,10 @@ local function _trace_decision(npc, state, enemy, fired)
     trace.monitor(state.id, state, fired or "none")
 end
 
--- Gate down: decide whether to take the NPC over. Eligible, fighting, an enemy selected, seizable, then the
--- trigger table; on too_close BEGIN kite (Phase 1). Skip reasons are traced (trace noops when off).
+-- Gate down: decide whether to take the NPC over. Eligible, fighting, an enemy selected and it IS the actor,
+-- seizable, then the trigger table; a fired trigger picks a catalog maneuver (with its resolved destination) and
+-- BEGINs it. The not-actor skip is silent (NPC-vs-NPC is the common case, uninteresting). Other skip reasons are
+-- traced (trace noops when off).
 local function _decide(npc, id, state, tg)
     if not _manages(npc) then state.fighting = false return end
     state.fighting = _is_fighting(npc, state, tg)
@@ -168,13 +181,18 @@ local function _decide(npc, id, state, tg)
     end
     state.enemy_id = enemy:id()
 
+    if not _target_eligible(enemy) then return end
+
     if not _can_seize(npc) then
         trace.monitor(id, state, "cannot_seize")
         return
     end
 
     local fired = doctrine.eval_triggers(npc, enemy, state, tg)
-    if fired == "too_close" then _begin(state, "kite", fired, tg) end
+    if fired then
+        local maneuver, dest = doctrine.pick_maneuver(npc, fired, enemy, state)
+        if maneuver then _begin(state, maneuver, dest, fired, tg) end
+    end
     _trace_decision(npc, state, enemy, fired)
 end
 
@@ -199,7 +217,7 @@ end
 --- Current maneuver name for an NPC, or nil when AT is not driving one.
 function get_maneuver(id)
     local state = _states[id]
-    return state and state.maneuver
+    return state and state.maneuver and state.maneuver.name
 end
 
 
@@ -242,13 +260,9 @@ end
 local function _load_config()
     local ini = ini_file(LTX_PATH)
     local function read_int(k, d) local v = ini:r_float_ex(LTX_SECTION, k) return v and math_floor(v) or d end
-    MONITOR_MS      = read_int("monitor_period_ms", 500)
-    WATCH_MS        = read_int("watch_period_ms",   200)
-    HIT_FIGHT_MS    = read_int("hit_fight_ms",      5000)
-    KITE_BACK_M     = read_int("kite_back_m",       6)
-    KITE_ARC_DEG    = read_int("kite_arc_deg",      45)
-    KITE_SPREAD_DEG = read_int("kite_spread_deg",   90)
-    MANEUVER_MAX_MS = read_int("maneuver_max_ms",   8000)
+    MONITOR_MS   = read_int("monitor_period_ms", 500)
+    WATCH_MS     = read_int("watch_period_ms",   200)
+    HIT_FIGHT_MS = read_int("hit_fight_ms",      5000)
 end
 
 local function _refresh_log()

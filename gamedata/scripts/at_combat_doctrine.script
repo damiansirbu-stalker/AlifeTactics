@@ -1,9 +1,11 @@
---- at_combat_doctrine: the decision data and pure trigger predicates for the v2 takeover. No engine class,
---- no per-NPC store, no callbacks - the shell (at_combat) owns the monitor loop, the state store, and the
---- graft. This file answers one question: given an NPC fighting an enemy, which trigger (if any) should make
---- AT seize, where vanilla is weak. The maneuver catalog that answers a fired trigger lands with the body.
+--- at_combat_doctrine: the decision half of the v2 takeover - the trigger predicates AND the maneuver catalog.
+--- No engine class, no per-NPC store, no callbacks - the shell (at_combat) owns the monitor loop, the state
+--- store, and the graft. This file answers two questions: which trigger (if any) should make AT seize, and
+--- which maneuver answers it for this NPC. A maneuver is a catalog row: the triggers it handles, a faction/
+--- weapon palette, and a resolver whose return IS the gate (a destination vertex = seize there, nil = decline).
 
 local math_sqrt, math_floor, vector = math.sqrt, math.floor, vector
+local character_community = character_community
 
 at_combat_doctrine = at_combat_doctrine or {}
 
@@ -11,8 +13,33 @@ local CONFIG_PATH    = "alifetactics\\at_combat_config.ltx"
 local CONFIG_SECTION = "at_combat"
 
 local HURT_FRAC, GRENADE_MS, STALL_MS, STALL_MOVE_SQR, STALL_CLOSE_M
+local KITE_BACK_M, KITE_ARC_DEG, KITE_SPREAD_DEG
 
---- Load the trigger thresholds. Called by the shell on_game_start; every key has a script-side fallback.
+-- The maneuver catalog: an ordered array (array order = precedence when two maneuvers handle one trigger). Built
+-- in load_config so xcombat.* constants and the LTX tunables are resolved. pick_maneuver walks it in order.
+local CATALOG = {}
+
+
+-- =========================================================================
+-- Resolvers. A resolver reads its own geometry and returns a destination level vertex, or nil when the maneuver
+-- is not viable here - the resolver IS the viability gate, no separate predicate. Run only on the seize path
+-- (after handles + palette pass), so the raycasts cost only when AT is about to take the NPC.
+-- =========================================================================
+
+-- kite: a clear back-lane KITE_BACK_M from the enemy. find_flee_lane fans the heading straight-back -> +-45 ->
+-- +-90 and ray-checks each for a wall or obstacle, first clear lane wins; nil only when fully boxed in (then the
+-- maneuver is not viable and AT declines, leaving the NPC to vanilla).
+local function _resolve_kite(npc, enemy, _state)
+    local np, ep = npc:position(), enemy:position()
+    local dx, dz = np.x - ep.x, np.z - ep.z
+    local mag = math_sqrt(dx * dx + dz * dz)
+    local dir = (mag > 0) and vector():set(dx / mag, 0, dz / mag) or npc:direction()
+    return xcombat.find_flee_lane(npc, dir, KITE_BACK_M, KITE_ARC_DEG, KITE_SPREAD_DEG)
+end
+
+
+--- Load the trigger thresholds and (re)build the maneuver catalog. Called by the shell on_game_start; every key
+--- has a script-side fallback. The catalog is built here so xcombat.* constants and the LTX values are ready.
 function at_combat_doctrine.load_config()
     local ini = ini_file(CONFIG_PATH)
     local function read_float(k, d) return ini:r_float_ex(CONFIG_SECTION, k) or d end
@@ -23,6 +50,24 @@ function at_combat_doctrine.load_config()
     local move_m   = read_float("stall_move_m",  2)
     STALL_MOVE_SQR = move_m * move_m
     STALL_CLOSE_M  = read_float("stall_close_m", 2)
+    KITE_BACK_M     = read_int("kite_back_m",     6)
+    KITE_ARC_DEG    = read_int("kite_arc_deg",    45)
+    KITE_SPREAD_DEG = read_int("kite_spread_deg", 90)
+
+    -- kite is universal (any faction, any weapon); too_close is its only trigger. ends_on=arrival (a mover, ends
+    -- when it reaches the back-lane); timeout is the stuck-cap. factions/weapons nil = match any.
+    CATALOG = {
+        {
+            name     = "kite",
+            handles  = { too_close = true },
+            factions = nil,
+            weapons  = nil,
+            resolve  = _resolve_kite,
+            fire     = xcombat.FIRE, posture = xcombat.STAND, movement = xcombat.WALK,
+            ends_on  = "arrival",
+            timeout  = read_int("maneuver_max_ms", 8000),
+        },
+    }
 end
 
 -- True once the NPC has held position (moved less than stall_move) for stall_ms while the enemy is not closing
@@ -64,5 +109,35 @@ function at_combat_doctrine.eval_triggers(npc, enemy, state, tg)
     if state.t_grenade  then return "grenade"   end
     if state.t_hurt     then return "hurt"      end
     if state.t_stalled  then return "stalled"   end
+    return nil
+end
+
+-- Does maneuver m apply to this NPC for the fired trigger: it handles the trigger AND its faction/weapon palette
+-- (if any) matches. memo caches the NPC's faction and weapon kind across catalog entries, read only when a
+-- maneuver actually filters on them (kite filters on neither, so neither is ever read for it).
+local function _maneuver_applies(m, fired, npc, memo)
+    if not m.handles[fired] then return false end
+    if m.factions then
+        memo.faction = memo.faction or character_community(npc)
+        if not m.factions[memo.faction] then return false end
+    end
+    if m.weapons then
+        memo.kind = memo.kind or (xcombat.get_weapon_kind(npc) or "w_rifle")
+        if not m.weapons[memo.kind] then return false end
+    end
+    return true
+end
+
+--- Given a fired trigger, return the first catalog maneuver (in precedence order) that applies to this NPC and
+--- whose resolver yields a destination, plus that destination. The resolver IS the viability gate (a vertex =
+--- seize there, nil = try the next maneuver) and is short-circuited by _maneuver_applies, so its raycasts run
+--- only on the seize path. Returns (maneuver, dest), or nil when no maneuver fits.
+function at_combat_doctrine.pick_maneuver(npc, fired, enemy, state)
+    local memo = {}
+    for i = 1, #CATALOG do
+        local maneuver = CATALOG[i]
+        local dest = _maneuver_applies(maneuver, fired, npc, memo) and maneuver.resolve(npc, enemy, state)
+        if dest then return maneuver, dest end
+    end
     return nil
 end

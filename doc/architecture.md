@@ -20,7 +20,7 @@ Version 1.0.0.
 | `at_hitresponse.script` | feature | done |
 | `at_health.script` | feature | done |
 | `at_accuracy.script` | feature | done |
-| `at_combat.script` | feature | re-architecture in progress (intermittent takeover transaction model — see Combat section + t122; shipped code is still the prior full-takeover) |
+| `at_combat.script` | feature | v2 intermittent takeover shipping: maneuver-catalog spine + kite, scoped to the actor; retreat/flee/snipe and squad/opening maneuvers are the open phases (see Combat section + todo-combat-takeover-v2.md) |
 | `xr_danger.script` | feature | done (full-file override) |
 | `at_jam.script` | feature | done (modded-exes xr_weapon_jam.GetConditionMisfireProbability override; suppresses script-injected NPC misfire) |
 | `at_ammo.script` | feature | done (AP fired from carried boxes; per-engagement rank/rpm-weighted box-delete decay reverts to FMJ when out; veteran-rank gate; no death hook) |
@@ -208,7 +208,7 @@ Per-shot hot path: a rank-name lookup, then pure-Lua scaling of the dispersion t
 
 ## Combat
 
-Status: re-architecture in progress, built in four phases. The observe-only monitor, trace, HUD, and the xcombat takeover constants are on `main`; the graft, maneuvers, squad coordination, and enemy openings are the phases. Full phase plan + the self-contained decision record: `stalker-dev/doc/todo/todo-combat-takeover-v2.md` (t130-t133 + the Plan section). The full-takeover v1 is preserved on the `combat_takeover` branch.
+Status: built incrementally. On `main`: the GOAP graft (`xcombat.install_takeover`), the maneuver-catalog spine (`at_combat_doctrine`), and one maneuver, kite, scoped to the actor. The open phases are the remaining solo maneuvers (retreat, flee, snipe), squad coordination, and enemy openings. Full phase plan + the decision record: `stalker-dev/doc/todo/todo-combat-takeover-v2.md` (t130-t136 + the Plan section). The full-takeover v1 is preserved on the `combat_takeover` branch.
 
 ### Scope: vs the player, decoupled
 
@@ -225,7 +225,7 @@ Three NPC states, real cost only in the last:
 
 ### The decision pipeline
 
-Per monitor tick (npc_on_update, throttled) the pipeline evaluates pluggable predicates grouped as own_state, own_geometry, enemy_state, team_state. There is no shared read-all: each predicate reads its own world, and a value reused within a cycle is memoized lazily for that cycle only. Each maneuver registers two gates — a trigger (a situation is present: too_close, hurt, grenade, enemy_unseen, stalled, an enemy opening) and a viability (it makes sense given geometry, the enemy, and the team — the engine "fire makes sense" analogue). A maneuver is a candidate only if both pass. The things vanilla does well — the opener, re-target, search, turret, grenade dodge — are not triggers.
+Per monitor tick (npc_on_update, throttled) the pipeline evaluates pluggable predicates grouped as own_state, own_geometry, enemy_state, team_state. There is no shared read-all: each predicate reads its own world, and a value reused within a cycle is memoized lazily for that cycle only. Each maneuver carries a trigger (a cheap predicate — a situation is present: too_close, hurt, grenade, enemy_unseen, stalled, an enemy opening) and a resolver (where the maneuver sends the NPC). The resolver IS the viability gate: it returns a destination when the maneuver is doable here, or nil to decline — one pass answers both "does it make sense?" and "where to?", no separate viability predicate. A maneuver fires only when its trigger passes and its resolver yields a destination. The things vanilla does well — the opener, re-target, search, turret, grenade dodge — are not triggers.
 
 ### The maneuvers and their roles
 
