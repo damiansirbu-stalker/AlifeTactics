@@ -4,33 +4,75 @@
   <string id="ui_mcm_menu_at">
     <text>AlifeTactics</text>
   </string>
-  <!-- ==================== TAB NAMES ==================== -->
-  <string id="ui_mcm_menu_hit_share">
-    <text>Hit Sharing</text>
+  <!-- ==================== CATEGORY FOLDERS ==================== -->
+  <string id="ui_mcm_menu_combat">
+    <text>Combat</text>
   </string>
-  <string id="ui_mcm_menu_health">
-    <text>Healing</text>
+  <string id="ui_mcm_menu_effectiveness">
+    <text>Effectiveness</text>
+  </string>
+  <string id="ui_mcm_menu_mechanics">
+    <text>Mechanics</text>
+  </string>
+  <string id="ui_mcm_menu_effects">
+    <text>Effects</text>
+  </string>
+  <string id="ui_mcm_menu_mutants">
+    <text>Mutants</text>
+  </string>
+  <!-- ==================== PAGE NAMES ==================== -->
+  <string id="ui_mcm_menu_maneuvers">
+    <text>Maneuvers</text>
   </string>
   <string id="ui_mcm_menu_accuracy">
     <text>Accuracy</text>
   </string>
-  <string id="ui_mcm_menu_combat">
-    <text>Combat</text>
-  </string>
-  <string id="ui_mcm_menu_fixes">
-    <text>Fixes</text>
+  <string id="ui_mcm_menu_hit_share">
+    <text>Disclosure</text>
   </string>
   <string id="ui_mcm_menu_danger">
     <text>Danger</text>
   </string>
+  <string id="ui_mcm_menu_crossfire">
+    <text>Crossfire</text>
+  </string>
+  <string id="ui_mcm_menu_health">
+    <text>Healing</text>
+  </string>
   <string id="ui_mcm_menu_jam">
-    <text>Weapon Jam</text>
+    <text>Jamming</text>
   </string>
   <string id="ui_mcm_menu_ammo">
-    <text>NPC Ammo</text>
+    <text>Ammo</text>
   </string>
   <string id="ui_mcm_menu_development">
     <text>Development</text>
+  </string>
+  <!-- ==================== WIP SUB-PAGES ==================== -->
+  <string id="ui_mcm_menu_behaviors">
+    <text>Behaviors</text>
+  </string>
+  <string id="ui_mcm_menu_enhancements">
+    <text>Enhancements</text>
+  </string>
+  <string id="ui_mcm_menu_reaction">
+    <text>Reaction</text>
+  </string>
+  <string id="ui_mcm_menu_range">
+    <text>Range</text>
+  </string>
+  <string id="ui_mcm_menu_resistance">
+    <text>Resistance</text>
+  </string>
+  <!-- ==================== WIP CATEGORIES ==================== -->
+  <string id="ui_mcm_at_wip_desc">
+    <text>wip</text>
+  </string>
+  <string id="ui_mcm_at_effects_desc">
+    <text>wip</text>
+  </string>
+  <string id="ui_mcm_at_mutants_desc">
+    <text>wip</text>
   </string>
   <!-- ==================== SHARED ==================== -->
   <string id="ui_mcm_at_title">

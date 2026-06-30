@@ -121,111 +121,104 @@ function btn_reset_all(gui)
     _apply_defaults(gui, "AlifeTactics: all settings restored to defaults.")
 end
 
+-- The menu tree groups pages under the category folders Combat / Effectiveness / Mechanics / Effects / Mutants.
+-- Two keys are decoupled here. (1) The saved setting path is path_builder(key) = at/_key_to_tab[key]/key,
+-- INDEPENDENT of this tree (xmcm.script:54), so reparenting a page does not move its stored value; _key_to_tab is
+-- left unchanged. (2) An option's label/hint string is opt_str .. (v.hint or path) (ui_mcm.script:1412,886), so
+-- each option sets hint = its original "at_<tab>_<key>" and the label resolves to the existing
+-- ui_mcm_at_<tab>_<key> string without renaming any strings to the new tree path. desc/hdr/title nodes keep
+-- explicit text. Only the ui_mcm_menu_<id> page labels move (handled in ui_st_mcm_at.xml). WIP sub-pages carry a
+-- single "wip" desc until their feature exists.
 function on_mcm_load()
+    local function wip_page(id)
+        return {
+            id = id,
+            sh = true,
+            gr = {
+                { id = "title", type = "slide", link = "at_mcm_banner",
+                    text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
+                { id = "desc", type = "desc", text = "ui_mcm_at_wip_desc" },
+                { id = "div_version", type = "line" },
+                { id = "version", type = "desc", text = "ui_mcm_at_title",
+                    ui_hook_functor = { set_version_text }, clr = {255, 212, 201, 168} },
+            },
+        }
+    end
     return {
         id = "at",
         gr = {
             {
-                id = "hit_share",
-                sh = true,
-                gr = {
-                    { id = "title", type = "slide", link = "at_mcm_banner",
-                        text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
-                    { id = "desc", type = "desc", text = "ui_mcm_at_hit_share_desc" },
-                    { id = "hit_share_enabled", type = "check", val = 1, def = true },
-
-                    { id = "div_survivor", type = "line" },
-                    { id = "hdr_survivor", type = "desc", text = "ui_mcm_at_hit_share_hdr_survivor", clr = {255, 200, 200, 200} },
-                    { id = "hit_share_survivor_gate", type = "check", val = 1, def = true },
-
-                    { id = "div_retention", type = "line" },
-                    { id = "hdr_retention", type = "desc", text = "ui_mcm_at_hdr_retention", clr = {255, 200, 200, 200} },
-                    { id = "hit_share_retention_min", type = "track", val = 2, min = 1, max = 30, step = 1, def = 2 },
-
-                    { id = "div_version", type = "line" },
-                    { id = "version", type = "desc", text = "ui_mcm_at_title",
-                        ui_hook_functor = { set_version_text }, clr = {255, 212, 201, 168} },
-                },
-            },
-            {
-                id = "health",
-                sh = true,
-                gr = {
-                    { id = "title", type = "slide", link = "at_mcm_banner",
-                        text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
-                    { id = "desc", type = "desc", text = "ui_mcm_at_health_desc" },
-                    { id = "healing_enabled", type = "check", val = 1, def = true },
-
-                    { id = "div_heal_rate", type = "line" },
-                    { id = "hdr_heal_rate", type = "desc", text = "ui_mcm_at_hdr_heal_rate", clr = {255, 200, 200, 200} },
-                    { id = "heal_rate_multiplier", type = "track", val = 2, min = 0.5, max = 3.0, step = 0.1, def = 1.0 },
-
-                    { id = "div_healing_charge", type = "line" },
-                    { id = "hdr_healing_charge", type = "desc", text = "ui_mcm_at_hdr_healing_charge", clr = {255, 200, 200, 200} },
-                    { id = "charge_chance_novice",      type = "track", val = 2, min = 0, max = 100, step = 5, def = 50 },
-                    { id = "charge_chance_experienced", type = "track", val = 2, min = 0, max = 100, step = 5, def = 50 },
-                    { id = "charge_chance_veteran",     type = "track", val = 2, min = 0, max = 100, step = 5, def = 50 },
-                    { id = "charge_chance_master",      type = "track", val = 2, min = 0, max = 100, step = 5, def = 50 },
-
-                    { id = "div_visuals", type = "line" },
-                    { id = "hdr_visuals", type = "desc", text = "ui_mcm_at_hdr_visuals", clr = {255, 200, 200, 200} },
-                    { id = "limping_anim_enabled",     type = "check", val = 1, def = true },
-                    { id = "limping_health_threshold", type = "track", val = 2, min = 0.30, max = 1.00, step = 0.05, def = 0.65 },
-                    { id = "healing_anim_enabled",     type = "check", val = 1, def = true },
-
-                    { id = "div_version", type = "line" },
-                    { id = "version", type = "desc", text = "ui_mcm_at_title",
-                        ui_hook_functor = { set_version_text }, clr = {255, 212, 201, 168} },
-                },
-            },
-            {
-                id = "accuracy",
-                sh = true,
-                gr = {
-                    { id = "title", type = "slide", link = "at_mcm_banner",
-                        text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
-                    { id = "desc", type = "desc", text = "ui_mcm_at_accuracy_desc" },
-                    { id = "accuracy_enabled", type = "check", val = 1, def = true },
-
-                    { id = "div_accuracy_curve", type = "line" },
-                    { id = "hdr_accuracy_curve", type = "desc", text = "ui_mcm_at_hdr_accuracy_curve", clr = {255, 200, 200, 200} },
-                    { id = "acc_disp_novice",       type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 1.00 },
-                    { id = "acc_disp_trainee",      type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 0.90 },
-                    { id = "acc_disp_experienced",  type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 0.80 },
-                    { id = "acc_disp_professional", type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 0.70 },
-                    { id = "acc_disp_veteran",      type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 0.60 },
-                    { id = "acc_disp_expert",       type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 0.52 },
-                    { id = "acc_disp_master",       type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 0.45 },
-                    { id = "acc_disp_legend",       type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 0.38 },
-
-                    { id = "div_version", type = "line" },
-                    { id = "version", type = "desc", text = "ui_mcm_at_title",
-                        ui_hook_functor = { set_version_text }, clr = {255, 212, 201, 168} },
-                },
-            },
-            {
                 id = "combat",
-                sh = true,
                 gr = {
-                    { id = "title", type = "slide", link = "at_mcm_banner",
-                        text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
-                    { id = "desc", type = "desc", text = "ui_mcm_at_combat_desc" },
-                    { id = "combat_enabled", type = "check", val = 1, def = true },
-                    { id = "combat_ignore_companions", type = "check", val = 1, def = true },
+                    {
+                        id = "maneuvers",
+                        sh = true,
+                        gr = {
+                            { id = "title", type = "slide", link = "at_mcm_banner",
+                                text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
+                            { id = "desc", type = "desc", text = "ui_mcm_at_combat_desc" },
+                            { id = "combat_enabled", type = "check", val = 1, def = true, hint = "at_combat_combat_enabled" },
+                            { id = "combat_ignore_companions", type = "check", val = 1, def = true, hint = "at_combat_combat_ignore_companions" },
 
-                    { id = "div_friendly_fire", type = "line" },
-                    { id = "hdr_friendly_fire", type = "desc", text = "ui_mcm_at_combat_hdr_friendly_fire", clr = {255, 200, 200, 200} },
-                    { id = "friendly_fire_enabled", type = "check", val = 1, def = true },
-                    { id = "friendly_fire_factor", type = "track", val = 2, min = 0.0, max = 1.0, step = 0.05, def = 0.0 },
-
-                    { id = "div_version", type = "line" },
-                    { id = "version", type = "desc", text = "ui_mcm_at_title",
-                        ui_hook_functor = { set_version_text }, clr = {255, 212, 201, 168} },
+                            { id = "div_version", type = "line" },
+                            { id = "version", type = "desc", text = "ui_mcm_at_title",
+                                ui_hook_functor = { set_version_text }, clr = {255, 212, 201, 168} },
+                        },
+                    },
+                    wip_page("behaviors"),
+                    wip_page("enhancements"),
                 },
             },
             {
-                id = "fixes",
+                id = "effectiveness",
                 gr = {
+                    {
+                        id = "accuracy",
+                        sh = true,
+                        gr = {
+                            { id = "title", type = "slide", link = "at_mcm_banner",
+                                text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
+                            { id = "desc", type = "desc", text = "ui_mcm_at_accuracy_desc" },
+                            { id = "accuracy_enabled", type = "check", val = 1, def = true, hint = "at_accuracy_accuracy_enabled" },
+
+                            { id = "div_accuracy_curve", type = "line" },
+                            { id = "hdr_accuracy_curve", type = "desc", text = "ui_mcm_at_hdr_accuracy_curve", clr = {255, 200, 200, 200} },
+                            { id = "acc_disp_novice",       type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 1.00, hint = "at_accuracy_acc_disp_novice" },
+                            { id = "acc_disp_trainee",      type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 0.90, hint = "at_accuracy_acc_disp_trainee" },
+                            { id = "acc_disp_experienced",  type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 0.80, hint = "at_accuracy_acc_disp_experienced" },
+                            { id = "acc_disp_professional", type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 0.70, hint = "at_accuracy_acc_disp_professional" },
+                            { id = "acc_disp_veteran",      type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 0.60, hint = "at_accuracy_acc_disp_veteran" },
+                            { id = "acc_disp_expert",       type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 0.52, hint = "at_accuracy_acc_disp_expert" },
+                            { id = "acc_disp_master",       type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 0.45, hint = "at_accuracy_acc_disp_master" },
+                            { id = "acc_disp_legend",       type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 0.38, hint = "at_accuracy_acc_disp_legend" },
+
+                            { id = "div_version", type = "line" },
+                            { id = "version", type = "desc", text = "ui_mcm_at_title",
+                                ui_hook_functor = { set_version_text }, clr = {255, 212, 201, 168} },
+                        },
+                    },
+                    {
+                        id = "hit_share",
+                        sh = true,
+                        gr = {
+                            { id = "title", type = "slide", link = "at_mcm_banner",
+                                text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
+                            { id = "desc", type = "desc", text = "ui_mcm_at_hit_share_desc" },
+                            { id = "hit_share_enabled", type = "check", val = 1, def = true, hint = "at_hit_share_hit_share_enabled" },
+
+                            { id = "div_survivor", type = "line" },
+                            { id = "hdr_survivor", type = "desc", text = "ui_mcm_at_hit_share_hdr_survivor", clr = {255, 200, 200, 200} },
+                            { id = "hit_share_survivor_gate", type = "check", val = 1, def = true, hint = "at_hit_share_hit_share_survivor_gate" },
+
+                            { id = "div_retention", type = "line" },
+                            { id = "hdr_retention", type = "desc", text = "ui_mcm_at_hdr_retention", clr = {255, 200, 200, 200} },
+                            { id = "hit_share_retention_min", type = "track", val = 2, min = 1, max = 30, step = 1, def = 2, hint = "at_hit_share_hit_share_retention_min" },
+
+                            { id = "div_version", type = "line" },
+                            { id = "version", type = "desc", text = "ui_mcm_at_title",
+                                ui_hook_functor = { set_version_text }, clr = {255, 212, 201, 168} },
+                        },
+                    },
                     {
                         id = "danger",
                         sh = true,
@@ -236,13 +229,67 @@ function on_mcm_load()
 
                             { id = "div_improvements", type = "line" },
                             { id = "hdr_improvements", type = "desc", text = "ui_mcm_at_danger_hdr_improvements", clr = {255, 200, 200, 200} },
-                            { id = "danger_hit_bypass",    type = "check", val = 1, def = true },
-                            { id = "danger_attack_sound",  type = "check", val = 1, def = true },
-                            { id = "danger_actor_tables",  type = "check", val = 1, def = true },
+                            { id = "danger_hit_bypass",    type = "check", val = 1, def = true, hint = "at_fixes_danger_danger_hit_bypass" },
+                            { id = "danger_attack_sound",  type = "check", val = 1, def = true, hint = "at_fixes_danger_danger_attack_sound" },
+                            { id = "danger_actor_tables",  type = "check", val = 1, def = true, hint = "at_fixes_danger_danger_actor_tables" },
 
                             { id = "div_fixes", type = "line" },
                             { id = "hdr_fixes", type = "desc", text = "ui_mcm_at_danger_hdr_fixes", clr = {255, 200, 200, 200} },
                             { id = "fixes_list", type = "desc", text = "ui_mcm_at_danger_fixes_list" },
+
+                            { id = "div_version", type = "line" },
+                            { id = "version", type = "desc", text = "ui_mcm_at_title",
+                                ui_hook_functor = { set_version_text }, clr = {255, 212, 201, 168} },
+                        },
+                    },
+                    {
+                        id = "crossfire",
+                        sh = true,
+                        gr = {
+                            { id = "title", type = "slide", link = "at_mcm_banner",
+                                text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
+                            { id = "desc", type = "desc", text = "ui_mcm_at_combat_hdr_friendly_fire" },
+                            { id = "friendly_fire_enabled", type = "check", val = 1, def = true, hint = "at_combat_friendly_fire_enabled" },
+                            { id = "friendly_fire_factor", type = "track", val = 2, min = 0.0, max = 1.0, step = 0.05, def = 0.0, hint = "at_combat_friendly_fire_factor" },
+
+                            { id = "div_version", type = "line" },
+                            { id = "version", type = "desc", text = "ui_mcm_at_title",
+                                ui_hook_functor = { set_version_text }, clr = {255, 212, 201, 168} },
+                        },
+                    },
+                    wip_page("reaction"),
+                    wip_page("range"),
+                    wip_page("resistance"),
+                },
+            },
+            {
+                id = "mechanics",
+                gr = {
+                    {
+                        id = "health",
+                        sh = true,
+                        gr = {
+                            { id = "title", type = "slide", link = "at_mcm_banner",
+                                text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
+                            { id = "desc", type = "desc", text = "ui_mcm_at_health_desc" },
+                            { id = "healing_enabled", type = "check", val = 1, def = true, hint = "at_health_healing_enabled" },
+
+                            { id = "div_heal_rate", type = "line" },
+                            { id = "hdr_heal_rate", type = "desc", text = "ui_mcm_at_hdr_heal_rate", clr = {255, 200, 200, 200} },
+                            { id = "heal_rate_multiplier", type = "track", val = 2, min = 0.5, max = 3.0, step = 0.1, def = 1.0, hint = "at_health_heal_rate_multiplier" },
+
+                            { id = "div_healing_charge", type = "line" },
+                            { id = "hdr_healing_charge", type = "desc", text = "ui_mcm_at_hdr_healing_charge", clr = {255, 200, 200, 200} },
+                            { id = "charge_chance_novice",      type = "track", val = 2, min = 0, max = 100, step = 5, def = 50, hint = "at_health_charge_chance_novice" },
+                            { id = "charge_chance_experienced", type = "track", val = 2, min = 0, max = 100, step = 5, def = 50, hint = "at_health_charge_chance_experienced" },
+                            { id = "charge_chance_veteran",     type = "track", val = 2, min = 0, max = 100, step = 5, def = 50, hint = "at_health_charge_chance_veteran" },
+                            { id = "charge_chance_master",      type = "track", val = 2, min = 0, max = 100, step = 5, def = 50, hint = "at_health_charge_chance_master" },
+
+                            { id = "div_visuals", type = "line" },
+                            { id = "hdr_visuals", type = "desc", text = "ui_mcm_at_hdr_visuals", clr = {255, 200, 200, 200} },
+                            { id = "limping_anim_enabled",     type = "check", val = 1, def = true, hint = "at_health_limping_anim_enabled" },
+                            { id = "limping_health_threshold", type = "track", val = 2, min = 0.30, max = 1.00, step = 0.05, def = 0.65, hint = "at_health_limping_health_threshold" },
+                            { id = "healing_anim_enabled",     type = "check", val = 1, def = true, hint = "at_health_healing_anim_enabled" },
 
                             { id = "div_version", type = "line" },
                             { id = "version", type = "desc", text = "ui_mcm_at_title",
@@ -256,7 +303,7 @@ function on_mcm_load()
                             { id = "title", type = "slide", link = "at_mcm_banner",
                                 text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
                             { id = "desc", type = "desc", text = "ui_mcm_at_jam_desc" },
-                            { id = "jam_enabled", type = "check", val = 1, def = true },
+                            { id = "jam_enabled", type = "check", val = 1, def = true, hint = "at_fixes_jam_jam_enabled" },
 
                             { id = "div_version", type = "line" },
                             { id = "version", type = "desc", text = "ui_mcm_at_title",
@@ -270,13 +317,39 @@ function on_mcm_load()
                             { id = "title", type = "slide", link = "at_mcm_banner",
                                 text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
                             { id = "desc", type = "desc", text = "ui_mcm_at_ammo_desc" },
-                            { id = "ammo_enabled", type = "check", val = 1, def = true },
+                            { id = "ammo_enabled", type = "check", val = 1, def = true, hint = "at_fixes_ammo_ammo_enabled" },
 
                             { id = "div_version", type = "line" },
                             { id = "version", type = "desc", text = "ui_mcm_at_title",
                                 ui_hook_functor = { set_version_text }, clr = {255, 212, 201, 168} },
                         },
                     },
+                },
+            },
+            {
+                id = "effects",
+                sh = true,
+                gr = {
+                    { id = "title", type = "slide", link = "at_mcm_banner",
+                        text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
+                    { id = "desc", type = "desc", text = "ui_mcm_at_effects_desc" },
+
+                    { id = "div_version", type = "line" },
+                    { id = "version", type = "desc", text = "ui_mcm_at_title",
+                        ui_hook_functor = { set_version_text }, clr = {255, 212, 201, 168} },
+                },
+            },
+            {
+                id = "mutants",
+                sh = true,
+                gr = {
+                    { id = "title", type = "slide", link = "at_mcm_banner",
+                        text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
+                    { id = "desc", type = "desc", text = "ui_mcm_at_mutants_desc" },
+
+                    { id = "div_version", type = "line" },
+                    { id = "version", type = "desc", text = "ui_mcm_at_title",
+                        ui_hook_functor = { set_version_text }, clr = {255, 212, 201, 168} },
                 },
             },
             {
