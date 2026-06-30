@@ -13,12 +13,12 @@ local REFRESH_INTERVAL_SEC = 1
 
 local ROW_H    = 13
 local PAD      = 6
-local TAG_W    = 20
+local COL_GAP  = 12
 local NAME_W   = 110
 local LOGIC_W  = 120
 local COMBAT_W = 115
 local TARGET_W = 180
-local TOTAL_W  = TAG_W + NAME_W + LOGIC_W + COMBAT_W + TARGET_W + PAD * 2
+local TOTAL_W  = NAME_W + LOGIC_W + COMBAT_W + TARGET_W + COL_GAP * 3 + PAD * 2
 local MARGIN   = 15
 local MAX_ROWS = 50
 local NAME_MAX = 15
@@ -172,7 +172,7 @@ function UIDebugHUD:__init(rows) super()
     local xml = CScriptXmlInit()
     xml:ParseFile("ui_at_stats.xml")
 
-    self:_row(xml, PAD, "", "NAME", "SCHEME", "ACTION", "TARGET", CLR_TITLE)
+    self:_row(xml, PAD, "NAME", "SCHEME", "ACTION", "TARGET", CLR_TITLE)
 
     for i = 1, #rows do
         local row = rows[i]
@@ -180,17 +180,15 @@ function UIDebugHUD:__init(rows) super()
         if row.is_overflow then color = CLR_DIM
         elseif row.tag == "AT" then color = CLR_AT
         else color = CLR_NORMAL end
-        local tag_text = row.tag and ("[" .. row.tag .. "]") or ""
-        self:_row(xml, PAD + (i + 1) * ROW_H, tag_text, row.name, row.logic, row.combat, row.target, color)
+        self:_row(xml, PAD + (i + 1) * ROW_H, row.name, row.logic, row.combat, row.target, color)
     end
 end
 
-function UIDebugHUD:_row(xml, y, tag, name, logic, combat, target, color)
+function UIDebugHUD:_row(xml, y, name, logic, combat, target, color)
     local col_x = PAD
-    self:_cell(xml, col_x, y, TAG_W, tag, color);      col_x = col_x + TAG_W
-    self:_cell(xml, col_x, y, NAME_W, name, color);    col_x = col_x + NAME_W
-    self:_cell(xml, col_x, y, LOGIC_W, logic, color);  col_x = col_x + LOGIC_W
-    self:_cell(xml, col_x, y, COMBAT_W, combat, color); col_x = col_x + COMBAT_W
+    self:_cell(xml, col_x, y, NAME_W, name, color);    col_x = col_x + NAME_W + COL_GAP
+    self:_cell(xml, col_x, y, LOGIC_W, logic, color);  col_x = col_x + LOGIC_W + COL_GAP
+    self:_cell(xml, col_x, y, COMBAT_W, combat, color); col_x = col_x + COMBAT_W + COL_GAP
     self:_cell(xml, col_x, y, TARGET_W, target, color)
 end
 
