@@ -26,7 +26,7 @@ Version 1.0.0.
 | `at_hitresponse.script` | feature | done |
 | `at_health.script` | feature | done |
 | `at_accuracy.script` | feature | done |
-| `at_combat.script` | feature | v2 intermittent takeover shipping: maneuver-catalog spine + kite, scoped to the actor; retreat/flee/snipe and squad/opening maneuvers are the open phases (see Combat section + todo-combat-takeover-v2.md) |
+| `at_combat.script` | feature | v2 intermittent takeover: solo maneuver set (kite, snipe, retreat, flee) + fire gate + flee disengage, actor-scoped, validates S+, pending playtest; squad coordination and enemy openings are the open phases (see Combat section + todo-combat-takeover-v2.md) |
 | `xr_danger.script` | feature | done (full-file override) |
 | `at_jam.script` | feature | done (modded-exes xr_weapon_jam.GetConditionMisfireProbability override; suppresses script-injected NPC misfire) |
 | `at_ammo.script` | feature | done (AP fired from carried boxes; per-engagement rank/rpm-weighted box-delete decay reverts to FMJ when out; veteran-rank gate; no death hook) |
@@ -223,7 +223,7 @@ Per-shot hot path: a rank-name lookup, then pure-Lua scaling of the dispersion t
 
 ## Combat
 
-Status: built incrementally. On `main`: the GOAP graft (`xcombat.install_takeover`), the maneuver-catalog spine (`at_combat_doctrine`), and one maneuver, kite, scoped to the actor. The open phases are the remaining solo maneuvers (retreat, flee, snipe), squad coordination, and enemy openings. Full phase plan + the decision record: `stalker-dev/doc/todo/todo-combat-takeover-v2.md` (t130-t136 + the Plan section). The full-takeover v1 is preserved on the `combat_takeover` branch.
+Status: built incrementally. On `main`: the GOAP graft (`xcombat.install_takeover`), the maneuver-catalog spine (`at_combat_doctrine`), and the full solo maneuver set — kite, snipe, retreat, flee — with the fire-discipline gate (`fire_make_sense` at the decision point) and flee's disengage. Actor-scoped, validates S+, not yet playtested, so squad coordination and enemy openings remain the open phases. Full phase plan + the decision record: `stalker-dev/doc/todo/todo-combat-takeover-v2.md` (t130-t137 + the Plan section). The full-takeover v1 is preserved on the `combat_takeover` branch.
 
 ### Scope: vs the player, decoupled
 
@@ -251,7 +251,7 @@ Eight maneuvers (names locked) across three tactical roles:
 - Maneuver element (reposition offensively, only safe under a base of fire): assault (open charge, no cover), push (advance to cover), flank.
 - Break contact (individual survival): kite (back ~6m), retreat (to cover), flee (rout).
 
-too_close always answers with kite; the pressure response (retreat vs flee) is per-faction temperament. snipe is a fire-mode hold, not a movement. kite's trigger is settled (raw proximity — enemy inside the weapon's minimum range); the rest are being decided one maneuver at a time.
+too_close always answers with kite; the pressure response (retreat vs flee) is per-faction temperament (brave factions retreat to cover, timid ones flee, monolith and zombied do neither). snipe is a fire-mode hold, not a movement, answering a stalled sniper. The solo triggers are settled: kite = raw proximity (enemy inside the weapon's minimum range), snipe = stalled for `w_sniper`, retreat and flee = hurt or grenade split by faction temperament. The squad and enemy-opening maneuvers are the remaining phases.
 
 ### The maneuver pattern
 
