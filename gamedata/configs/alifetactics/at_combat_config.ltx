@@ -6,6 +6,8 @@
 monitor_period_ms = 500    ; min interval between monitor decisions (gate down: deciding whether to take over)
 watch_period_ms   = 200    ; min interval while a maneuver runs (gate up: watching for arrival / the time cap)
 hit_fight_ms      = 5000    ; a recent hit counts as "fighting" this long (far-shooter entry, best_enemy still nil)
+reseize_cooldown_ms = 5000  ; after a maneuver commits, hold off a fresh takeover of the same NPC this long (0 = off)
+disengage_hold_ms   = 5000  ; after a flee commits, vanilla ignores the actor as this NPC's enemy this long (rout continuation; 0 = off)
 
 ; Triggers (when AT seizes - only where vanilla is weak)
 hurt_frac     = 0.50       ; health below this fires the hurt trigger (retreat with a buffer, not at near-death)
@@ -19,3 +21,8 @@ kite_back_m    = 6        ; metres to back-step away from the enemy when it viol
 kite_arc_deg    = 45       ; back-lane fan step: try straight-back, then +-45, then +-90 for a clear lane
 kite_spread_deg = 90       ; max fan to either side when the straight-back lane is blocked by a wall or obstacle
 maneuver_max_ms = 8000     ; stuck cap - a committed maneuver hands back after this even if it never arrives
+snipe_hold_ms   = 8000     ; snipe is a precision-fire hold (ends_on=time); it hands back to vanilla after this
+flee_max_ms     = 15000    ; flee is a rout (ends_on=arrival); a rout to a far base needs a longer cap than a maneuver
+flee_distance_m = 25       ; flee-lane leg length when no friendly base qualifies (also the required clear-lane length)
+flee_lane_arc_deg = 20     ; flee heading fan step: straight-away, then +-this per step, until a clear lane
+flee_lane_max_spread_deg = 80  ; flee heading fan: max deviation from straight-away before falling back to best partial

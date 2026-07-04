@@ -21,7 +21,7 @@ local _dbg = false
 
 local LTX_PATH    = "alifetactics\\at_combat_config.ltx"
 local LTX_SECTION = "at_combat"
-local MONITOR_MS, WATCH_MS, HIT_FIGHT_MS
+local MONITOR_MS, WATCH_MS, HIT_FIGHT_MS, RESEIZE_COOLDOWN_MS, DISENGAGE_HOLD_MS
 
 local COMPANION_INFO = "npcx_is_companion"
 
@@ -95,13 +95,28 @@ local function _begin(state, maneuver, dest, trigger, tg)
 end
 
 -- COMMIT: lower the gate, clear the maneuver and its destination. Vanilla resumes from where AT left the NPC.
+-- commit_at is stamped (and NOT cleared) so _decide can enforce the reseize cooldown: without it a pressing enemy
+-- re-fires the same trigger on the next decide tick and the intermittent takeover degenerates into a continuous one.
 local function _commit(state, tg, reason)
     if _dbg then trace.commit(state.id, state.maneuver and state.maneuver.name, reason, math_floor(tg - (state.begin_at or tg))) end
+    -- flee opens a disengage window: after hand-back, the on_enemy_eval subscriber forces is_enemy(actor)=false for
+    -- this NPC for DISENGAGE_HOLD_MS, so the rout continues instead of the NPC re-acquiring the actor and turning to
+    -- fight the instant vanilla resumes. Only flee disengages; every other maneuver hands back to normal combat.
+    if state.maneuver and state.maneuver.name == "flee" and DISENGAGE_HOLD_MS > 0 then
+        state.disengage_until = tg + DISENGAGE_HOLD_MS
+    end
     state.gate = false
     state.maneuver = nil
     state.dest = nil
     state.maneuver_at = nil
     state.begin_at = nil
+    state.commit_at = tg
+    -- Release any cover a cover maneuver reserved at resolve, on EVERY exit (arrived, cap, never-started) so a gate
+    -- that raised but never ran a maneuver does not leak the reservation in db.used_level_vertex_ids (t136).
+    if state.cover_lvid then
+        xcombat.release_cover(state.cover_lvid, state.id)
+        state.cover_lvid = nil
+    end
 end
 
 -- Issue the maneuver: send the NPC to its cached destination and set the maneuver's fire/posture/movement with
@@ -111,8 +126,19 @@ local function _issue(npc, state, tg)
     local maneuver = state.maneuver
     local enemy = npc:best_enemy()
     if not enemy then _commit(state, tg, "no_enemy") return end
+    -- The enemy can change between _decide (where scope is checked) and here (the action's initialize), and the
+    -- grafted action can re-initialize mid-transaction; re-check scope so a maneuver never issues against a
+    -- non-eligible (NPC) enemy that slipped into best_enemy in the window.
+    if not _target_eligible(enemy) then _commit(state, tg, "not_eligible") return end
     xcombat.send_to(npc, state.dest)
-    xcombat.set_combat(npc, { fire = maneuver.fire, posture = maneuver.posture, movement = maneuver.movement, aim = enemy })
+    -- Fire discipline at the decision point (t134): a firing maneuver drops to READY (weapon up, no trigger) when
+    -- the engine gate says a shot makes no sense - occluded, point-blank, floor gap, or no LOS. Consulted ONCE here,
+    -- never per shot; the maneuver holds seconds and vanilla's own gate runs the rest of the time.
+    local fire = maneuver.fire
+    if (fire == xcombat.FIRE or fire == xcombat.SNIPE) and not xcombat.fire_make_sense(npc, enemy) then
+        fire = xcombat.READY
+    end
+    xcombat.set_combat(npc, { fire = fire, posture = maneuver.posture, movement = maneuver.movement, aim = enemy })
     state.maneuver_at = tg
 end
 
@@ -182,6 +208,14 @@ local function _decide(npc, id, state, tg)
     state.enemy_id = enemy:id()
 
     if not _target_eligible(enemy) then return end
+
+    -- Reseize cooldown: hold off a fresh takeover for a window after the last COMMIT. A committed maneuver leaves
+    -- the NPC near the enemy (a kite ends ~kite_back_m away), so without this the same trigger re-fires on the next
+    -- decide tick and the intermittent model collapses into a continuous takeover. 0 = off.
+    if RESEIZE_COOLDOWN_MS > 0 and state.commit_at and (tg - state.commit_at) < RESEIZE_COOLDOWN_MS then
+        trace.monitor(id, state, "cooldown")
+        return
+    end
 
     if not _can_seize(npc) then
         trace.monitor(id, state, "cannot_seize")
@@ -257,12 +291,29 @@ local function _on_entity_unregister(se_obj)
     if _dbg then trace.forget(id) end
 end
 
+-- The single AT owner of the on_enemy_eval seam (xr_combat_ignore.script:85, fires before every distance gate).
+-- While a flee's disengage window is open, force is_enemy(actor)=false for this NPC so vanilla stops selecting the
+-- actor as its enemy and the rout continues past hand-back. Scoped to the actor (the fled enemy) so the NPC still
+-- reacts to any other threat; the window clears lazily on expiry. The t92 sniper force-enable (result=true) is the
+-- other branch that will live here, keeping one subscriber on the seam.
+local function _on_enemy_eval(obj, enemy, flags)
+    if not obj or not enemy then return end
+    local state = _states[obj:id()]
+    if not (state and state.disengage_until) then return end
+    if time_global() >= state.disengage_until then state.disengage_until = nil return end
+    if enemy:id() ~= AC_ID then return end
+    flags.override = true
+    flags.result = false
+end
+
 local function _load_config()
     local ini = ini_file(LTX_PATH)
     local function read_int(k, d) local v = ini:r_float_ex(LTX_SECTION, k) return v and math_floor(v) or d end
-    MONITOR_MS   = read_int("monitor_period_ms", 500)
-    WATCH_MS     = read_int("watch_period_ms",   200)
-    HIT_FIGHT_MS = read_int("hit_fight_ms",      5000)
+    MONITOR_MS          = read_int("monitor_period_ms",   500)
+    WATCH_MS            = read_int("watch_period_ms",     200)
+    HIT_FIGHT_MS        = read_int("hit_fight_ms",        5000)
+    RESEIZE_COOLDOWN_MS = read_int("reseize_cooldown_ms", 5000)
+    DISENGAGE_HOLD_MS   = read_int("disengage_hold_ms",   5000)
 end
 
 local function _refresh_log()
@@ -286,6 +337,7 @@ function on_game_start()
     RegisterScriptCallback("npc_on_update",               _on_update)
     RegisterScriptCallback("npc_on_net_destroy",          _on_net_destroy)
     RegisterScriptCallback("server_entity_on_unregister", _on_entity_unregister)
+    RegisterScriptCallback("on_enemy_eval",               _on_enemy_eval)
     RegisterScriptCallback("actor_on_first_update",       _on_first_update)
     RegisterScriptCallback("on_option_change",            _refresh_log)
     RegisterScriptCallback("mcm_option_restore_default",  _refresh_log)
