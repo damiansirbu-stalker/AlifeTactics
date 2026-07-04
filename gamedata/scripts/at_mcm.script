@@ -36,43 +36,45 @@ local defaults = {
     log_level = "WARN",
     hud_enabled    = false,
     hud_position   = "center_right",
-    hud_radius     = 100,
-    hud_show_idle  = false,
 }
 
 local RegisterScriptCallback = RegisterScriptCallback
 
+-- Every value here MUST mirror the on_mcm_load tree: an option's saved path is at/<tab>/<key>, and
+-- ui_mcm.get validates that path against the option tree before touching storage (opt_val gate,
+-- MCM ui_mcm.script:711-714) - a path the tree does not contain reads nothing, logs
+-- "!MCM given bad path", and the getter silently falls back to the code default.
 local _key_to_tab = {
-    hit_share_enabled         = "hit_share",
-    hit_share_retention_min   = "hit_share",
-    hit_share_survivor_gate   = "hit_share",
-    healing_enabled           = "health",
-    heal_rate_multiplier      = "health",
-    charge_chance_novice      = "health",
-    charge_chance_experienced = "health",
-    charge_chance_veteran     = "health",
-    charge_chance_master      = "health",
-    limping_anim_enabled      = "health",
-    limping_health_threshold  = "health",
-    healing_anim_enabled      = "health",
-    accuracy_enabled       = "accuracy",
-    acc_disp_novice        = "accuracy",
-    acc_disp_trainee       = "accuracy",
-    acc_disp_experienced   = "accuracy",
-    acc_disp_professional  = "accuracy",
-    acc_disp_veteran       = "accuracy",
-    acc_disp_expert        = "accuracy",
-    acc_disp_master        = "accuracy",
-    acc_disp_legend        = "accuracy",
-    combat_enabled = "combat",
-    combat_ignore_companions = "combat",
-    friendly_fire_enabled = "combat",
-    friendly_fire_factor  = "combat",
-    danger_hit_bypass   = "fixes/danger",
-    danger_attack_sound = "fixes/danger",
-    danger_actor_tables = "fixes/danger",
-    jam_enabled         = "fixes/jam",
-    ammo_enabled        = "fixes/ammo",
+    hit_share_enabled         = "effectiveness/hit_share",
+    hit_share_retention_min   = "effectiveness/hit_share",
+    hit_share_survivor_gate   = "effectiveness/hit_share",
+    healing_enabled           = "mechanics/health",
+    heal_rate_multiplier      = "mechanics/health",
+    charge_chance_novice      = "mechanics/health",
+    charge_chance_experienced = "mechanics/health",
+    charge_chance_veteran     = "mechanics/health",
+    charge_chance_master      = "mechanics/health",
+    limping_anim_enabled      = "mechanics/health",
+    limping_health_threshold  = "mechanics/health",
+    healing_anim_enabled      = "mechanics/health",
+    accuracy_enabled       = "effectiveness/accuracy",
+    acc_disp_novice        = "effectiveness/accuracy",
+    acc_disp_trainee       = "effectiveness/accuracy",
+    acc_disp_experienced   = "effectiveness/accuracy",
+    acc_disp_professional  = "effectiveness/accuracy",
+    acc_disp_veteran       = "effectiveness/accuracy",
+    acc_disp_expert        = "effectiveness/accuracy",
+    acc_disp_master        = "effectiveness/accuracy",
+    acc_disp_legend        = "effectiveness/accuracy",
+    combat_enabled = "combat/maneuvers",
+    combat_ignore_companions = "combat/maneuvers",
+    friendly_fire_enabled = "effectiveness/crossfire",
+    friendly_fire_factor  = "effectiveness/crossfire",
+    danger_hit_bypass   = "effectiveness/danger",
+    danger_attack_sound = "effectiveness/danger",
+    danger_actor_tables = "effectiveness/danger",
+    jam_enabled         = "mechanics/jam",
+    ammo_enabled        = "mechanics/ammo",
     log_level     = "development",
     btn_reset_all = "development",
     hud_enabled    = "development",
@@ -122,13 +124,16 @@ function btn_reset_all(gui)
 end
 
 -- The menu tree groups pages under the category folders Combat / Effectiveness / Mechanics / Effects / Mutants.
--- Two keys are decoupled here. (1) The saved setting path is path_builder(key) = at/_key_to_tab[key]/key,
--- INDEPENDENT of this tree (xmcm.script:54), so reparenting a page does not move its stored value; _key_to_tab is
--- left unchanged. (2) An option's label/hint string is opt_str .. (v.hint or path) (ui_mcm.script:1412,886), so
--- each option sets hint = its original "at_<tab>_<key>" and the label resolves to the existing
--- ui_mcm_at_<tab>_<key> string without renaming any strings to the new tree path. desc/hdr/title nodes keep
--- explicit text. Only the ui_mcm_menu_<id> page labels move (handled in ui_st_mcm_at.xml). WIP sub-pages carry a
--- single "wip" desc until their feature exists.
+-- (1) The saved setting path is path_builder(key) = at/_key_to_tab[key]/key and it MUST match this tree:
+-- ui_mcm.get validates the path against the option tree before reading storage (opt_val gate, MCM
+-- ui_mcm.script:711-714), so reparenting a page moves its path - update _key_to_tab in the same edit, and
+-- values stored under the old path are orphaned (defaults apply until the user re-sets them). The original
+-- restructure assumed the path was independent of the tree; it is not - every read off-tree logged
+-- "!MCM given bad path" and returned the code default. (2) An option's label/hint string is
+-- opt_str .. (v.hint or path) (ui_mcm.script:1412,886), so each option sets hint = its original
+-- "at_<tab>_<key>" and the label resolves to the existing ui_mcm_at_<tab>_<key> string without renaming any
+-- strings to the new tree path. desc/hdr/title nodes keep explicit text. Only the ui_mcm_menu_<id> page
+-- labels move (handled in ui_st_mcm_at.xml). WIP sub-pages carry a single "wip" desc until their feature exists.
 function on_mcm_load()
     local function wip_page(id)
         return {

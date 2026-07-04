@@ -2,7 +2,7 @@
 --- Per NPC: the active xr_logic section (scheme@subsection), the engine combat operator + physical state, and
 --- the selected enemy with distance and an aim flag (blind = cannot see it, OFF = body pointed away from it).
 
-local pairs, table_sort, math_floor = pairs, table.sort, math.floor
+local pairs, table_sort, math_floor, tostring = pairs, table.sort, math.floor, tostring
 local string_sub, string_format = string.sub, string.format
 local IsStalker, RegisterScriptCallback = IsStalker, RegisterScriptCallback
 
@@ -10,6 +10,10 @@ local log = xlog.get_logger("AT.HUD", { outfile = "alifetactics.log" })
 local cfg = at_mcm.cfg
 
 local REFRESH_INTERVAL_SEC = 1
+-- Scan radius and idle-row visibility are code constants, not MCM options: every key in at_mcm defaults
+-- must have a tree widget (ui_mcm.get validates the path against the option tree), and these never had one.
+local HUD_RADIUS_M  = 100
+local HUD_SHOW_IDLE = false
 
 local ROW_H    = 13
 local PAD      = 6
@@ -125,9 +129,8 @@ end
 local function _build_rows()
     if not db.actor then return {} end
     local ax = db.actor:position()
-    local radius = cfg.hud_radius or 100
-    local r2 = radius * radius
-    local show_idle = cfg.hud_show_idle ~= false
+    local r2 = HUD_RADIUS_M * HUD_RADIUS_M
+    local show_idle = HUD_SHOW_IDLE
     local actor_id = db.actor:id()
 
     local rows = {}
@@ -247,7 +250,7 @@ local function _start()
     RemoveTimeEvent("at_hud", "tick")
     CreateTimeEvent("at_hud", "tick", REFRESH_INTERVAL_SEC, _tick)
     log.info("Debug HUD enabled (position=%s, radius=%dm, show_idle=%s)",
-        cfg.hud_position or "center_right", cfg.hud_radius or 100, cfg.hud_show_idle ~= false and "true" or "false")
+        cfg.hud_position or "center_right", HUD_RADIUS_M, tostring(HUD_SHOW_IDLE))
 end
 
 local function _stop()
