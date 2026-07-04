@@ -37,8 +37,9 @@ Version 1.0.0.
 Backlog (not built):
 - Tactical flee (per-squad retreat to friendly smart under power imbalance)
 - Memory persistence (extended danger inertion under sustained combat)
-- Combat scheme selection (per-NPC combat_type via condlist)
 - NPC weapon bias (per-NPC callback overrides for loadout selection)
+
+Rejected (not backlogged): combat schemes (per-NPC `combat_type` via condlist). The `script_combat_type` condlist is the most contested combat surface in modpacks - it is GAMMA AI Rework's core mechanism and single-owner by design - and everything a scheme would express is already a maneuver (which forces its action) or a behavior (which composes). A scheme buys nothing here and surrenders composition.
 
 Groomed task entries in `stalker-dev/doc/todo/todo-alifetactics-next.md`; brainstorm pool in `todo-alifetactics-backlog.md`.
 
@@ -88,17 +89,25 @@ Namespace: `at_*` (parallel to `ap_*` for AlifePlus, `ag_*` for AlifeGuard, `x*`
 
 ## User-facing systems
 
-Each system has its own file, its own MCM tab, and one master toggle.
+Each system has its own file, its own MCM tab, and one master toggle. The Scope column is the actor-scope rule below, at a glance.
 
-| System | File | MCM Tab | Master toggle |
-|---|---|---|---|
-| Hit Sharing | `at_hitresponse.script` | Hit Sharing | `hit_share_enabled` |
-| Healing | `at_health.script` | Healing | `healing_enabled` |
-| Accuracy | `at_accuracy.script` | Accuracy | `accuracy_enabled` |
-| Combat | `at_combat.script` | Combat | `combat_enabled` |
-| Danger | `xr_danger.script` (full-file override) | Fixes > Danger | bug fixes always-on; three toggleable improvements |
-| Weapon Jam | `at_jam.script` | Fixes > Weapon Jam | `jam_enabled` |
-| NPC Ammo | `at_ammo.script` | Fixes > NPC Ammo | `ammo_enabled` |
+| System | File | MCM Tab | Master toggle | Scope | Composition |
+|---|---|---|---|---|---|
+| Hit Sharing | `at_hitresponse.script` | Hit Sharing | `hit_share_enabled` | All NPCs | callback |
+| Healing | `at_health.script` | Healing | `healing_enabled` | All NPCs | fn-patch |
+| Accuracy | `at_accuracy.script` | Accuracy | `accuracy_enabled` | All NPCs | callback |
+| Combat | `at_combat.script` | Combat | `combat_enabled` | Actor only | transaction-override |
+| Danger | `xr_danger.script` (full-file override) | Fixes > Danger | bug fixes always-on; three toggleable improvements | All NPCs | excludes (full override) |
+| Weapon Jam | `at_jam.script` | Fixes > Weapon Jam | `jam_enabled` | All NPCs | save-wrap |
+| NPC Ammo | `at_ammo.script` | Fixes > NPC Ammo | `ammo_enabled` | All NPCs | callback |
+
+Composition classes, what each does to the surrounding stack: `callback` subscribes to an engine callback and adds to it (composes with any other subscriber); `fn-patch` replaces a vanilla module function, rescheduling through the same lookup so it holds; `save-wrap` saves the prior function and forwards to it when disabled (composes with a prior installer); `transaction-override` suppresses whatever brain is installed, but only for the seconds it holds one NPC; `excludes` is a full-file override, mutually exclusive in MO2 with any other mod that overrides the same file (Danger is the one such leaf, until it becomes a monkey-patch).
+
+### Actor scope: only the Combat takeover is actor-gated
+
+The Combat takeover is the sole actor-scoped system. It seizes an NPC exactly when that NPC's current enemy is the player, gated by one predicate, `_target_eligible(enemy)` at `at_combat.script:73-74`; in an NPC-vs-NPC fight it never engages. This is a target gate (the NPC's enemy must be the actor), not a participant exclusion.
+
+Every other system runs on all NPCs in any fight, NPC-vs-NPC included. Hit Sharing, Healing, Accuracy, and Danger never read who the enemy is. Friendly Fire, Weapon Jam, and NPC Ammo exclude the player only as a participant (the player's own hits, the player's own weapon); that is the inverse of an actor-only scope, not an instance of it. So widening or keeping the Combat gate changes the takeover alone and touches none of the conduct, mechanics, or fixes systems.
 
 ---
 
@@ -220,6 +229,8 @@ Status: built incrementally. On `main`: the GOAP graft (`xcombat.install_takeove
 
 The takeover is designed against the player and, for now, only runs when an NPC's enemy is the actor. NPC-vs-NPC is dropped (too many corner cases; the actor is always online, has a stable id, never despawns mid-fight, and exposes facing/health/reload). The restriction is one predicate, `_target_eligible(enemy)`; every maneuver, viability check, and read takes a generic `enemy` game_object, so widening the scope later is a one-line change. No readme or MCM surface mentions it.
 
+This actor gate is unique to the takeover. The conduct, mechanics, and fixes systems (Accuracy, Hit Sharing, Healing, Danger, Weapon Jam, NPC Ammo) are unscoped and run on every NPC regardless of who it fights. See "Actor scope" under User-facing systems for the full rule.
+
 ### The model: a takeover transaction
 
 Vanilla owns every NPC by default. AT does not run combat; it seizes one NPC for one committed, time-boxed maneuver, then releases. AT is an interrupt over vanilla, not the combat brain. There is no global share knob — an NPC is seized only when a trigger and a viability check both fire for it, so selectivity is inherent. At most one open transaction per NPC.
@@ -256,7 +267,15 @@ The graft adds one evaluator and one action per stalker and `world_property(EVAL
 
 ### xcombat boundary
 
-AT owns what to do; xcombat (xlibs) owns how to issue it to the engine. Every NPC command and read — weapon state, aim, movement, cover and clear-shot search, the line-of-fire and memory reads, arrival, the cover reservation, the enemy-eval override, the enemy-state reads — goes through an xcombat primitive; AT makes no raw engine combat call. New primitives for this rebuild: `install_takeover`/`release_takeover`, `is_arrived`, `is_reloading`, `is_bleeding`, `is_moving`, suppressive fire via `set_combat`, and `set_enemy_eval`; the rest is reuse.
+AT owns what to do; xcombat (xlibs) owns how to issue it to the engine. Every NPC command and read — weapon state, aim, movement, cover and clear-shot search, the line-of-fire and memory reads, arrival, the cover reservation, the enemy-state reads — goes through an xcombat primitive; AT makes no raw engine combat call. New primitives for this rebuild: `install_takeover`/`release_takeover`, `is_arrived`, `is_reloading`, `is_bleeding`, `is_moving`, and suppressive fire via `set_combat`; the rest is reuse.
+
+The enemy-eval override (flee's disengage and the t92 sniper force-enable) is the one deliberate exception. It is not an xcombat primitive: it lives on the `on_enemy_eval` engine callback seam, so AT registers and owns it directly like any other callback subscription (`npc_on_hit_callback`, `npc_on_net_spawn`). One AT subscriber holds a per-NPC override table and dispatches both directions — a fleeing NPC forces `result=false` (checked first), a sniper-in-range forces `result=true`. xcombat stays stateless by design: it holds no live-event callback or ownership table on its own behalf, so a stateful `set_enemy_eval` would break that contract. This matches `xcombat.on_action_switch`, which registers the caller's function statelessly rather than owning the state.
+
+### Identity and rejected alternatives
+
+The identity the takeover is built for: recognizable committed maneuvers, composition under modpacks (it overrides zero combat files), and solving the shuffle (vanilla twitching between actions instead of committing). Everything above serves those three; a change that trades any of them away is out of scope.
+
+The considered-and-rejected alternative to the top-level planner block is rx-style injection inside the combat sub-planner (`cast_planner` on `action_combat_planner`, then `add_evaluator`/`add_action` there, per Rulix's `rx_combat.script:327-353`). It preserves what the top-level block loses - `CStalkerCombatPlanner::update`'s side effects, `react_on_grenades` / `react_on_member_death` at `stalker_combat_planner.cpp:102-105`, and the initialize/finalize mask and danger inertion. But it arbitrates against whatever a modpack grafts inside that same planner, so it surrenders exactly the robustness the takeover was chosen for. The top-level block wins for the GAMMA audience, at the cost of suppressing those `update` side effects for the seconds it holds - which is why a transaction stays narrow and brief.
 
 ---
 
