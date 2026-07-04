@@ -27,8 +27,8 @@ New squad members spawned mid-fight inherit the squad's active disclosures, and 
 to the squads tracking them, so engagement state stays consistent across spawn churn.
 After 2 game minutes of no further hits from that shooter the squad's pin expires and the next hit re-fires the alert.
 
-The Stealth toggle (MCM, default on) suppresses the squad alert when the hit kills the victim.
-Silenced shots, scoped-rifle headshots, and backstabs no longer disclose the shooter to the surviving squadmates.
+A survivor-gate toggle (MCM, default on) suppresses the squad alert when the hit kills the victim outright.
+Silenced shots, scoped-rifle headshots, and backstabs that drop the target no longer disclose the shooter to the surviving squadmates.
 Squadmates still learn through gunshot sound, corpse discovery, and line of sight.
 
 Healing:
@@ -58,21 +58,19 @@ Masters shoot tighter than novices, and the full spread is configurable per tier
 
 Combat:
 
-This is the core of AlifeTactics. In a firefight, every move a stalker makes - posture, where it walks, when it shoots - is run by the engine's built-in combat planner. AlifeTactics takes that planner over: on the NPCs in its share it blocks the engine's combat and danger planners outright and drives the NPC itself. It is a full takeover, not a tweak layered on top of vanilla, which is what lets it give NPCs coherent faction tactics instead of the usual sit-in-cover-and-barely-shoot.
+This is the core of AlifeTactics. In a firefight the engine's own combat planner drives each stalker - posture, where it walks, when it shoots. AlifeTactics does not replace that. It watches the fight, and when vanilla handles a moment badly it borrows one stalker for a single committed maneuver, then hands control straight back. Most of the time the engine is driving; AlifeTactics steps in only where vanilla is weak, a few seconds at a time.
 
-Why it plays differently comes down to how the decision is made. Vanilla re-decides everything frame by frame, which is why stalkers so often dither in place - ducking and popping as they catch and lose sight of you, never quite going anywhere. AlifeTactics commits instead: an NPC picks a move - take that cover, flank to the side, push in - and sees it through before it decides again. Fights read as deliberate rather than twitchy, and NPCs actually close the distance instead of only shuffling between cover. It is a different way of driving combat, not a tweak to vanilla's: the engine and its schemes are per-frame reflexes; AlifeTactics fights in committed moves.
+The difference is commitment. Vanilla re-decides everything frame by frame, which is why stalkers so often dither in place - ducking and popping as they catch and lose sight of you, never quite going anywhere. A borrowed stalker instead picks one move and sees it through before control returns. The moves:
+  - Kite: an enemy has closed inside the stalker's weapon minimum range, too close to fight well, so it steps back to reopen the distance while firing.
+  - Retreat: steadier factions, when badly hurt or with a grenade at their feet, pull back to nearby cover, still firing.
+  - Flee: the cautious ones - ecologists, Clear Sky, renegades - break off under the same pressure and run for the nearest friendly base, weapon up, or a clear escape lane when no base is near. Monolith and zombies never break.
+  - Snipe: a stalker with a sniper rifle (SVD, SVT, Mosin, SKS, M82 and the rest), stalled at range, holds and switches to the engine's sniper-aim mode for tighter shots instead of shuffling.
 
-It coexists with everything. A slider in MCM (default 100%) picks which NPCs run AlifeTactics combat and which stay on vanilla or your modpack's combat, by a stable per-NPC hash so the same NPC always lands the same side across save and load. AlifeTactics overrides no combat scripts, so out-of-share NPCs are completely untouched - you can watch AT and vanilla NPCs fight in the same battle. Set the share to 0 to disable combat without removing the mod.
+While AlifeTactics drives a maneuver the stalker keeps its weapon on you and fires with the engine's own aim, the same accuracy model as vanilla - but it holds fire when a shot makes no sense: no line of sight, a wall in the way, or point-blank. It lowers the weapon only to flee. When the maneuver ends the stalker goes back to vanilla, with a short cooldown before AlifeTactics can borrow it again.
 
-Your companions are left out of the takeover by default (MCM > Combat), so they keep their own follow and combat behavior under your command. Turn the toggle off to let companions fight with AlifeTactics doctrine too.
+Companions are left out by default (MCM > Combat > Maneuvers); turn the toggle off to let them take maneuvers too. The same page carries the master toggle. AlifeTactics overrides no combat scripts, so any stalker it is not currently driving is completely untouched - you can watch AlifeTactics and vanilla stalkers fight in the same battle.
 
-Each faction fights to its own doctrine. Military, Duty, Freedom, ISG, mercenaries, and Monolith fight from cover and keep firing while they reposition, steady under fire, and outdoors they flank: breaking toward the enemy from the side to close the distance, or running wide to come at an enemy they have lost sight of. Monolith presses forward firing and never retreats. Bandits, renegades, and Sin come head-on. Loners, ecologists, and Clear Sky fight more cautiously: loners fall back firing when badly hurt, while ecologists and Clear Sky break off and run for the nearest friendly base, weapon up, falling back to a clear escape route when no base is within reach. Zombies walk straight at the enemy firing, no cover, no retreat. The set of moves an NPC can pick from is filtered by its faction, its weapon class, and whether the fight is indoors or out, and one is drawn at random, so squadmates spread across the options instead of all reacting the same way. At the start of a fight each NPC commits to an opening move - hold and fire, take cover, advance, or flank - then reacts to how the fight develops.
-
-Each NPC keeps its own weapon on you. When it can see you it tracks and fires with the engine's own aim - the same accuracy model as vanilla; when it loses sight of you it holds the weapon up and stops firing instead of emptying the magazine blind into cover, until it sees you again. It lowers the weapon only to flee.
-
-Snipers (the rifles the game classes as sniper weapons - SVD, SVT40, Mosin, SKS, M82 and the rest) get their own behavior: with line of sight they crouch and switch to the engine's sniper-aim mode, which aims down the head line instead of the looser barrel line for tighter shots at range.
-
-Friendly fire between same-faction NPCs is blocked by default (MCM > Combat). An NPC that hits a teammate of its own faction does no damage, so squads stop dropping their own in crossfire. A slider scales it back up to full vanilla damage if you want it. Your own shots are never touched.
+Friendly fire between same-faction NPCs is blocked by default (MCM > Effectiveness > Crossfire). A stalker that hits a teammate of its own faction does no damage, so squads stop dropping their own in crossfire. A slider scales it back up to full vanilla damage if you want it. Your own shots are never touched.
 
 Danger:
 
@@ -135,10 +133,12 @@ mods install alongside without issue. The cases below are worth knowing about.
 Conflicts (pick one - running both breaks both):
 - NPC Limping and Healing (Vodoxleb): same limp/heal animations, different system; stacks animations, breaks the heal cue.
 - NPC Weapon Jamming, or any mod adding rank-based NPC jamming: Anomaly has no jam animation, so jammed NPCs just reload forever. AlifeTactics removes that; the jam mod adds it back.
-- Mods shipping xr_danger / xr_combat_* / xr_wounded as a file (ReDone Combat AI, REDONE Combat AI, RE:VISION, AI More Cover, G.A.M.M.A. AI Rework): full-file overrides of scripts AlifeTactics drives; later-loaded wins, the other does nothing. The whole AI-overhaul category.
+- Mods that ship xr_danger.script as a full file (ReDone Combat AI, REDONE Combat AI, RE:VISION, AI More Cover, G.A.M.M.A. AI Rework): AlifeTactics full-overrides xr_danger too, so later-loaded wins and the other's danger layer does nothing. Only the xr_danger file collides; their combat AI itself coexists with the takeover (see below).
 
 Affects / coexists:
-- Wuut AI Extension, NPC_Fleeing, Mora's AI More Covered: add planner actions; blocked for in-share NPCs. Set combat share to 0 for full external behavior.
+- AI-overhaul combat (G.A.M.M.A. AI Rework, ReDone Combat AI and the like): the takeover overrides no combat script - it borrows a stalker by blocking the combat planner for the few seconds it runs a maneuver, then hands back to whatever combat AI is installed. It rides on top of them rather than replacing them.
+- Wuut AI Extension, NPC_Fleeing, Mora's AI More Covered: add planner actions; while AlifeTactics runs a maneuver on a stalker its own added action is suppressed for those few seconds, then resumes on hand-back. Disable Combat (MCM) to leave them fully in charge.
+- Mods that replace NPC healing with their own heal path (Animated NPC Healing and similar): their healer runs, so AlifeTactics's heal rate and per-rank charge become no-ops where both apply. Disable AlifeTactics Healing or theirs. A DLTX mod that rewrites the vanilla medkit list can also empty AlifeTactics's list depending on load order.
 - No More Companion Friendly Fire: different axis (actor-companion damage); AlifeTactics never touches your shots. No overlap.
 - NO NPC Gun Jamming: zeroes the engine-condition jam via ltx; different layer than the script-roll fix. Stack fine.
 - Tougher Important NPCs and Companions: damage reduction via npc_on_before_hit; composes.
