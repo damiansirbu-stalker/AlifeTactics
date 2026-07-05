@@ -28,7 +28,9 @@ end
 
 -- Disclose the shooter to one squad member via xlibs (memory inject + combat register, no relation
 -- mutation). The disclosure gate already requires a faction enemy, so the engine engages the shooter
--- without any goodwill write. Returns false on a nil member.
+-- without any goodwill write. Returns false on a nil member. The register_in_combat inside disclose_enemy
+-- writes the same squad combat-mask bit the Combat takeover graft sets for a different reason (planner-block
+-- compensation, xcombat.script register_in_combat) - two leaves, one engine bit; neither is redundant.
 local function _disclose_to_member(mem_npc, who)
     return xcombat.disclose_enemy(mem_npc, who)
 end

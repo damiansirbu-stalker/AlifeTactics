@@ -243,7 +243,8 @@ function at_give_pistol()
 end
 
 -- Spawn an armed military squad, then strip every weapon 3s later so each member reads as unarmed.
--- Tests the unarmed-flee path: a gunless NPC should sprint away from the enemy regardless of faction.
+-- Tests that AT declines an unarmed NPC: get_weapon_kind returns nil so _can_seize is false, no takeover
+-- fires, and vanilla drives the gunless NPC (its own rearm lives in the blocked combat planner).
 --- @export console
 function at_spawn_unarmed()
     local squad = _spawn("army_sim_squad_novice", 40, 0)
@@ -355,8 +356,8 @@ function at_spawn_swarm()
 end
 
 -- Mixed faction wave: bandits ahead, military flank, monolith behind. Tests
--- different communities (monolith excluded from at_combat via community gate),
--- different weapon loadouts, simultaneous mode tracking.
+-- different communities (monolith and zombied match no maneuver's faction palette,
+-- so the takeover declines them), different weapon loadouts, simultaneous tracking.
 --- @export console
 function at_spawn_mixed()
     _spawn_set("mixed", {

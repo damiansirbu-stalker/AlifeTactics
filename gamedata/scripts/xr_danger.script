@@ -17,6 +17,14 @@
 	   entry on every hit.
 	6. Danger-state transitions reset only the upper-body animation tier, leaving
 	   stale lower-body animation visible across the transition.
+	7. Danger finalize wiped the entire shared level-vertex reservation map,
+	   clobbering every other system's cover claims. Only this NPC's own
+	   reservations are released now.
+
+	Extension callback
+	------------------
+	eval_danger fires npc_on_eval_danger before evaluating; a subscriber that
+	sets flags.ret_value = false suppresses danger for that NPC that tick.
 
 	Improvements
 	------------

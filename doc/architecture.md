@@ -23,6 +23,7 @@ Version 1.0.0.
 | `_at_deps.script` | infra | done |
 | `at_mcm.script` | infra | done |
 | `at_test.script` | infra | done |
+| `at_hud.script` | infra | done (live debug HUD: nearby NPCs with logic scheme, combat operator, and target; noop unless enabled) |
 | `at_hitresponse.script` | feature | done |
 | `at_health.script` | feature | done |
 | `at_accuracy.script` | feature | done |
@@ -33,6 +34,8 @@ Version 1.0.0.
 | `zzz_at_health_patch.script` | feature | done (vanilla xr_eat_medkit re-roll suppressor) |
 | `configs/ai_tweaks/mod_xr_eat_medkit_at.ltx` | data | done |
 | `configs/ai_tweaks/xr_danger.ltx` | data | done |
+| `configs/alifetactics/at_combat_config.ltx` | data | done (Combat takeover tunables) |
+| `configs/ui/ui_at_stats.xml` | data | done (at_hud layout) |
 
 Backlog (not built):
 - Tactical flee (per-squad retreat to friendly smart under power imbalance)
@@ -41,7 +44,7 @@ Backlog (not built):
 
 Rejected (not backlogged): combat schemes (per-NPC `combat_type` via condlist). The `script_combat_type` condlist is the most contested combat surface in modpacks - it is GAMMA AI Rework's core mechanism and single-owner by design - and everything a scheme would express is already a maneuver (which forces its action) or a behavior (which composes). A scheme buys nothing here and surrenders composition.
 
-Groomed task entries in `stalker-dev/doc/todo/todo-alifetactics-next.md`; brainstorm pool in `todo-alifetactics-backlog.md`.
+Groomed task entries in `stalker-dev/doc/todo/todo-alifetactics-next.md`; the takeover build plan in `todo-combat-takeover-v2.md`; the 2026-07-02 adversarial review in `todo-alifetactics-fable-review.md`.
 
 ---
 
@@ -62,6 +65,8 @@ AlifeTactics/
 │   │   ├── alifetactics/
 │   │   │   ├── at_combat_config.ltx           # Combat numeric tunables
 │   │   │   └── at_ammo.ltx                    # NPC Ammo tunables
+│   │   ├── ui/
+│   │   │   └── ui_at_stats.xml                # at_hud HUD layout
 │   │   └── text/eng/ui_st_mcm_at.xml          # English MCM strings
 │   ├── scripts/
 │   │   ├── _at_deps.script                    # dependency gate
@@ -76,6 +81,7 @@ AlifeTactics/
 │   │   ├── at_jam.script                      # modded-exes xr_weapon_jam override (Weapon Jam system)
 │   │   ├── at_ammo.script                     # NPC ammo simulation (NPC Ammo system)
 │   │   ├── zzz_at_health_patch.script         # vanilla xr_eat_medkit re-roll suppressor
+│   │   ├── at_hud.script                      # live debug HUD (nearby NPC logic/combat/target)
 │   │   └── at_test.script                     # console test commands
 │   └── textures/
 │       └── at_mcm_banner.dds                  # MCM banner
@@ -275,6 +281,8 @@ The enemy-eval override (flee's disengage and the t92 sniper force-enable) is th
 
 The identity the takeover is built for: recognizable committed maneuvers, composition under modpacks (it overrides zero combat files), and solving the shuffle (vanilla twitching between actions instead of committing). Everything above serves those three; a change that trades any of them away is out of scope.
 
+The continuous `script_combat_type` scheme (GAMMA AI Rework, ReDone Combat AI) is the rejected alternative, and a 2026-07-05 read of both confirmed why: it owns an NPC's whole combat single-ownedly, and either does less than vanilla (GAMMA's thin camper sets one state) or reimplements it worse (ReDone's fat `get_combat_movement` and global-cvar aim). The intermittent takeover borrows an NPC for one maneuver where vanilla is weak and hands back, so vanilla's own aim, fire discipline, cover cycle, and squad coordination run the rest of the time - the maneuvers without deleting the strengths.
+
 The considered-and-rejected alternative to the top-level planner block is rx-style injection inside the combat sub-planner (`cast_planner` on `action_combat_planner`, then `add_evaluator`/`add_action` there, per Rulix's `rx_combat.script:327-353`). It preserves what the top-level block loses - `CStalkerCombatPlanner::update`'s side effects, `react_on_grenades` / `react_on_member_death` at `stalker_combat_planner.cpp:102-105`, and the initialize/finalize mask and danger inertion. But it arbitrates against whatever a modpack grafts inside that same planner, so it surrenders exactly the robustness the takeover was chosen for. The top-level block wins for the GAMMA audience, at the cost of suppressing those `update` side effects for the seconds it holds - which is why a transaction stays narrow and brief.
 
 ---
@@ -291,6 +299,11 @@ Full-file override of vanilla `xr_danger.script` (Alundaio). Six vanilla bug fix
 4. `eval_danger` non-numeric `danger_time` check missing: vanilla type-asserts on bad return.
 5. `npc_on_hit_callback` referenced undefined `who_id` variable: vanilla wrote nil shooter id into `script_danger`. Vanilla callback unregistered entirely; danger pipeline now driven by `npc_on_hear_callback` and `npc_on_death_callback`.
 6. Animstate reset missing on danger-state transitions: vanilla `state_mgr.set_state` calls did not invoke `sm.animstate:set_state(nil, true) + set_control()`, leaving stale lower-body animation visible across the transition. AT calls the reset at every state change site (`xr_danger.script:459-464, 528-534, 805-818`).
+7. `action_danger` finalize wiped the whole shared `db.used_level_vertex_ids` reservation map, clobbering every other system's cover claims (the Combat takeover's, vanilla's). AT releases only the vertices this NPC owns (`xr_danger.script:882-890`).
+
+### Extension callback
+
+`eval_danger` fires `npc_on_eval_danger` (`xr_danger.script:311-313`) with `flags.ret_value = true` before it evaluates; a subscriber that sets `flags.ret_value = false` suppresses danger for that NPC on that tick. AT adds this seam so another system can veto danger evaluation without overriding the file.
 
 ### Improvements (MCM Danger tab, default on)
 
@@ -408,7 +421,8 @@ The engine then runs its own combat detection (property_enemy, m_combat_mask, ag
 ## See also
 
 - Task queue: `stalker-dev/doc/todo/todo-alifetactics-next.md`
-- Brainstorm pool: `stalker-dev/doc/todo/todo-alifetactics-backlog.md`
+- Takeover build plan: `stalker-dev/doc/todo/todo-combat-takeover-v2.md`
+- Adversarial review: `stalker-dev/doc/todo/todo-alifetactics-fable-review.md`
 - Engine PR queue: `stalker-dev/doc/todo/todo-demonized-exes.md`
 - xlibs architecture: `stalker-mods/xlibs/doc/architecture.md`
 - AlifePlus architecture: `stalker-mods/AlifePlus/doc/architecture.md`
