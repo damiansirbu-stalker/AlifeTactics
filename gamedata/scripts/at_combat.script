@@ -104,6 +104,8 @@ local function _commit(state, tg, reason)
     -- fight the instant vanilla resumes. Only flee disengages; every other maneuver hands back to normal combat.
     if state.maneuver and state.maneuver.name == "flee" and DISENGAGE_HOLD_MS > 0 then
         state.disengage_until = tg + DISENGAGE_HOLD_MS
+        state.disengage_logged = nil
+        if _dbg then trace.disengage(state.id, DISENGAGE_HOLD_MS, false) end
     end
     state.gate = false
     state.maneuver = nil
@@ -134,12 +136,27 @@ local function _issue(npc, state, tg)
     -- Fire discipline at the decision point (t134): a firing maneuver drops to READY (weapon up, no trigger) when
     -- the engine gate says a shot makes no sense - occluded, point-blank, floor gap, or no LOS. Consulted ONCE here,
     -- never per shot; the maneuver holds seconds and vanilla's own gate runs the rest of the time.
-    local fire = maneuver.fire
-    if (fire == xcombat.FIRE or fire == xcombat.SNIPE) and not xcombat.fire_make_sense(npc, enemy) then
-        fire = xcombat.READY
+    local requested = maneuver.fire
+    local fire = requested
+    -- gate "na" = fire_make_sense not consulted, for a row that does not fire (READY / STOW).
+    local gate = "na"
+    if requested == xcombat.FIRE or requested == xcombat.SNIPE then
+        if xcombat.fire_make_sense(npc, enemy) then
+            gate = "true"
+        else
+            gate = "false"
+            fire = xcombat.READY
+        end
     end
-    xcombat.set_combat(npc, { fire = fire, posture = maneuver.posture, movement = maneuver.movement, aim = enemy })
+    -- Aim keys on the maneuver's INTENT, not the applied fire mode. A run-away maneuver (flee, requested READY
+    -- or STOW) gets NO aim target, so the engine's direction sub-planner faces the NPC down its run path
+    -- (path_dir) - it turns its back and routs instead of backpedalling in the enemy's face. A firing maneuver
+    -- keeps aim=enemy even when the fire gate downgraded it to READY, so a kite/retreat that lost LOS still faces
+    -- the enemy weapon-up. This is the v1 behaviour the v2 rewrite dropped (it aimed at the enemy for every row).
+    local aim = (requested == xcombat.READY or requested == xcombat.STOW) and nil or enemy
+    xcombat.set_combat(npc, { fire = fire, posture = maneuver.posture, movement = maneuver.movement, aim = aim })
     state.maneuver_at = tg
+    if _dbg then trace.issue(state.id, maneuver.name, state.dest, fire, requested, gate) end
 end
 
 -- on_begin: the graft calls this ONCE when AT takes the NPC (the action's initialize). Issue the maneuver under
@@ -224,8 +241,11 @@ local function _decide(npc, id, state, tg)
 
     local fired = doctrine.eval_triggers(npc, enemy, state, tg)
     if fired then
+        -- pick_maneuver returns (maneuver, dest) on a seize; on a decline (nil, reason) where reason is the
+        -- declined maneuver name (resolver not viable) or nil (no palette match) - handed straight to the trace.
         local maneuver, dest = doctrine.pick_maneuver(npc, fired, enemy, state)
-        if maneuver then _begin(state, maneuver, dest, fired, tg) end
+        if maneuver then _begin(state, maneuver, dest, fired, tg)
+        elseif _dbg then trace.declined(id, fired, dest) end
     end
     _trace_decision(npc, state, enemy, fired)
 end
@@ -304,6 +324,11 @@ local function _on_enemy_eval(obj, enemy, flags)
     if enemy:id() ~= AC_ID then return end
     flags.override = true
     flags.result = false
+    -- One-shot per window (reset when _commit opens the next one) so a busy is_enemy poll does not spam the log.
+    if _dbg and not state.disengage_logged then
+        state.disengage_logged = true
+        trace.disengage(obj:id(), nil, true)
+    end
 end
 
 local function _load_config()

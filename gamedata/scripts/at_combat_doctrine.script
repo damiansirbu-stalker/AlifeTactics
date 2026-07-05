@@ -213,13 +213,19 @@ end
 --- Given a fired trigger, return the first catalog maneuver (in precedence order) that applies to this NPC and
 --- whose resolver yields a destination, plus that destination. The resolver IS the viability gate (a vertex =
 --- seize there, nil = try the next maneuver) and is short-circuited by _maneuver_applies, so its raycasts run
---- only on the seize path. Returns (maneuver, dest), or nil when no maneuver fits.
+--- only on the seize path. Returns (maneuver, dest) on a seize; on a decline returns (nil, reason) for the trace:
+--- the name of the last maneuver whose palette matched but whose resolver declined (not viable - no cover / walled
+--- in), or nil when no maneuver's palette matched the trigger at all (wrong faction / weapon).
 function at_combat_doctrine.pick_maneuver(npc, fired, enemy, state)
     local memo = {}
+    local tried = nil
     for i = 1, #CATALOG do
         local maneuver = CATALOG[i]
-        local dest = _maneuver_applies(maneuver, fired, npc, memo) and maneuver.resolve(npc, enemy, state)
-        if dest then return maneuver, dest end
+        if _maneuver_applies(maneuver, fired, npc, memo) then
+            local dest = maneuver.resolve(npc, enemy, state)
+            if dest then return maneuver, dest end
+            tried = maneuver.name
+        end
     end
-    return nil
+    return nil, tried
 end

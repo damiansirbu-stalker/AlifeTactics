@@ -35,6 +35,41 @@ function at_combat_trace.installed(id, name)
     log.info("installed id=%s name=%s", _show(id), _show(name))
 end
 
+--- One line when a fired trigger seized nobody: reason "not_viable" (a maneuver's palette matched this NPC but
+--- its resolver declined - no cover reachable, fully walled in) names the maneuver; reason "no_maneuver" (no
+--- palette matched - wrong faction or weapon, e.g. monolith / zombied on hurt) has maneuver "-". Distinguishes a
+--- decline from a seize (which logs a begin) and from a quiet tick, and says which half declined.
+function at_combat_trace.declined(id, trigger, maneuver)
+    if not _on then return end
+    log.info("declined id=%s name=%s trigger=%s maneuver=%s reason=%s",
+        _show(id), _show(_names[id]), _show(trigger), _show(maneuver or "-"),
+        maneuver and "not_viable" or "no_maneuver")
+end
+
+--- One line when a maneuver is actually issued (the action's initialize): the destination vertex, the applied
+--- fire mode, the mode the catalog row requested, and the t134 gate value. requested is the row's fire; fire is
+--- what set_combat got; fire_make_sense is the engine gate - false forces a firing row (FIRE/SNIPE) down to
+--- READY (weapon up, no trigger: occluded / point-blank / floor gap / no LOS), "na" when the row does not fire
+--- so the gate was never consulted. requested==fire with fire_make_sense=true means the shot was taken as asked.
+function at_combat_trace.issue(id, maneuver, dest, fire, requested, fire_make_sense)
+    if not _on then return end
+    log.info("issue id=%s name=%s maneuver=%s dest=%s fire=%s requested=%s fire_make_sense=%s",
+        _show(id), _show(_names[id]), _show(maneuver), _show(dest), _show(fire), _show(requested), _show(fire_make_sense))
+end
+
+--- One line when a flee opens its disengage window on commit (window_ms), and one line the first time the
+--- on_enemy_eval subscriber forces is_enemy(actor)=false inside that window (fired=yes) - the proof the seam
+--- actually fires. The forced-false line is one-shot per window (deduped by the caller) so a busy is_enemy poll
+--- does not spam the log.
+function at_combat_trace.disengage(id, window_ms, fired)
+    if not _on then return end
+    if fired then
+        log.info("disengage id=%s name=%s forced is_enemy(actor)=false", _show(id), _show(_names[id]))
+    else
+        log.info("disengage id=%s name=%s window opened %dms", _show(id), _show(_names[id]), window_ms or -1)
+    end
+end
+
 --- One line per monitor tick for a fighting NPC: the selected enemy and the outcome. When the triggers were
 --- evaluated (result is a trigger name or "none") the line also carries the distance and every trigger value;
 --- when the NPC was skipped before evaluation (no_enemy / cannot_seize) the line is short.
