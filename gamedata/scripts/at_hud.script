@@ -17,17 +17,17 @@ local HUD_SHOW_IDLE = false
 
 local ROW_H    = 13
 local PAD      = 6
-local COL_GAP  = 12
-local NAME_W   = 110
-local LOGIC_W  = 120
-local COMBAT_W = 115
-local TARGET_W = 180
-local TOTAL_W  = NAME_W + LOGIC_W + COMBAT_W + TARGET_W + COL_GAP * 3 + PAD * 2
+local COL_GAP  = 10
+-- Columns auto-size to their widest cell (header + rows): width = maxchars * CHAR_W + CELL_PAD. CHAR_W is the
+-- approximate pixel advance of the HUD font; CELL_PAD keeps text off the next column. With no fixed column
+-- widths a short column is not padded to a huge gap and long content is not clipped.
+local CHAR_W   = 6
+local CELL_PAD = 3
 local MARGIN   = 15
 local MAX_ROWS = 50
-local NAME_MAX = 15
-local CELL_MAX = 18
-local TARGET_NAME_MAX = 10
+local NAME_MAX = 18
+local CELL_MAX = 20
+local TARGET_NAME_MAX = 12
 -- body-to-enemy angle above this many degrees reads as "pointed away" (the weird-aim flag)
 local FACING_DEG = 60
 
@@ -47,9 +47,9 @@ end
 -- Position presets
 -- =========================================================================
 
-local function _calc_position(panel_h)
+local function _calc_position(panel_h, total_w)
     local cy = math_floor((768 - panel_h) / 2)
-    local rx = 1024 - TOTAL_W - MARGIN
+    local rx = 1024 - total_w - MARGIN
     local by = 768 - panel_h - MARGIN
     local presets = {
         top_left     = { MARGIN, MARGIN },
@@ -88,18 +88,23 @@ local function _target_desc(npc, enemy)
 end
 
 -- tag (AT when our maneuver drives), logic section, combat operator/state, target, in_combat
+-- Two separate readings, never merged: DRIVER = who decides this NPC's combat right now - an AT maneuver
+-- ("AT flee"/"AT kite") when the takeover holds it, else the engine operator ("eng combat"/"eng danger" or a
+-- raw action id "eng 18803") when vanilla drives. STATE = the engine state_mgr target state the body is actually
+-- in ("assault", "wounded_heavy", "idle"). So "AT flee" + "wounded_heavy" reads: AT wants a flee, but the engine
+-- has the NPC wounded (the takeover action can't run on a wounded body).
 local function _derive(npc, st)
     local maneuver = at_combat.get_maneuver(npc:id())
     local tag = maneuver and "AT" or nil
     local logic = _truncate(st.active_section or st.active_scheme or "-", CELL_MAX)
+    local driver = maneuver and ("AT " .. maneuver) or ("eng " .. xcombat.get_operator(npc))
     local enemy = npc:best_enemy()
     if not enemy then
-        return tag, logic, "-", "-", false
+        return tag, logic, driver, "-", "-", false
     end
     local sm = st.state_mgr
     local state = (sm and sm.target_state) or "-"
-    local op = maneuver or xcombat.get_operator(npc)
-    return tag, logic, op .. "/" .. state, _target_desc(npc, enemy), true
+    return tag, logic, driver, state, _target_desc(npc, enemy), true
 end
 
 
@@ -114,13 +119,14 @@ local function _row_for(id, st, ax, r2, actor_id, show_idle)
     if not IsStalker(npc) then return nil end
     if not npc:alive() then return nil end
     if ax:distance_to_sqr(npc:position()) >= r2 then return nil end
-    local tag, logic, combat, target, is_combat = _derive(npc, st)
+    local tag, logic, driver, state, target, is_combat = _derive(npc, st)
     if not (show_idle or is_combat) then return nil end
     return {
         tag       = tag,
         name      = _truncate(npc:character_name() or npc:name(), NAME_MAX),
         logic     = logic,
-        combat    = combat,
+        driver    = driver,
+        state     = state,
         target    = target,
         is_combat = is_combat,
     }
@@ -148,7 +154,7 @@ local function _build_rows()
     if #rows > MAX_ROWS then
         local extra = #rows - MAX_ROWS
         for i = #rows, MAX_ROWS + 1, -1 do rows[i] = nil end
-        rows[#rows + 1] = { name = string_format("+%d more", extra), logic = "", combat = "", target = "", is_overflow = true }
+        rows[#rows + 1] = { name = string_format("+%d more", extra), logic = "", driver = "", state = "", target = "", is_overflow = true }
     end
 
     return rows
@@ -159,6 +165,23 @@ end
 -- UIDebugHUD: CUIScriptWnd painting one static-text widget per cell
 -- =========================================================================
 
+-- Per-column pixel widths from the widest cell (header + every row), so each column fits its own content.
+local function _column_widths(header, cells)
+    local cols = #header
+    local max_chars = {}
+    for col = 1, cols do max_chars[col] = #header[col] end
+    for row_i = 1, #cells do
+        local row = cells[row_i]
+        for col = 1, cols do
+            local chars = #(row[col] or "")
+            if chars > max_chars[col] then max_chars[col] = chars end
+        end
+    end
+    local widths = {}
+    for col = 1, cols do widths[col] = max_chars[col] * CHAR_W + CELL_PAD end
+    return widths
+end
+
 class "UIDebugHUD" (CUIScriptWnd)
 
 function UIDebugHUD:__init(rows) super()
@@ -166,16 +189,27 @@ function UIDebugHUD:__init(rows) super()
     self:SetAutoDelete(true)
     self:Enable(true)
 
+    -- Build cell arrays (header first), then size each column to its widest cell.
+    local header = { "NAME", "SCHEME", "DRIVER", "STATE", "TARGET" }
+    local cells = {}
+    for i = 1, #rows do
+        local row = rows[i]
+        cells[i] = { row.name or "", row.logic or "", row.driver or "", row.state or "", row.target or "" }
+    end
+    local widths = _column_widths(header, cells)
+    local total_w = PAD * 2
+    for col = 1, #widths do total_w = total_w + widths[col] + (col < #widths and COL_GAP or 0) end
+
     -- +2 rows for the header + spacer
     local panel_h = (#rows + 2) * ROW_H + PAD * 2
-    local pos = _calc_position(panel_h)
+    local pos = _calc_position(panel_h, total_w)
     self:SetWndPos(vector2():set(pos[1], pos[2]))
-    self:SetWndSize(vector2():set(TOTAL_W, panel_h))
+    self:SetWndSize(vector2():set(total_w, panel_h))
 
     local xml = CScriptXmlInit()
     xml:ParseFile("ui_at_stats.xml")
 
-    self:_row(xml, PAD, "NAME", "SCHEME", "ACTION", "TARGET", CLR_TITLE)
+    self:_row(xml, PAD, header, widths, CLR_TITLE)
 
     for i = 1, #rows do
         local row = rows[i]
@@ -183,16 +217,16 @@ function UIDebugHUD:__init(rows) super()
         if row.is_overflow then color = CLR_DIM
         elseif row.tag == "AT" then color = CLR_AT
         else color = CLR_NORMAL end
-        self:_row(xml, PAD + (i + 1) * ROW_H, row.name, row.logic, row.combat, row.target, color)
+        self:_row(xml, PAD + (i + 1) * ROW_H, cells[i], widths, color)
     end
 end
 
-function UIDebugHUD:_row(xml, y, name, logic, combat, target, color)
+function UIDebugHUD:_row(xml, y, cells, widths, color)
     local col_x = PAD
-    self:_cell(xml, col_x, y, NAME_W, name, color);    col_x = col_x + NAME_W + COL_GAP
-    self:_cell(xml, col_x, y, LOGIC_W, logic, color);  col_x = col_x + LOGIC_W + COL_GAP
-    self:_cell(xml, col_x, y, COMBAT_W, combat, color); col_x = col_x + COMBAT_W + COL_GAP
-    self:_cell(xml, col_x, y, TARGET_W, target, color)
+    for col = 1, #cells do
+        self:_cell(xml, col_x, y, widths[col], cells[col], color)
+        col_x = col_x + widths[col] + COL_GAP
+    end
 end
 
 function UIDebugHUD:_cell(xml, x, y, w, text, color)
