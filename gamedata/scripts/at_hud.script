@@ -73,38 +73,59 @@ local function _truncate(s, limit)
     return s
 end
 
--- Enemy name + distance + aim flag: "blind" when the NPC cannot see it, "OFF" when its body is pointed away.
+-- Enemy name + distance (the sight cue is its own column via _sight_flag).
 local function _target_desc(npc, enemy)
-    local epos = enemy:position()
-    local dist = math_floor(npc:position():distance_to(epos))
-    local name = _truncate(xcreature.get_name(enemy:id()), TARGET_NAME_MAX)
-    local flag = ""
-    if not npc:see(enemy) then
-        flag = " (no sight)"
-    elseif xcombat.get_facing_offset(npc, epos) >= FACING_DEG then
-        flag = " (turned away)"
-    end
-    return string_format("%s %dm%s", name, dist, flag)
+    local dist = math_floor(npc:position():distance_to(enemy:position()))
+    return string_format("%s %dm", _truncate(xcreature.get_name(enemy:id()), TARGET_NAME_MAX), dist)
 end
 
--- tag (AT when our maneuver drives), logic section, combat operator/state, target, in_combat
--- Two separate readings, never merged: DRIVER = who decides this NPC's combat right now - an AT maneuver
--- ("AT flee"/"AT kite") when the takeover holds it, else the engine operator ("eng combat"/"eng danger" or a
--- raw action id "eng 18803") when vanilla drives. STATE = the engine state_mgr target state the body is actually
--- in ("assault", "wounded_heavy", "idle"). So "AT flee" + "wounded_heavy" reads: AT wants a flee, but the engine
--- has the NPC wounded (the takeover action can't run on a wounded body).
+-- Sight to the enemy as its own short flag: "blind" (cannot see it), "off" (sees it but body pointed away from
+-- it), "see" (looking at it). The "does he see me" cue from the old HUD, promoted to its own column.
+local function _sight_flag(npc, enemy)
+    if not npc:see(enemy) then return "blind" end
+    if xcombat.get_facing_offset(npc, enemy:position()) >= FACING_DEG then return "off" end
+    return "see"
+end
+
+-- Reverse map anim enum -> label, built lazily (anim is a global enum, absent at file body).
+local _MENTAL
+local function _mental_name(npc)
+    if not _MENTAL then _MENTAL = { [anim.free] = "free", [anim.danger] = "danger", [anim.panic] = "panic" } end
+    local m = npc:mental_state()
+    return _MENTAL[m] or tostring(m)
+end
+
+-- Best danger as a short label: grenade called out (it drives the flee / retreat trigger), any other danger as
+-- "danger", none as "-".
+local function _danger_name(npc)
+    local d = npc:best_danger()
+    if not d then return "-" end
+    if d:type() == danger_object.grenade then return "grenade" end
+    return "danger"
+end
+
+-- Per-NPC readout across the AlifeTactics systems, one table. tag=AT drives the row COLOUR (green), so the
+-- AT-vs-engine distinction lives in that colour and ACTION carries the bare maneuver name (flee / kite / retreat /
+-- snipe) when the takeover holds the NPC, else the engine motivation operator (combat / danger / alife). rank feeds
+-- Accuracy / NPC Ammo / Healing; hp feeds Healing and the hurt trigger; mental and danger feed combat posture and
+-- the grenade trigger; ENEMY keeps the sight cue ("(no sight)" cannot see it, "(turned away)" body pointed away).
 local function _derive(npc, st)
     local maneuver = at_combat.get_maneuver(npc:id())
-    local tag = maneuver and "AT" or nil
-    local logic = _truncate(st.active_section or st.active_scheme or "-", CELL_MAX)
-    local driver = maneuver and ("AT " .. maneuver) or ("eng " .. xcombat.get_operator(npc))
-    local enemy = npc:best_enemy()
-    if not enemy then
-        return tag, logic, driver, "-", "-", false
-    end
     local sm = st.state_mgr
-    local state = (sm and sm.target_state) or "-"
-    return tag, logic, driver, state, _target_desc(npc, enemy), true
+    local enemy = npc:best_enemy()
+    return {
+        tag       = maneuver and "AT" or nil,
+        rank      = ranks.get_obj_rank_name(npc) or "-",
+        hp        = math_floor((npc.health or 0) * 100) .. "%",
+        scheme    = _truncate(st.active_scheme or st.active_section or "-", CELL_MAX),
+        action    = maneuver or xcombat.get_operator(npc),
+        state     = (sm and sm.target_state) or "-",
+        mental    = _mental_name(npc),
+        sees      = enemy and _sight_flag(npc, enemy) or "-",
+        danger    = _danger_name(npc),
+        enemy     = enemy and _target_desc(npc, enemy) or "-",
+        is_combat = enemy ~= nil,
+    }
 end
 
 
@@ -119,17 +140,10 @@ local function _row_for(id, st, ax, r2, actor_id, show_idle)
     if not IsStalker(npc) then return nil end
     if not npc:alive() then return nil end
     if ax:distance_to_sqr(npc:position()) >= r2 then return nil end
-    local tag, logic, driver, state, target, is_combat = _derive(npc, st)
-    if not (show_idle or is_combat) then return nil end
-    return {
-        tag       = tag,
-        name      = _truncate(npc:character_name() or npc:name(), NAME_MAX),
-        logic     = logic,
-        driver    = driver,
-        state     = state,
-        target    = target,
-        is_combat = is_combat,
-    }
+    local d = _derive(npc, st)
+    if not (show_idle or d.is_combat) then return nil end
+    d.name = _truncate(npc:character_name() or npc:name(), NAME_MAX)
+    return d
 end
 
 local function _build_rows()
@@ -154,7 +168,7 @@ local function _build_rows()
     if #rows > MAX_ROWS then
         local extra = #rows - MAX_ROWS
         for i = #rows, MAX_ROWS + 1, -1 do rows[i] = nil end
-        rows[#rows + 1] = { name = string_format("+%d more", extra), logic = "", driver = "", state = "", target = "", is_overflow = true }
+        rows[#rows + 1] = { name = string_format("+%d more", extra), is_overflow = true }
     end
 
     return rows
@@ -190,11 +204,12 @@ function UIDebugHUD:__init(rows) super()
     self:Enable(true)
 
     -- Build cell arrays (header first), then size each column to its widest cell.
-    local header = { "NAME", "SCHEME", "DRIVER", "STATE", "TARGET" }
+    local header = { "name", "rank", "hp", "scheme", "action", "state", "mental", "sees", "danger", "enemy" }
     local cells = {}
     for i = 1, #rows do
         local row = rows[i]
-        cells[i] = { row.name or "", row.logic or "", row.driver or "", row.state or "", row.target or "" }
+        cells[i] = { row.name or "", row.rank or "", row.hp or "", row.scheme or "", row.action or "",
+                     row.state or "", row.mental or "", row.sees or "", row.danger or "", row.enemy or "" }
     end
     local widths = _column_widths(header, cells)
     local total_w = PAD * 2
