@@ -14,7 +14,7 @@ local CONFIG_SECTION = "at_combat"
 
 local HURT_FRAC, GRENADE_MS, STALL_MS, STALL_MOVE_SQR, STALL_CLOSE_M
 local KITE_BACK_M, KITE_ARC_DEG, KITE_SPREAD_DEG
-local FLEE_DISTANCE_M, FLEE_LANE_ARC_DEG, FLEE_LANE_SPREAD_DEG
+local FLEE_MIN_DIST_SQR, FLEE_BASE_MIN_DIST_M
 
 -- The maneuver catalog: an ordered array (array order = precedence when two maneuvers handle one trigger). Built
 -- in load_config so xcombat.* constants and the LTX tunables are resolved. pick_maneuver walks it in order.
@@ -59,24 +59,36 @@ local function _resolve_retreat(npc, enemy, state)
     return vid
 end
 
--- flee: a timid faction routs out of the fight rather than retreating to cover. Prefer the nearest friendly base
--- (a place its enemies do not hold) so the rout has a real destination; when none qualifies on the level, fall
--- back to a clear lane straight away from the enemy. fire=READY, so the NPC runs weapon-up without firing. nil
--- only when fully boxed in and no base qualifies. The disengage that stops vanilla re-selecting the enemy on
--- hand-back is a separate refinement (set_enemy_eval, t131), not built here.
+-- flee: a timid faction routs out of the fight to a friendly base in the distance - a smart terrain its enemies do
+-- not hold, biased to the rear hemisphere (passing the enemy position biases the base search away from it), so the
+-- rout runs far via real navmesh pathing instead of a short hop. The flee row holsters (fire=STOW -> sprint) and the
+-- on_maneuver tick re-asserts it, so the NPC turns its back and cannot fire while it runs. Declines when too close to
+-- the shooter (turning your back point-blank is suicide) or when no friendly base is reachable. The disengage that
+-- stops vanilla re-selecting the enemy on hand-back is the flee hold opened in at_combat._issue.
 local function _resolve_flee(npc, enemy, _state)
     local np = npc:position()
-    local base = xsmart.find_friendly_base(character_community(npc), np, xlevel.get_actor_level_id())
+    local ep = enemy:position()
+    local dx, dz = np.x - ep.x, np.z - ep.z
+    local dist_sqr = dx * dx + dz * dz
+    -- Point-blank gate: do not flee with the shooter in your face (< flee_min_dist). Turning your back to run to a
+    -- far base at point-blank range is suicide; vanilla fights it out at range instead.
+    if dist_sqr < FLEE_MIN_DIST_SQR then
+        if at_combat_trace.enabled() then at_combat_trace.resolve_flee(npc:id(), "too_close") end
+        return nil
+    end
+    -- Target a friendly base in the distance (a smart the enemy does not hold), biased to the rear hemisphere so the
+    -- rout increases distance instead of curving back past the enemy. A far base's winding path no longer swings the
+    -- facing back - the on_maneuver holster block holds the NPC facing its run path the whole way.
+    local base = xsmart.find_friendly_base(character_community(npc), np,
+        { level_id = xlevel.get_actor_level_id(), away_from_pos = ep, min_distance = FLEE_BASE_MIN_DIST_M })
     if base then
+        if at_combat_trace.enabled() then at_combat_trace.resolve_flee(npc:id(), "base") end
         local vid = base.m_level_vertex_id
         if not vid or vid >= 4294967295 then vid = level.vertex_id(base.position) end
         return vid
     end
-    local ep = enemy:position()
-    local dx, dz = np.x - ep.x, np.z - ep.z
-    local mag = math_sqrt(dx * dx + dz * dz)
-    if mag < 1 then return npc:level_vertex_id() end
-    return xcombat.find_flee_lane(npc, vector():set(dx / mag, 0, dz / mag), FLEE_DISTANCE_M, FLEE_LANE_ARC_DEG, FLEE_LANE_SPREAD_DEG)
+    if at_combat_trace.enabled() then at_combat_trace.resolve_flee(npc:id(), "no_base") end
+    return nil
 end
 
 
@@ -86,7 +98,7 @@ function at_combat_doctrine.load_config()
     local ini = ini_file(CONFIG_PATH)
     local function read_float(k, d) return ini:r_float_ex(CONFIG_SECTION, k) or d end
     local function read_int(k, d) local v = ini:r_float_ex(CONFIG_SECTION, k) return v and math_floor(v) or d end
-    HURT_FRAC      = read_float("hurt_frac",     0.50)
+    HURT_FRAC      = read_float("hurt_frac",     0.20)
     GRENADE_MS     = read_int("grenade_ms",      3000)
     STALL_MS       = read_int("stall_ms",        4000)
     local move_m   = read_float("stall_move_m",  2)
@@ -95,9 +107,9 @@ function at_combat_doctrine.load_config()
     KITE_BACK_M     = read_int("kite_back_m",     6)
     KITE_ARC_DEG    = read_int("kite_arc_deg",    45)
     KITE_SPREAD_DEG = read_int("kite_spread_deg", 90)
-    FLEE_DISTANCE_M      = read_int("flee_distance_m",         25)
-    FLEE_LANE_ARC_DEG    = read_int("flee_lane_arc_deg",       20)
-    FLEE_LANE_SPREAD_DEG = read_int("flee_lane_max_spread_deg", 80)
+    local flee_min       = read_int("flee_min_dist_m",         5)
+    FLEE_MIN_DIST_SQR    = flee_min * flee_min
+    FLEE_BASE_MIN_DIST_M = read_int("flee_base_min_dist_m",    100)
 
     -- Ordered array = precedence when two rows handle one trigger (t136). kite is universal (any faction, any
     -- weapon), too_close its only trigger, ends_on=arrival (a mover). snipe is w_sniper-only, answers stalled, and
@@ -137,15 +149,16 @@ function at_combat_doctrine.load_config()
             timeout  = read_int("maneuver_max_ms", 8000),
         },
         {
-            -- flee: timid factions rout instead of retreating to cover. Prefer a friendly base, else a clear lane
-            -- away; weapon up (READY), never firing. ecolog / clear sky / renegade only. A rout runs longer than a
-            -- maneuver, so its cap (flee_max_ms) is longer than the mover stuck-cap.
+            -- flee: timid factions rout to a friendly base in the distance instead of retreating to cover. Weapon
+            -- HOLSTERED (STOW -> the sprint state: weapon strapped, mental=panic), re-asserted on the on_maneuver
+            -- tick, so the NPC turns its back and physically cannot fire while it runs. ecolog / clear sky / renegade
+            -- only. A rout runs longer than a maneuver, so its cap (flee_max_ms) is longer than the mover stuck-cap.
             name     = "flee",
             handles  = { hurt = true, grenade = true },
             factions = { ecolog = true, csky = true, renegade = true },
             weapons  = nil,
             resolve  = _resolve_flee,
-            fire     = xcombat.READY, posture = xcombat.STAND, movement = xcombat.RUN,
+            fire     = xcombat.STOW, posture = xcombat.STAND, movement = xcombat.RUN,
             ends_on  = "arrival",
             timeout  = read_int("flee_max_ms", 15000),
         },

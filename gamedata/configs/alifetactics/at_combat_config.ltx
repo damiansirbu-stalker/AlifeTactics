@@ -6,11 +6,10 @@
 monitor_period_ms = 500    ; min interval between monitor decisions (gate down: deciding whether to take over)
 watch_period_ms   = 200    ; min interval while a maneuver runs (gate up: watching for arrival / the time cap)
 hit_fight_ms      = 5000    ; a recent hit counts as "fighting" this long (far-shooter entry, best_enemy still nil)
-reseize_cooldown_ms = 5000  ; after a maneuver commits, hold off a fresh takeover of the same NPC this long (0 = off)
-disengage_hold_ms   = 5000  ; after a flee commits, vanilla ignores the actor as this NPC's enemy this long (rout continuation; 0 = off)
+reseize_cooldown_ms = 5000  ; after a maneuver commits, hold off a fresh takeover of the same NPC this long (0 = off); also the flee disengage settle window
 
 ; Triggers (when AT seizes - only where vanilla is weak)
-hurt_frac     = 0.50       ; health below this fires the hurt trigger (retreat with a buffer, not at near-death)
+hurt_frac     = 0.20       ; flee/retreat trigger below this HP fraction (20% - only when badly hurt, not a scratch)
 grenade_ms    = 3000       ; how recently a grenade danger counts as "near"
 stall_ms      = 4000       ; held position with the enemy not closing this long fires the stalled trigger
 stall_move_m  = 2          ; movement under this counts as "held position"
@@ -23,6 +22,5 @@ kite_spread_deg = 90       ; max fan to either side when the straight-back lane 
 maneuver_max_ms = 8000     ; stuck cap - a committed maneuver hands back after this even if it never arrives
 snipe_hold_ms   = 8000     ; snipe is a precision-fire hold (ends_on=time); it hands back to vanilla after this
 flee_max_ms     = 15000    ; flee is a rout (ends_on=arrival); a rout to a far base needs a longer cap than a maneuver
-flee_distance_m = 25       ; flee-lane leg length when no friendly base qualifies (also the required clear-lane length)
-flee_lane_arc_deg = 20     ; flee heading fan step: straight-away, then +-this per step, until a clear lane
-flee_lane_max_spread_deg = 80  ; flee heading fan: max deviation from straight-away before falling back to best partial
+flee_min_dist_m = 5        ; flee only when the enemy is at least this far - nobody turns their back point-blank; most combat is <20m so keep this small (0 = off)
+flee_base_min_dist_m = 100 ; flee only to a friendly base/smart at least this far away - a real rout to safety, not a near hop

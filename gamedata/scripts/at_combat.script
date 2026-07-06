@@ -21,7 +21,7 @@ local _dbg = false
 
 local LTX_PATH    = "alifetactics\\at_combat_config.ltx"
 local LTX_SECTION = "at_combat"
-local MONITOR_MS, WATCH_MS, HIT_FIGHT_MS, RESEIZE_COOLDOWN_MS, DISENGAGE_HOLD_MS
+local MONITOR_MS, WATCH_MS, HIT_FIGHT_MS, RESEIZE_COOLDOWN_MS
 
 local COMPANION_INFO = "npcx_is_companion"
 
@@ -91,22 +91,19 @@ local function _begin(state, maneuver, dest, trigger, tg)
     state.dest = dest
     state.maneuver_at = nil
     state.begin_at = tg
+    -- Clear any prior flee hold so a new maneuver never inherits the previous rout's enemy suppression; a flee
+    -- re-opens it in _issue once it has captured its enemy.
+    state.flee_enemy = nil
     if _dbg then trace.begin(state.id, maneuver.name, trigger) end
 end
 
 -- COMMIT: lower the gate, clear the maneuver and its destination. Vanilla resumes from where AT left the NPC.
--- commit_at is stamped (and NOT cleared) so _decide can enforce the reseize cooldown: without it a pressing enemy
--- re-fires the same trigger on the next decide tick and the intermittent takeover degenerates into a continuous one.
+-- commit_at is stamped (and NOT cleared) so _decide can enforce the reseize cooldown (without it a pressing enemy
+-- re-fires the same trigger on the next decide tick and the intermittent takeover degenerates into a continuous
+-- one), and so the flee hold (state.flee_enemy, opened in _issue) stays active through the settle window after
+-- hand-back - see _on_enemy_eval. The hold is NOT closed here; it spans the whole flee transaction.
 local function _commit(state, tg, reason)
     if _dbg then trace.commit(state.id, state.maneuver and state.maneuver.name, reason, math_floor(tg - (state.begin_at or tg))) end
-    -- flee opens a disengage window: after hand-back, the on_enemy_eval subscriber forces is_enemy(actor)=false for
-    -- this NPC for DISENGAGE_HOLD_MS, so the rout continues instead of the NPC re-acquiring the actor and turning to
-    -- fight the instant vanilla resumes. Only flee disengages; every other maneuver hands back to normal combat.
-    if state.maneuver and state.maneuver.name == "flee" and DISENGAGE_HOLD_MS > 0 then
-        state.disengage_until = tg + DISENGAGE_HOLD_MS
-        state.disengage_logged = nil
-        if _dbg then trace.disengage(state.id, DISENGAGE_HOLD_MS, false) end
-    end
     state.gate = false
     state.maneuver = nil
     state.dest = nil
@@ -156,7 +153,14 @@ local function _issue(npc, state, tg)
     local aim = (requested == xcombat.READY or requested == xcombat.STOW) and nil or enemy
     xcombat.set_combat(npc, { fire = fire, posture = maneuver.posture, movement = maneuver.movement, aim = aim })
     state.maneuver_at = tg
-    if _dbg then trace.issue(state.id, maneuver.name, state.dest, fire, requested, gate) end
+    -- Open the disengage hold for a flee: suppress the enemy this rout is fleeing (captured above, after the
+    -- best_enemy read, so it is never nil here) for the rest of the transaction and its settle window - see
+    -- _on_enemy_eval. Non-flee maneuvers hand back to normal combat, so they open no hold.
+    if maneuver.name == "flee" then
+        state.flee_enemy = enemy:id()
+        state.disengage_logged = nil
+    end
+    if _dbg then trace.issue(state.id, maneuver.name, state.dest, fire, maneuver.movement, requested, gate) end
 end
 
 -- on_begin: the graft calls this ONCE when AT takes the NPC (the action's initialize). Issue the maneuver under
@@ -188,6 +192,14 @@ local SPEC = {
 -- carry no arrival condition (their dest is the NPC's own node, trivially arrived) and end only on the timeout.
 local function _watch(npc, state, tg)
     local maneuver = state.maneuver
+    -- Flee is the one maneuver that blocks aiming/firing per tick. Set-once does not hold under the takeover:
+    -- the sight drifts back to the enemy and the NPC backpedals facing the player. So re-assert the holstered
+    -- sprint state (STOW, no aim) on every watch tick - a strapped weapon cannot aim or fire, and set_state
+    -- re-nils the look fields so the direction sub-planner faces the run path. This is the demonized/redone
+    -- mechanism (demonized_stalker_aoe_panic.script:327 re-applies sprint every frame); we do it on the 200ms tick.
+    if maneuver and maneuver.name == "flee" then
+        xcombat.set_combat(npc, { fire = xcombat.STOW, posture = maneuver.posture, movement = maneuver.movement, aim = nil })
+    end
     if maneuver and maneuver.ends_on == "arrival" and state.maneuver_at and xcombat.is_arrived(npc) then
         _commit(state, tg, "arrived")
     elseif (tg - (state.begin_at or tg)) >= ((maneuver and maneuver.timeout) or 8000) then
@@ -312,22 +324,38 @@ local function _on_entity_unregister(se_obj)
 end
 
 -- The single AT owner of the on_enemy_eval seam (xr_combat_ignore.script:85, fires before every distance gate).
--- While a flee's disengage window is open, force is_enemy(actor)=false for this NPC so vanilla stops selecting the
--- actor as its enemy and the rout continues past hand-back. Scoped to the actor (the fled enemy) so the NPC still
--- reacts to any other threat; the window clears lazily on expiry. The t92 sniper force-enable (result=true) is the
--- other branch that will live here, keeping one subscriber on the seam.
+-- A flee opens a hold on the enemy it is fleeing (state.flee_enemy, set in _issue). While that hold is active -
+-- the flee is running (gate up on the flee maneuver) or settling (within the reseize cooldown after hand-back) -
+-- force is_enemy(that enemy)=false so vanilla stops selecting it and the rout continues instead of the NPC turning
+-- to fight the instant the takeover ends. Scoped to the captured fled enemy (not a hardcoded actor id) so the NPC
+-- still reacts to any other threat. A hit landing after hand-back means the fled enemy caught up, so the hold
+-- drops and the NPC fights back rather than coasting while shot (this seam runs before vanilla's keep_when_attacked
+-- at xr_combat_ignore.script:128). The t92 sniper force-enable (result=true) is the other branch that will live
+-- here, keeping one subscriber on the seam.
 local function _on_enemy_eval(obj, enemy, flags)
     if not obj or not enemy then return end
     local state = _states[obj:id()]
-    if not (state and state.disengage_until) then return end
-    if time_global() >= state.disengage_until then state.disengage_until = nil return end
-    if enemy:id() ~= AC_ID then return end
+    if not (state and state.flee_enemy) then return end
+    if enemy:id() ~= state.flee_enemy then return end
+    local tg = time_global()
+    local fleeing  = state.gate and state.maneuver and state.maneuver.name == "flee"
+    local settling = (not state.gate) and state.commit_at and (tg - state.commit_at) < RESEIZE_COOLDOWN_MS
+    if not (fleeing or settling) then
+        if _dbg and state.disengage_logged then trace.disengage_release(obj:id(), "settle") end
+        state.flee_enemy = nil
+        return
+    end
+    if settling and state.hit_at and state.hit_at > state.commit_at then
+        if _dbg and state.disengage_logged then trace.disengage_release(obj:id(), "caught") end
+        state.flee_enemy = nil
+        return
+    end
     flags.override = true
     flags.result = false
-    -- One-shot per window (reset when _commit opens the next one) so a busy is_enemy poll does not spam the log.
+    -- One-shot per hold (reset when _issue opens the next one) so a busy is_enemy poll does not spam the log.
     if _dbg and not state.disengage_logged then
         state.disengage_logged = true
-        trace.disengage(obj:id(), nil, true)
+        trace.disengage(obj:id())
     end
 end
 
@@ -338,7 +366,6 @@ local function _load_config()
     WATCH_MS            = read_int("watch_period_ms",     200)
     HIT_FIGHT_MS        = read_int("hit_fight_ms",        5000)
     RESEIZE_COOLDOWN_MS = read_int("reseize_cooldown_ms", 5000)
-    DISENGAGE_HOLD_MS   = read_int("disengage_hold_ms",   5000)
 end
 
 local function _refresh_log()
