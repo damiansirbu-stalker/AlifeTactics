@@ -60,10 +60,14 @@ local function _manages(npc)
 end
 
 -- Seizability: can AT take this NPC right now. Armed (an unarmed NPC under AT would deadlock - the engine's
--- own rearm lives in the blocked combat planner), and not already in a smart cover (vanilla owns that micro).
+-- own rearm lives in the blocked combat planner), not already in a smart cover (vanilla owns that micro), and
+-- outdoors: maneuvers path and slide badly in tight indoor geometry. is_indoor is position-based (indoor
+-- levels + surge-shelter radius) and flickers near surge shelters (t97), tagging some open ground indoor -
+-- accepted, better to skip a maneuver near a shelter than run one in a corridor.
 local function _can_seize(npc)
     if not xcombat.get_weapon_kind(npc) then return false end
     if npc:in_smart_cover() then return false end
+    if xcombat.is_indoor(npc:position()) then return false end
     return true
 end
 
