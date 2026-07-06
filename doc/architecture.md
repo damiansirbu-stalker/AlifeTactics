@@ -95,17 +95,18 @@ Namespace: `at_*` (parallel to `ap_*` for AlifePlus, `ag_*` for AlifeGuard, `x*`
 
 ## User-facing systems
 
-Each system has its own file, its own MCM tab, and one master toggle. The Scope column is the actor-scope rule below, at a glance.
+The MCM menu is a five-category tree, the canonical structure (source of truth `at_mcm.script`): **Combat** (Maneuvers, Behaviors, Enhancements), **Effectiveness** (Accuracy, Hit Sharing, Danger, Crossfire, Reaction, Range, Resistance), **Mechanics** (Healing, Jamming, Ammo), **Effects** (wip), **Mutants** (wip). Combat > Enhancements (the shuffle intervention — its engine keystone n023 is merged, the Lua layer is wip), Behaviors, Effects, Mutants, and the Reaction/Range/Resistance pages are all wip. Each built system has its own file, one MCM page, and one master toggle. The Scope column is the actor-scope rule below, at a glance.
 
-| System | File | MCM Tab | Master toggle | Scope | Composition |
+| System | File | MCM page | Master toggle | Scope | Composition |
 |---|---|---|---|---|---|
-| Hit Sharing | `at_hitresponse.script` | Hit Sharing | `hit_share_enabled` | All NPCs | callback |
-| Healing | `at_health.script` | Healing | `healing_enabled` | All NPCs | fn-patch |
-| Accuracy | `at_accuracy.script` | Accuracy | `accuracy_enabled` | All NPCs | callback |
-| Combat | `at_combat.script` | Combat | `combat_enabled` | Actor only | transaction-override |
-| Danger | `xr_danger.script` (full-file override) | Fixes > Danger | bug fixes always-on; three toggleable improvements | All NPCs | excludes (full override) |
-| Weapon Jam | `at_jam.script` | Fixes > Weapon Jam | `jam_enabled` | All NPCs | save-wrap |
-| NPC Ammo | `at_ammo.script` | Fixes > NPC Ammo | `ammo_enabled` | All NPCs | callback |
+| Combat (Maneuvers) | `at_combat.script` | Combat > Maneuvers | `combat_enabled` | Actor only | transaction-override |
+| Accuracy | `at_accuracy.script` | Effectiveness > Accuracy | `accuracy_enabled` | All NPCs | callback |
+| Hit Sharing | `at_hitresponse.script` | Effectiveness > Hit Sharing | `hit_share_enabled` | All NPCs | callback |
+| Danger | `xr_danger.script` (full-file override) | Effectiveness > Danger | bug fixes always-on; three toggleable improvements | All NPCs | excludes (full override) |
+| Friendly Fire | `at_hitresponse.script` | Effectiveness > Crossfire | `friendly_fire_enabled` | All NPCs (actor excluded as participant) | callback |
+| Healing | `at_health.script` | Mechanics > Healing | `healing_enabled` | All NPCs | fn-patch |
+| Weapon Jam | `at_jam.script` | Mechanics > Jamming | `jam_enabled` | All NPCs | save-wrap |
+| NPC Ammo | `at_ammo.script` | Mechanics > Ammo | `ammo_enabled` | All NPCs | callback |
 
 Composition classes, what each does to the surrounding stack: `callback` subscribes to an engine callback and adds to it (composes with any other subscriber); `fn-patch` replaces a vanilla module function, rescheduling through the same lookup so it holds; `save-wrap` saves the prior function and forwards to it when disabled (composes with a prior installer); `transaction-override` suppresses whatever brain is installed, but only for the seconds it holds one NPC; `excludes` is a full-file override, mutually exclusive in MO2 with any other mod that overrides the same file (Danger is the one such leaf, until it becomes a monkey-patch).
 
@@ -113,7 +114,7 @@ Composition classes, what each does to the surrounding stack: `callback` subscri
 
 The Combat takeover is the sole actor-scoped system. It seizes an NPC exactly when that NPC's current enemy is the player, gated by one predicate, `_target_eligible(enemy)` at `at_combat.script:73-74`; in an NPC-vs-NPC fight it never engages. This is a target gate (the NPC's enemy must be the actor), not a participant exclusion.
 
-Every other system runs on all NPCs in any fight, NPC-vs-NPC included. Hit Sharing, Healing, Accuracy, and Danger never read who the enemy is. Friendly Fire, Weapon Jam, and NPC Ammo exclude the player only as a participant (the player's own hits, the player's own weapon); that is the inverse of an actor-only scope, not an instance of it. So widening or keeping the Combat gate changes the takeover alone and touches none of the conduct, mechanics, or fixes systems.
+Every other system runs on all NPCs in any fight, NPC-vs-NPC included. Hit Sharing, Healing, Accuracy, and Danger never read who the enemy is. Friendly Fire, Weapon Jam, and NPC Ammo exclude the player only as a participant (the player's own hits, the player's own weapon); that is the inverse of an actor-only scope, not an instance of it. So widening or keeping the Combat gate changes the takeover alone and touches none of the Effectiveness or Mechanics systems.
 
 ---
 
@@ -231,37 +232,75 @@ Per-shot hot path: a rank-name lookup, then pure-Lua scaling of the dispersion t
 
 Status: built incrementally. On `main`: the GOAP graft (`xcombat.install_takeover`), the maneuver-catalog spine (`at_combat_doctrine`), and the full solo maneuver set — kite, snipe, retreat, flee — with the fire-discipline gate (`fire_make_sense` at the decision point) and flee's disengage. Actor-scoped, validates S+, not yet playtested, so squad coordination and enemy openings remain the open phases. Full phase plan + the decision record: `stalker-dev/doc/todo/todo-combat-takeover-v2.md` (t130-t137 + the Plan section). The full-takeover v1 is preserved on the `combat_takeover` branch.
 
+### Two systems
+
+AT's combat is two independent systems over vanilla, not one:
+
+1. **Maneuvers** — the takeover. AT begins a maneuver on a fighting NPC, drives it to its end, then hands the NPC back. It launches behaviors vanilla lacks or must be forced into (flee, kite, flank, snipe, suppress). This is most of this section.
+2. **The shuffle intervention** — the veto. AT never takes the NPC; it vetoes vanilla's own action switches to stop the break-contact shuffle, keeping the NPC on a good action (a player right in front and already being shot) until an important event forces re-evaluation. It runs on every fighting NPC and launches nothing. See "The shuffle intervention" below.
+
+The maneuvers impose (block vanilla briefly, run our behavior); the shuffle intervention composes (leave vanilla running, deny only bad switches). The two are separate and can be built and shipped independently.
+
 ### Scope: vs the player, decoupled
 
 The takeover is designed against the player and, for now, only runs when an NPC's enemy is the actor. NPC-vs-NPC is dropped (too many corner cases; the actor is always online, has a stable id, never despawns mid-fight, and exposes facing/health/reload). The restriction is one predicate, `_target_eligible(enemy)`; every maneuver, viability check, and read takes a generic `enemy` game_object, so widening the scope later is a one-line change. No readme or MCM surface mentions it.
 
-This actor gate is unique to the takeover. The conduct, mechanics, and fixes systems (Accuracy, Hit Sharing, Healing, Danger, Weapon Jam, NPC Ammo) are unscoped and run on every NPC regardless of who it fights. See "Actor scope" under User-facing systems for the full rule.
+This actor gate is unique to the takeover. The Effectiveness and Mechanics systems (Accuracy, Hit Sharing, Danger, Crossfire, Healing, Weapon Jam, NPC Ammo) are unscoped and run on every NPC regardless of who it fights. See "Actor scope" under User-facing systems for the full rule.
 
 ### The model: a takeover transaction
 
 Vanilla owns every NPC by default. AT does not run combat; it seizes one NPC for one committed, time-boxed maneuver, then releases. AT is an interrupt over vanilla, not the combat brain. There is no global share knob — an NPC is seized only when a trigger and a viability check both fire for it, so selectivity is inherent. At most one open transaction per NPC.
 
-Three NPC states, real cost only in the last:
-- Idle — not in a fight, zero AT work.
-- Monitored — in a fight; the decision pipeline runs throttled, engine-memory reads only, no raycasts.
-- Under-transaction — one committed maneuver running to its end.
+Three states per NPC, real cost only in the last:
+- Not fighting — zero AT work.
+- Fighting, no maneuver open — `on_update` runs throttled (500ms), engine-memory reads only, no raycasts.
+- Maneuver running — `on_maneuver` runs (200ms): watch for the end, hand back on arrival or the cap.
 
 ### The decision pipeline
 
 Per monitor tick (npc_on_update, throttled) the pipeline evaluates pluggable predicates grouped as own_state, own_geometry, enemy_state, team_state. There is no shared read-all: each predicate reads its own world, and a value reused within a cycle is memoized lazily for that cycle only. Each maneuver carries a trigger (a cheap predicate — a situation is present: too_close, hurt, grenade, enemy_unseen, stalled, an enemy opening) and a resolver (where the maneuver sends the NPC). The resolver IS the viability gate: it returns a destination when the maneuver is doable here, or nil to decline — one pass answers both "does it make sense?" and "where to?", no separate viability predicate. A maneuver fires only when its trigger passes and its resolver yields a destination. The things vanilla does well — the opener, re-target, search, turret, grenade dodge — are not triggers.
 
-### The maneuvers and their roles
+### The maneuvers, and how each one works
 
-Eight maneuvers (names locked) across three tactical roles:
-- Base of fire (hold and fire to pin the enemy): suppress, snipe.
-- Maneuver element (reposition offensively, only safe under a base of fire): assault (open charge, no cover), push (advance to cover), flank.
-- Break contact (individual survival): kite (back ~6m), retreat (to cover), flee (rout).
+The catalog holds four built maneuvers — kite, snipe, retreat, flee. The base-of-fire and maneuver-element maneuvers (suppress, assault, push, flank) are later squad phases, not yet in the catalog. Each built maneuver is one row in `at_combat_doctrine.script`: the triggers it answers, a faction/weapon palette, a resolver (where it sends the NPC), and the fire/posture/movement it drives.
 
-too_close always answers with kite; the pressure response (retreat vs flee) is per-faction temperament (brave factions retreat to cover, timid ones flee, monolith and zombied do neither). snipe is a fire-mode hold, not a movement, answering a stalled sniper. The solo triggers are settled: kite = raw proximity (enemy inside the weapon's minimum range), snipe = stalled for `w_sniper`, retreat and flee = hurt or grenade split by faction temperament. The squad and enemy-opening maneuvers are the remaining phases.
+Each `on_update` tick the monitor evaluates four triggers in precedence order and fires the first that holds (`eval_triggers`): **too_close** (enemy inside the weapon's minimum range) > **grenade** (a grenade danger within ~3s) > **hurt** (health below `hurt_frac`) > **stalled** (held position ~4s while the enemy is not closing). The fired trigger then takes the first catalog maneuver whose palette matches and whose resolver yields a destination.
+
+| Maneuver | Fires on | Applies to | Runs to | Weapon; move | Ends on |
+|---|---|---|---|---|---|
+| kite | too_close | any NPC | a clear lane ~6m straight back from the enemy | fire; walk | arrival or 8s |
+| snipe | stalled | w_sniper only | holds its own spot | precision-fire; still | 8s hold |
+| retreat | hurt; grenade | brave factions | nearest reachable cover (reserved) | fire; walk | arrival or 8s |
+| flee | hurt; grenade | timid factions | a friendly base away from the enemy, else a lane straight away | weapon-up, no fire; run | arrival or 15s |
+
+- **kite** answers the enemy getting inside your minimum range: back off ~6m while still firing to reopen the range band. Universal — any faction, any weapon. `find_flee_lane` fans the straight-back heading out to +-90 degrees and ray-checks each for a wall; it declines only when fully boxed in.
+- **snipe** is a fire-mode hold, not a movement: a sniper stuck in a standoff plants and takes precision shots. The fire gate downgrades it to weapon-up (no shot) when there is no clear line, so it never fires at a wall.
+- **retreat** is the brave pressure response: hurt or grenade-threatened, pull back to the nearest cover while still firing. It reserves the cover vertex so two NPCs never pick the same spot, and declines when no cover is reachable. Factions: army, dolg, freedom, killer, isg, stalker, bandit, greh.
+- **flee** is the timid pressure response — the same trigger, but the NPC routs instead of covering. It runs weapon-up (no fire) to a friendly base (no enemy squad stationed) biased to the rear hemisphere so the rout increases distance instead of curving back past the enemy, or a lane straight away when no base points away. Factions: ecolog, clear sky, renegade. Monolith and zombied get neither retreat nor flee — fanatics do not break.
+
+retreat and flee share the hurt/grenade trigger but split on faction, so exactly one applies to any NPC. When a palette matches but the resolver declines (no cover, walled in), AT leaves that NPC to vanilla.
+
+### The flee disengage
+
+Flee is the one maneuver that also suppresses its enemy, and it does so on contact, not a clock. The engine never forgets an enemy on a timer — it keeps `memory_time` until the enemy goes offline, and vanilla only drops it after ~60s of no perception or once it crosses the ~100m distance gate. So the flee's real job is to run the NPC far enough that the engine's own gates drop the enemy; the disengage hold only bridges the gap until then.
+
+The hold opens in `at_combat._issue` when the flee starts, capturing the fled enemy's id in `state.flee_enemy` — scoped to that enemy (so the NPC still reacts to any other threat), no hardcoded actor id. AT's single `on_enemy_eval` subscriber forces `is_enemy(that enemy) = false` while the flee runs (redundant there — the takeover already blocks vanilla combat) and through the settle window after hand-back (the reseize cooldown), then clears the hold. A hit landing after hand-back means the enemy caught up, so the hold drops and the NPC fights back rather than running while shot. Past the settle, if still hurt the NPC re-flees, but each leg now runs away, so distance accumulates until the engine's own gate finally holds.
 
 ### The maneuver pattern
 
-Every maneuver follows one shape, no per-maneuver invention and no per-frame code: a `start` issued ONCE when AT takes the NPC (the GOAP action's `initialize` — the single place AT writes the engine, setting the move and fire state), an `ends_on` (`arrival` for movers, `time` for holds), and a `max_ms` cap. The action's `execute` does nothing — the engine's own per-frame state machine carries the maneuver (aims at the enemy, fires, walks); AT runs zero per-frame logic. The monitor watches the end on its throttled tick — `is_arrived` (over `path_completed`) for movers, elapsed time for holds — and COMMITs, lowering the gate. Two throttle rates: the decide tick (gate down, 500ms, runs for every fighting NPC) and the watch tick (gate up, 200ms, runs only for the few NPCs mid-maneuver, so hand-back is prompt). No early release, no soft interrupt. Aborts come free from the action's preconditions failing (alive, armed, not wounded, has-enemy); a held NPC simply eats a rare grenade rather than AT re-implementing vanilla's reactions. A mover's end position is sticky for free; a held mode reverts on release, which is correct.
+Every maneuver sets its state ONCE when AT takes the NPC (the GOAP action's `initialize` — the single place AT writes the engine, setting the move and fire state), carries an `ends_on` (`arrival` for movers, `time` for holds) and a `max_ms` cap, and runs NO per-frame code. The GOAP graft `execute()` stays empty; the engine's own state machine carries the maneuver — aim, fire, walk. Maneuvers that go with the engine's grain — kite, flank, snipe, suppress-while-seen — face the enemy and fire for free once the state is set.
+
+Flee is the against-the-grain maneuver (face away, weapon down), and it is the one maneuver that runs per-tick code — a BLOCK, not a sight re-drive. The takeover block stops `kill_enemy` from aiming, but that alone does not hold: set once, the weapon comes back up and the NPC re-aims (the observed bug). So flee re-asserts the HOLSTERED `sprint` state (weapon strapped = physically cannot aim or fire) on the `on_maneuver` tick, throttled — 200ms is enough; demonized re-applies it every frame (`demonized_stalker_aoe_panic.script:327`). A holstered weapon with no target faces the run path on its own; AT never steers the sight, it just keeps the gun down. Flee routes to a non-hostile friendly base or smart at least `flee_base_min_dist_m` (100m) away — a real rout to safety, not a near hop (`_resolve_flee` → `find_friendly_base` biased to the rear hemisphere; it declines when none qualifies). This is exactly the demonized / redone panic mechanism: block the same combat planners AT blocks (combat/danger/xr_danger/state_mgr+2/alife, `demonized_stalker_aoe_panic.script:426`), re-assert `sprint`, route far away. The grain-following maneuvers (kite, flank, snipe, suppress-while-seen) still set once with an empty `execute()`; flee is the sole exception.
+
+The monitor watches the end on its throttled tick — `is_arrived` (over `path_completed`) for movers, elapsed time for holds — and ends the maneuver, handing the NPC back. Two ticks: `on_update` (no maneuver open, 500ms, every fighting NPC) and `on_maneuver` (a maneuver running, 200ms, the few NPCs mid-maneuver, so hand-back is prompt). Aborts come free from the action's preconditions failing (alive, armed, not wounded, has-enemy); a held NPC simply eats a rare grenade rather than AT re-implementing vanilla's reactions. A mover's end position is sticky for free; a held mode reverts on release.
+
+### The shuffle intervention
+
+The second system, separate from the maneuvers. Vanilla ties sustained fire to being in cover — `kill_enemy` requires `InCover = true` (`stalker_combat_planner.cpp:342-344`) — and the best-cover point churns, so NPCs break contact and shuffle toward sketchy cover even while they are winning the shooting. The shuffle intervention fixes this in place, with no takeover.
+
+It runs on the engine's action-switch veto (`npc_on_combat_action_switch`, the demonized keystone n023): the callback fires before the combat planner swaps actions, and AT returns `allow = false` to keep the current action. So AT denies a switch when the NPC is doing something good — a player in front and already being fired on, a chosen action mid-run — and allows it only when an important event (a hit taken, a grenade, the enemy lost) warrants re-evaluation. The rule lives entirely in the callback: "never switch away while X holds," or "only switch under our conditions."
+
+The veto only HOLDS the current action; it can never make a new one start, so it launches no maneuver. That is the whole distinction from the takeover: the maneuvers select and run a behavior, the shuffle intervention only keeps vanilla committed to one it already picked. It runs on every fighting NPC, seized or not, and composes with modpacks (it denies switches, it grafts nothing) — including GAMMA AI Rework, whose camper action lives in the same planner and is untouched by a veto that only refuses switches. This is what makes vanilla's own maneuvers commit and shrinks the takeover to the behaviors vanilla genuinely lacks.
 
 ### Squad coordination, decentralized
 

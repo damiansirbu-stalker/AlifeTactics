@@ -17,14 +17,14 @@ next
   Mechanics
     - Added NPC armor-piercing ammo drawn from the boxes they carry, not a magic-refilled fixed type.
       Veteran-rank and higher NPCs fire AP with real ballistics until their carried supply runs out.
-      Tunable in configs/alifetactics/at_ammo.ltx (MCM > Fixes > NPC Ammo, default on).
+      Tunable in configs/alifetactics/at_ammo.ltx (MCM > Mechanics > Ammo, default on).
     - Added NPC weapon jam suppression that stops the demonized per-rank jam-reload loop for NPCs.
-      Actor jams stay vanilla (MCM > Fixes > Weapon Jam, default on, needs demonized 2026.6.1+).
+      Actor jams stay vanilla (MCM > Mechanics > Jamming, default on, needs demonized 2026.6.1+).
 
   Danger
     - Added fixes for six Anomaly xr_danger bugs via a full-file override and paired ltx.
       Hits, ricochets, and nearby gunshots each use their own config row instead of one shared row.
-      Three danger improvements are MCM-toggleable on the Danger tab.
+      Three danger improvements are MCM-toggleable on the Effectiveness > Danger page.
     - Changed corpse danger to last 15 game minutes (was 12 seconds), with weather-scaled detection range.
 
   Fixes
