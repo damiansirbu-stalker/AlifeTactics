@@ -14,8 +14,13 @@ local _names = {}
 -- line carries distance + every trigger value). Any other outcome is a skip before evaluation (short line).
 local SCAN_RESULTS = { too_close = true, grenade = true, hurt = true, stalled = true, none = true }
 
-local function _yes_no(v) return v and "yes" or "no" end
-local function _show(v) return v ~= nil and tostring(v) or "unknown" end
+local function _yes_no(v)
+    return v and "yes" or "no"
+end
+
+local function _show(v)
+    return v ~= nil and tostring(v) or "unknown"
+end
 
 --- Cache a per-id display name (raw ids are unreadable in a fight log).
 function at_combat_trace.set_name(id, name) _names[id] = name end
@@ -49,47 +54,59 @@ function at_combat_trace.declined(id, trigger, maneuver)
         maneuver and "not_viable" or "no_maneuver")
 end
 
---- One line when a maneuver is actually issued (the action's initialize): the destination vertex, the applied
---- fire mode, the movement (so RUN is visible on a flee), the mode the catalog row requested, and the t134 gate
---- value. requested is the row's fire; fire is what set_combat got; fire_make_sense is the engine gate - false
---- forces a firing row (FIRE/SNIPE) down to READY (weapon up, no trigger: occluded / point-blank / floor gap /
---- no LOS), "na" when the row does not fire so the gate was never consulted. requested==fire with
---- fire_make_sense=true means the shot was taken as asked.
-function at_combat_trace.issue(id, maneuver, dest, fire, movement, requested, fire_make_sense)
+--- One line when a maneuver begins (the graft action's initialize - the first engine write): the trigger that
+--- fired it, the destination vertex, the applied fire mode, the movement (so RUN is visible on a flee), the mode
+--- the catalog row requested, and the fire-gate value. requested is the row's fire; fire is what set_combat got.
+--- Gate values: "seen" = enemy visible right now, fired with no further gate (vanilla kill_enemy order);
+--- "true" = blind but fire_make_sense allowed it (the 10s auto-weapon window); "false" = blind and denied,
+--- dropped to READY (occluded / floor gap / window expired); "na" = the row does not fire.
+function at_combat_trace.begin_maneuver(id, maneuver, trigger, dest, fire, movement, requested, fire_make_sense)
     if not _on then return end
-    log.info("issue id=%s name=%s maneuver=%s dest=%s fire=%s move=%s requested=%s fire_make_sense=%s",
-        _show(id), _show(_names[id]), _show(maneuver), _show(dest), _show(fire), _show(movement), _show(requested), _show(fire_make_sense))
+    log.info("begin id=%s name=%s maneuver=%s trigger=%s dest=%s fire=%s move=%s requested=%s fire_make_sense=%s",
+        _show(id), _show(_names[id]), _show(maneuver), _show(trigger), _show(dest), _show(fire), _show(movement), _show(requested), _show(fire_make_sense))
 end
 
---- One line the first time the on_enemy_eval subscriber forces is_enemy(fled enemy)=false for a flee hold - the
---- proof the seam fires. One-shot per hold (deduped by the caller) so a busy is_enemy poll does not spam the log.
---- Paired with disengage_release below.
-function at_combat_trace.disengage(id)
-    if not _on then return end
-    log.info("disengage id=%s name=%s forced is_enemy(fled enemy)=false", _show(id), _show(_names[id]))
-end
-
---- One line when a flee's disengage hold clears: reason "settle" (the settle window after hand-back expired, the
---- rout is over) or "caught" (a hit landed after hand-back, so the NPC drops the hold and fights back). The proof
---- of WHEN and WHY the enemy becomes selectable again.
-function at_combat_trace.disengage_release(id, reason)
-    if not _on then return end
-    log.info("disengage_release id=%s name=%s reason=%s", _show(id), _show(_names[id]), _show(reason))
-end
-
---- One line when a flee resolves its destination: path "too_close" (enemy inside flee_min_dist, declined - nobody
---- flees point-blank), "base" (a friendly base at least flee_base_min_dist_m away, biased to the rear hemisphere),
---- or "no_base" (no friendly base that far and clear was reachable, declined). The proof of the point-blank gate and
---- the far-base pick.
+--- One line when a flee resolves its destination: path "squad_stands" (a squadmate lives, declined - a rout is
+--- for the last man; falls through to retreat), "under_fire" (a fresh hit or a perceived shot from the enemy,
+--- declined - nobody turns his back mid-burst), "too_close" (enemy inside flee_min_dist, declined - nobody flees
+--- point-blank), "base" (a friendly base at least flee_base_min_dist_m away, biased to the rear hemisphere), or
+--- "no_base" (no friendly base that far and clear was reachable, declined).
 function at_combat_trace.resolve_flee(id, path)
     if not _on then return end
     log.info("resolve_flee id=%s name=%s path=%s", _show(id), _show(_names[id]), _show(path))
 end
 
+--- One line per kite resolve: the weapon minimum, the current distance, the computed lane length
+--- (min - dist, floored at the 2m lane step), and the lane vertex ("none" = fully boxed in, kite declined).
+function at_combat_trace.resolve_kite(id, band_min, dist, back_m, vid)
+    if not _on then return end
+    log.info("resolve_kite id=%s name=%s band_min=%s dist=%.1f back_m=%.1f lane=%s",
+        _show(id), _show(_names[id]), _show(band_min), dist or -1, back_m or -1, _show(vid or "none"))
+end
+
+--- One line per snipe resolve: the distance against the ENEMY's weapon maximum - "plant" when past it,
+--- "in_enemy_range" when declined (a motionless head inside the enemy's band is a gift).
+function at_combat_trace.resolve_snipe(id, dist, enemy_max, planted)
+    if not _on then return end
+    log.info("resolve_snipe id=%s name=%s dist=%.1f enemy_max=%s result=%s",
+        _show(id), _show(_names[id]), dist or -1, _show(enemy_max), planted and "plant" or "in_enemy_range")
+end
+
+--- One line per retreat resolve: path "taken" (vertex accepted; cover_dist > npc_dist is the proof the retreat
+--- grows the distance), "no_cover" (nothing behind him), "toward_enemy" (the winner sat closer to the enemy
+--- than he stands, rejected), or "claim_lost" (another NPC reserved the vertex first).
+function at_combat_trace.resolve_retreat(id, path, vid, cover_dist, npc_dist)
+    if not _on then return end
+    log.info("resolve_retreat id=%s name=%s path=%s cover=%s cover_dist=%.1f npc_dist=%.1f",
+        _show(id), _show(_names[id]), _show(path), _show(vid or "-"), cover_dist or -1, npc_dist or -1)
+end
+
 --- One line per monitor tick for a fighting NPC: the selected enemy and the outcome. When the triggers were
 --- evaluated (result is a trigger name or "none") the line also carries the distance and every trigger value;
---- when the NPC was skipped before evaluation (no_enemy / cannot_seize) the line is short.
-function at_combat_trace.monitor(id, state, result)
+--- when the NPC was skipped before evaluation (no_enemy / cooldown / cannot_seize) the line is short. cannot_seize
+--- carries the blocking gate as reason (no_weapon / smart_cover / indoor), so the log says WHY, not just that it
+--- could not. The ":" concat lives inside the _on guard, so the off path allocates nothing.
+function at_combat_trace.monitor(id, state, result, reason)
     if not _on then return end
     if SCAN_RESULTS[result] then
         log.info("monitor id=%s name=%s fighting=yes target=%s(%s) distance=%.1f seen=%s aim=%ddeg operator=%s too_close=%s hurt=%s grenade=%s stalled=%s result=%s",
@@ -97,21 +114,14 @@ function at_combat_trace.monitor(id, state, result)
             _yes_no(state.seen), state.aim_off or -1, _show(state.operator),
             _yes_no(state.t_too_close), _yes_no(state.t_hurt), _yes_no(state.t_grenade), _yes_no(state.t_stalled), result)
     else
-        log.info("monitor id=%s name=%s fighting=yes target=%s result=%s",
-            _show(id), _show(_names[id]), _show(state.enemy_id), result)
+        log.info("monitor id=%s name=%s fighting=yes target=%s result=%s%s",
+            _show(id), _show(_names[id]), _show(state.enemy_id), result, reason and (":" .. reason) or "")
     end
 end
 
---- One line when AT seizes an NPC: the maneuver and the trigger that fired it.
-function at_combat_trace.begin(id, maneuver, trigger)
+--- One line when a maneuver ends and AT hands the NPC back to vanilla.
+function at_combat_trace.end_maneuver(id, maneuver, reason, dur_ms)
     if not _on then return end
-    log.info("begin id=%s name=%s maneuver=%s trigger=%s",
-        _show(id), _show(_names[id]), _show(maneuver), _show(trigger))
-end
-
---- One line when a maneuver completes and AT hands the NPC back to vanilla.
-function at_combat_trace.commit(id, maneuver, reason, dur_ms)
-    if not _on then return end
-    log.info("commit id=%s name=%s maneuver=%s reason=%s dur=%dms",
+    log.info("end id=%s name=%s maneuver=%s reason=%s dur=%dms",
         _show(id), _show(_names[id]), _show(maneuver), _show(reason), dur_ms or -1)
 end

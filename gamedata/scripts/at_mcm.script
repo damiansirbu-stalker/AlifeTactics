@@ -34,8 +34,7 @@ local defaults = {
     jam_enabled  = true,
     ammo_enabled = true,
     log_level = "WARN",
-    hud_enabled    = false,
-    hud_position   = "center_right",
+    hud_position   = "off",
 }
 
 local RegisterScriptCallback = RegisterScriptCallback
@@ -77,7 +76,6 @@ local _key_to_tab = {
     ammo_enabled        = "mechanics/ammo",
     log_level     = "development",
     btn_reset_all = "development",
-    hud_enabled    = "development",
     hud_position   = "development",
 }
 
@@ -171,7 +169,6 @@ function on_mcm_load()
                         },
                     },
                     wip_page("behaviors"),
-                    wip_page("enhancements"),
                 },
             },
             {
@@ -262,6 +259,7 @@ function on_mcm_load()
                                 ui_hook_functor = { set_version_text }, clr = {255, 212, 201, 168} },
                         },
                     },
+                    wip_page("commitment"),
                     wip_page("reaction"),
                     wip_page("range"),
                     wip_page("resistance"),
@@ -378,9 +376,9 @@ function on_mcm_load()
 
                     { id = "div_hud", type = "line" },
                     { id = "hdr_hud", type = "desc", text = "ui_mcm_at_hdr_hud", clr = {255, 200, 200, 200} },
-                    { id = "hud_enabled", type = "check", val = 1, def = false },
-                    { id = "hud_position", type = "list", val = 0, def = "center_right",
+                    { id = "hud_position", type = "list", val = 0, def = "off",
                         content = {
+                            {"off",          "off"},
                             {"top_left",     "topleft"},
                             {"top_right",    "topright"},
                             {"center_left",  "centerleft"},

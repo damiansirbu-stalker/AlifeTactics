@@ -1,39 +1,33 @@
 next
-  Summary: Combat takeover, fire discipline, sniper hold, friendly fire, NPC ammo, weapon jam, danger rework, survivor-gate kills, healing fixes, AOEngine
+  Summary: Maneuvers, Crossfire, Danger, Disclosure, Ammo, Jamming, Healing, AOEngine
 
   Combat
-    - Added an intermittent combat takeover: AlifeTactics borrows a stalker for one committed maneuver.
-      Stalkers kite when crowded, retreat to cover or flee when hurt, and hold sniper aim when stalled.
+    - Maneuvers: an intermittent combat takeover that borrows a stalker for a committed maneuver.
+      Stalkers kite when crowded, hold sniper aim when stalled, and cover or flee when badly hurt.
       A borrowed stalker holds fire when it has no clear shot instead of firing into cover.
-      Companions are left out of the takeover by default (MCM > Combat > Maneuvers).
-    - Added a same-faction friendly-fire damage block (MCM > Effectiveness > Crossfire, default on).
-      A stalker that hits a same-faction teammate deals no damage, tunable back up to full vanilla.
-    - Removed the standalone Stance Switch system, now folded into the takeover's sniper hold.
+      Companions are excluded by default. Replaces the old Stance Switch system.
 
   Effectiveness
-    - Added a survivor gate to Hit Sharing (MCM, default on).
-      A kill that drops the victim outright no longer discloses the shooter, so stealth kills stay quiet.
+    - Crossfire: a same-faction friendly-fire damage block, default on.
+      A stalker that hits a same-faction fighter deals no damage, tunable back up to full vanilla.
+    - Danger: an xr_danger rework, always-on bug fixes plus 3 toggleable improvements.
+      Hits, ricochets, and gunshots read separate config rows, with weather-scaled detection range.
+      Sniped or shot-at NPCs react at any range, even to gunfire vanilla left unanswered.
+    - Disclosure: a new survivor gate, default on.
+      An outright kill no longer discloses the shooter, so stealth kills stay quiet.
 
   Mechanics
-    - Added NPC armor-piercing ammo drawn from the boxes they carry, not a magic-refilled fixed type.
+    - Ammo: NPC armor-piercing ammo drawn from the boxes NPCs carry, default on.
       Veteran-rank and higher NPCs fire AP with real ballistics until their carried supply runs out.
-      Tunable in configs/alifetactics/at_ammo.ltx (MCM > Mechanics > Ammo, default on).
-    - Added NPC weapon jam suppression that stops the demonized per-rank jam-reload loop for NPCs.
-      Actor jams stay vanilla (MCM > Mechanics > Jamming, default on, needs demonized 2026.6.1+).
-
-  Danger
-    - Added fixes for six Anomaly xr_danger bugs via a full-file override and paired ltx.
-      Hits, ricochets, and nearby gunshots each use their own config row instead of one shared row.
-      Three danger improvements are MCM-toggleable on the Effectiveness > Danger page.
-    - Changed corpse danger to last 15 game minutes (was 12 seconds), with weather-scaled detection range.
-
-  Fixes
-    - Fixed limping to match the NPC's weapon, and to stop after HP recovers or during combat.
-    - Fixed healing NPCs freezing in place and ignoring enemies that appear mid-gesture.
-    - Fixed a crash on a torn-down attacker reference during the attack-sound danger dispatch.
+      Each engagement rolls a rank- and fire-rate-weighted chance to burn a carried AP box.
+    - Jamming: NPC weapon-jam suppression that stops the demonized per-rank jam-and-reload loop.
+      Actor jams stay vanilla. Default on, needs demonized 2026.6.1+.
+    - Healing: limping now matches the NPC's weapon and clears after HP recovers or in combat.
+      Healing NPCs no longer freeze in place or ignore enemies that appear mid-gesture.
 
   Compatibility
-    - Added AOEngine v0.55+ support.
+    - AOEngine v0.55+ support.
+    - The Danger rework is a runtime patch, so it coexists with GAMMA AI Rework and REDONE.
 
 1.0.0
   Summary: First release, hit sharing, NPC self-healing fix, per-rank accuracy, long-range rifle crouch

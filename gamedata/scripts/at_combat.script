@@ -1,14 +1,4 @@
---- at_combat: the v2 intermittent takeover - the monitor (shell). Vanilla owns every NPC by default; AT
---- watches a fight and decides the one moment to seize for a single committed maneuver where vanilla is weak.
---- This file is the always-on monitor plus the transaction it drives: per installed stalker it reads the fight
---- state and, while fighting the actor, fires the trigger table; a fired trigger picks a catalog maneuver (from
---- at_combat_doctrine) and BEGINs it. The GOAP graft lives in xcombat (install_takeover); AT supplies the spec
---- (gate + on_begin) and runs the committed maneuver to its end (arrival or cap), then COMMITs - the whole
---- transaction is legible in the log (begin -> commit).
----
---- INVERSION OF CONTROL: the monitor runs under npc_on_update - the engine pumps it; it never loops itself.
---- One decision point lives here (the monitor); the per-NPC state is one flat record (_state(id)); the
---- decision half (fight detection helpers, trigger predicates) is at_combat_doctrine; tracing is noop when off.
+--- at_combat: the intermittent takeover monitor - seizes one NPC for one committed maneuver where vanilla is weak, then hands back. Doctrine in at_combat_doctrine, graft in xcombat.
 
 local IsStalker, time_global, tostring = IsStalker, time_global, tostring
 local math_floor, RegisterScriptCallback = math.floor, RegisterScriptCallback
@@ -21,29 +11,25 @@ local _dbg = false
 
 local LTX_PATH    = "alifetactics\\at_combat_config.ltx"
 local LTX_SECTION = "at_combat"
-local MONITOR_MS, WATCH_MS, HIT_FIGHT_MS, RESEIZE_COOLDOWN_MS
+local BEGIN_PERIOD_MS, UPDATE_PERIOD_MS, END_PERIOD_MS, HIT_FIGHT_MS, RESEIZE_COOLDOWN_MS
 
 local COMPANION_INFO = "npcx_is_companion"
+local MANEUVER_CAP_MS = 8000
 
 
--- =========================================================================
--- Per-NPC state store. One flat record per installed NPC, created on first touch: the monitor throttle clock,
--- the fight/trigger readings (for the trace), the stall tracker, and (later) the open transaction. Never saved.
--- =========================================================================
+-- Per-NPC state store: one flat record per installed NPC, created on first touch. Never saved.
 
 local _installed = {}
 local _states    = {}
 
 local function _state(id)
     local state = _states[id]
-    if not state then state = { id = id } _states[id] = state end
+    if not state then state = { id = id, ran_at = {} } _states[id] = state end
     return state
 end
 
 
--- =========================================================================
--- Fight detection and the two seize gates. Each is one named predicate - no inline conditions in the monitor.
--- =========================================================================
+-- Fight detection and the seize gates: one named predicate each.
 
 -- In a fight = the engine selected an enemy, OR a hit landed recently (the far-shooter case, where the enemy is
 -- out of the distance gate so best_enemy is still nil but the NPC is plainly under fire).
@@ -59,159 +45,74 @@ local function _manages(npc)
     return true
 end
 
--- Seizability: can AT take this NPC right now. Armed (an unarmed NPC under AT would deadlock - the engine's
--- own rearm lives in the blocked combat planner), not already in a smart cover (vanilla owns that micro), and
--- outdoors: maneuvers path and slide badly in tight indoor geometry. is_indoor is position-based (indoor
--- levels + surge-shelter radius) and flickers near surge shelters (t97), tagging some open ground indoor -
--- accepted, better to skip a maneuver near a shelter than run one in a corridor.
+-- Seizability: armed, not already in a smart cover, and outdoors (see architecture.md Combat for why each).
 local function _can_seize(npc)
-    if not xcombat.get_weapon_kind(npc) then return false end
-    if npc:in_smart_cover() then return false end
-    if xcombat.is_indoor(npc:position()) then return false end
+    if not xcombat.get_weapon_kind(npc) then return false, "no_weapon" end
+    if npc:in_smart_cover() then return false, "smart_cover" end
+    if xcombat.is_indoor(npc:position()) then return false, "indoor" end
     return true
 end
 
--- Scope gate: the takeover runs only against the actor. NPC-vs-NPC is out (the actor is always online, has a
--- stable id, never despawns mid-fight, exposes facing/health). One predicate; every maneuver and read downstream
--- takes a generic enemy, so widening to NPC-vs-NPC later is this line alone. No readme / MCM surface.
+-- Scope gate: the takeover runs only against the actor (one predicate; downstream reads take a generic enemy).
 local function _target_eligible(enemy)
     return enemy:id() == AC_ID
 end
 
 
--- =========================================================================
--- The transaction. BEGIN (the monitor) raises the gate and records the chosen maneuver + its resolved
--- destination; the graft issues it ONCE via SPEC.on_begin when AT takes control, then the engine state machine
--- carries it - AT runs no per-frame code. The monitor watches the end on its throttled tick (arrival for movers,
--- the time cap for holds) and COMMITs, lowering the gate to hand back. The maneuver catalog (handles, palette,
--- resolver, fire spec) lives in at_combat_doctrine; the shell is maneuver-agnostic.
--- =========================================================================
+-- The maneuver lifecycle: _try_begin_maneuver stages a row and raises the gate; the engine grants control at the
+-- grafted action's initialize and calls _begin_maneuver (the first engine write); _update_maneuver re-runs the
+-- row's update while it runs; _try_end_maneuver calls _end_maneuver on arrival or the cap.
 
--- BEGIN: raise the gate, record the maneuver (a catalog row) and its cached destination. The body issues it on
--- its next execute, under AT control - issuing movement now would fight vanilla, which still drives this frame.
-local function _begin(state, maneuver, dest, trigger, tg)
-    state.gate = true
-    state.maneuver = maneuver
-    state.dest = dest
-    state.maneuver_at = nil
-    state.begin_at = tg
-    -- Clear any prior flee hold so a new maneuver never inherits the previous rout's enemy suppression; a flee
-    -- re-opens it in _issue once it has captured its enemy.
-    state.flee_enemy = nil
-    if _dbg then trace.begin(state.id, maneuver.name, trigger) end
-end
-
--- COMMIT: lower the gate, clear the maneuver and its destination. Vanilla resumes from where AT left the NPC.
--- commit_at is stamped (and NOT cleared) so _decide can enforce the reseize cooldown (without it a pressing enemy
--- re-fires the same trigger on the next decide tick and the intermittent takeover degenerates into a continuous
--- one), and so the flee hold (state.flee_enemy, opened in _issue) stays active through the settle window after
--- hand-back - see _on_enemy_eval. The hold is NOT closed here; it spans the whole flee transaction.
-local function _commit(state, tg, reason)
-    if _dbg then trace.commit(state.id, state.maneuver and state.maneuver.name, reason, math_floor(tg - (state.begin_at or tg))) end
+-- End the maneuver: lower the gate, clear the row, keep end_at for the reseize cooldown. Releases any cover the
+-- resolver reserved, on EVERY exit (arrived, cap, never-begun) so a gate that raised but never ran a maneuver
+-- does not leak the reservation in db.used_level_vertex_ids (t136).
+local function _end_maneuver(state, tg, reason)
+    if _dbg then trace.end_maneuver(state.id, state.maneuver and state.maneuver.name, reason, math_floor(tg - (state.begin_at or tg))) end
     state.gate = false
     state.maneuver = nil
     state.dest = nil
+    state.trigger = nil
     state.maneuver_at = nil
     state.begin_at = nil
-    state.commit_at = tg
-    -- Release any cover a cover maneuver reserved at resolve, on EVERY exit (arrived, cap, never-started) so a gate
-    -- that raised but never ran a maneuver does not leak the reservation in db.used_level_vertex_ids (t136).
+    state.end_at = tg
     if state.cover_lvid then
         xcombat.release_cover(state.cover_lvid, state.id)
         state.cover_lvid = nil
     end
 end
 
--- Issue the maneuver: send the NPC to its cached destination and set the maneuver's fire/posture/movement with
--- the enemy as look_object, so the engine state machine carries the walk+fire (the binder pumps state_mgr every
--- frame). The single place AT writes the engine; AT then runs nothing per frame. Arrival and the cap are watched.
-local function _issue(npc, state, tg)
-    local maneuver = state.maneuver
-    local enemy = npc:best_enemy()
-    if not enemy then _commit(state, tg, "no_enemy") return end
-    -- The enemy can change between _decide (where scope is checked) and here (the action's initialize), and the
-    -- grafted action can re-initialize mid-transaction; re-check scope so a maneuver never issues against a
-    -- non-eligible (NPC) enemy that slipped into best_enemy in the window.
-    if not _target_eligible(enemy) then _commit(state, tg, "not_eligible") return end
-    xcombat.send_to(npc, state.dest)
-    -- Fire discipline at the decision point (t134): a firing maneuver drops to READY (weapon up, no trigger) when
-    -- the engine gate says a shot makes no sense - occluded, point-blank, floor gap, or no LOS. Consulted ONCE here,
-    -- never per shot; the maneuver holds seconds and vanilla's own gate runs the rest of the time.
-    local requested = maneuver.fire
-    local fire = requested
-    -- gate "na" = fire_make_sense not consulted, for a row that does not fire (READY / STOW).
-    local gate = "na"
-    if requested == xcombat.FIRE or requested == xcombat.SNIPE then
-        if xcombat.fire_make_sense(npc, enemy) then
-            gate = "true"
-        else
-            gate = "false"
-            fire = xcombat.READY
-        end
-    end
-    -- Aim keys on the maneuver's INTENT, not the applied fire mode. A run-away maneuver (flee, requested READY
-    -- or STOW) gets NO aim target, so the engine's direction sub-planner faces the NPC down its run path
-    -- (path_dir) - it turns its back and routs instead of backpedalling in the enemy's face. A firing maneuver
-    -- keeps aim=enemy even when the fire gate downgraded it to READY, so a kite/retreat that lost LOS still faces
-    -- the enemy weapon-up. This is the v1 behaviour the v2 rewrite dropped (it aimed at the enemy for every row).
-    local aim = (requested == xcombat.READY or requested == xcombat.STOW) and nil or enemy
-    xcombat.set_combat(npc, { fire = fire, posture = maneuver.posture, movement = maneuver.movement, aim = aim })
-    state.maneuver_at = tg
-    -- Open the disengage hold for a flee: suppress the enemy this rout is fleeing (captured above, after the
-    -- best_enemy read, so it is never nil here) for the rest of the transaction and its settle window - see
-    -- _on_enemy_eval. Non-flee maneuvers hand back to normal combat, so they open no hold.
-    if maneuver.name == "flee" then
-        state.flee_enemy = enemy:id()
-        state.disengage_logged = nil
-    end
-    if _dbg then trace.issue(state.id, maneuver.name, state.dest, fire, maneuver.movement, requested, gate) end
-end
-
--- on_begin: the graft calls this ONCE when AT takes the NPC (the action's initialize). Issue the maneuver under
--- AT control. The engine state machine then carries it; AT runs nothing per frame. Arrival and the stuck cap are
--- watched by the monitor on its throttled tick.
-local function _on_begin(npc)
+-- Begin the maneuver - the first engine write, at the grafted action's initialize (the engine granted control
+-- this frame; writing earlier would fight vanilla, which drives until the planner swap). Sets the destination
+-- once (the engine walks it), applies the row's combat state once, opens a STOW rout's flee hold. Re-checks
+-- scope because the enemy can change between _try_begin_maneuver and here.
+local function _begin_maneuver(npc)
     local state = _states[npc:id()]
     if not state or not state.maneuver then return end
-    _issue(npc, state, time_global())
+    local tg = time_global()
+    local maneuver = state.maneuver
+    local enemy = npc:best_enemy()
+    if not enemy then _end_maneuver(state, tg, "no_enemy") return end
+    if not _target_eligible(enemy) then _end_maneuver(state, tg, "not_eligible") return end
+    xcombat.send_to(npc, state.dest)
+    local fire, gate = doctrine.apply_state(npc, maneuver, enemy)
+    state.maneuver_at = tg
+    if maneuver.fire == xcombat.STOW then
+        state.flee_enemy = enemy:id()
+        state.flee_until = tg + (maneuver.timeout or MANEUVER_CAP_MS) + RESEIZE_COOLDOWN_MS
+    else
+        state.flee_enemy = nil
+    end
+    if _dbg then trace.begin_maneuver(state.id, maneuver.name, state.trigger, state.dest, fire, maneuver.movement, maneuver.fire, gate) end
 end
 
--- One spec drives every AT NPC: gate = the per-NPC transaction flag the grafted evaluator polls; on_begin = the
--- one-time maneuver start the grafted action calls. Per-NPC state lives in _states, keyed by id.
+-- One spec drives every AT NPC: gate = the per-NPC flag the grafted evaluator polls; on_begin = _begin_maneuver,
+-- called once when the grafted action activates. Per-NPC state lives in _states, keyed by id.
 local SPEC = {
     gate = function(npc) local state = _states[npc:id()] return state ~= nil and state.gate == true end,
-    on_begin = _on_begin,
+    on_begin = _begin_maneuver,
 }
 
-
--- =========================================================================
--- THE MONITOR. npc_on_update fires every frame per online stalker; _on_update self-throttles (MONITOR_MS while
--- deciding, WATCH_MS while a maneuver runs) and dispatches: gate up -> _watch the running maneuver for its end;
--- gate down -> _decide whether to take over. Each is one helper so the dispatch stays flat.
--- =========================================================================
-
--- Gate up: commit when the maneuver finished. Movers (ends_on=arrival) end on is_arrived; the per-maneuver
--- timeout (measured from begin_at, the gate-raise time) ends everything - including a gate that never started a
--- maneuver (a precondition blocked the action), so a raised gate can never wedge the NPC. Holds (ends_on=time)
--- carry no arrival condition (their dest is the NPC's own node, trivially arrived) and end only on the timeout.
-local function _watch(npc, state, tg)
-    local maneuver = state.maneuver
-    -- Flee is the one maneuver that blocks aiming/firing per tick. Set-once does not hold under the takeover:
-    -- the sight drifts back to the enemy and the NPC backpedals facing the player. So re-assert the holstered
-    -- sprint state (STOW, no aim) on every watch tick - a strapped weapon cannot aim or fire, and set_state
-    -- re-nils the look fields so the direction sub-planner faces the run path. This is the demonized/redone
-    -- mechanism (demonized_stalker_aoe_panic.script:327 re-applies sprint every frame); we do it on the 200ms tick.
-    if maneuver and maneuver.name == "flee" then
-        xcombat.set_combat(npc, { fire = xcombat.STOW, posture = maneuver.posture, movement = maneuver.movement, aim = nil })
-    end
-    if maneuver and maneuver.ends_on == "arrival" and state.maneuver_at and xcombat.is_arrived(npc) then
-        _commit(state, tg, "arrived")
-    elseif (tg - (state.begin_at or tg)) >= ((maneuver and maneuver.timeout) or 8000) then
-        _commit(state, tg, "cap")
-    end
-end
-
--- Debug-only per-tick decision trace, gated here so the bridge reads (name, operator, facing, sight) never run
+-- Debug-only decision trace, gated here so the bridge reads (name, operator, facing, sight) never run
 -- when tracing is off.
 local function _trace_decision(npc, state, enemy, fired)
     if not _dbg then return end
@@ -222,67 +123,113 @@ local function _trace_decision(npc, state, enemy, fired)
     trace.monitor(state.id, state, fired or "none")
 end
 
--- Gate down: decide whether to take the NPC over. Eligible, fighting, an enemy selected and it IS the actor,
--- seizable, then the trigger table; a fired trigger picks a catalog maneuver (with its resolved destination) and
--- BEGINs it. The not-actor skip is silent (NPC-vs-NPC is the common case, uninteresting). Other skip reasons are
--- traced (trace noops when off).
-local function _decide(npc, id, state, tg)
+-- Look for a maneuver to begin: managed, fighting, the enemy eligible, off cooldown, seizable, a trigger fired,
+-- a row resolved. Staging = record the row + destination and raise the gate; the engine grants control at the
+-- next plan solve and calls _begin_maneuver. No engine write happens here - vanilla still drives this frame.
+local function _try_begin_maneuver(npc, state, tg)
     if not _manages(npc) then state.fighting = false return end
     state.fighting = _is_fighting(npc, state, tg)
     if not state.fighting then state.stall_set = false return end
-    if _dbg then trace.set_name(id, npc:name()) end
+    if _dbg then trace.set_name(state.id, npc:name()) end
 
     local enemy = npc:best_enemy()
     if not enemy then
         state.enemy_id = nil
-        trace.monitor(id, state, "no_enemy")
+        trace.monitor(state.id, state, "no_enemy")
         return
     end
     state.enemy_id = enemy:id()
 
     if not _target_eligible(enemy) then return end
 
-    -- Reseize cooldown: hold off a fresh takeover for a window after the last COMMIT. A committed maneuver leaves
-    -- the NPC near the enemy (a kite ends ~kite_back_m away), so without this the same trigger re-fires on the next
-    -- decide tick and the intermittent model collapses into a continuous takeover. 0 = off.
-    if RESEIZE_COOLDOWN_MS > 0 and state.commit_at and (tg - state.commit_at) < RESEIZE_COOLDOWN_MS then
-        trace.monitor(id, state, "cooldown")
+    -- Reseize cooldown: hold off a fresh seize for a window after a maneuver ends, else the takeover goes continuous.
+    if RESEIZE_COOLDOWN_MS > 0 and state.end_at and (tg - state.end_at) < RESEIZE_COOLDOWN_MS then
+        trace.monitor(state.id, state, "cooldown")
         return
     end
 
-    if not _can_seize(npc) then
-        trace.monitor(id, state, "cannot_seize")
+    local can_seize, seize_block = _can_seize(npc)
+    if not can_seize then
+        trace.monitor(state.id, state, "cannot_seize", seize_block)
         return
     end
 
     local fired = doctrine.eval_triggers(npc, enemy, state, tg)
     if fired then
-        -- pick_maneuver returns (maneuver, dest) on a seize; on a decline (nil, reason) where reason is the
+        -- pick_maneuver returns (maneuver, dest) on a pick; on a decline (nil, reason) where reason is the
         -- declined maneuver name (resolver not viable) or nil (no palette match) - handed straight to the trace.
         local maneuver, dest = doctrine.pick_maneuver(npc, fired, enemy, state)
-        if maneuver then _begin(state, maneuver, dest, fired, tg)
-        elseif _dbg then trace.declined(id, fired, dest) end
+        if maneuver then
+            state.gate = true
+            state.maneuver = maneuver
+            state.dest = dest
+            state.trigger = fired
+            state.maneuver_at = nil
+            state.begin_at = tg
+        elseif _dbg then
+            trace.declined(state.id, fired, dest)
+        end
     end
     _trace_decision(npc, state, enemy, fired)
 end
 
+-- Run the maneuver's own update from its catalog row (a firing row re-checks its shot, flee re-asserts its
+-- holster, a row without one does nothing). Begun-guarded: no engine write before _begin_maneuver ran.
+local function _update_maneuver(npc, state, _tg)
+    local maneuver = state.maneuver
+    if not maneuver or not state.maneuver_at then return end
+    if not maneuver.update then return end
+    maneuver.update(npc, maneuver, npc:best_enemy())
+end
+
+-- Movers end on arrival; the cap (from begin_at) ends everything, so a gate that raised but never began a
+-- maneuver cannot wedge the NPC. Holds have no arrival and end only on the cap.
+local function _try_end_maneuver(npc, state, tg)
+    local maneuver = state.maneuver
+    if maneuver and maneuver.ends_on == "arrival" and state.maneuver_at and xcombat.is_arrived(npc) then
+        _end_maneuver(state, tg, "arrived")
+    elseif (tg - (state.begin_at or tg)) >= ((maneuver and maneuver.timeout) or MANEUVER_CAP_MS) then
+        _end_maneuver(state, tg, "cap")
+    end
+end
+
+
+-- The scan: every timed operation is one row { name, period, open, run }; open is the state.gate value the check
+-- requires (false = no maneuver open, true = one running). Built in _load_config, after the periods are read.
+
+local SCAN
+
+local function _build_scan()
+    SCAN = {
+        { name = "begin_maneuver",  period = BEGIN_PERIOD_MS,  open = false, run = _try_begin_maneuver },
+        { name = "update_maneuver", period = UPDATE_PERIOD_MS, open = true,  run = _update_maneuver    },
+        { name = "end_maneuver",    period = END_PERIOD_MS,    open = true,  run = _try_end_maneuver   },
+    }
+end
+
+-- Run one check: bail unless its own period elapsed, else stamp and run.
+local function _run_check(check, npc, state, tg)
+    if tg - (state.ran_at[check.name] or 0) < check.period then return end
+    state.ran_at[check.name] = tg
+    check.run(npc, state, tg)
+end
+
+-- npc_on_update fires every frame for every online stalker (xr_motivator.script:486); between due periods this
+-- walk is three compares and returns - no engine read or write happens outside a due check.
 local function _on_update(npc)
     local id = npc:id()
     if not _installed[id] then return end
     local state = _state(id)
     local tg = time_global()
-    local due = state.gate and WATCH_MS or MONITOR_MS
-    if tg - (state.mon_at or 0) < due then return end
-    state.mon_at = tg
-    if state.gate then _watch(npc, state, tg)
-    else _decide(npc, id, state, tg) end
+    local open = state.gate == true
+    for i = 1, #SCAN do
+        local check = SCAN[i]
+        if check.open == open then _run_check(check, npc, state, tg) end
+    end
 end
 
 
--- =========================================================================
--- Public API consumed by at_hud (the running-maneuver readout) and the at_test observer. Returns nil until the
--- body that drives a maneuver lands.
--- =========================================================================
+-- Public API consumed by at_hud and the at_test observer.
 
 --- Current maneuver name for an NPC, or nil when AT is not driving one.
 function get_maneuver(id)
@@ -291,9 +238,7 @@ function get_maneuver(id)
 end
 
 
--- =========================================================================
 -- Lifecycle: install on spawn, stamp the far-shooter fight entry on hit, clean up on destroy / unregister.
--- =========================================================================
 
 local function _install(npc)
     if not npc or not IsStalker(npc) then return end
@@ -304,11 +249,15 @@ local function _install(npc)
     if _dbg then trace.installed(id, npc:name()) end
 end
 
--- A hit stamps the fight clock so the far-shooter case (best_enemy still nil) reads as fighting in the monitor.
+-- A hit stamps the fight clock (far-shooter reads as fighting). After hand-back a hit means the fled enemy
+-- caught up, so clear flee_enemy and let the NPC fight back.
 local function _on_hit(npc, amount)
     if not npc or not amount or amount <= 0 then return end
     local id = npc:id()
-    if _installed[id] then _state(id).hit_at = time_global() end
+    if not _installed[id] then return end
+    local state = _state(id)
+    state.hit_at = time_global()
+    if not state.gate then state.flee_enemy = nil end
 end
 
 local function _on_net_destroy(npc)
@@ -327,49 +276,28 @@ local function _on_entity_unregister(se_obj)
     if _dbg then trace.forget(id) end
 end
 
--- The single AT owner of the on_enemy_eval seam (xr_combat_ignore.script:85, fires before every distance gate).
--- A flee opens a hold on the enemy it is fleeing (state.flee_enemy, set in _issue). While that hold is active -
--- the flee is running (gate up on the flee maneuver) or settling (within the reseize cooldown after hand-back) -
--- force is_enemy(that enemy)=false so vanilla stops selecting it and the rout continues instead of the NPC turning
--- to fight the instant the takeover ends. Scoped to the captured fled enemy (not a hardcoded actor id) so the NPC
--- still reacts to any other threat. A hit landing after hand-back means the fled enemy caught up, so the hold
--- drops and the NPC fights back rather than coasting while shot (this seam runs before vanilla's keep_when_attacked
--- at xr_combat_ignore.script:128). The t92 sniper force-enable (result=true) is the other branch that will live
--- here, keeping one subscriber on the seam.
+-- While a fleeing NPC still has an active ignore (state.flee_enemy set, state.flee_until not reached), answer the
+-- engine is_enemy check false so it does not turn the NPC back to fight. _begin_maneuver sets it; a non-flee
+-- maneuver or a hit clears it.
 local function _on_enemy_eval(obj, enemy, flags)
     if not obj or not enemy then return end
     local state = _states[obj:id()]
-    if not (state and state.flee_enemy) then return end
-    if enemy:id() ~= state.flee_enemy then return end
-    local tg = time_global()
-    local fleeing  = state.gate and state.maneuver and state.maneuver.name == "flee"
-    local settling = (not state.gate) and state.commit_at and (tg - state.commit_at) < RESEIZE_COOLDOWN_MS
-    if not (fleeing or settling) then
-        if _dbg and state.disengage_logged then trace.disengage_release(obj:id(), "settle") end
-        state.flee_enemy = nil
-        return
-    end
-    if settling and state.hit_at and state.hit_at > state.commit_at then
-        if _dbg and state.disengage_logged then trace.disengage_release(obj:id(), "caught") end
-        state.flee_enemy = nil
-        return
-    end
-    flags.override = true
-    flags.result = false
-    -- One-shot per hold (reset when _issue opens the next one) so a busy is_enemy poll does not spam the log.
-    if _dbg and not state.disengage_logged then
-        state.disengage_logged = true
-        trace.disengage(obj:id())
+    if not state or not state.flee_enemy then return end
+    if enemy:id() == state.flee_enemy and time_global() < state.flee_until then
+        flags.override = true
+        flags.result = false
     end
 end
 
 local function _load_config()
     local ini = ini_file(LTX_PATH)
     local function read_int(k, d) local v = ini:r_float_ex(LTX_SECTION, k) return v and math_floor(v) or d end
-    MONITOR_MS          = read_int("monitor_period_ms",   500)
-    WATCH_MS            = read_int("watch_period_ms",     200)
+    BEGIN_PERIOD_MS     = read_int("begin_period_ms",     500)
+    UPDATE_PERIOD_MS    = read_int("update_period_ms",    200)
+    END_PERIOD_MS       = read_int("end_period_ms",       200)
     HIT_FIGHT_MS        = read_int("hit_fight_ms",        5000)
     RESEIZE_COOLDOWN_MS = read_int("reseize_cooldown_ms", 5000)
+    _build_scan()
 end
 
 local function _refresh_log()

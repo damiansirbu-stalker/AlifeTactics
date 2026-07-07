@@ -91,16 +91,16 @@ end
 local _MENTAL
 local function _mental_name(npc)
     if not _MENTAL then _MENTAL = { [anim.free] = "free", [anim.danger] = "danger", [anim.panic] = "panic" } end
-    local m = npc:mental_state()
-    return _MENTAL[m] or tostring(m)
+    local mental = npc:mental_state()
+    return _MENTAL[mental] or tostring(mental)
 end
 
 -- Best danger as a short label: grenade called out (it drives the flee / retreat trigger), any other danger as
 -- "danger", none as "-".
 local function _danger_name(npc)
-    local d = npc:best_danger()
-    if not d then return "-" end
-    if d:type() == danger_object.grenade then return "grenade" end
+    local danger = npc:best_danger()
+    if not danger then return "-" end
+    if danger:type() == danger_object.grenade then return "grenade" end
     return "danger"
 end
 
@@ -140,18 +140,19 @@ local function _row_for(id, st, ax, r2, actor_id, show_idle)
     if not IsStalker(npc) then return nil end
     if not npc:alive() then return nil end
     if ax:distance_to_sqr(npc:position()) >= r2 then return nil end
-    local d = _derive(npc, st)
-    if not (show_idle or d.is_combat) then return nil end
-    d.name = _truncate(npc:character_name() or npc:name(), NAME_MAX)
-    return d
+    local row = _derive(npc, st)
+    if not (show_idle or row.is_combat) then return nil end
+    row.name = _truncate(npc:character_name() or npc:name(), NAME_MAX)
+    return row
 end
 
 local function _build_rows()
-    if not db.actor then return {} end
-    local ax = db.actor:position()
+    local actor = db.actor
+    if not actor then return {} end
+    local ax = actor:position()
     local r2 = HUD_RADIUS_M * HUD_RADIUS_M
     local show_idle = HUD_SHOW_IDLE
-    local actor_id = db.actor:id()
+    local actor_id = actor:id()
 
     local rows = {}
     for id, st in pairs(db.storage) do
@@ -310,11 +311,11 @@ local function _stop()
 end
 
 local function _on_option_change()
-    if cfg.hud_enabled then _start() else _stop() end
+    if cfg.hud_position ~= "off" then _start() else _stop() end
 end
 
 local function _on_first_update()
-    if cfg.hud_enabled then _start() end
+    if cfg.hud_position ~= "off" then _start() end
 end
 
 local function _on_actor_net_destroy()

@@ -52,8 +52,8 @@
   <string id="ui_mcm_menu_behaviors">
     <text>Behaviors</text>
   </string>
-  <string id="ui_mcm_menu_enhancements">
-    <text>Enhancements</text>
+  <string id="ui_mcm_menu_commitment">
+    <text>Commitment</text>
   </string>
   <string id="ui_mcm_menu_reaction">
     <text>Reaction</text>
@@ -350,17 +350,14 @@
   <string id="ui_mcm_at_hdr_hud">
     <text>Debug HUD</text>
   </string>
-  <string id="ui_mcm_at_development_hud_enabled">
-    <text>Enable Debug HUD</text>
-  </string>
-  <string id="ui_mcm_at_development_hud_enabled_desc">
-    <text>Show a live overlay of every nearby NPC: name, active logic scheme, current combat action and state, and the enemy it targets with distance (flagged "(no sight)" when it has no line of sight to the target, "(turned away)" when its body is turned from it). An [AT] prefix marks an NPC AlifeTactics is currently driving. Refreshes every second while visible, hides while the PDA is open. Default: off.</text>
-  </string>
   <string id="ui_mcm_at_development_hud_position">
-    <text>HUD position</text>
+    <text>Position</text>
   </string>
   <string id="ui_mcm_at_development_hud_position_desc">
-    <text>Screen corner where the HUD anchors. Center positions are vertically centered to the current panel height. Default: Center Right.</text>
+    <text>Live overlay of nearby NPCs: name, logic scheme, combat action and state, and the target with distance and sight flags. A green row marks an NPC AlifeTactics is driving. Refreshes every second, hides while the PDA is open. Pick a corner to show it, off to hide it. Default: off.</text>
+  </string>
+  <string id="at_development_hud_position_lst_off">
+    <text>Off</text>
   </string>
   <string id="at_development_hud_position_lst_topleft">
     <text>Top Left</text>

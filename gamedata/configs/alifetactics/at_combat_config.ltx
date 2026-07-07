@@ -2,9 +2,10 @@
 ; All keys have script-side fallback defaults, so a missing key or file won't crash.
 
 [at_combat]
-; Monitor (npc_on_update, throttled) - the always-on decision tick per installed stalker
-monitor_period_ms = 500    ; min interval between monitor decisions (gate down: deciding whether to take over)
-watch_period_ms   = 200    ; min interval while a maneuver runs (gate up: watching for arrival / the time cap)
+; The scan (npc_on_update) - each check self-throttles on its own period
+begin_period_ms  = 500     ; begin_maneuver check: no maneuver open, look for a trigger and stage a row
+update_period_ms = 200     ; update_maneuver check: re-run the row's update (fire re-check / holster re-assert)
+end_period_ms    = 200     ; end_maneuver check: watch for arrival / the time cap, hand back
 hit_fight_ms      = 5000    ; a recent hit counts as "fighting" this long (far-shooter entry, best_enemy still nil)
 reseize_cooldown_ms = 5000  ; after a maneuver commits, hold off a fresh takeover of the same NPC this long (0 = off); also the flee disengage settle window
 
@@ -15,10 +16,11 @@ stall_ms      = 4000       ; held position with the enemy not closing this long 
 stall_move_m  = 2          ; movement under this counts as "held position"
 stall_close_m = 2          ; enemy gaining more than this much ground resets the stall timer
 
-; Maneuvers (Phase 1: kite - the committed back-step on too_close)
-kite_back_m    = 6        ; metres to back-step away from the enemy when it violates weapon min range
+; Maneuvers (kite backs off to the NPC's own weapon min range - no key, WEAPON_RANGES is the source)
 kite_arc_deg    = 45       ; back-lane fan step: try straight-back, then +-45, then +-90 for a clear lane
 kite_spread_deg = 90       ; max fan to either side when the straight-back lane is blocked by a wall or obstacle
+retreat_rear_m  = 4        ; retreat centers its cover search this far behind the NPC; the winning spot must be farther from the enemy than he stands
+under_fire_ms   = 2000     ; flee declines while a hit landed or a shot from that enemy was perceived within this window (the rout fires in the lull)
 maneuver_max_ms = 8000     ; stuck cap - a committed maneuver hands back after this even if it never arrives
 snipe_hold_ms   = 8000     ; snipe is a precision-fire hold (ends_on=time); it hands back to vanilla after this
 flee_max_ms     = 15000    ; flee is a rout (ends_on=arrival); a rout to a far base needs a longer cap than a maneuver
