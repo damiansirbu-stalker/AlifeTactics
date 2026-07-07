@@ -72,7 +72,7 @@ The squad can still find you the honest way, by sound, by sight, or by the body.
 Danger:
 Stalkers read danger the way the engine always meant them to.
 AlifeTactics reworks Anomaly's danger scheme as a runtime patch, laid onto whichever danger script a modpack ships instead of replacing the file.
-A set of always-on fixes clears long-standing crashes and misreads in the danger check.
+A set of always-on fixes clears long-standing crashes and misreads across the danger check and the corpse investigation.
 The paired config scales detection with weather, so stalkers see less in a storm, and gives player encounters their own tables.
 Three of the improvements are optional: a direct hit answers at any range, nearby gunfire draws a response, and actor-sourced danger reads the separate tables.
 

@@ -45,6 +45,13 @@
 	6. Danger-state transitions reset the lower-body animation tier too, not just the upper.
 	7. Danger finalize releases only this NPC's own level-vertex reservations instead of
 	   wiping the shared db.used_level_vertex_ids map.
+	8. The corpse action guards the teardown race: a corpse that despawns between the
+	   evaluator pass and the action execute no longer crashes on a nil danger object or
+	   a nil storage entry in the stage-6 look_position.
+	9. The corpse force-hostile loop no longer overwrites the acting NPC variable, so
+	   later corpse stages drive the right NPC.
+	10. Corpse stage 6 moves the NPC to the cover vertex it found instead of the cleared
+	   st.lvid (the found cover was never used).
 
 	Extension callback
 	------------------
@@ -63,7 +70,7 @@
 local _evaid = 188113
 local _actid = 188113
 --------------------
-local alife, math_random, tonumber = alife, math.random, tonumber
+local math_random, tonumber = math.random, tonumber
 local time_global = time_global
 local IsStalker, IsMonster, IsWounded = IsStalker, IsMonster, IsWounded
 local character_community = character_community
@@ -544,6 +551,7 @@ local function script_action_danger_corpse(npc,st,bd,best_danger_object,dependen
 	--utils_data.debug_write("script_action_danger_corpse")
 	-- In this case corpse is best_danger_object; dependent_object should be killer or it's probably nil
 	local bdo = best_danger_object or dependent_object
+	if not bdo then return end
 
 	local dst = db.storage[bdo:id()]
 	local killer = dependent_object or dst and dst.death_by_id and (db.storage[dst.death_by_id] and db.storage[dst.death_by_id].object or level.object_by_id(dst.death_by_id))
@@ -553,9 +561,9 @@ local function script_action_danger_corpse(npc,st,bd,best_danger_object,dependen
 		local squad = get_object_squad(npc)
 		if (squad) then
 			for k in squad:squad_members() do
-				npc = db.storage[k.id] and db.storage[k.id].object or level.object_by_id(k.id)
-				if(npc) then
-					npc:force_set_goodwill( -1000, killer)
+				local member = db.storage[k.id] and db.storage[k.id].object or level.object_by_id(k.id)
+				if (member) then
+					member:force_set_goodwill( -1000, killer)
 				end
 			end
 		else
@@ -649,8 +657,8 @@ local function script_action_danger_corpse(npc,st,bd,best_danger_object,dependen
 	elseif (st.stage == 6) then
 		local new_vid = utils_obj.try_go_cover(npc,dst and dst.killer_last_known_position or bdo and bdo:position() or npc:position())
 		if (new_vid) then
-			st.lvid = utils_obj.send_to_nearest_accessible_vertex(npc,st.lvid)
-			state_mgr.set_state(npc,"hide_na",nil,nil,{look_position = dst and dst.killer_last_known_position or dst.object and dst.object:position()},{fast_set = true})
+			st.lvid = utils_obj.send_to_nearest_accessible_vertex(npc,new_vid)
+			state_mgr.set_state(npc,"hide_na",nil,nil,{look_position = dst and (dst.killer_last_known_position or (dst.object and dst.object:position()))},{fast_set = true})
 		end
 	end
 end
@@ -1050,6 +1058,7 @@ local function _install_patches()
 	_patched = true
 	-- xr_danger here is the winning MO2 file (vanilla, GAMMA AI Rework, or REDONE).
 	-- Referencing it auto-loads that module first, so its table exists before we patch.
+	_actid = xr_danger.actid or _actid
 	xr_danger.setup_generic_scheme = setup_generic_scheme
 	xr_danger.add_to_binder        = add_to_binder
 	xr_danger.configure_actions    = configure_actions

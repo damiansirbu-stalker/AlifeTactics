@@ -13,6 +13,7 @@ next
     - Danger: an xr_danger rework, always-on bug fixes plus 3 toggleable improvements.
       Hits, ricochets, and gunshots read separate config rows, with weather-scaled detection range.
       Sniped or shot-at NPCs react at any range, even to gunfire vanilla left unanswered.
+      Corpse investigation survives despawned corpses, drives the right stalker, takes its cover.
     - Disclosure: a new survivor gate, default on.
       An outright kill no longer discloses the shooter, so stealth kills stay quiet.
 

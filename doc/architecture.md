@@ -351,6 +351,9 @@ AT does not register the hear or death callbacks. It relies on the winning file'
 5. The vanilla hit callback passed an undefined `who_id` and wrote a nil shooter id into `script_danger` on every hit. AT does not register it, and the patched `set_script_danger` rejects a nil `who_id` (`at_danger.script:99-102`), so the winning file's own copy of that callback cannot corrupt the entry either.
 6. Animstate reset missing on danger-state transitions: vanilla `state_mgr.set_state` calls did not invoke `sm.animstate:set_state(nil, true) + set_control()`, leaving stale lower-body animation visible across the transition. AT calls the reset at every state-change site (`at_danger.script:417-419, 487-489, 524-526, 741-773`).
 7. `at_action_danger:finalize` wiped the whole shared `db.used_level_vertex_ids` reservation map in vanilla, clobbering every other system's cover claims (the Combat takeover's, vanilla's). AT releases only the vertices this NPC owns (`at_danger.script:837-845`).
+8. The corpse action crashed on the teardown race: a corpse despawning between the evaluator pass and the action execute left a nil danger object (`bdo:id()`) or a nil storage entry in the stage-6 look_position. Both paths are guarded.
+9. The corpse force-hostile loop reused the acting NPC variable for squad members, so later corpse stages drove the last member (or nil) instead of the acting NPC. The loop uses its own local.
+10. Corpse stage 6 sent the NPC to the just-cleared `st.lvid` instead of the cover vertex `try_go_cover` found, so the found cover was never used.
 
 ### Extension callback
 
