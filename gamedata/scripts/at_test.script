@@ -263,13 +263,7 @@ end
 -- matching its weapon plus a veteran rank, so it fires AP. Spawn hostile factions
 -- (at_spawn_mixed / at_spawn_*), run at_arm_ap, let them fight, and watch
 -- alifetactics.log for the [AP] engage / disengage lines (log level DEBUG).
-local AP_SECTIONS = {
-    ["ammo_5.45x39_ap"]   = true, ["ammo_5.56x45_ap"] = true, ["ammo_7.62x39_ap"]   = true,
-    ["ammo_7.62x51_ap"]   = true, ["ammo_7.62x54_ap"] = true, ["ammo_7.62x54_7h14"] = true,
-    ["ammo_7.92x33_ap"]   = true, ["ammo_9x18_ap"]    = true, ["ammo_9x19_ap"]      = true,
-    ["ammo_9x19_pbp"]     = true, ["ammo_9x39_ap"]    = true, ["ammo_9x39_pab9"]    = true,
-    ["ammo_12.7x55_ap"]   = true, ["ammo_12x76_dart"] = true,
-}
+-- The AP section set is at_ammo.AP_SECTIONS - one set, arming and firing agree.
 
 -- Test arming: veteran rank so AP fires, 3 boxes of 15 rounds each, within 120m.
 local AP_RANK    = 14000
@@ -282,7 +276,7 @@ local function _ap_for_weapon(wpn_sec)
     local ammo_class = parse_list(ini_sys, wpn_sec, "ammo_class")
     if not ammo_class then return nil end
     for i = 1, #ammo_class do
-        if AP_SECTIONS[ammo_class[i]] then return ammo_class[i] end
+        if at_ammo.AP_SECTIONS[ammo_class[i]] then return ammo_class[i] end
     end
     return nil
 end

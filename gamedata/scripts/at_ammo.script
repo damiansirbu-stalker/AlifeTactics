@@ -35,10 +35,12 @@ local TICK_MS = 5000
 local LTX_PATH = "alifetactics\\at_ammo.ltx"
 local LTX_SECTION = "at_ammo"
 
--- Clean armor-piercing cartridge sections enumerated from vanilla Anomaly
--- configs/items/weapons ammo_class scans. Degraded _bad / _verybad variants are
--- excluded by design. Add new calibers here as modpacks introduce them.
-local AP_SECTIONS = {
+--- Clean armor-piercing cartridge sections enumerated from vanilla Anomaly
+--- configs/items/weapons ammo_class scans. Degraded _bad / _verybad variants are
+--- excluded by design. Add new calibers here as modpacks introduce them.
+--- Exported: the single AP section set. at_test consumes it for its AP arming
+--- helper, so a modpack caliber added here reaches both.
+AP_SECTIONS = {
     ["ammo_5.45x39_ap"]   = true,
     ["ammo_5.56x45_ap"]   = true,
     ["ammo_7.62x39_ap"]   = true,
