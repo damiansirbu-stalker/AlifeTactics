@@ -316,6 +316,12 @@ A later squad phase, not yet built: the base-of-fire and maneuver-element maneuv
 
 The graft adds one evaluator and one action per stalker and `world_property(EVAL_ID, false)` as a precondition on each entry of `xcombat.get_blocked_planners()`. While the per-NPC gate flag is true the vanilla combat/danger/alife chain is gated off and the grafted action is the only producer of the `EVAL_ID=false` the brain now requires, so it runs; clear the flag and vanilla resumes. The graft mechanism is encapsulated in `xcombat.install_takeover(npc, spec)` / `release_takeover(npc)`, where the spec is `{ gate, on_begin }` — the gate flag the evaluator polls and the one-time maneuver start the action's `initialize` calls; AT owns the spec, xcombat owns the GOAP classes.
 
+### Layer arbitration
+
+Vanilla orders its own schemes against each other with explicit cross-preconditions in `configure_actions`; AT's Combat layers need the same rule, stated before the Behaviors leaf gets its first action. The rule: **maneuvers outrank behaviors.** `xcombat.get_blocked_planners()` lists vanilla planner ids only, so a future Behaviors-leaf injected action would not be blocked while a maneuver holds the NPC — the solver could route through the behavior instead of the takeover action. Enforcement is one condition per layer: a Behaviors action's evaluator returns false while the takeover gate is up (`at_combat.get_maneuver(id)` non-nil). The rule binds now; the enforcement code is built with the first Behaviors graft.
+
+A structural fact that falls out of the same block: Maneuvers and Commitment are mutually exclusive per NPC per moment by construction. The n023 action-switch veto (`npc_on_combat_action_switch`) fires only when the combat planner proposes swapping actions, and a blocked planner never switches — so the veto never fires for a seized NPC. Consequence: Commitment cannot police takeover quality; a takeover's fire discipline belongs at the maneuver's own decision points (`apply_state`), never at the veto seam.
+
 ### xcombat boundary
 
 AT owns what to do; xcombat (xlibs) owns how to issue it to the engine. Every NPC command and read — weapon state, aim, movement, cover and clear-shot search, the line-of-fire and memory reads, arrival, the cover reservation, the enemy-state reads — goes through an xcombat primitive; AT makes no raw engine combat call. New primitives for this rebuild: `install_takeover`/`release_takeover`, `is_arrived`, `is_reloading`, `is_bleeding`, `is_moving`, and suppressive fire via `set_combat`; the rest is reuse.
