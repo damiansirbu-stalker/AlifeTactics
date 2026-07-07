@@ -363,7 +363,7 @@ AT does not register the hear or death callbacks. It relies on the winning file'
 
 ### Extension callback
 
-`eval_danger` fires `npc_on_eval_danger` (`at_danger.script:265-267`) with `flags.ret_value = true` before it evaluates; a subscriber that sets `flags.ret_value = false` suppresses danger for that NPC on that tick. AT adds this seam so another system can veto danger evaluation.
+`eval_danger` fires `npc_on_eval_danger` (`at_danger.script:265-267`) with `flags.ret_value = true` before it evaluates; a subscriber that sets `flags.ret_value = false` suppresses danger for that NPC on that tick. AT preserves this vanilla seam — `axr_main.script:125` declares it and vanilla `xr_danger.script:268` fires it from the same evaluator — so third-party subscribers keep working when AT's patch replaces `eval_danger`.
 
 ### Improvements (MCM Effectiveness > Danger, default on)
 
