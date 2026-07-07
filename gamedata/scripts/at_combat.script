@@ -113,8 +113,15 @@ end
 
 -- One spec drives every AT NPC: gate = the per-NPC flag the grafted evaluator polls; on_begin = _begin_maneuver,
 -- called once when the grafted action activates. Per-NPC state lives in _states, keyed by id.
+-- The gate reads cfg.combat_enabled FIRST: the graft installs for every stalker even when the feature is off,
+-- and the engine re-evaluates the grafted evaluator every plan solve (problem_solver actual()), so with the
+-- feature disabled the whole crossing is one Lua boolean read - the npc:id() luabind never runs.
 local SPEC = {
-    gate = function(npc) local state = _states[npc:id()] return state ~= nil and state.gate == true end,
+    gate = function(npc)
+        if not cfg.combat_enabled then return false end
+        local state = _states[npc:id()]
+        return state ~= nil and state.gate == true
+    end,
     on_begin = _begin_maneuver,
 }
 
@@ -278,6 +285,9 @@ end
 local function _on_entity_unregister(se_obj)
     if not se_obj then return end
     local id = se_obj.id
+    -- Clear xcombat's install guard too: an id unregistered WITHOUT a prior net_destroy would leave a stale
+    -- guard there and the recycled id would silently skip its next graft.
+    xcombat.release_takeover_id(id)
     _release_cover(_states[id])
     _installed[id] = nil
     _states[id] = nil
