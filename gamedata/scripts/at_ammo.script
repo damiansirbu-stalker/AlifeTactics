@@ -4,9 +4,13 @@
 ---
 --- Engine model: NPCs fire copies of m_DefaultCartridge keyed from
 --- m_ammoTypes[m_ammoType] (WeaponMagazined.cpp:559-571); while unlimited_ammo()
---- is TRUE (the stalker default, ai_stalker.cpp:78,1585) the refill never
---- consumes inventory and the reload never re-derives m_ammoType, so
---- set_ammo_type(idx) re-keys what is fired and holds for the online session.
+--- is TRUE (g_ai_unlimited_ammo cvar && infinite_ammo && alive,
+--- ai_stalker.cpp:78,1592-1594 - the cvar defaults to 1, the stalker default)
+--- the refill never consumes inventory and the reload never re-derives
+--- m_ammoType, so set_ammo_type(idx) re-keys what is fired and holds for the
+--- online session. At g_ai_unlimited_ammo 0 the engine consumes real inventory
+--- rounds, and deleting whole boxes on top of that would double-consume, so
+--- this module probes the cvar at tick time and goes inert while it is 0.
 --- get_ammo_count_for_type sums loose belt+ruck boxes (Weapon.cpp:1727), so the
 --- AP an NPC carries comes from AlifePlus trade/loot -- vanilla gives NPCs zero
 --- loose ammo (xrs_rnd_npc_loadout.script:215, ammo-give block commented out).
@@ -84,6 +88,23 @@ local _rpm_cache = {}
 local _enabled = true
 local _dbg = false
 local log = xlog.get_logger("AT.AMMO", { outfile = "alifetactics.log" })
+
+-- nil = unprobed; false = the exe ships no g_ai_unlimited_ammo (the magic refill is unconditionally
+-- on); true = the cvar exists (read live per tick - a console toggle mid-session must be honored).
+-- Probe via get_console():get_string, the one getter that signals absence without an error path
+-- (XR_IOConsole_get.cpp:76-85, the xcombat _fire_cvars precedent).
+local _unlimited_cvar = nil
+
+-- True while the engine's stalker infinite-ammo path is on (g_ai_unlimited_ammo ~= 0, default 1,
+-- ai_stalker.cpp:78,1592-1594). At 0 the engine consumes real inventory rounds and the whole-box
+-- decay would double-consume, so pick() goes inert. An absent cvar means the path is always on.
+local function _engine_unlimited_ammo()
+    if _unlimited_cvar == nil then
+        _unlimited_cvar = get_console():get_string("g_ai_unlimited_ammo") ~= nil
+    end
+    if not _unlimited_cvar then return true end
+    return get_console():get_integer("g_ai_unlimited_ammo") ~= 0
+end
 
 -- Weapon ammo_class list, cached per weapon section (LTX-fixed).
 local function _get_ammo_class(wpn_sec)
@@ -172,6 +193,7 @@ end
 --- Run one tick of the ammo state machine on `npc`. Public so test helpers drive it.
 function pick(npc, now)
     if not _enabled then return end
+    if not _engine_unlimited_ammo() then return end
     if not (npc and npc:alive() and IsStalker(npc)) then return end
     if npc:character_rank() < MIN_AP_RANK then return end
     local wpn = npc:active_item()

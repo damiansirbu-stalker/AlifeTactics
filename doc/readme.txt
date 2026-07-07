@@ -159,6 +159,8 @@ Coexists:
 - No More Companion Friendly Fire: a different axis (actor-companion damage). AlifeTactics never touches your shots.
 - Tougher Important NPCs and Companions: damage reduction through npc_on_before_hit, composes.
 - Dynamic AI Aim Settings, Worse NPC Vision and Accuracy: perception tweaks that compose with the dispersion fix.
+- g_ai_unlimited_ammo set to 0 (a console cvar on newer engine builds makes NPCs consume real inventory rounds):
+  the Ammo system detects the setting and goes inert, so carried AP is not drained twice. At 1 (the default) Ammo runs normally.
 
 FAQ:
 Do I need modded exes?

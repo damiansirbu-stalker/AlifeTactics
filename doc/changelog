@@ -29,6 +29,7 @@ next
   Compatibility
     - AOEngine v0.55+ support.
     - The Danger rework is a runtime patch, so it coexists with GAMMA AI Rework and REDONE.
+    - Ammo goes inert while the engine cvar g_ai_unlimited_ammo is 0, so NPC ammo is not drained twice.
 
 1.0.0
   Summary: First release, hit sharing, NPC self-healing fix, per-rank accuracy, long-range rifle crouch
