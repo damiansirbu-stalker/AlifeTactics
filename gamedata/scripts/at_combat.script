@@ -63,6 +63,15 @@ end
 -- grafted action's initialize and calls _begin_maneuver (the first engine write); _update_maneuver re-runs the
 -- row's update while it runs; _try_end_maneuver calls _end_maneuver on arrival or the cap.
 
+-- Release the reserved cover vertex. Every state-dropping path calls this (_end_maneuver AND the
+-- death/despawn handlers): nothing else ever cleans a dead NPC's claim in db.used_level_vertex_ids.
+local function _release_cover(state)
+    if state and state.cover_lvid then
+        xcombat.release_cover(state.cover_lvid, state.id)
+        state.cover_lvid = nil
+    end
+end
+
 -- End the maneuver: lower the gate, clear the row, keep end_at for the reseize cooldown. Releases any cover the
 -- resolver reserved, on EVERY exit (arrived, cap, never-begun) so a gate that raised but never ran a maneuver
 -- does not leak the reservation in db.used_level_vertex_ids (t136).
@@ -75,10 +84,7 @@ local function _end_maneuver(state, tg, reason)
     state.maneuver_at = nil
     state.begin_at = nil
     state.end_at = tg
-    if state.cover_lvid then
-        xcombat.release_cover(state.cover_lvid, state.id)
-        state.cover_lvid = nil
-    end
+    _release_cover(state)
 end
 
 -- Begin the maneuver - the first engine write, at the grafted action's initialize (the engine granted control
@@ -264,6 +270,7 @@ local function _on_net_destroy(npc)
     if not npc then return end
     local id = npc:id()
     xcombat.release_takeover(npc)
+    _release_cover(_states[id])
     _installed[id] = nil
     _states[id] = nil
 end
@@ -271,6 +278,7 @@ end
 local function _on_entity_unregister(se_obj)
     if not se_obj then return end
     local id = se_obj.id
+    _release_cover(_states[id])
     _installed[id] = nil
     _states[id] = nil
     if _dbg then trace.forget(id) end
