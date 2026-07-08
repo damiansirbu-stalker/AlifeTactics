@@ -1,4 +1,6 @@
---- at_disclosure: Force-disclose shooter to whole squad on first faction-enemy hit
+--- at_disclosure: Force-disclose shooter on first faction-enemy hit - to the whole squad, or to the
+--- victim himself when squadless (a solo victim otherwise got nothing; the self-disclosure re-enables
+--- memory a combat-ignore may have suppressed and registers him in combat).
 
 local pairs, tostring, tonumber, RegisterScriptCallback, IsStalker, alife_object = pairs, tostring, tonumber, RegisterScriptCallback, IsStalker, alife_object
 -- CreateTimeEvent / ResetTimeEvent / RemoveTimeEvent not cached: demonized_time_events
@@ -107,43 +109,49 @@ local function _decay_tick()
     end
 end
 
+-- Disclose to the key's audience: a squad key reaches every member; a solo key (the victim's own id,
+-- used when the victim has no squad) reaches the victim alone. Returns the member count reached.
+local function _disclose_key(key_id, who, victim)
+    local squad = alife_object(key_id)
+    if squad and squad.squad_members then return _disclose(squad, who) end
+    return (victim and _disclose_to_member(victim, who)) and 1 or 0
+end
+
 -- Survivor gate: one-frame deferred resolver. Re-reads victim alive state; if the hit
 -- killed the victim, drops the disclosure. Registration moves into the resolver so
 -- a suppressed kill does NOT block a later real disclosure from the same shooter.
-local function _resolve_pending(squad_id, who_id, victim_id, gate_ms, total_ms)
+local function _resolve_pending(key_id, who_id, victim_id, gate_ms, total_ms)
     local victim = level.object_by_id(victim_id)
     if not victim or not victim:alive() then
         if _dbg then
-            log.debug("[HIT] suppressed reason=victim_died squad=%d shooter=%d victim=%d [gate=%.2fms total=%.2fms]",
-                squad_id, who_id, victim_id, gate_ms, total_ms)
+            log.debug("[HIT] suppressed reason=victim_died key=%d shooter=%d victim=%d [gate=%.2fms total=%.2fms]",
+                key_id, who_id, victim_id, gate_ms, total_ms)
         end
         return
     end
 
-    if not _disclosed[squad_id] then _disclosed[squad_id] = {} end
-    local first_hit = _disclosed[squad_id][who_id] == nil
-    _disclosed[squad_id][who_id] = xtime.game_sec()
+    if not _disclosed[key_id] then _disclosed[key_id] = {} end
+    local first_hit = _disclosed[key_id][who_id] == nil
+    _disclosed[key_id][who_id] = xtime.game_sec()
 
     if not first_hit then
         if _dbg then
-            log.debug("[HIT] squad=%d shooter=%d (refreshed deferred) [gate=%.2fms total=%.2fms]",
-                squad_id, who_id, gate_ms, total_ms)
+            log.debug("[HIT] key=%d shooter=%d (refreshed deferred) [gate=%.2fms total=%.2fms]",
+                key_id, who_id, gate_ms, total_ms)
         end
         return
     end
 
-    local squad = alife_object(squad_id)
-    if not squad or not squad.squad_members then return end
     local who = level.object_by_id(who_id)
     if not who then return end
 
     local tmr_disclose = xprofiler.new_if(_dbg):start()
-    local disclosed_to = _disclose(squad, who)
+    local disclosed_to = _disclose_key(key_id, who, victim)
     tmr_disclose:stop()
 
     if _dbg then
         _log_disclosure({
-            squad_id = squad_id, who_id = who_id, disclosed_to = disclosed_to,
+            squad_id = key_id, who_id = who_id, disclosed_to = disclosed_to,
             who = who, victim = victim,
             gate_ms = gate_ms, disclose_ms = tmr_disclose:get_ms(),
             total_ms = total_ms + tmr_disclose:get_ms(),
@@ -172,18 +180,12 @@ local function _on_hit(npc, amount, _local_direction, who, bone_index)
         return
     end
 
-    local squad = get_object_squad(npc)
-    if not squad then
-        tmr_total:stop()
-        if _dbg then
-            log.debug("[HIT] rejected reason=no_squad [total=%.2fms]", tmr_total:get_ms())
-        end
-        return
-    end
-
-    local squad_id = squad.id
-    local who_id   = who:id()
-    local gate_ms  = tmr_gate:get_ms()
+    -- The idempotency/retention key: the squad id, or the victim's own id when squadless (a solo
+    -- victim discloses to himself - squad and NPC server ids share one id space, so no collision).
+    local squad  = get_object_squad(npc)
+    local key_id = squad and squad.id or npc:id()
+    local who_id = who:id()
+    local gate_ms = tmr_gate:get_ms()
 
     if cfg.disclosure_survivor_gate then
         tmr_total:stop()
@@ -192,34 +194,34 @@ local function _on_hit(npc, amount, _local_direction, who, bone_index)
         local total_ms = tmr_total:get_ms()
         local seq = _pending_seq
         CreateTimeEvent(TIMER_EV, "pending_" .. seq, 0, function()
-            _resolve_pending(squad_id, who_id, victim_id, gate_ms, total_ms)
+            _resolve_pending(key_id, who_id, victim_id, gate_ms, total_ms)
             return true
         end)
         return
     end
 
     local now = xtime.game_sec()
-    if not _disclosed[squad_id] then _disclosed[squad_id] = {} end
-    local first_hit = _disclosed[squad_id][who_id] == nil
-    _disclosed[squad_id][who_id] = now
+    if not _disclosed[key_id] then _disclosed[key_id] = {} end
+    local first_hit = _disclosed[key_id][who_id] == nil
+    _disclosed[key_id][who_id] = now
 
     if not first_hit then
         tmr_total:stop()
         if _dbg then
-            log.debug("[HIT] squad=%d shooter=%d (refreshed) [gate=%.2fms total=%.2fms]",
-                squad_id, who_id, gate_ms, tmr_total:get_ms())
+            log.debug("[HIT] key=%d shooter=%d (refreshed) [gate=%.2fms total=%.2fms]",
+                key_id, who_id, gate_ms, tmr_total:get_ms())
         end
         return
     end
 
     local tmr_disclose = xprofiler.new_if(_dbg):start()
-    local disclosed_to = _disclose(squad, who)
+    local disclosed_to = _disclose_key(key_id, who, npc)
     tmr_disclose:stop()
     tmr_total:stop()
 
     if _dbg then
         _log_disclosure({
-            squad_id = squad_id, who_id = who_id, disclosed_to = disclosed_to,
+            squad_id = key_id, who_id = who_id, disclosed_to = disclosed_to,
             who = who, victim = npc,
             gate_ms = gate_ms, disclose_ms = tmr_disclose:get_ms(),
             total_ms = tmr_total:get_ms(),

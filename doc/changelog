@@ -16,6 +16,7 @@ next
       Corpse investigation survives despawned corpses, drives the right stalker, takes its cover.
     - Disclosure: a new survivor gate, default on.
       An outright kill no longer discloses the shooter, so stealth kills stay quiet.
+    - Fixed lone NPCs never being alerted to their shooter (disclosure was squad-only).
 
   Mechanics
     - Ammo: NPC armor-piercing ammo drawn from the boxes NPCs carry, default on.
