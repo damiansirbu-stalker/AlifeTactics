@@ -27,7 +27,7 @@
   <string id="ui_mcm_menu_accuracy">
     <text>Accuracy</text>
   </string>
-  <string id="ui_mcm_menu_hit_share">
+  <string id="ui_mcm_menu_disclosure">
     <text>Disclosure</text>
   </string>
   <string id="ui_mcm_menu_danger">
@@ -36,7 +36,7 @@
   <string id="ui_mcm_menu_crossfire">
     <text>Crossfire</text>
   </string>
-  <string id="ui_mcm_menu_health">
+  <string id="ui_mcm_menu_healing">
     <text>Healing</text>
   </string>
   <string id="ui_mcm_menu_jam">
@@ -79,101 +79,101 @@
     <text>AlifeTactics</text>
   </string>
   <!-- ==================== HIT SHARING TAB ==================== -->
-  <string id="ui_mcm_at_hit_share_desc">
+  <string id="ui_mcm_at_disclosure_desc">
     <text>A hit on any squad member alerts every squadmate to the shooter on the first hit. Earshot, line of sight, and suppressor use do not block the alert. Vanilla relies on each squadmate hearing the shot, which is unreliable at best and useless against suppressors or long-range fire.</text>
   </string>
-  <string id="ui_mcm_at_hit_share_hit_share_enabled">
+  <string id="ui_mcm_at_disclosure_disclosure_enabled">
     <text>Enable Hit Sharing</text>
   </string>
-  <string id="ui_mcm_at_hit_share_hit_share_enabled_desc">
+  <string id="ui_mcm_at_disclosure_disclosure_enabled_desc">
     <text>Master toggle. When off, the hit handler skips entirely: no squad disclosure, no per-shooter hostility pin, no combat-mask flip. Vanilla engine behavior runs unmodified (audio-range squadmates still propagate hit memory through the engine's own pipeline; distant patrol members do not). Default: on.</text>
   </string>
-  <string id="ui_mcm_at_hit_share_hdr_survivor">
+  <string id="ui_mcm_at_disclosure_hdr_survivor">
     <text>Stealth</text>
   </string>
-  <string id="ui_mcm_at_hit_share_hit_share_survivor_gate">
+  <string id="ui_mcm_at_disclosure_disclosure_survivor_gate">
     <text>Suppress disclosure on kill</text>
   </string>
-  <string id="ui_mcm_at_hit_share_hit_share_survivor_gate_desc">
+  <string id="ui_mcm_at_disclosure_disclosure_survivor_gate_desc">
     <text>When the hit kills the victim, do not propagate the shooter to the squad. The dying victim never gets to radio it in. Squadmates still learn through the normal vanilla paths (engine sound propagation, corpse discovery via xr_motivator death_by_id writeback, line of sight). When the hit only wounds the victim, disclosure fires as today. Frame-deferred check costs ~16-33ms which is imperceptible. Default: on.</text>
   </string>
   <string id="ui_mcm_at_hdr_retention">
     <text>Retention</text>
   </string>
-  <string id="ui_mcm_at_hit_share_hit_share_retention_min">
+  <string id="ui_mcm_at_disclosure_disclosure_retention_min">
     <text>Forget shooter after (game min)</text>
   </string>
-  <string id="ui_mcm_at_hit_share_hit_share_retention_min_desc">
+  <string id="ui_mcm_at_disclosure_disclosure_retention_min_desc">
     <text>Game minutes without new hits before the squad's pin on a given shooter expires. The next hit re-fires the full-squad alert. Game time, not real time. Default: 2.</text>
   </string>
   <!-- ==================== HEALING TAB ==================== -->
-  <string id="ui_mcm_at_health_desc">
+  <string id="ui_mcm_at_healing_desc">
     <text>Per-stalker healing behaviors. Medkit and bandage item lists restored at boot via DLTX overlay on ai_tweaks/xr_eat_medkit.ltx (vanilla ships them empty, so stalkers carrying kits never use them). Sections below tune the runtime layer.</text>
   </string>
-  <string id="ui_mcm_at_health_healing_enabled">
+  <string id="ui_mcm_at_healing_healing_enabled">
     <text>Enable Healing</text>
   </string>
-  <string id="ui_mcm_at_health_healing_enabled_desc">
+  <string id="ui_mcm_at_healing_healing_enabled_desc">
     <text>Master toggle for the runtime healing layer: heal-rate scaling and per-rank healing-charge override. When off, vanilla self-heal behavior runs unmodified. Restart required to toggle. The medkit and bandage item-list restoration is a boot-time DLTX overlay and is always active. Default: on.</text>
   </string>
   <!-- Healing - Heal Rate -->
   <string id="ui_mcm_at_hdr_heal_rate">
     <text>Heal Rate</text>
   </string>
-  <string id="ui_mcm_at_health_heal_rate_multiplier">
+  <string id="ui_mcm_at_healing_heal_rate_multiplier">
     <text>Heal rate multiplier</text>
   </string>
-  <string id="ui_mcm_at_health_heal_rate_multiplier_desc">
+  <string id="ui_mcm_at_healing_heal_rate_multiplier_desc">
     <text>Scales the per-tick HP recovery during a self-heal cycle. Vanilla restores 0.05 HP per tick for 13 ticks (0.65 HP total). At 2.0x each tick restores 0.10 HP; at 0.5x each tick restores 0.025 HP. The tick count is fixed by the engine. Default: 1.0.</text>
   </string>
   <!-- Healing - Healing Charge -->
   <string id="ui_mcm_at_hdr_healing_charge">
     <text>Healing Charge (vanilla 50% override)</text>
   </string>
-  <string id="ui_mcm_at_health_charge_chance_novice">
+  <string id="ui_mcm_at_healing_charge_chance_novice">
     <text>Novice charge chance (%)</text>
   </string>
-  <string id="ui_mcm_at_health_charge_chance_novice_desc">
+  <string id="ui_mcm_at_healing_charge_chance_novice_desc">
     <text>Probability that a novice-rank stalker is granted a lifetime healing token at first spawn. The token fires once if the stalker drops below the medkit health threshold without a medkit in inventory. Vanilla rolls 50% for every rank. Default: 50.</text>
   </string>
-  <string id="ui_mcm_at_health_charge_chance_experienced">
+  <string id="ui_mcm_at_healing_charge_chance_experienced">
     <text>Experienced charge chance (%)</text>
   </string>
-  <string id="ui_mcm_at_health_charge_chance_experienced_desc">
+  <string id="ui_mcm_at_healing_charge_chance_experienced_desc">
     <text>Probability for experienced-rank stalkers. Default: 50.</text>
   </string>
-  <string id="ui_mcm_at_health_charge_chance_veteran">
+  <string id="ui_mcm_at_healing_charge_chance_veteran">
     <text>Veteran charge chance (%)</text>
   </string>
-  <string id="ui_mcm_at_health_charge_chance_veteran_desc">
+  <string id="ui_mcm_at_healing_charge_chance_veteran_desc">
     <text>Probability for veteran-rank stalkers. Default: 50.</text>
   </string>
-  <string id="ui_mcm_at_health_charge_chance_master">
+  <string id="ui_mcm_at_healing_charge_chance_master">
     <text>Master charge chance (%)</text>
   </string>
-  <string id="ui_mcm_at_health_charge_chance_master_desc">
+  <string id="ui_mcm_at_healing_charge_chance_master_desc">
     <text>Probability for master-rank stalkers. Default: 50.</text>
   </string>
   <!-- Healing - Visual Layer -->
   <string id="ui_mcm_at_hdr_visuals">
     <text>Visual Layer</text>
   </string>
-  <string id="ui_mcm_at_health_limping_anim_enabled">
+  <string id="ui_mcm_at_healing_limping_anim_enabled">
     <text>Limping animation</text>
   </string>
-  <string id="ui_mcm_at_health_limping_anim_enabled_desc">
+  <string id="ui_mcm_at_healing_limping_anim_enabled_desc">
     <text>Out-of-combat stalkers below the HP threshold visibly limp: an idle torso slump while standing, a damaged walk cycle while moving. Re-armed every 5 seconds per NPC. Combat NPCs are excluded so combat posture is not disrupted. Default: on.</text>
   </string>
-  <string id="ui_mcm_at_health_limping_health_threshold">
+  <string id="ui_mcm_at_healing_limping_health_threshold">
     <text>Limp HP threshold</text>
   </string>
-  <string id="ui_mcm_at_health_limping_health_threshold_desc">
+  <string id="ui_mcm_at_healing_limping_health_threshold_desc">
     <text>HP fraction below which an eligible stalker starts limping. 0.65 means limping kicks in at 65% HP and below. Lower values delay the visual cue until the stalker is more seriously hurt. Default: 0.65.</text>
   </string>
-  <string id="ui_mcm_at_health_healing_anim_enabled">
+  <string id="ui_mcm_at_healing_healing_anim_enabled">
     <text>Healing animation</text>
   </string>
-  <string id="ui_mcm_at_health_healing_anim_enabled_desc">
+  <string id="ui_mcm_at_healing_healing_anim_enabled_desc">
     <text>Plays a medkit-injection or bandage-application torso animation when a stalker starts a heal cycle. The engine clears the animation when it completes. One-shot cue per cycle. Default: on.</text>
   </string>
   <!-- ==================== ACCURACY TAB ==================== -->
@@ -253,19 +253,19 @@
   <string id="ui_mcm_at_combat_combat_ignore_companions_desc">
     <text>When on, AlifeTactics never takes over your companions; their own follow and combat AI and your commands stay in control. Turn off to let it take them over too. Default: on.</text>
   </string>
-  <string id="ui_mcm_at_combat_hdr_friendly_fire">
+  <string id="ui_mcm_at_crossfire_desc">
     <text>Friendly fire</text>
   </string>
-  <string id="ui_mcm_at_combat_friendly_fire_enabled">
+  <string id="ui_mcm_at_crossfire_crossfire_enabled">
     <text>Block same-faction friendly fire</text>
   </string>
-  <string id="ui_mcm_at_combat_friendly_fire_enabled_desc">
+  <string id="ui_mcm_at_crossfire_crossfire_enabled_desc">
     <text>When on, an NPC that hits a teammate of its own faction deals reduced damage set by the slider below. Stops squads from killing their own in crossfire. Does not affect damage you deal. Default: on.</text>
   </string>
-  <string id="ui_mcm_at_combat_friendly_fire_factor">
+  <string id="ui_mcm_at_crossfire_crossfire_factor">
     <text>Same-faction damage multiplier</text>
   </string>
-  <string id="ui_mcm_at_combat_friendly_fire_factor_desc">
+  <string id="ui_mcm_at_crossfire_crossfire_factor_desc">
     <text>How much damage a same-faction hit deals. 0.00 = teammates take no damage from each other. 1.00 = full vanilla damage. Default: 0.00.</text>
   </string>
   <!-- ==================== FIXES TAB (parent) ==================== -->

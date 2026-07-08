@@ -26,6 +26,10 @@ next
     - Healing: limping now matches the NPC's weapon and clears after HP recovers or in combat.
       Healing NPCs no longer freeze in place or ignore enemies that appear mid-gesture.
 
+  MCM
+    - Renamed the Disclosure, Crossfire, and Healing internals to match their page names.
+      Saved settings on those 3 pages reset to defaults on update (the reset warning covers it).
+
   Compatibility
     - AOEngine v0.55+ support.
     - The Danger rework is a runtime patch, so it coexists with GAMMA AI Rework and REDONE.

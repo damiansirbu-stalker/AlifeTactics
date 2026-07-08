@@ -1,4 +1,4 @@
---- at_health: Heal-rate scaling, per-rank healing charge, limp + heal animations
+--- at_healing: Heal-rate scaling, per-rank healing charge, limp + heal animations
 
 local math_random = math.random
 local se_save_var, se_load_var = se_save_var, se_load_var
@@ -49,7 +49,7 @@ local function _safe_load(id, name, key)
     return se_load_var(id, name, key)
 end
 
-local log = xlog.get_logger("AT.HEALTH", { outfile = "alifetactics.log" })
+local log = xlog.get_logger("AT.HEALING", { outfile = "alifetactics.log" })
 local _dbg = false
 local _heal_active = false
 local cfg = at_mcm.cfg
@@ -160,7 +160,7 @@ local function _install_heal_patch()
 end
 
 -- Per-rank charge override of vanilla's flat 50% roll at xr_eat_medkit.script:36-44.
--- Vanilla's bug (re-roll on every save load) is suppressed in zzz_at_health_patch.script.
+-- Vanilla's bug (re-roll on every save load) is suppressed in zzz_at_healing_patch.script.
 local function _on_net_spawn(npc, _se_obj)
     if not _heal_active then return end
     if not npc or not IsStalker(npc) or not npc:alive() then return end

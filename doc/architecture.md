@@ -24,14 +24,15 @@ Version 1.0.0.
 | `at_mcm.script` | infra | done |
 | `at_test.script` | infra | done |
 | `at_hud.script` | infra | done (live debug HUD: nearby NPCs with logic scheme, combat operator, and target; noop unless enabled) |
-| `at_hitresponse.script` | feature | done |
-| `at_health.script` | feature | done |
+| `at_disclosure.script` | feature | done |
+| `at_crossfire.script` | feature | done (friendly-fire damage block, extracted to its own leaf file) |
+| `at_healing.script` | feature | done |
 | `at_accuracy.script` | feature | done |
 | `at_combat.script` | feature | v2 intermittent takeover: solo maneuver set (kite, snipe, retreat, flee) + fire gate + flee disengage, actor-scoped, validates S+, pending playtest; squad coordination and enemy openings are the open phases (see Combat section + todo-combat-takeover-v2.md) |
 | `at_danger.script` | feature | done (danger scheme installed as a function-level patch onto the winning xr_danger; no longer a full-file override) |
 | `at_jam.script` | feature | done (modded-exes xr_weapon_jam.GetConditionMisfireProbability override; suppresses script-injected NPC misfire) |
 | `at_ammo.script` | feature | done (AP fired from carried boxes; per-engagement rank/rpm-weighted box-delete decay reverts to FMJ when out; veteran-rank gate; no death hook) |
-| `zzz_at_health_patch.script` | feature | done (vanilla xr_eat_medkit re-roll suppressor) |
+| `zzz_at_healing_patch.script` | feature | done (vanilla xr_eat_medkit re-roll suppressor) |
 | `configs/ai_tweaks/mod_xr_eat_medkit_at.ltx` | data | done |
 | `configs/ai_tweaks/xr_danger.ltx` | data | done |
 | `configs/alifetactics/at_combat_config.ltx` | data | done (Combat takeover tunables) |
@@ -64,23 +65,26 @@ AlifeTactics/
 │   │   │   └── xr_danger.ltx                  # paired with the danger fn-patch (at_danger)
 │   │   ├── alifetactics/
 │   │   │   ├── at_combat_config.ltx           # Combat numeric tunables
-│   │   │   └── at_ammo.ltx                    # NPC Ammo tunables
+│   │   │   └── at_ammo.ltx                    # Ammo tunables
 │   │   ├── ui/
 │   │   │   └── ui_at_stats.xml                # at_hud HUD layout
-│   │   └── text/eng/ui_st_mcm_at.xml          # English MCM strings
+│   │   └── text/
+│   │       ├── eng/ui_st_mcm_at.xml           # English MCM strings
+│   │       └── rus/ui_st_mcm_at.xml           # Russian MCM strings
 │   ├── scripts/
 │   │   ├── _at_deps.script                    # dependency gate
 │   │   ├── at_mcm.script                      # MCM configuration
-│   │   ├── at_hitresponse.script              # Hit Sharing system
-│   │   ├── at_health.script                   # Healing system
-│   │   ├── at_accuracy.script                 # Accuracy system
-│   │   ├── at_combat.script                   # Combat system (engine half: GOAP takeover, gates, lifecycle)
+│   │   ├── at_combat.script                   # Combat > Maneuvers (engine half: GOAP takeover, gates, lifecycle)
 │   │   ├── at_combat_doctrine.script          # Combat decision half (events, palette, maneuvers, resolvers)
 │   │   ├── at_combat_trace.script             # Combat DEBUG tracing + telemetry (noop when off)
-│   │   ├── at_danger.script                   # danger scheme fn-patch (Danger system)
-│   │   ├── at_jam.script                      # modded-exes xr_weapon_jam override (Weapon Jam system)
-│   │   ├── at_ammo.script                     # NPC ammo simulation (NPC Ammo system)
-│   │   ├── zzz_at_health_patch.script         # vanilla xr_eat_medkit re-roll suppressor
+│   │   ├── at_accuracy.script                 # Effectiveness > Accuracy
+│   │   ├── at_disclosure.script               # Effectiveness > Disclosure (hit-share force-disclosure)
+│   │   ├── at_danger.script                   # Effectiveness > Danger (danger scheme fn-patch)
+│   │   ├── at_crossfire.script                # Effectiveness > Crossfire (friendly-fire damage block)
+│   │   ├── at_healing.script                  # Mechanics > Healing
+│   │   ├── at_jam.script                      # Mechanics > Jamming (modded-exes xr_weapon_jam override)
+│   │   ├── at_ammo.script                     # Mechanics > Ammo (NPC ammo simulation)
+│   │   ├── zzz_at_healing_patch.script        # vanilla xr_eat_medkit re-roll suppressor
 │   │   ├── at_hud.script                      # live debug HUD (nearby NPC logic/combat/target)
 │   │   └── at_test.script                     # console test commands
 │   └── textures/
@@ -95,18 +99,18 @@ Namespace: `at_*` (parallel to `ap_*` for AlifePlus, `ag_*` for AlifeGuard, `x*`
 
 ## User-facing systems
 
-The MCM menu is a five-category gameplay tree plus a Development tab, the canonical structure (source of truth `at_mcm.script`; the page names here are the MCM labels): **Combat** (Maneuvers, Behaviors), **Effectiveness** (Accuracy, Disclosure, Danger, Crossfire, Commitment, Reaction, Range, Resistance), **Mechanics** (Healing, Jamming, Ammo), **Effects** (wip), **Mutants** (wip), and **Development** (log level, debug HUD toggle and position, reset to defaults). Effectiveness > Commitment (the shuffle intervention — its engine keystone n023 is merged, the Lua layer is wip), Behaviors, Effects, Mutants, and the Reaction/Range/Resistance pages are all wip. Each built system has its own file, one MCM page, and one master toggle. Two systems carry an MCM label that differs from the system name: the Disclosure page is the Hit Sharing system, and the Crossfire page is Friendly Fire. The Scope column is the actor-scope rule below, at a glance.
+The MCM menu is a five-category gameplay tree plus a Development tab, the canonical structure (source of truth `at_mcm.script`; the page names here are the MCM labels): **Combat** (Maneuvers, Behaviors), **Effectiveness** (Accuracy, Disclosure, Danger, Crossfire, Commitment, Reaction, Range, Resistance), **Mechanics** (Healing, Jamming, Ammo), **Effects** (wip), **Mutants** (wip), and **Development** (log level, debug HUD toggle and position, reset to defaults). Effectiveness > Commitment (the shuffle intervention — its engine keystone n023 is merged, the Lua layer is wip), Behaviors, Effects, Mutants, and the Reaction/Range/Resistance pages are all wip. One leaf = one name = one `at_<leaf>.script` = one MCM page = one master toggle; the system sections below follow the category order. The Scope column is the actor-scope rule below, at a glance.
 
 | System | File | MCM page | Master toggle | Scope | Composition |
 |---|---|---|---|---|---|
-| Combat (Maneuvers) | `at_combat.script` | Combat > Maneuvers | `combat_enabled` | Actor only | transaction-override |
+| Maneuvers | `at_combat.script` | Combat > Maneuvers | `combat_enabled` | Actor only | transaction-override |
 | Accuracy | `at_accuracy.script` | Effectiveness > Accuracy | `accuracy_enabled` | All NPCs | callback |
-| Hit Sharing | `at_hitresponse.script` | Effectiveness > Disclosure | `hit_share_enabled` | All NPCs | callback |
+| Disclosure | `at_disclosure.script` | Effectiveness > Disclosure | `disclosure_enabled` | All NPCs | callback |
 | Danger | `at_danger.script` | Effectiveness > Danger | bug fixes always-on; three toggleable improvements | All NPCs | scheme-patch |
-| Friendly Fire | `at_hitresponse.script` | Effectiveness > Crossfire | `friendly_fire_enabled` | All NPCs (actor excluded as participant) | callback |
-| Healing | `at_health.script` | Mechanics > Healing | `healing_enabled` | All NPCs | fn-patch |
-| Weapon Jam | `at_jam.script` | Mechanics > Jamming | `jam_enabled` | All NPCs | save-wrap |
-| NPC Ammo | `at_ammo.script` | Mechanics > Ammo | `ammo_enabled` | All NPCs | callback |
+| Crossfire | `at_crossfire.script` | Effectiveness > Crossfire | `crossfire_enabled` | All NPCs (actor excluded as participant) | callback |
+| Healing | `at_healing.script` | Mechanics > Healing | `healing_enabled` | All NPCs | fn-patch |
+| Jamming | `at_jam.script` | Mechanics > Jamming | `jam_enabled` | All NPCs | save-wrap |
+| Ammo | `at_ammo.script` | Mechanics > Ammo | `ammo_enabled` | All NPCs | callback |
 
 Composition classes, what each does to the surrounding stack: `callback` subscribes to an engine callback and adds to it (composes with any other subscriber); `fn-patch` replaces a vanilla module function, rescheduling through the same lookup so it holds; `save-wrap` saves the prior function and forwards to it when disabled (composes with a prior installer); `transaction-override` suppresses whatever brain is installed, but only for the seconds it holds one NPC; `scheme-patch` installs a generic scheme's binder and evaluators onto whichever file won the MO2 slot, at `on_game_start`, so it layers onto a rival override instead of excluding it (Danger is the one such leaf).
 
@@ -114,117 +118,7 @@ Composition classes, what each does to the surrounding stack: `callback` subscri
 
 The Combat takeover is the sole actor-scoped system. It seizes an NPC exactly when that NPC's current enemy is the player, gated by one predicate, `_target_eligible(enemy)` at `at_combat.script:73-74`; in an NPC-vs-NPC fight it never engages. This is a target gate (the NPC's enemy must be the actor), not a participant exclusion.
 
-Every other system runs on all NPCs in any fight, NPC-vs-NPC included. Hit Sharing, Healing, Accuracy, and Danger never read who the enemy is. Friendly Fire, Weapon Jam, and NPC Ammo exclude the player only as a participant (the player's own hits, the player's own weapon); that is the inverse of an actor-only scope, not an instance of it. So widening or keeping the Combat gate changes the takeover alone and touches none of the Effectiveness or Mechanics systems.
-
----
-
-## Hit Sharing
-
-MCM page: Effectiveness > Disclosure. Hooks `npc_on_hit_callback`. When a faction-enemy hits any squad member, the entire squad is force-disclosed to the shooter on hit #1. Extends the engine's audio-range squad disclosure to distant patrol members and suppressed-weapon victims.
-
-### What the engine does natively on hit
-
-1. Hit registered → `CHitMemoryManager::add` creates a hit_memory entry on the victim (`hit_memory_manager.cpp:95-163`).
-2. Friendly-fire filter: returns early if `tfGetRelationType(who) == eRelationTypeFriend` (`hit_memory_manager.cpp:127`).
-3. Victim plays hurt sound → `eStalkerSoundCry` / `eStalkerSoundAlarm`.
-4. Audio-range squadmates hear the sound → their `sound_memory_manager` promotes the source into their hit_memory (`sound_memory_manager.cpp:188`).
-5. `enemy_manager` picks the shooter as a selected enemy → combat planner activates → `register_in_combat()` flips the member's squad_mask bit (`stalker_combat_planner.cpp:172`).
-6. `agent_memory_manager` propagates memory entries across all combat-active squadmates each tick (`agent_memory_manager.cpp:33-42`), gated by combat_mask intersection.
-
-**The engine's native squad disclosure is bounded by audible reach.** Distant patrol squadmates outside sound range, or squadmates against a suppressed weapon, never enter combat_mask and never receive the propagated memory.
-
-### What we add on top
-
-1. Sanity guards: `amount > 0`, `who` exists, not self-hit.
-2. **Faction-relation gate** via `game_relations.is_factions_enemies(npc_community, shooter_community)`. Same-community hits rejected. Mirrors the engine's friendly-fire skip at our hook entry.
-3. Resolve squad via `get_object_squad(npc)`; skip solo NPCs.
-4. Write/refresh timestamp: `_disclosed[squad_id][shooter_id] = xtime.game_sec()`. Every hit refreshes.
-5. If the entry existed before the write (idempotency hit): return. The squad already engaged this shooter in this fight.
-6. Otherwise (first hit, or first hit since decay): call `_disclose(squad, who)`. Three engine APIs per online squadmate:
-
-   - **`force_set_goodwill`** (hostile goodwill): writes RELATION_REGISTRY personal goodwill (`relation_registry.cpp:161-179`). `CAI_Stalker::tfGetRelationType` routes through RELATION_REGISTRY for stalkers so this drives every downstream `is_relation_enemy` check. Gated on `IsStalker(who) AND IsStalker(mem_npc)`: `ForceSetGoodwill` smart_casts both ids to `CSE_ALifeTraderAbstract` and logs an error if either side is non-stalker. Mutant shooters and mutant squadmates both skip the goodwill write.
-   - **`enable_memory_object(who, true)`**: toggles `m_enabled` on existing visual/sound/hit memory entries (`memory_manager.cpp:151-156`). No-op when no prior entry. Receiver must be `CCustomMonster` (`script_game_object2.cpp:262`); stalkers and mutants qualify, the actor does not — irrelevant here since `mem_npc` is always a squad member.
-   - **`register_in_combat()`**: sets the member's squad_mask bit in `CAgentMemberManager::m_combat_mask` (`agent_member_manager.cpp:114-132`). This is the unlock for engine-native squad memory propagation. With the whole squad's bits set, the next `agent_memory_manager` tick ORs the full combat_mask into the victim's hit-memory entry's `m_squad_mask`, propagating memory of the shooter across every member including distant patrols. Requires `CAI_Stalker` receiver (`script_game_object_inventory_owner.cpp:1945-1955`); safe here because `npc_on_hit_callback` is dispatched only by `motivator_binder` (stalker squads), never `generic_object_binder` (mutant squads), so `mem_npc` is always a stalker.
-
-### Decay and re-engagement
-
-A periodic decay tick walks every `_disclosed[squad_id][shooter_id]` entry and prunes any older than the retention window (MCM-tunable). Pruning clears only the idempotency entry; the goodwill write is RELATION_REGISTRY-persistent and survives independently for the rest of the session.
-
-After decay, the next hit from that shooter against that squad triggers a fresh `_disclose` call. Distant patrol squadmates get re-pinned into combat_mask for the new engagement.
-
-### Spawn handler (mid-engagement replenishment + offline-shooter return)
-
-`npc_on_net_spawn` fires for every stalker spawn (dispatched by `motivator_binder`). Two paths run for each spawned NPC:
-
-1. **Inherit from squad** (case 1): if the spawning NPC's squad has active disclosures, apply `_disclose_to_member` for each disclosed shooter that resolves online. The replacement inherits the squad's combat state without waiting for the next hit.
-2. **Re-disclose on shooter return** (case 2): walk every tracked squad's disclosed map. If the spawning NPC's id is present (the NPC is a previously-offline shooter coming back online), replay `_disclose_to_member` for every online squadmate of those squads. Covers members who joined while the shooter was offline.
-
-Both paths short-circuit quickly when no entries match. Most spawn events trigger zero work.
-
-**Mutant-shooter return is not re-disclosed by this handler.** Mutants dispatch `monster_on_net_spawn` (`bind_monster.script:298`) which AT does not subscribe to. Sustained engagement is not lost: combat_mask bits set at original hit time persist on squad members, and mutant-vs-stalker faction enmity drives target acquisition independently. The only gap is a stalker member who joins the tracking squad while the mutant shooter is offline: that member never gets disclosed to the returning mutant.
-
-### Net behavior
-
-- Engine handles audio-range squadmates on hit #1 (free, automatic).
-- Our hook handles distant patrol squadmates on hit #1 by forcing them into combat_mask, letting the engine's own propagation pipe carry the memory.
-- Hostility for the shooter is pinned by a hostile personal-goodwill write on every squadmate. The override survives community-relation drift and lasts the session.
-- Sustained engagement: subsequent hits refresh the timestamp and return early via idempotency.
-- After the retention window of no hits from a given shooter, the squad's pin on that shooter expires; the next hit re-fires the full pipeline.
-- Mid-fight replenishment: new squad members inherit existing disclosures on spawn.
-- Offline-shooter return: when a previously-offline tracked shooter comes back online, the spawn handler replays disclosure to every member of the squads tracking them. Members who joined while the shooter was offline get pinned at this moment.
-
----
-
-## Friendly Fire
-
-Friendly-fire damage gate in `at_hitresponse.script`. `npc_on_before_hit` scales `shit.power` by the MCM factor unless the shooter and victim are actually enemies (`attacker:relation(npc) == game_object.enemy` -> full damage). Keyed on per-NPC relation, not community: same-faction NPCs are neutral at worst and never enemy (a loner never enemy to a loner), so they stay protected, while a soured cross-faction pair (a loner vs a hostile Clear Sky) still damages each other. `relation()` is faction-paramount (the community-to-community base dominates personal goodwill). Stalker-vs-stalker only (both `IsStalker`), the actor as shooter is excluded, O(1) with no throttle (a damage block must catch every hit). MCM page: Effectiveness > Crossfire (`friendly_fire_enabled` + `friendly_fire_factor`).
-
----
-
-## Healing
-
-Per-NPC self-healing. Vanilla `xr_eat_medkit.script` has a working stage machine, but vanilla `ai_tweaks/xr_eat_medkit.ltx [plugin]` lacks the `medkits=` / `bandages=` keys so `parse_list` returns `{}` and the consumption loop iterates zero times.
-
-### Data layer fix
-
-`mod_xr_eat_medkit_at.ltx` is a DLTX overlay on `![plugin]` adding `medkits = medkit, medkit_army, medkit_scientic, medkit_ai1, medkit_ai2, medkit_ai3` and `bandages = bandage`. Boot-time, no runtime toggle.
-
-### Runtime tuning
-
-`at_health.script` installs two hooks on `on_game_start`:
-
-| Hook | Mechanism | What it changes |
-|---|---|---|
-| Heal rate multiplier | `xr_eat_medkit.heal_hp = _patched_heal_hp` | Per-tick `change_health` scaled by the MCM multiplier, read each tick; rescheduling via the `xr_eat_medkit.heal_hp` lookup keeps every tick on the patched function |
-| Bandage tick logging | `xr_eat_medkit.heal_bleed = _patched_heal_bleed` | Logging-only wrapper around vanilla bleed loop |
-| Per-rank healing-charge | `RegisterScriptCallback("npc_on_net_spawn", _on_net_spawn)` | Reads `ranks.get_obj_rank_name(npc)`, folds the rank names into MCM tiers, rolls the per-tier chance, replacing vanilla's flat roll. Per-NPC `at_charge_processed` se_var prevents re-roll. |
-
-### Visual layer (Path 1 script-queue overlay)
-
-Two cosmetic cues using `npc:add_animation` directly. No state_mgr, no GOAP, no `state_lib` changes. See `doc/library/modding/state-lib-animations.md` for the Path 1 script-queue overlay mechanism.
-
-| Cue | Trigger | Animation(s) |
-|---|---|---|
-| Limping | `npc_on_update` per-NPC: per-tick drop on `not alive() or IsWounded or critically_wounded` (bypasses the throttle so the overlay never outlives a wounded transition); a throttled full eligibility check (`health < threshold`, `mental_state() == anim.free`, `body_state() == move.standing`, not zombied, not in smart_cover), periodically re-armed. Eligibility-lost branch drops tracking only; no `clear_animations()` (engine action transition or natural OMF expiry owns cleanup) | a per-slot `dmg_norm` torso overlay chosen from `active_slot()` + `movement_type()`; layers over engine-driven locomotion, legs stay attached to ground |
-| Heal anim | One-shot via `_try_play_heal_anim` on the first heal tick. Gated on `not npc:best_enemy()`, `not IsWounded(npc)`, `not npc:critically_wounded()`. No movement freeze, no stage machine, no mid-flight aborts. Engine drains the queue when the gesture ends; action transitions clear it on the way to action_wounded / action_critically_wounded (`stalker_base_action.cpp:24-29`) | a torso medkit / bandage gesture |
-
-Limping is independent of the healing master toggle (its callback registers unconditionally; gated at runtime by `limping_anim_enabled`). Heal cue is gated by `healing_anim_enabled` and the master toggle (it lives inside the heal_hp/heal_bleed patches that only install when healing is enabled).
-
-Combat NPCs are excluded by the `mental_state == anim.free` gate. state_mgr drives mental to `anim.danger` in combat states (`state_lib.script:326-340` hide_fire / threat).
-
----
-
-## Accuracy
-
-Rank-aware NPC dispersion in script. `at_accuracy.script` subscribes to the vanilla `npc_shot_dispersion` callback (declared in `axr_main.script:126`, dispatched from `_g.CAI_Stalker__GetWeaponAccuracy` at `_g.script:1213-1217`).
-
-Why script and not cvars: the engine rank curve degenerates on Anomaly gamedata. `Rank()` clamps to `[0, 100]` at `ai_stalker.cpp:764`, but vanilla `<rank>` intervals run to 26999 (game_relations.ltx:8). All Anomaly NPCs end up at `rank_k = 1.0`, so `m_fRankDisperison` collapses to the constant `dispersion_experienced_k = 0.8`. Cvar tuning is a dead knob.
-
-Math: `out = base * disp`. The engine already multiplied by `m_fRankDisperison` (= 0.8 for every Anomaly NPC after the rank clamp) before the callback fires, plus the per-state factor. We stack `disp` on top — `disp = 1.00` preserves the engine's vanilla cone, lower values tighten it.
-
-Per-rank tiers (novice through legend): higher rank, tighter dispersion. The per-tier factors are MCM tunables.
-
-Per-shot hot path: a rank-name lookup, then pure-Lua scaling of the dispersion the callback hands us.
+Every other system runs on all NPCs in any fight, NPC-vs-NPC included. Disclosure, Healing, Accuracy, and Danger never read who the enemy is. Crossfire, Jamming, and Ammo exclude the player only as a participant (the player's own hits, the player's own weapon); that is the inverse of an actor-only scope, not an instance of it. So widening or keeping the Combat gate changes the takeover alone and touches none of the Effectiveness or Mechanics systems.
 
 ---
 
@@ -245,7 +139,7 @@ The maneuvers impose (block vanilla briefly, run our behavior); the shuffle inte
 
 The takeover is designed against the player and, for now, only runs when an NPC's enemy is the actor. NPC-vs-NPC is dropped (too many corner cases; the actor is always online, has a stable id, never despawns mid-fight, and exposes facing/health/reload). The restriction is one predicate, `_target_eligible(enemy)`; every maneuver, viability check, and read takes a generic `enemy` game_object, so widening the scope later is a one-line change. No readme or MCM surface mentions it.
 
-This actor gate is unique to the takeover. The Effectiveness and Mechanics systems (Accuracy, Hit Sharing, Danger, Crossfire, Healing, Weapon Jam, NPC Ammo) are unscoped and run on every NPC regardless of who it fights. See "Actor scope" under User-facing systems for the full rule.
+This actor gate is unique to the takeover. The Effectiveness and Mechanics systems (Accuracy, Disclosure, Danger, Crossfire, Healing, Jamming, Ammo) are unscoped and run on every NPC regardless of who it fights. See "Actor scope" under User-facing systems for the full rule.
 
 ### The model: a takeover transaction
 
@@ -338,6 +232,77 @@ The considered-and-rejected alternative to the top-level planner block is rx-sty
 
 ---
 
+## Accuracy
+
+Rank-aware NPC dispersion in script. `at_accuracy.script` subscribes to the vanilla `npc_shot_dispersion` callback (declared in `axr_main.script:126`, dispatched from `_g.CAI_Stalker__GetWeaponAccuracy` at `_g.script:1213-1217`).
+
+Why script and not cvars: the engine rank curve degenerates on Anomaly gamedata. `Rank()` clamps to `[0, 100]` at `ai_stalker.cpp:764`, but vanilla `<rank>` intervals run to 26999 (game_relations.ltx:8). All Anomaly NPCs end up at `rank_k = 1.0`, so `m_fRankDisperison` collapses to the constant `dispersion_experienced_k = 0.8`. Cvar tuning is a dead knob.
+
+Math: `out = base * disp`. The engine already multiplied by `m_fRankDisperison` (= 0.8 for every Anomaly NPC after the rank clamp) before the callback fires, plus the per-state factor. We stack `disp` on top — `disp = 1.00` preserves the engine's vanilla cone, lower values tighten it.
+
+Per-rank tiers (novice through legend): higher rank, tighter dispersion. The per-tier factors are MCM tunables.
+
+Per-shot hot path: a rank-name lookup, then pure-Lua scaling of the dispersion the callback hands us.
+
+---
+
+## Disclosure
+
+MCM page: Effectiveness > Disclosure (`at_disclosure.script`). Hooks `npc_on_hit_callback`. When a faction-enemy hits any squad member, the entire squad is force-disclosed to the shooter on hit #1. Extends the engine's audio-range squad disclosure to distant patrol members and suppressed-weapon victims.
+
+### What the engine does natively on hit
+
+1. Hit registered → `CHitMemoryManager::add` creates a hit_memory entry on the victim (`hit_memory_manager.cpp:95-163`).
+2. Friendly-fire filter: returns early if `tfGetRelationType(who) == eRelationTypeFriend` (`hit_memory_manager.cpp:127`).
+3. Victim plays hurt sound → `eStalkerSoundCry` / `eStalkerSoundAlarm`.
+4. Audio-range squadmates hear the sound → their `sound_memory_manager` promotes the source into their hit_memory (`sound_memory_manager.cpp:188`).
+5. `enemy_manager` picks the shooter as a selected enemy → combat planner activates → `register_in_combat()` flips the member's squad_mask bit (`stalker_combat_planner.cpp:172`).
+6. `agent_memory_manager` propagates memory entries across all combat-active squadmates each tick (`agent_memory_manager.cpp:33-42`), gated by combat_mask intersection.
+
+**The engine's native squad disclosure is bounded by audible reach.** Distant patrol squadmates outside sound range, or squadmates against a suppressed weapon, never enter combat_mask and never receive the propagated memory.
+
+### What we add on top
+
+1. Sanity guards: `amount > 0`, `who` exists, not self-hit.
+2. **Faction-relation gate** via `game_relations.is_factions_enemies(npc_community, shooter_community)`. Same-community hits rejected. Mirrors the engine's friendly-fire skip at our hook entry.
+3. Resolve squad via `get_object_squad(npc)`; skip solo NPCs.
+4. Write/refresh timestamp: `_disclosed[squad_id][shooter_id] = xtime.game_sec()`. Every hit refreshes.
+5. If the entry existed before the write (idempotency hit): return. The squad already engaged this shooter in this fight.
+6. Otherwise (first hit, or first hit since decay): call `_disclose(squad, who)`. Three engine APIs per online squadmate:
+
+   - **`force_set_goodwill`** (hostile goodwill): writes RELATION_REGISTRY personal goodwill (`relation_registry.cpp:161-179`). `CAI_Stalker::tfGetRelationType` routes through RELATION_REGISTRY for stalkers so this drives every downstream `is_relation_enemy` check. Gated on `IsStalker(who) AND IsStalker(mem_npc)`: `ForceSetGoodwill` smart_casts both ids to `CSE_ALifeTraderAbstract` and logs an error if either side is non-stalker. Mutant shooters and mutant squadmates both skip the goodwill write.
+   - **`enable_memory_object(who, true)`**: toggles `m_enabled` on existing visual/sound/hit memory entries (`memory_manager.cpp:151-156`). No-op when no prior entry. Receiver must be `CCustomMonster` (`script_game_object2.cpp:262`); stalkers and mutants qualify, the actor does not — irrelevant here since `mem_npc` is always a squad member.
+   - **`register_in_combat()`**: sets the member's squad_mask bit in `CAgentMemberManager::m_combat_mask` (`agent_member_manager.cpp:114-132`). This is the unlock for engine-native squad memory propagation. With the whole squad's bits set, the next `agent_memory_manager` tick ORs the full combat_mask into the victim's hit-memory entry's `m_squad_mask`, propagating memory of the shooter across every member including distant patrols. Requires `CAI_Stalker` receiver (`script_game_object_inventory_owner.cpp:1945-1955`); safe here because `npc_on_hit_callback` is dispatched only by `motivator_binder` (stalker squads), never `generic_object_binder` (mutant squads), so `mem_npc` is always a stalker.
+
+### Decay and re-engagement
+
+A periodic decay tick walks every `_disclosed[squad_id][shooter_id]` entry and prunes any older than the retention window (MCM-tunable). Pruning clears only the idempotency entry; the goodwill write is RELATION_REGISTRY-persistent and survives independently for the rest of the session.
+
+After decay, the next hit from that shooter against that squad triggers a fresh `_disclose` call. Distant patrol squadmates get re-pinned into combat_mask for the new engagement.
+
+### Spawn handler (mid-engagement replenishment + offline-shooter return)
+
+`npc_on_net_spawn` fires for every stalker spawn (dispatched by `motivator_binder`). Two paths run for each spawned NPC:
+
+1. **Inherit from squad** (case 1): if the spawning NPC's squad has active disclosures, apply `_disclose_to_member` for each disclosed shooter that resolves online. The replacement inherits the squad's combat state without waiting for the next hit.
+2. **Re-disclose on shooter return** (case 2): walk every tracked squad's disclosed map. If the spawning NPC's id is present (the NPC is a previously-offline shooter coming back online), replay `_disclose_to_member` for every online squadmate of those squads. Covers members who joined while the shooter was offline.
+
+Both paths short-circuit quickly when no entries match. Most spawn events trigger zero work.
+
+**Mutant-shooter return is not re-disclosed by this handler.** Mutants dispatch `monster_on_net_spawn` (`bind_monster.script:298`) which AT does not subscribe to. Sustained engagement is not lost: combat_mask bits set at original hit time persist on squad members, and mutant-vs-stalker faction enmity drives target acquisition independently. The only gap is a stalker member who joins the tracking squad while the mutant shooter is offline: that member never gets disclosed to the returning mutant.
+
+### Net behavior
+
+- Engine handles audio-range squadmates on hit #1 (free, automatic).
+- Our hook handles distant patrol squadmates on hit #1 by forcing them into combat_mask, letting the engine's own propagation pipe carry the memory.
+- Hostility for the shooter is pinned by a hostile personal-goodwill write on every squadmate. The override survives community-relation drift and lasts the session.
+- Sustained engagement: subsequent hits refresh the timestamp and return early via idempotency.
+- After the retention window of no hits from a given shooter, the squad's pin on that shooter expires; the next hit re-fires the full pipeline.
+- Mid-fight replenishment: new squad members inherit existing disclosures on spawn.
+- Offline-shooter return: when a previously-offline tracked shooter comes back online, the spawn handler replays disclosure to every member of the squads tracking them. Members who joined while the shooter was offline get pinned at this moment.
+
+---
+
 ## Danger
 
 `at_danger.script` installs AlifeTactics's danger scheme as a function-level patch, at `on_game_start`, onto whichever `xr_danger.script` won the MO2 virtual filesystem (vanilla, GAMMA AI Rework, or REDONE Combat AI). AT no longer ships `xr_danger.script`, so it does not compete for that slot. Vanilla bug fixes run always-on; three improvements sit behind MCM toggles. Paired LTX (`configs/ai_tweaks/xr_danger.ltx`) carries weather-conditional distances and actor-source variant tables.
@@ -386,7 +351,46 @@ DLTX overlays that replace `[danger_inertion]` take precedence over these base v
 
 ---
 
-## Weapon Jam
+## Crossfire
+
+Friendly-fire damage gate in `at_crossfire.script`. `npc_on_before_hit` scales `shit.power` by the MCM factor unless the shooter and victim are actually enemies (`attacker:relation(npc) == game_object.enemy` -> full damage). Keyed on per-NPC relation, not community: same-faction NPCs are neutral at worst and never enemy (a loner never enemy to a loner), so they stay protected, while a soured cross-faction pair (a loner vs a hostile Clear Sky) still damages each other. `relation()` is faction-paramount (the community-to-community base dominates personal goodwill). Stalker-vs-stalker only (both `IsStalker`), the actor as shooter is excluded, O(1) with no throttle (a damage block must catch every hit). MCM page: Effectiveness > Crossfire (`crossfire_enabled` + `crossfire_factor`).
+
+---
+
+## Healing
+
+Per-NPC self-healing. Vanilla `xr_eat_medkit.script` has a working stage machine, but vanilla `ai_tweaks/xr_eat_medkit.ltx [plugin]` lacks the `medkits=` / `bandages=` keys so `parse_list` returns `{}` and the consumption loop iterates zero times.
+
+### Data layer fix
+
+`mod_xr_eat_medkit_at.ltx` is a DLTX overlay on `![plugin]` adding `medkits = medkit, medkit_army, medkit_scientic, medkit_ai1, medkit_ai2, medkit_ai3` and `bandages = bandage`. Boot-time, no runtime toggle.
+
+### Runtime tuning
+
+`at_healing.script` installs two hooks on `on_game_start`:
+
+| Hook | Mechanism | What it changes |
+|---|---|---|
+| Heal rate multiplier | `xr_eat_medkit.heal_hp = _patched_heal_hp` | Per-tick `change_health` scaled by the MCM multiplier, read each tick; rescheduling via the `xr_eat_medkit.heal_hp` lookup keeps every tick on the patched function |
+| Bandage tick logging | `xr_eat_medkit.heal_bleed = _patched_heal_bleed` | Logging-only wrapper around vanilla bleed loop |
+| Per-rank healing-charge | `RegisterScriptCallback("npc_on_net_spawn", _on_net_spawn)` | Reads `ranks.get_obj_rank_name(npc)`, folds the rank names into MCM tiers, rolls the per-tier chance, replacing vanilla's flat roll. Per-NPC `at_charge_processed` se_var prevents re-roll. |
+
+### Visual layer (Path 1 script-queue overlay)
+
+Two cosmetic cues using `npc:add_animation` directly. No state_mgr, no GOAP, no `state_lib` changes. See `doc/library/modding/state-lib-animations.md` for the Path 1 script-queue overlay mechanism.
+
+| Cue | Trigger | Animation(s) |
+|---|---|---|
+| Limping | `npc_on_update` per-NPC: per-tick drop on `not alive() or IsWounded or critically_wounded` (bypasses the throttle so the overlay never outlives a wounded transition); a throttled full eligibility check (`health < threshold`, `mental_state() == anim.free`, `body_state() == move.standing`, not zombied, not in smart_cover), periodically re-armed. Eligibility-lost branch drops tracking only; no `clear_animations()` (engine action transition or natural OMF expiry owns cleanup) | a per-slot `dmg_norm` torso overlay chosen from `active_slot()` + `movement_type()`; layers over engine-driven locomotion, legs stay attached to ground |
+| Heal anim | One-shot via `_try_play_heal_anim` on the first heal tick. Gated on `not npc:best_enemy()`, `not IsWounded(npc)`, `not npc:critically_wounded()`. No movement freeze, no stage machine, no mid-flight aborts. Engine drains the queue when the gesture ends; action transitions clear it on the way to action_wounded / action_critically_wounded (`stalker_base_action.cpp:24-29`) | a torso medkit / bandage gesture |
+
+Limping is independent of the healing master toggle (its callback registers unconditionally; gated at runtime by `limping_anim_enabled`). Heal cue is gated by `healing_anim_enabled` and the master toggle (it lives inside the heal_hp/heal_bleed patches that only install when healing is enabled).
+
+Combat NPCs are excluded by the `mental_state == anim.free` gate. state_mgr drives mental to `anim.danger` in combat states (`state_lib.script:326-340` hide_fire / threat).
+
+---
+
+## Jamming
 
 Suppresses the modded-exes script-injected NPC misfire path. `at_jam.script` `on_game_start` replaces `xr_weapon_jam.GetConditionMisfireProbability` with a function that returns 0. The engine's per-shot misfire roll for non-actor weapons becomes 0 unconditionally.
 
@@ -413,7 +417,7 @@ The engine functor lookup at `Weapon.cpp:1781` was added in demonized commit `f2
 
 ---
 
-## NPC Ammo
+## Ammo
 
 Veteran-rank-and-up NPCs fire AP from the loose ammo they carry; each engagement has a rank- and fire-rate-weighted chance to consume one AP box, until the NPC runs out and reverts to vanilla magic FMJ. NPCs drop no AP boxes as loot.
 
@@ -466,13 +470,13 @@ The architecture principle is to feed engine memory and state, not fight it. Per
 
 | System | Engine state we write | Engine APIs called |
 |---|---|---|
-| Hit Sharing | RELATION_REGISTRY personal goodwill, memory entry m_enabled, agent_member_manager m_combat_mask | `force_set_goodwill`, `enable_memory_object`, `register_in_combat` |
+| Disclosure | RELATION_REGISTRY personal goodwill, memory entry m_enabled, agent_member_manager m_combat_mask | `force_set_goodwill`, `enable_memory_object`, `register_in_combat` |
 | Healing | NPC health field, bleeding field, `healing_charge` se_var | `change_health`, direct `bleeding =` write, `se_save_var` |
 | Accuracy | Per-shot dispersion radius via callback return | (subscribes to `npc_shot_dispersion`) |
 | Combat | NPC GOAP action (at_combat_action), Pattern B preconditions on action_combat_planner/action_danger_planner/xr_danger.actid/state_mgr+2/alife, set_dest_level_vertex_id, state_mgr.set_state, set_body_state, set_movement_type, set_sight, `m_sniper_fire_mode` flag | GOAP `add_evaluator`/`add_action`/`add_precondition` (custom evaid/actid), `npc:best_cover`, `level.vertex_in_direction`, `npc:sniper_fire_mode`, `db.used_level_vertex_ids` reservation |
 | Danger | Danger scheme evaluators/action installed onto the winning `xr_danger` binder, `script_danger` per-id table for sound-source dispatch | Patches `xr_danger.{setup_generic_scheme,add_to_binder,configure_actions,reset_generic_scheme,get_danger_time,set_script_danger,has_danger}`; relies on the winner's `npc_on_hear_callback` / `npc_on_death_callback` feeders |
-| Weapon Jam | Module-level function table on `xr_weapon_jam` | Lua function assignment (`xr_weapon_jam.GetConditionMisfireProbability = ...`) read by engine functor lookup at `Weapon.cpp:1781` |
-| NPC Ammo | CWeapon `m_ammoType` field via `wpn:set_ammo_type(idx)` (re-keys `m_DefaultCartridge` for magic refill ballistics); per-engagement box-delete decay (`alife_release` one AP box on a rank/rpm-weighted roll); reverts to `m_ammoType = 0` when the section is empty | `npc:active_item`, `wpn:set_ammo_type`, `wpn:get_ammo_type`, `wpn:get_ammo_count_for_type`, `npc:best_enemy`, `npc:character_rank`, `npc:iterate_inventory`, `alife_release` |
+| Jamming | Module-level function table on `xr_weapon_jam` | Lua function assignment (`xr_weapon_jam.GetConditionMisfireProbability = ...`) read by engine functor lookup at `Weapon.cpp:1781` |
+| Ammo | CWeapon `m_ammoType` field via `wpn:set_ammo_type(idx)` (re-keys `m_DefaultCartridge` for magic refill ballistics); per-engagement box-delete decay (`alife_release` one AP box on a rank/rpm-weighted roll); reverts to `m_ammoType = 0` when the section is empty | `npc:active_item`, `wpn:set_ammo_type`, `wpn:get_ammo_type`, `wpn:get_ammo_count_for_type`, `npc:best_enemy`, `npc:character_rank`, `npc:iterate_inventory`, `alife_release` |
 
 The engine then runs its own combat detection (property_enemy, m_combat_mask, agent_memory propagation) on the state we wrote. No system reimplements engine behavior; each one nudges engine state to produce the desired outcome.
 

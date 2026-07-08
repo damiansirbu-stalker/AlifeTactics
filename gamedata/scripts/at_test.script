@@ -369,7 +369,7 @@ end
 function at_dump()
     if not db.actor then return end
     local count = 0
-    at_hitresponse.iterate_disclosed(function(squad_id, shooter_count)
+    at_disclosure.iterate_disclosed(function(squad_id, shooter_count)
         count = count + 1
         log.info("[DUMP] squad=%d shooters=%d", squad_id, shooter_count)
     end)

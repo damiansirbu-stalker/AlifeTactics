@@ -1,14 +1,14 @@
---- at_hitresponse: Force-disclose shooter to whole squad on first faction-enemy hit
+--- at_disclosure: Force-disclose shooter to whole squad on first faction-enemy hit
 
 local pairs, tostring, tonumber, RegisterScriptCallback, IsStalker, alife_object = pairs, tostring, tonumber, RegisterScriptCallback, IsStalker, alife_object
 -- CreateTimeEvent / ResetTimeEvent / RemoveTimeEvent not cached: demonized_time_events
 -- replaces them at runtime; cached locals would pin the dead originals.
 
-local log = xlog.get_logger("AT.HIT", { outfile = "alifetactics.log" })
+local log = xlog.get_logger("AT.DISCLOSURE", { outfile = "alifetactics.log" })
 local _dbg = false
 local cfg = at_mcm.cfg
 
-local TIMER_EV           = "at_hitresponse"
+local TIMER_EV           = "at_disclosure"
 local TIMER_DECAY        = "decay"
 local DECAY_INTERVAL_SEC = 5
 
@@ -91,7 +91,7 @@ local function _decay_tick()
     ResetTimeEvent(TIMER_EV, TIMER_DECAY, DECAY_INTERVAL_SEC)
     local now = xtime.game_sec()
     if now == 0 then return end
-    local threshold = cfg.hit_share_retention_min * 60
+    local threshold = cfg.disclosure_retention_min * 60
     local tmr = xprofiler.new_if(_dbg):start()
     local pruned = 0
     for _, map in pairs(_disclosed) do
@@ -152,7 +152,7 @@ local function _resolve_pending(squad_id, who_id, victim_id, gate_ms, total_ms)
 end
 
 local function _on_hit(npc, amount, _local_direction, who, bone_index)
-    if not cfg.hit_share_enabled then return end
+    if not cfg.disclosure_enabled then return end
     if bone_index == "from_death_callback" then return end
     if not amount or amount <= 0 then return end
     if not who or not npc then return end
@@ -166,7 +166,7 @@ local function _on_hit(npc, amount, _local_direction, who, bone_index)
     if not is_enemy then
         tmr_total:stop()
         if _dbg then
-            log.debug("[HIT] rejected reason=friendly_fire [gate=%.2fms total=%.2fms]",
+            log.debug("[HIT] rejected reason=not_faction_enemy [gate=%.2fms total=%.2fms]",
                 tmr_gate:get_ms(), tmr_total:get_ms())
         end
         return
@@ -185,7 +185,7 @@ local function _on_hit(npc, amount, _local_direction, who, bone_index)
     local who_id   = who:id()
     local gate_ms  = tmr_gate:get_ms()
 
-    if cfg.hit_share_survivor_gate then
+    if cfg.disclosure_survivor_gate then
         tmr_total:stop()
         _pending_seq = _pending_seq + 1
         local victim_id = npc:id()
@@ -300,8 +300,8 @@ local function _on_first_update()
     RemoveTimeEvent(TIMER_EV, TIMER_DECAY)
     CreateTimeEvent(TIMER_EV, TIMER_DECAY, DECAY_INTERVAL_SEC, _decay_tick)
     log.info("Hit disclosure initialized (enabled=%s, retention=%dmin, dbg=%s)",
-        cfg.hit_share_enabled and "true" or "false",
-        cfg.hit_share_retention_min,
+        cfg.disclosure_enabled and "true" or "false",
+        cfg.disclosure_retention_min,
         _dbg and "true" or "false")
 end
 
@@ -314,28 +314,8 @@ function iterate_disclosed(fn)
     end
 end
 
--- Friendly-fire damage gate. Suppress damage unless the shooter and victim are actually enemies
--- (npc:relation == game_object.enemy). relation() sums the community-to-community base (+/-2000, the dominant
--- term) with personal/reputation/rank goodwill, so faction is paramount: same-faction NPCs (loner vs loner)
--- are neutral at worst and never enemy, so they stay protected; a cross-faction pair (a loner vs a soured
--- Clear Sky) damages each other only once their relation has actually gone hostile. Friend and neutral are
--- both suppressed. Runs on every hit, no throttle: a damage block must catch each hit, O(1) (one luabind).
--- Never touches actor-dealt damage.
-local function _on_before_hit(npc, shit, _bone_id, _flags)
-    if not cfg.friendly_fire_enabled then return end
-    if not (npc and shit) then return end
-    local attacker = shit.draftsman
-    if not attacker then return end
-    if attacker:id() == npc:id() then return end
-    if not (IsStalker(attacker) and IsStalker(npc)) then return end
-    if db.actor and attacker:id() == db.actor:id() then return end
-    if attacker:relation(npc) == game_object.enemy then return end
-    shit.power = shit.power * cfg.friendly_fire_factor
-end
-
 function on_game_start()
     RegisterScriptCallback("npc_on_hit_callback",        _on_hit)
-    RegisterScriptCallback("npc_on_before_hit",          _on_before_hit)
     RegisterScriptCallback("npc_on_net_spawn",           _on_net_spawn)
     RegisterScriptCallback("server_entity_on_unregister", _on_entity_unregister)
     RegisterScriptCallback("actor_on_first_update",      _on_first_update)
