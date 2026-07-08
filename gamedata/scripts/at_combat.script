@@ -53,11 +53,6 @@ local function _can_seize(npc)
     return true
 end
 
--- Scope gate: the takeover runs only against the actor (one predicate; downstream reads take a generic enemy).
-local function _target_eligible(enemy)
-    return enemy:id() == AC_ID
-end
-
 
 -- The maneuver lifecycle: _try_begin_maneuver stages a row and raises the gate; the engine grants control at the
 -- grafted action's initialize and calls _begin_maneuver (the first engine write); _update_maneuver re-runs the
@@ -75,8 +70,8 @@ end
 -- End the maneuver: lower the gate, clear the row, keep end_at for the reseize cooldown. Releases any cover the
 -- resolver reserved, on EVERY exit (arrived, cap, never-begun) so a gate that raised but never ran a maneuver
 -- does not leak the reservation in db.used_level_vertex_ids (t136).
-local function _end_maneuver(state, tg, reason)
-    if _dbg then trace.end_maneuver(state.id, state.maneuver and state.maneuver.name, reason, math_floor(tg - (state.begin_at or tg))) end
+local function _end_maneuver(state, tg, reason, check_us)
+    if _dbg then trace.end_maneuver(state.id, state.maneuver and state.maneuver.name, reason, math_floor(tg - (state.begin_at or tg)), check_us) end
     state.gate = false
     state.maneuver = nil
     state.dest = nil
@@ -89,8 +84,8 @@ end
 
 -- Begin the maneuver - the first engine write, at the grafted action's initialize (the engine granted control
 -- this frame; writing earlier would fight vanilla, which drives until the planner swap). Sets the destination
--- once (the engine walks it), applies the row's combat state once, opens a STOW rout's flee hold. Re-checks
--- scope because the enemy can change between _try_begin_maneuver and here.
+-- once (the engine walks it), applies the row's combat state once, opens a STOW rout's flee hold. Re-reads
+-- best_enemy because it can change between _try_begin_maneuver and here.
 local function _begin_maneuver(npc)
     local state = _states[npc:id()]
     if not state or not state.maneuver then return end
@@ -98,9 +93,10 @@ local function _begin_maneuver(npc)
     local maneuver = state.maneuver
     local enemy = npc:best_enemy()
     if not enemy then _end_maneuver(state, tg, "no_enemy") return end
-    if not _target_eligible(enemy) then _end_maneuver(state, tg, "not_eligible") return end
+    local tmr = xprofiler.new_if(_dbg):start()
     xcombat.send_to(npc, state.dest)
     local fire, gate = doctrine.apply_state(npc, maneuver, enemy)
+    tmr:stop()
     state.maneuver_at = tg
     if maneuver.fire == xcombat.STOW then
         state.flee_enemy = enemy:id()
@@ -108,7 +104,7 @@ local function _begin_maneuver(npc)
     else
         state.flee_enemy = nil
     end
-    if _dbg then trace.begin_maneuver(state.id, maneuver.name, state.trigger, state.dest, fire, maneuver.movement, maneuver.fire, gate, state.cover) end
+    if _dbg then trace.begin_maneuver(state.id, maneuver.name, state.trigger, state.dest, fire, maneuver.movement, maneuver.fire, gate, state.cover, math_floor(tmr:get_us())) end
 end
 
 -- One spec drives every AT NPC: gate = the per-NPC flag the grafted evaluator polls; on_begin = _begin_maneuver,
@@ -148,41 +144,39 @@ end
 -- No engine write happens here - vanilla still drives this frame.
 local function _try_begin_maneuver(npc, state, tg)
     if not _manages(npc) then state.fighting = false return end
+    local tmr = xprofiler.new_if(_dbg):start()
 
     -- Reseize cooldown FIRST: hold off a fresh seize for a window after a maneuver ends, else the takeover
     -- goes continuous. Checked before the fighting read so a cooling NPC skips the best_enemy luabind entirely.
     if RESEIZE_COOLDOWN_MS > 0 and state.end_at and (tg - state.end_at) < RESEIZE_COOLDOWN_MS then
-        trace.monitor(state.id, state, "cooldown")
+        tmr:stop()
+        trace.monitor(state.id, state, "cooldown", nil, tmr:get_us())
         return
     end
 
     state.fighting = _is_fighting(npc, state, tg)
-    if not state.fighting then
-        state.stall_set = false
-        state.declined_at = nil
-        return
-    end
+    if not state.fighting then state.stall_set = false return end
     if _dbg then trace.set_name(state.id, npc:name()) end
 
     local enemy = npc:best_enemy()
     if not enemy then
         state.enemy_id = nil
-        trace.monitor(state.id, state, "no_enemy")
+        tmr:stop()
+        trace.monitor(state.id, state, "no_enemy", nil, tmr:get_us())
         return
     end
     state.enemy_id = enemy:id()
 
-    if not _target_eligible(enemy) then return end
-
     local can_seize, seize_block = _can_seize(npc)
     if not can_seize then
-        trace.monitor(state.id, state, "cannot_seize", seize_block)
+        tmr:stop()
+        trace.monitor(state.id, state, "cannot_seize", seize_block, tmr:get_us())
         return
     end
 
-    -- pick_maneuver walks the catalog rows in order (situation -> palette -> decline backoff -> resolver),
-    -- returns (maneuver, dest) on a pick and nil when no row fires; it stores the fired situation on
-    -- state.trigger and the per-row walk on state.rows for the decision trace.
+    -- pick_maneuver walks the catalog rows in order (situation -> palette -> resolver), returns
+    -- (maneuver, dest) on a pick and nil when no row fires; it stores the fired situation on state.trigger
+    -- and the per-row walk with its timings on state.rows / state.walk_us for the decision trace.
     local maneuver, dest = doctrine.pick_maneuver(npc, enemy, state, tg)
     if maneuver then
         state.gate = true
@@ -191,26 +185,49 @@ local function _try_begin_maneuver(npc, state, tg)
         state.maneuver_at = nil
         state.begin_at = tg
     end
+    tmr:stop()
+    if _dbg then state.check_us = math_floor(tmr:get_us()) end
     _trace_decision(npc, state, enemy, maneuver and maneuver.name)
 end
 
 -- Run the maneuver's own update from its catalog row (a firing row re-checks its shot, flee re-asserts its
 -- holster, a row without one does nothing). Begun-guarded: no engine write before _begin_maneuver ran.
+-- The debug trace is the mid-maneuver aim evidence: WHO the row aims at right now (the live best_enemy -
+-- flagged SWITCHED when it is no longer the staged target), sight, body-to-target angle, applied fire + gate.
 local function _update_maneuver(npc, state, _tg)
     local maneuver = state.maneuver
     if not maneuver or not state.maneuver_at then return end
     if not maneuver.update then return end
-    maneuver.update(npc, maneuver, npc:best_enemy())
+    local enemy = npc:best_enemy()
+    local tmr = xprofiler.new_if(_dbg):start()
+    local fire, gate = maneuver.update(npc, maneuver, enemy)
+    tmr:stop()
+    if not _dbg then return end
+    local us = math_floor(tmr:get_us())
+    if not enemy then
+        trace.update_maneuver(state.id, maneuver.name, nil, fire, gate, us)
+        return
+    end
+    trace.update_maneuver(state.id, maneuver.name, {
+        id       = enemy:id(),
+        name     = xcreature.get_name(enemy:id()),
+        switched = state.enemy_id ~= nil and enemy:id() ~= state.enemy_id,
+        seen     = xcombat.sees(npc, enemy),
+        aim_off  = math_floor(xcombat.get_facing_offset(npc, enemy:position())),
+    }, fire, gate, us)
 end
 
 -- Movers end on arrival; the cap (from begin_at) ends everything, so a gate that raised but never began a
 -- maneuver cannot wedge the NPC. Holds have no arrival and end only on the cap.
 local function _try_end_maneuver(npc, state, tg)
     local maneuver = state.maneuver
+    local tmr = xprofiler.new_if(_dbg):start()
     if maneuver and maneuver.ends_on == "arrival" and state.maneuver_at and xcombat.is_arrived(npc) then
-        _end_maneuver(state, tg, "arrived")
+        tmr:stop()
+        _end_maneuver(state, tg, "arrived", math_floor(tmr:get_us()))
     elseif (tg - (state.begin_at or tg)) >= ((maneuver and maneuver.timeout) or MANEUVER_CAP_MS) then
-        _end_maneuver(state, tg, "cap")
+        tmr:stop()
+        _end_maneuver(state, tg, "cap", math_floor(tmr:get_us()))
     end
 end
 

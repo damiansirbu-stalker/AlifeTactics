@@ -7,7 +7,7 @@
 --- the maneuver is open (nil = set once at begin). pick_maneuver walks the rows in order; the first full pass
 --- wins (t141).
 
-local pairs, math_sqrt, math_floor, vector = pairs, math.sqrt, math.floor, vector
+local math_sqrt, math_floor, vector = math.sqrt, math.floor, vector
 local character_community, time_global, table_concat = character_community, time_global, table.concat
 
 at_combat_doctrine = at_combat_doctrine or {}
@@ -18,7 +18,6 @@ local CONFIG_SECTION = "at_combat"
 local HURT_FRAC, GRENADE_MS, STALL_MS, STALL_MOVE_SQR, STALL_CLOSE_M
 local KITE_ARC_DEG, KITE_SPREAD_DEG
 local FLEE_MIN_DIST_M, FLEE_BASE_MIN_DIST_M, RETREAT_REAR_M, UNDER_FIRE_MS
-local DECLINE_BACKOFF_MS
 
 -- The maneuver catalog: an ordered array (array order = precedence - the walk stops at the first row whose
 -- situation, palette, and resolver all pass). Built in load_config so xcombat.* constants and the LTX
@@ -56,6 +55,8 @@ end
 -- motionless head inside the enemy's working range. ends_on=time runs it to the hold timeout, not an arrival.
 -- fire=SNIPE, and the fire gate in apply_state downgrades it to READY when a shot makes no sense (occluded /
 -- no LOS), so a sniper without a lane holds weapon-up instead of firing at a wall.
+-- A weaponless enemy (a mutant) has no kind and reads as the rifle band, so snipe only plants on it
+-- past 80m - conservative, and a melee mutant past 80m is no threat to a planted sniper anyway.
 local function _resolve_snipe(npc, enemy, state, _memo)
     local enemy_band = xcombat.get_weapon_range(xcombat.get_weapon_kind(enemy) or "w_rifle")
     local planted = state.dist > enemy_band.max
@@ -135,6 +136,9 @@ local function _resolve_flee(npc, enemy, state, memo)
     -- Target a friendly base in the distance (a smart the enemy does not hold), biased to the rear hemisphere so the
     -- rout increases distance instead of curving back past the enemy. A far base's winding path no longer swings the
     -- facing back - the update's holster re-assert holds the NPC facing its run path the whole way.
+    -- get_actor_level_id scopes the base search to the CURRENT level, not to the actor as a target:
+    -- a fleeing NPC is online (npc_on_update carrier), and online NPCs are on the actor's level by
+    -- construction, so this is the one level the rout can path on.
     local base = xsmart.find_friendly_base(memo.faction, memo.npc_pos,
         { level_id = xlevel.get_actor_level_id(), away_from_pos = memo.enemy_pos, min_distance = FLEE_BASE_MIN_DIST_M })
     if base then
@@ -246,7 +250,6 @@ function at_combat_doctrine.load_config()
     UNDER_FIRE_MS   = read_int("under_fire_ms",   2000)
     FLEE_MIN_DIST_M      = read_int("flee_min_dist_m",      5)
     FLEE_BASE_MIN_DIST_M = read_int("flee_base_min_dist_m", 100)
-    DECLINE_BACKOFF_MS   = read_int("decline_backoff_ms",   2000)
 
     -- Ordered array = the walk order. kite first (a violated weapon minimum is answered before anything),
     -- flee BEFORE retreat (both open on pressure; a declined flee - squad stands / under fire / point-blank /
@@ -325,22 +328,15 @@ local function _palette_matches(row, npc, memo)
     return true
 end
 
--- One row's ordered check: situation compare (cheap) -> palette -> decline backoff -> resolver geometry.
+-- One row's ordered check: situation compare (cheap) -> palette -> resolver geometry.
 -- Returns (dest, situation, stage): dest non-nil = picked. stage is the trace word for how far the row got
--- ("-" situation absent, "palette", "backoff", "declined", "picked"). A resolver decline stamps
--- state.declined_at[row.name] so the geometry is skipped for DECLINE_BACKOFF_MS (t140); the situation and
--- palette still run every walk (stalled must keep its tracker warm) - only the raycast tail backs off.
+-- ("-" situation absent, "palette", "declined", "picked").
 local function _check_row(row, npc, enemy, state, tg, memo)
     local sit = row.situation(npc, enemy, state, tg, memo)
     if not sit then return nil, nil, "-" end
     if not _palette_matches(row, npc, memo) then return nil, sit, "palette" end
-    local declined = state.declined_at
-    local stamp = declined and declined[row.name]
-    if stamp and (tg - stamp) < DECLINE_BACKOFF_MS then return nil, sit, "backoff" end
     local dest = row.resolve(npc, enemy, state, memo)
     if dest then return dest, sit, "picked" end
-    if not declined then declined = {} state.declined_at = declined end
-    declined[row.name] = tg
     return nil, sit, "declined"
 end
 
@@ -366,31 +362,31 @@ local function _rows_string(count)
     return table_concat(_ROW_TRACE, ",")
 end
 
--- Wipe the per-row decline stamps (a pick or leaving the fight resets the t140 backoff).
-local function _clear_declines(state)
-    local declined = state.declined_at
-    if not declined then return end
-    for name in pairs(declined) do declined[name] = nil end
-end
-
 --- Walk the catalog in order and return (maneuver, dest) for the first row whose situation, palette, and
 --- resolver all pass, or nil when no row fires. The resolver IS the viability gate (a vertex = seize there,
---- nil = stamp the decline backoff and fall through to the next row). The walk reads positions once
---- (memo.npc_pos / memo.enemy_pos, state.dist) and memoizes the shared reads (faction, weapon kind, grenade
---- danger) on state.memo for this walk only. A pick stores the fired situation on state.trigger and clears
---- the decline stamps (t140: a successful begin resets the backoff); when tracing is on the per-row walk
---- lands on state.rows ("name:situation/stage" per walked row) for the decision line.
+--- nil = fall through to the next row). The walk reads positions once (memo.npc_pos / memo.enemy_pos,
+--- state.dist) and memoizes the shared reads (faction, weapon kind, grenade danger) on state.memo for this
+--- walk only. A pick stores the fired situation on state.trigger. When tracing is on, the per-row walk lands
+--- on state.rows ("name:situation/stage/us" per walked row, the microseconds that row's check cost) and the
+--- whole walk's microseconds on state.walk_us, for the decision line - the measurement that gates any future
+--- cost work on this path. The timer is a null object when tracing is off (xprofiler.new_if), zero cost live.
 function at_combat_doctrine.pick_maneuver(npc, enemy, state, tg)
     local memo = _reset_memo(state, npc, enemy)
     local tracing = at_combat_trace.enabled()
+    local timer = xprofiler.new_if(tracing)
     local count = 0
+    local walk_us = 0
     local picked, dest
     for i = 1, #CATALOG do
         local row = CATALOG[i]
+        timer:start()
         local vid, sit, stage = _check_row(row, npc, enemy, state, tg, memo)
+        timer:stop()
         if tracing then
+            local total_us = timer:get_us()
             count = count + 1
-            _ROW_TRACE[count] = row.name .. ":" .. (sit and (sit .. "/" .. stage) or stage)
+            _ROW_TRACE[count] = row.name .. ":" .. (sit and (sit .. "/" .. stage) or stage) .. "/" .. math_floor(total_us - walk_us) .. "us"
+            walk_us = total_us
         end
         if vid then
             picked, dest = row, vid
@@ -398,10 +394,10 @@ function at_combat_doctrine.pick_maneuver(npc, enemy, state, tg)
             break
         end
     end
-    if tracing then state.rows = _rows_string(count) end
-    if picked then
-        _clear_declines(state)
-        return picked, dest
+    if tracing then
+        state.rows = _rows_string(count)
+        state.walk_us = math_floor(walk_us)
     end
+    if picked then return picked, dest end
     return nil
 end
