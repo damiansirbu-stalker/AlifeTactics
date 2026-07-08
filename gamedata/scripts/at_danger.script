@@ -329,10 +329,26 @@ local function eval_danger(self)
 	return true
 end
 
+-- eval_danger duration aggregate: the evaluator runs per NPC per plan solve (too hot for a line
+-- each), so durations accumulate and summarize every 200 evals. Pure-Lua counters; the timer is a
+-- null object when debug is off.
+local _eval_n, _eval_sum_us, _eval_max_us = 0, 0, 0
+
 function at_evaluator_danger:evaluate()
-	--utils_data.debug_write("eva_danger")
+	local tmr = xprofiler.new_if(_dbg):start()
 	local danger = eval_danger(self) or false
 	db.storage[self.object:id()].danger_flag = danger
+	tmr:stop()
+	if _dbg then
+		local us = tmr:get_us()
+		_eval_n = _eval_n + 1
+		_eval_sum_us = _eval_sum_us + us
+		if us > _eval_max_us then _eval_max_us = us end
+		if _eval_n >= 200 then
+			log.debug("[PERF] eval_danger n=%d avg=%dus max=%dus", _eval_n, _eval_sum_us / _eval_n, _eval_max_us)
+			_eval_n, _eval_sum_us, _eval_max_us = 0, 0, 0
+		end
+	end
 	return danger
 end
 

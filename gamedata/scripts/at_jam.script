@@ -13,9 +13,54 @@
 --- Engine `Weapon.cpp:1778` already gates the functor call to non-actor parents,
 --- so actor's own condition-based misfire mechanic is unaffected.
 
+local RegisterScriptCallback, IsWeapon, time_global = RegisterScriptCallback, IsWeapon, time_global
+
 local log = xlog.get_logger("AT.JAM", { outfile = "alifetactics.log" })
+local _dbg = false
 
 local _original
+-- Suppressed-roll counter, summarized to the debug log every SUMMARY_EVERY rolls (a per-shot line
+-- would flood; the counter is one pure-Lua increment per NPC shot).
+local _suppressed = 0
+local SUMMARY_EVERY = 200
+
+-- Reload trace: every NPC reload START with the magazine content it started with - the "reloading
+-- for nothing" evidence. A near-full mag_left is the planner topping up, not a misfire (the misfire
+-- rolls are suppressed above and counted as [JAM] lines). Edge-detected on a 200ms per-NPC clock;
+-- one boolean compare per npc_on_update when debug is off.
+local RELOAD_CHECK_MS  = 200
+-- CWeapon::eReload (Weapon.h:185; the vanilla compare actor_effects.script:1105 uses == 5).
+local WPN_STATE_RELOAD = 5
+local _reloading  = {}
+local _next_check = {}
+
+local function _on_update(npc)
+    if not _dbg then return end
+    if not npc then return end
+    local id = npc:id()
+    local tg = time_global()
+    if (_next_check[id] or 0) > tg then return end
+    _next_check[id] = tg + RELOAD_CHECK_MS
+    local tmr = xprofiler.new_if(_dbg):start()
+    local wpn = npc:active_item()
+    local reloading = wpn ~= nil and IsWeapon(wpn) and wpn:get_state() == WPN_STATE_RELOAD
+    if not reloading then
+        _reloading[id] = nil
+        tmr:stop()
+        return
+    end
+    if _reloading[id] then tmr:stop() return end
+    _reloading[id] = true
+    tmr:stop()
+    log.debug("[RELOAD] id=%d name=%s wpn=%s mag_left=%d fighting=%s [%dus]",
+        id, npc:name(), wpn:section(), wpn:get_ammo_in_magazine() or -1, npc:best_enemy() and "yes" or "no", tmr:get_us())
+end
+
+local function _on_entity_unregister(se_obj)
+    if not se_obj then return end
+    _reloading[se_obj.id] = nil
+    _next_check[se_obj.id] = nil
+end
 
 local function _install()
     if not xr_weapon_jam then
@@ -27,11 +72,25 @@ local function _install()
         if at_mcm.get_config("jam_enabled") == false then
             return _original(weapon, npc, base_value)
         end
+        _suppressed = _suppressed + 1
+        if _suppressed % SUMMARY_EVERY == 0 then
+            log.debug("[JAM] suppressed=%d NPC misfire rolls this session", _suppressed)
+        end
         return 0
     end
     log.info("xr_weapon_jam.GetConditionMisfireProbability patched (NPC misfire suppression active)")
 end
 
+local function _refresh_log()
+    log.set_level(at_mcm.get_config("log_level") or "WARN")
+    _dbg = log.get_level() >= 5
+end
+
 function on_game_start()
     _install()
+    RegisterScriptCallback("npc_on_update",               _on_update)
+    RegisterScriptCallback("server_entity_on_unregister", _on_entity_unregister)
+    RegisterScriptCallback("actor_on_first_update",      _refresh_log)
+    RegisterScriptCallback("on_option_change",           _refresh_log)
+    RegisterScriptCallback("mcm_option_restore_default", _refresh_log)
 end

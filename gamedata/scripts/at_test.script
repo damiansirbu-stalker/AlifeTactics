@@ -1,7 +1,7 @@
 --- at_test: Console commands for AlifeTactics (squad spawn, dumps)
 
 local tostring, string_format, math_rad, math_cos, math_sin = tostring, string.format, math.rad, math.cos, math.sin
-local pairs, IsStalker, IsWeapon = pairs, IsStalker, IsWeapon
+local pairs, IsStalker, IsWeapon, get_object_squad = pairs, IsStalker, IsWeapon, get_object_squad
 local time_global, alife_object, level = time_global, alife_object, level
 local alife = alife
 -- CreateTimeEvent NOT cached: demonized_time_events replaces it at runtime.
@@ -282,11 +282,13 @@ local function _ap_for_weapon(wpn_sec)
 end
 
 -- Give one online stalker AP boxes for its weapon plus a veteran rank. Returns true if armed.
+-- Skips an NPC already carrying that AP section, so a periodic caller (at_lab_loop) does not stack boxes.
 local function _arm_ap(npc)
     local wpn = npc:active_item()
     if not (wpn and IsWeapon(wpn)) then return false end
     local sec = _ap_for_weapon(wpn:section())
     if not sec then return false end
+    if npc:object(sec) ~= nil then return false end
     npc:set_character_rank(AP_RANK)
     for _ = 1, AP_BOXES do xinventory.create_item(sec, npc:id(), { ammo = AP_PER_BOX }) end
     return true
@@ -312,6 +314,109 @@ function at_arm_ap()
     log.info("[AMMO] arm_ap armed=%d seen=%d boxes=%d rank=%d", armed, seen, AP_BOXES, AP_RANK)
     _tip(string_format("AT.AMMO: armed %d/%d stalkers with AP (rank %d). Fight them, watch [AP] log.",
         armed, seen, AP_RANK))
+end
+
+--------------------------------------------------------------------------------
+-- The lab harness: stock every nearby stalker so all AlifeTactics systems have fuel.
+-- Per pass: a medkit + bandage to anyone missing them (Healing spends them when hurt), AP boxes +
+-- veteran rank for the active weapon (Ammo fires them; the rank also moves the Accuracy tier and the
+-- healing-charge tier), and one palette weapon per squad (kind variety - a sniper feeds snipe, a
+-- shotgun/pistol feeds the kite range bands). Fights, hits, and heals then show in alifetactics.log
+-- under [AP] / [HEAL] / [LIMP] / [ACC] / [DISCLOSURE] / [CROSSFIRE] / [JAM] / monitor with log
+-- level DEBUG.
+--------------------------------------------------------------------------------
+
+local LAB_RADIUS_SQR  = 100 * 100
+local LAB_PERIOD_SEC  = 30
+local LAB_WEAPONS = { "wpn_svd", "wpn_spas12", "wpn_mp5", "wpn_pm" }
+local _lab_wpn_i = 0
+
+-- Give one item unless already carried (loop-safe).
+local function _lab_ensure(npc, section)
+    if npc:object(section) ~= nil then return 0 end
+    xinventory.create_item(section, npc:id())
+    return 1
+end
+
+-- Give the next palette weapon + 2 ammo boxes (the engine equips it when it scores higher).
+local function _lab_give_weapon(npc)
+    _lab_wpn_i = _lab_wpn_i + 1
+    local sec = LAB_WEAPONS[((_lab_wpn_i - 1) % #LAB_WEAPONS) + 1]
+    if not ini_sys:section_exist(sec) then return "none" end
+    xinventory.create_item(sec, npc:id())
+    local ammo_class = parse_list(ini_sys, sec, "ammo_class")
+    local ammo = ammo_class and ammo_class[1]
+    if ammo then
+        xinventory.create_item(ammo, npc:id())
+        xinventory.create_item(ammo, npc:id())
+    end
+    return sec
+end
+
+-- Stock one NPC: meds, AP + rank, and the squad's palette weapon (once per squad per pass).
+-- Returns (items_given, ap_armed 0|1, weapon_given 0|1).
+local function _lab_stock_npc(npc, squads)
+    local items = _lab_ensure(npc, "medkit") + _lab_ensure(npc, "bandage")
+    local ap = _arm_ap(npc) and 1 or 0
+    local squad = get_object_squad(npc)
+    if not squad or squads[squad.id] then return items, ap, 0 end
+    squads[squad.id] = _lab_give_weapon(npc)
+    return items, ap, 1
+end
+
+-- One pass over online stalkers near the actor. Squads get their weapon once per pass (first member).
+local function _lab_pass()
+    if not db.actor then return end
+    local apos = db.actor:position()
+    local actor_id = db.actor:id()
+    local seen, items, aps, weapons = 0, 0, 0, 0
+    local squads = {}
+    for id in pairs(db.storage) do
+        local npc = level.object_by_id(id)
+        if npc and id ~= actor_id and IsStalker(npc) and npc:alive()
+            and npc:position():distance_to_sqr(apos) <= LAB_RADIUS_SQR
+        then
+            seen = seen + 1
+            local items_n, ap_n, wpn_n = _lab_stock_npc(npc, squads)
+            items   = items + items_n
+            aps     = aps + ap_n
+            weapons = weapons + wpn_n
+        end
+    end
+    log.info("[LAB] pass npcs=%d items_given=%d ap_armed=%d squad_weapons=%d", seen, items, aps, weapons)
+    _tip(string_format("AT.LAB: %d NPCs stocked, %d items, %d AP-armed, %d squad weapons", seen, items, aps, weapons))
+end
+
+--- One harness pass: stock every nearby stalker (meds, AP + rank, squad weapons).
+--- @export console
+function at_lab()
+    _lab_pass()
+end
+
+local _lab_loop_on = false
+
+local function _lab_tick()
+    if not _lab_loop_on then return true end
+    _lab_pass()
+    ResetTimeEvent("at_lab", "loop", LAB_PERIOD_SEC)
+end
+
+--- Toggle the periodic harness: a stocking pass every 30s until toggled off.
+--- @export console
+function at_lab_loop()
+    if _lab_loop_on then
+        _lab_loop_on = false
+        RemoveTimeEvent("at_lab", "loop")
+        log.info("[LAB] loop stopped")
+        _tip("AT.LAB: loop stopped")
+        return
+    end
+    _lab_loop_on = true
+    _lab_pass()
+    RemoveTimeEvent("at_lab", "loop")
+    CreateTimeEvent("at_lab", "loop", LAB_PERIOD_SEC, _lab_tick)
+    log.info("[LAB] loop started period=%ds", LAB_PERIOD_SEC)
+    _tip("AT.LAB: loop started (a pass every " .. LAB_PERIOD_SEC .. "s)")
 end
 
 --------------------------------------------------------------------------------
