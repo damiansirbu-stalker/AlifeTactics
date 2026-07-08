@@ -9,13 +9,15 @@ Requires: Anomaly 1.5.3, [demonized 20250908+](https://github.com/themrdemonized
 
 ## Systems
 
-Every system has its own MCM page with a master toggle, grouped as in the menu.
+One entry per MCM page, in menu order. A page marked planned is reserved in the menu and does nothing yet.
 
 ### Combat
 
 Maneuvers: borrows one stalker for one committed maneuver where vanilla dithers, then hands control back.
 Kite reopens range, retreat pulls to rear cover, flee routs the last man to a distant friendly base, snipe holds a marksman on precision aim.
 A maneuver runs only when it gains the stalker something, and when no move pays, vanilla fights on untouched.
+
+Behaviors (planned): new combat actions the vanilla planner lacks, grenades and melee first.
 
 ### Effectiveness
 
@@ -31,6 +33,15 @@ Always-on crash and misread fixes, plus three optional improvements.
 Crossfire: same-faction hits deal no damage, keyed on actual relation.
 Hostile pairs still trade fire, and your own shots are never touched.
 
+Commitment (planned): holds a stalker on a good combat action instead of the break-contact shuffle.
+The action-switch veto behind it is this mod's own engine work, already merged in the demonized exes.
+
+Reaction (planned): per-NPC aim speed and vision speed, on this mod's merged engine binds.
+
+Range (planned): reserved for a future system.
+
+Resistance (planned): reserved for a future system.
+
 ### Mechanics
 
 Healing: wounded NPCs spend the medkits and bandages they carry, with limp and heal animations.
@@ -41,11 +52,17 @@ Your own jams stay vanilla.
 
 Ammo: veteran and higher NPCs fire the armor-piercing rounds they carry until they run out, and drop none of it as loot.
 
+### Effects
+
+Planned: player-facing combat feedback, concussion first.
+
+### Mutants
+
+Planned: reserved for a future system.
+
 ### Development
 
 Log level and a live combat debug HUD.
-
-The Behaviors, Commitment, Reaction, Range, and Resistance pages and the Effects and Mutants categories are reserved for systems still to come.
 
 ## Alife Collection
 

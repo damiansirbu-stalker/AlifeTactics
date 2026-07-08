@@ -112,9 +112,14 @@ Rank threshold and drain are tunable in configs/alifetactics/at_ammo.ltx.
 Range and Resistance under Effectiveness, and the Effects and Mutants categories, are reserved in the menu for systems still to come.
 
 Under the hood:
-Every system rides the engine's own callbacks, event-driven and effectively free at runtime, and it replaces no files.
-Compatibility falls out of that: nothing is replaced, so nothing collides.
-Every operation is traced for duration, visible with debug logging on.
+AlifeTactics replaces no files.
+Every system attaches through an engine callback, a function patch, or a config overlay, so nothing collides.
+The takeover borrows one NPC through the engine's own GOAP planner, the same way the engine builds its own combat actions, and returns it within seconds.
+Several of the engine hooks it rides are its own: the action-switch veto, per-NPC aim and vision, and the fire-discipline reads were written for this mod and merged upstream into the demonized exes.
+Every mechanism is built from the engine source, down to file and line.
+A decision weighs the stalker's own state, his weapon and the enemy's, his squad, the ground behind him, and the weather.
+Nothing runs per frame.
+Every operation is timed against a hard budget of a quarter of a frame, visible with debug logging on.
 
 Intended setup:
 AlifeTactics is designed against vanilla Anomaly on the latest demonized build, and that is what it is tuned for.
@@ -147,6 +152,8 @@ Conflicts (choose one):
 - NPC Weapon Jamming, or any rank-based NPC jam mod: Anomaly has no jam animation, so jammed NPCs reload forever. AlifeTactics removes it, the mod re-adds it.
 
 Coexists:
+- xrMPE Animations (ANOMALY-GAMMA): replaces the stalker animation files AlifeTactics's hurt and heal poses play from.
+  Every animation AlifeTactics uses exists in its files (verified), so the poses keep working and take on xrMPE's look.
 - AI-overhaul combat (G.A.M.M.A. AI Rework, ReDone Combat AI, RE:VISION, AI More Cover):
   The takeover blocks the combat planner only while it runs a maneuver, then hands back to their combat AI.
   The danger rework patches their xr_danger at load, so their danger layer keeps running too.

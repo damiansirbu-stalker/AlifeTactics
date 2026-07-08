@@ -10,7 +10,16 @@ Part of a four-mod alife family: **AlifePlus** extends A-Life with new behaviors
 
 ## Invariants
 
-- **No steady-state per-frame work.** Ongoing work runs on a throttled tick (a fixed interval) or on a discrete engine event (hit, shot, spawn, option change); it never runs continuously every frame. A per-frame engine callback (`npc_on_update`) is used only as a carrier that throttles before doing anything, and we never place our code on a path the engine runs every frame (a visibility or fire functor). Frame-spreading a bounded one-off batch (xslice, 1 item per frame) to avoid a single-frame spike is the one allowed use of the frame; it completes and stops. Full rule and rationale: `doc/standards/code-standards.md` "No Per-Frame Work".
+Project-wide constraints. Every system holds all of them; a change that violates one is wrong even when it works.
+
+- **No per-frame work. Never.** Ongoing work runs on a throttled tick (a fixed interval) or on a discrete engine event (a hit, a shot, a spawn, an option change) - never continuously every frame. A per-frame engine callback (`npc_on_update`) is only a carrier: its first act is a throttle compare that returns until the interval elapses (the at_combat scan is three integer compares between due checks). We never place code on a path the engine itself runs every frame (a visibility functor, a fire functor) - a function there runs every frame no matter how small its body. Frame-spreading a bounded one-off batch (xslice, 1 item per frame) is the one allowed use of the frame; it completes and stops. Full rule: `doc/standards/code-standards.md` "No Per-Frame Work".
+- **A quarter of a frame is the ceiling.** Every measured flow targets 0.1ms average per call with a hard 4ms ceiling - a quarter of a 60fps frame. No exceptions: cold start, save load, and level transition all count. A flow that averages above 0.1ms or ever crosses 4ms is a regression and gets a perf task.
+- **Measured, not asserted.** Every flow carries a duration field in its DEBUG trace (`walk=us`, `[us]`, `[ms]`); the timers are null objects when debug is off, so measurement costs nothing live. No mechanism (cache, backoff, throttle, precompute) is justified by an unmeasured cost - the decide-path decline backoff was built and removed the same day for this, and the per-row walk timings that replaced it are the gate any future cost mechanism must pass.
+- **No file overrides.** AT replaces no vanilla file. Every system attaches by callback, function patch, save-wrap, DLTX overlay, scheme patch, or the time-boxed takeover transaction. Composition with modpacks falls out of the attach mechanism, never out of luck.
+- **Engine truth.** Every mechanism claim in this document carries an engine source cite (file:line into xray-monolith or vanilla Anomaly). A behavior that could not be proven from source does not ship; where the engine had no seam, the seam was added upstream first (the demonized PRs: action-switch veto, per-NPC aim and vision, fire-discipline binds).
+- **The takeover is a bounded transaction.** Vanilla owns every NPC by default. AT borrows one NPC for one committed, time-boxed maneuver and releases it - at most one open maneuver per NPC, ended on arrival or a hard cap, cleaned up on death and despawn, followed by a reseize cooldown. AT is an interrupt over vanilla, never the combat brain.
+- **xcombat boundary.** Every NPC combat command and read goes through an xcombat (xlibs) primitive; AT makes no raw engine combat call. AT owns policy (when, whom, which maneuver); xcombat owns mechanism (how to issue it to the engine).
+- **Debug is free when off.** Every trace call gates on one boolean. The off path builds no string, allocates nothing, and crosses no luabind bridge.
 
 ---
 
@@ -23,18 +32,18 @@ Version 1.0.0.
 | `_at_deps.script` | infra | done |
 | `at_mcm.script` | infra | done |
 | `at_test.script` | infra | done |
-| `at_hud.script` | infra | done (live debug HUD: nearby NPCs with logic scheme, combat operator, and target; noop unless enabled) |
+| `at_hud.script` | infra | done (live debug HUD, noop unless enabled) |
 | `at_disclosure.script` | feature | done |
-| `at_crossfire.script` | feature | done (friendly-fire damage block, extracted to its own leaf file) |
+| `at_crossfire.script` | feature | done |
 | `at_healing.script` | feature | done |
 | `at_accuracy.script` | feature | done |
-| `at_combat.script` | feature | v2 intermittent takeover: solo maneuver set (kite, snipe, retreat, flee) + fire gate + flee disengage, actor-scoped, validates S+, pending playtest; squad coordination and enemy openings are the open phases (see Combat section + todo-combat-takeover-v2.md) |
-| `at_danger.script` | feature | done (danger scheme installed as a function-level patch onto the winning xr_danger; no longer a full-file override) |
-| `at_jam.script` | feature | done (modded-exes xr_weapon_jam.GetConditionMisfireProbability override; suppresses script-injected NPC misfire) |
-| `at_ammo.script` | feature | done (AP fired from carried boxes; per-engagement rank/rpm-weighted box-delete decay reverts to FMJ when out; veteran-rank gate; no death hook) |
+| `at_combat.script` | feature | v2 intermittent takeover: solo maneuver set (kite, snipe, retreat, flee), any selected enemy; squad coordination and enemy openings are the open phases (todo-combat-takeover-v2.md) |
+| `at_danger.script` | feature | done (function-level patch onto the winning xr_danger) |
+| `at_jam.script` | feature | done (NPC misfire suppression via the modded-exes functor) |
+| `at_ammo.script` | feature | done (AP fired from carried boxes, box-delete decay) |
 | `zzz_at_healing_patch.script` | feature | done (vanilla xr_eat_medkit re-roll suppressor) |
 | `configs/ai_tweaks/mod_xr_eat_medkit_at.ltx` | data | done |
-| `configs/ai_tweaks/xr_danger.ltx` | data | done |
+| `configs/ai_tweaks/mod_xr_danger_at.ltx` | data | done (DLTX overlay, replaced the whole-file xr_danger.ltx override 2026-07-08) |
 | `configs/alifetactics/at_combat_config.ltx` | data | done (Combat takeover tunables) |
 | `configs/ui/ui_at_stats.xml` | data | done (at_hud layout) |
 
@@ -62,7 +71,7 @@ AlifeTactics/
 │   ├── configs/
 │   │   ├── ai_tweaks/
 │   │   │   ├── mod_xr_eat_medkit_at.ltx       # DLTX overlay: vanilla medkit/bandage lists
-│   │   │   └── xr_danger.ltx                  # paired with the danger fn-patch (at_danger)
+│   │   │   └── mod_xr_danger_at.ltx           # DLTX overlay paired with the danger fn-patch (at_danger)
 │   │   ├── alifetactics/
 │   │   │   ├── at_combat_config.ltx           # Combat numeric tunables
 │   │   │   └── at_ammo.ltx                    # Ammo tunables
@@ -99,11 +108,11 @@ Namespace: `at_*` (parallel to `ap_*` for AlifePlus, `ag_*` for AlifeGuard, `x*`
 
 ## User-facing systems
 
-The MCM menu is a five-category gameplay tree plus a Development tab, the canonical structure (source of truth `at_mcm.script`; the page names here are the MCM labels): **Combat** (Maneuvers, Behaviors), **Effectiveness** (Accuracy, Disclosure, Danger, Crossfire, Commitment, Reaction, Range, Resistance), **Mechanics** (Healing, Jamming, Ammo), **Effects** (wip), **Mutants** (wip), and **Development** (log level, debug HUD toggle and position, reset to defaults). Effectiveness > Commitment (the shuffle intervention — its engine keystone n023 is merged, the Lua layer is wip), Behaviors, Effects, Mutants, and the Reaction/Range/Resistance pages are all wip. One leaf = one name = one `at_<leaf>.script` = one MCM page = one master toggle; the system sections below follow the category order. The Scope column is the actor-scope rule below, at a glance.
+The MCM menu is a five-category gameplay tree plus a Development tab, the canonical structure (source of truth `at_mcm.script`; the page names here are the MCM labels): **Combat** (Maneuvers, Behaviors), **Effectiveness** (Accuracy, Disclosure, Danger, Crossfire, Commitment, Reaction, Range, Resistance), **Mechanics** (Healing, Jamming, Ammo), **Effects** (wip), **Mutants** (wip), and **Development** (log level, debug HUD toggle and position, reset to defaults). Effectiveness > Commitment (the shuffle intervention — its engine keystone n023 is merged, the Lua layer is wip), Behaviors, Effects, Mutants, and the Reaction/Range/Resistance pages are all wip. One leaf = one name = one `at_<leaf>.script` = one MCM page = one master toggle; the system sections below follow the category order. The Scope column is the scope rule below, at a glance.
 
 | System | File | MCM page | Master toggle | Scope | Composition |
 |---|---|---|---|---|---|
-| Maneuvers | `at_combat.script` | Combat > Maneuvers | `combat_enabled` | Actor only | transaction-override |
+| Maneuvers | `at_combat.script` | Combat > Maneuvers | `combat_enabled` | All NPCs | transaction-override |
 | Accuracy | `at_accuracy.script` | Effectiveness > Accuracy | `accuracy_enabled` | All NPCs | callback |
 | Disclosure | `at_disclosure.script` | Effectiveness > Disclosure | `disclosure_enabled` | All NPCs | callback |
 | Danger | `at_danger.script` | Effectiveness > Danger | bug fixes always-on; three toggleable improvements | All NPCs | scheme-patch |
@@ -114,17 +123,15 @@ The MCM menu is a five-category gameplay tree plus a Development tab, the canoni
 
 Composition classes, what each does to the surrounding stack: `callback` subscribes to an engine callback and adds to it (composes with any other subscriber); `fn-patch` replaces a vanilla module function, rescheduling through the same lookup so it holds; `save-wrap` saves the prior function and forwards to it when disabled (composes with a prior installer); `transaction-override` suppresses whatever brain is installed, but only for the seconds it holds one NPC; `scheme-patch` installs a generic scheme's binder and evaluators onto whichever file won the MO2 slot, at `on_game_start`, so it layers onto a rival override instead of excluding it (Danger is the one such leaf).
 
-### Actor scope: only the Combat takeover is actor-gated
+### Scope: every system runs on every fight
 
-The Combat takeover is the sole actor-scoped system. It seizes an NPC exactly when that NPC's current enemy is the player, gated by one predicate, `_target_eligible(enemy)` at `at_combat.script:73-74`; in an NPC-vs-NPC fight it never engages. This is a target gate (the NPC's enemy must be the actor), not a participant exclusion.
-
-Every other system runs on all NPCs in any fight, NPC-vs-NPC included. Disclosure, Healing, Accuracy, and Danger never read who the enemy is. Crossfire, Jamming, and Ammo exclude the player only as a participant (the player's own hits, the player's own weapon); that is the inverse of an actor-only scope, not an instance of it. So widening or keeping the Combat gate changes the takeover alone and touches none of the Effectiveness or Mechanics systems.
+No system is actor-gated. The Combat takeover targets whatever enemy the engine selected for the NPC (`best_enemy()` - a stalker, the player, or a mutant); the actor gate it shipped with was removed 2026-07-08 once the measured decide costs showed the complication bought nothing. Disclosure, Healing, Accuracy, and Danger never read who the enemy is. Crossfire, Jamming, and Ammo exclude the player only as a participant (the player's own hits, the player's own weapon) - a participant exclusion, not a target gate.
 
 ---
 
 ## Combat
 
-Status: built incrementally. On `main`: the GOAP graft (`xcombat.install_takeover`), the maneuver-catalog spine (`at_combat_doctrine`), and the full solo maneuver set — kite, snipe, retreat, flee — with the fire-discipline gate (`fire_make_sense` at the decision point) and flee's disengage. Actor-scoped, validates S+, not yet playtested, so squad coordination and enemy openings remain the open phases. Full phase plan + the decision record: `stalker-dev/doc/todo/todo-combat-takeover-v2.md` (t130-t139 + the Plan section). The full-takeover v1 is preserved on the `combat_takeover` branch.
+Status: built incrementally. On `main`: the GOAP graft (`xcombat.install_takeover`), the maneuver-catalog spine (`at_combat_doctrine`), and the full solo maneuver set — kite, snipe, retreat, flee — with the fire-discipline gate (`fire_make_sense` at the decision point) and flee's disengage. It runs against any selected enemy (the actor gate was removed 2026-07-08); squad coordination and enemy openings remain the open phases. Full phase plan + the decision record: `stalker-dev/doc/todo/todo-combat-takeover-v2.md` (t130-t139 + the Plan section). The full-takeover v1 is preserved on the `combat_takeover` branch.
 
 ### Two systems
 
@@ -135,11 +142,9 @@ AT's combat is two independent systems over vanilla, not one:
 
 The maneuvers impose (block vanilla briefly, run our behavior); the shuffle intervention composes (leave vanilla running, deny only bad switches). The two are separate and can be built and shipped independently.
 
-### Scope: vs the player, decoupled
+### Scope: any selected enemy
 
-The takeover is designed against the player and, for now, only runs when an NPC's enemy is the actor. NPC-vs-NPC is dropped (too many corner cases; the actor is always online, has a stable id, never despawns mid-fight, and exposes facing/health/reload). The restriction is one predicate, `_target_eligible(enemy)`; every maneuver, viability check, and read takes a generic `enemy` game_object, so widening the scope later is a one-line change. No readme or MCM surface mentions it.
-
-This actor gate is unique to the takeover. The Effectiveness and Mechanics systems (Accuracy, Disclosure, Danger, Crossfire, Healing, Jamming, Ammo) are unscoped and run on every NPC regardless of who it fights. See "Actor scope" under User-facing systems for the full rule.
+The takeover runs against whatever enemy the engine selected for the NPC - `best_enemy()`, the same object vanilla combat drives against. The target is never picked by AT: no nearest-NPC scan, no memory pick; selection stays the enemy_manager's job and AT acts on the brain's current choice, re-read at the grant and on every update tick (the decision trace's SWITCHED marker shows a mid-maneuver re-selection). This is the right target for the maneuvers because of what the selection optimizes: the engine scores enemies by visibility class first (seen-now -1000, sees-me -900/-300, hit-me tie-breaks) and distance second (enemy_manager.cpp:110-175), so `best_enemy` is in practice the nearest enemy the NPC can currently see - exactly the one kite must back away from and retreat must grow distance from. The known multi-enemy edges, both visible in the update traces: snipe's plant condition is not re-checked mid-hold when a closer enemy walks in (bounded by the cap; the closer enemy becomes selected and re-aimed at once seen), and flee's under-fire read counts shots from the selected enemy plus HITS from anyone, so a second shooter who only misses does not hold the rout. The original actor-only gate (`_target_eligible`) was removed 2026-07-08: the decide-walk timings showed the whole check costs microseconds, so gating it to player fights was complication without payoff. A weaponless enemy (a mutant) reads as the rifle range band where a row needs the enemy's weapon (snipe), and every other read (distance, danger memory, health) is enemy-agnostic. The one actor read left in the decide path is flee's base search scoping to the CURRENT level via the actor's level id - valid because a fleeing NPC is online, and online NPCs are on the actor's level by construction.
 
 ### The model: a takeover transaction
 
@@ -154,7 +159,28 @@ Three states per NPC, real cost only in the last:
 
 ### The decision pipeline
 
-Per begin_maneuver check (on npc_on_update, self-throttled) the monitor walks the maneuver catalog in order — kite, flee, retreat, snipe — and runs each row's ordered checks: the situation compare first (a cheap read — the enemy inside the weapon minimum, a grenade near, badly hurt, a standoff), the faction/weapon palette next, the resolver's geometry last. The first row that passes all three is the maneuver; a row that fails any check falls through to the next. There is no separate trigger layer and no shared read-all: each row reads its own world, and a value two rows share — the faction, the weapon kind, the npc-enemy distance, the grenade danger — is memoized lazily on the walk, for that walk only. Row order is the precedence: kite answers a violated weapon minimum before anything else, a declined flee falls through to retreat, and snipe sits last so a pressed sniper retreats and only the merely-stalled one plants. The resolver IS the viability gate: it returns a destination when the maneuver is doable here, or nil to decline — one pass answers both "does it make sense?" and "where to?", no separate viability predicate. A resolver decline also stamps a per-row backoff (~2s, tunable) so a standing decline — a hurt NPC with no rear cover, a boxed-in kite — does not re-pay the same raycast geometry every check; a successful begin or leaving the fight clears the stamps. The things vanilla does well — the opener, re-target, search, turret, grenade dodge — are not situations AT answers.
+Per begin_maneuver check (on npc_on_update, self-throttled) the monitor walks the maneuver catalog in order — kite, flee, retreat, snipe — and runs each row's ordered checks: the situation compare first (a cheap read — the enemy inside the weapon minimum, a grenade near, badly hurt, a standoff), the faction/weapon palette next, the resolver's geometry last. The first row that passes all three is the maneuver; a row that fails any check falls through to the next. There is no separate trigger layer and no shared read-all: each row reads its own world, and a value two rows share — the faction, the weapon kind, the npc-enemy distance, the grenade danger — is memoized lazily on the walk, for that walk only. Row order is the precedence: kite answers a violated weapon minimum before anything else, a declined flee falls through to retreat, and snipe sits last so a pressed sniper retreats and only the merely-stalled one plants. The resolver IS the viability gate: it returns a destination when the maneuver is doable here, or nil to decline — one pass answers both "does it make sense?" and "where to?", no separate viability predicate. With debug tracing on, the decision line carries per-row and whole-walk microsecond timings — any future cost mechanism on this path (a decline backoff was built and removed 2026-07-08) must first be justified by those numbers. The things vanilla does well — the opener, re-target, search, turret, grenade dodge — are not situations AT answers.
+
+### The flow
+
+One maneuver, birth to hand-back:
+
+```
+npc_on_update (per frame: three integer compares, nothing else)
+  no maneuver open -> begin check (500ms)
+      reseize cooldown running                          -> skip
+      not fighting (no best_enemy, no recent hit)       -> skip
+      not seizable (unarmed / smart cover / indoors)    -> skip
+      catalog walk, in order: kite -> flee -> retreat -> snipe
+          per row: situation compare -> palette -> resolver
+          resolver returns a vertex = picked; nil = next row
+      picked -> stage row + destination, raise the gate
+  engine plan solve -> grafted action initialize
+      -> _begin_maneuver: send_to(dest) + apply_state    (the one engine write)
+  maneuver open -> update check (200ms): row.update re-applies fire/posture/movement
+                -> end check (200ms): arrived or cap -> _end_maneuver
+      -> gate down, cover reservation released, vanilla resumes, cooldown starts
+```
 
 ### The maneuvers, and how each one works
 
@@ -178,7 +204,7 @@ flee sits before retreat in the catalog: a hurt timid NPC tries the rout first a
 
 ### The advantage rules
 
-A trigger says a situation exists; it does not say the maneuver pays. Each maneuver therefore carries rules — player-related (distance, the player's weapon) and squad-related (last man, a standing line) — so that running it is an advantage for this NPC here, not a reflex. All of them live in the resolvers (the seize path), so they cost nothing on the monitor and each traces its pass or decline when debug is on: kite reopens exactly his own weapon's minimum, snipe refuses to plant inside the enemy's working range, retreat refuses cover toward the shooter, flee refuses to rout under fire or while a squadmate stands. The reads are the `WEAPON_RANGES` table (both sides' weapon kinds are cached reads), the squad member count, and the NPC's own danger memory — no raycasts, nothing per frame. Later maneuvers (suppress, assault, flank) get held to the same bar at design time.
+A trigger says a situation exists; it does not say the maneuver pays. Each maneuver therefore carries rules — enemy-related (distance, the enemy's weapon) and squad-related (last man, a standing line) — so that running it is an advantage for this NPC here, not a reflex. All of them live in the resolvers (the seize path), so they cost nothing on the monitor and each traces its pass or decline when debug is on: kite reopens exactly his own weapon's minimum, snipe refuses to plant inside the enemy's working range, retreat refuses cover toward the shooter, flee refuses to rout under fire or while a squadmate stands. The reads are the `WEAPON_RANGES` table (both sides' weapon kinds are cached reads), the squad member count, and the NPC's own danger memory — no raycasts, nothing per frame. Later maneuvers (suppress, assault, flank) get held to the same bar at design time.
 
 ### The flee disengage
 
@@ -250,6 +276,22 @@ Per-shot hot path: a rank-name lookup, then pure-Lua scaling of the dispersion t
 
 MCM page: Effectiveness > Disclosure (`at_disclosure.script`). Hooks `npc_on_hit_callback`. When a faction-enemy hits any squad member, the entire squad is force-disclosed to the shooter on hit #1. Extends the engine's audio-range squad disclosure to distant patrol members and suppressed-weapon victims.
 
+### The flow
+
+```
+npc_on_hit_callback (a faction enemy hits a stalker)
+  -> gate: amount > 0, shooter exists, not a self-hit, is_factions_enemies
+  -> key = squad id, or the victim's own id when squadless
+  -> survivor gate on: defer one frame, drop the disclosure if the hit killed
+  -> first hit for (key, shooter): xcombat.disclose_enemy per online member
+         enable_memory_object + register_in_combat
+         (the engine's own memory propagation carries it from there)
+     repeat hit: refresh the timestamp, nothing else
+  -> decay tick (5s): prune shooters idle past the retention window
+spawn: a new member inherits the squad's live disclosures;
+       a returning offline shooter is re-disclosed to every tracking squad
+```
+
 ### What the engine does natively on hit
 
 1. Hit registered → `CHitMemoryManager::add` creates a hit_memory entry on the victim (`hit_memory_manager.cpp:95-163`).
@@ -265,18 +307,19 @@ MCM page: Effectiveness > Disclosure (`at_disclosure.script`). Hooks `npc_on_hit
 
 1. Sanity guards: `amount > 0`, `who` exists, not self-hit.
 2. **Faction-relation gate** via `game_relations.is_factions_enemies(npc_community, shooter_community)`. Same-community hits rejected. Mirrors the engine's friendly-fire skip at our hook entry.
-3. Resolve squad via `get_object_squad(npc)`; skip solo NPCs.
-4. Write/refresh timestamp: `_disclosed[squad_id][shooter_id] = xtime.game_sec()`. Every hit refreshes.
-5. If the entry existed before the write (idempotency hit): return. The squad already engaged this shooter in this fight.
-6. Otherwise (first hit, or first hit since decay): call `_disclose(squad, who)`. Three engine APIs per online squadmate:
+3. Resolve the disclosure key: the squad id via `get_object_squad(npc)`, or the victim's own id when squadless — a solo victim discloses to himself (squad and NPC server ids share one id space, so the map never collides).
+4. Write/refresh timestamp: `_disclosed[key][shooter_id] = xtime.game_sec()`. Every hit refreshes.
+5. If the entry existed before the write (idempotency hit): return. This audience already engaged this shooter in this fight.
+6. Otherwise (first hit, or first hit since decay): `xcombat.disclose_enemy` per online squadmate (or the solo victim). Relation-clean — no goodwill or community write; the enemy_manager engages the injected object because faction enmity already holds (`is_relation_enemy` via the faction-dominated summed attitude). Two engine APIs per receiver:
 
-   - **`force_set_goodwill`** (hostile goodwill): writes RELATION_REGISTRY personal goodwill (`relation_registry.cpp:161-179`). `CAI_Stalker::tfGetRelationType` routes through RELATION_REGISTRY for stalkers so this drives every downstream `is_relation_enemy` check. Gated on `IsStalker(who) AND IsStalker(mem_npc)`: `ForceSetGoodwill` smart_casts both ids to `CSE_ALifeTraderAbstract` and logs an error if either side is non-stalker. Mutant shooters and mutant squadmates both skip the goodwill write.
-   - **`enable_memory_object(who, true)`**: toggles `m_enabled` on existing visual/sound/hit memory entries (`memory_manager.cpp:151-156`). No-op when no prior entry. Receiver must be `CCustomMonster` (`script_game_object2.cpp:262`); stalkers and mutants qualify, the actor does not — irrelevant here since `mem_npc` is always a squad member.
-   - **`register_in_combat()`**: sets the member's squad_mask bit in `CAgentMemberManager::m_combat_mask` (`agent_member_manager.cpp:114-132`). This is the unlock for engine-native squad memory propagation. With the whole squad's bits set, the next `agent_memory_manager` tick ORs the full combat_mask into the victim's hit-memory entry's `m_squad_mask`, propagating memory of the shooter across every member including distant patrols. Requires `CAI_Stalker` receiver (`script_game_object_inventory_owner.cpp:1945-1955`); safe here because `npc_on_hit_callback` is dispatched only by `motivator_binder` (stalker squads), never `generic_object_binder` (mutant squads), so `mem_npc` is always a stalker.
+   - **`enable_memory_object(who, true)`**: toggles `m_enabled` on existing visual/sound/hit memory entries (`memory_manager.cpp:151-156`). Its teeth: re-enables memory a combat-ignore suppressed, so an "ignored" shooter becomes engageable again. Receiver must be `CCustomMonster` (`script_game_object2.cpp:262`).
+   - **`register_in_combat()`**: sets the member's squad_mask bit in `CAgentMemberManager::m_combat_mask` (`agent_member_manager.cpp:114-132`) — the unlock for engine-native squad memory propagation across every member including distant patrols. Requires `CAI_Stalker` receiver; safe because `npc_on_hit_callback` is dispatched only by `motivator_binder` (stalker squads). Routed through the alive-guarded `xcombat.register_in_combat`.
+
+   What disclosure deliberately does NOT do: change enemy RANKING. The selection pays "currently seen" ~1000 points against ~5-100 for "hit me" (`enemy_manager.cpp:110-175`), and `visible_now` is live vision state no script write reaches — so a disclosed-but-unseen shooter still loses to a seen enemy. The engine's own `make_object_visible_somewhen` (`memory_manager.cpp:345`) closes exactly that gap and is not script-bound: the n027 demonized PR binds it, and disclosure adopts it on merge.
 
 ### Decay and re-engagement
 
-A periodic decay tick walks every `_disclosed[squad_id][shooter_id]` entry and prunes any older than the retention window (MCM-tunable). Pruning clears only the idempotency entry; the goodwill write is RELATION_REGISTRY-persistent and survives independently for the rest of the session.
+A periodic decay tick walks every `_disclosed[key][shooter_id]` entry and prunes any older than the retention window (MCM-tunable). Pruning clears only the idempotency entry; no relation state was written, so nothing else needs unwinding.
 
 After decay, the next hit from that shooter against that squad triggers a fresh `_disclose` call. Distant patrol squadmates get re-pinned into combat_mask for the new engagement.
 
@@ -294,8 +337,8 @@ Both paths short-circuit quickly when no entries match. Most spawn events trigge
 ### Net behavior
 
 - Engine handles audio-range squadmates on hit #1 (free, automatic).
-- Our hook handles distant patrol squadmates on hit #1 by forcing them into combat_mask, letting the engine's own propagation pipe carry the memory.
-- Hostility for the shooter is pinned by a hostile personal-goodwill write on every squadmate. The override survives community-relation drift and lasts the session.
+- Our hook handles distant patrol squadmates on hit #1 by forcing them into combat_mask, letting the engine's own propagation pipe carry the memory; a squadless victim gets the same pair himself.
+- No relation is written: faction enmity already makes the disclosed shooter engageable, and the memory enable defeats a combat-ignore suppression.
 - Sustained engagement: subsequent hits refresh the timestamp and return early via idempotency.
 - After the retention window of no hits from a given shooter, the squad's pin on that shooter expires; the next hit re-fires the full pipeline.
 - Mid-fight replenishment: new squad members inherit existing disclosures on spawn.
@@ -305,7 +348,25 @@ Both paths short-circuit quickly when no entries match. Most spawn events trigge
 
 ## Danger
 
-`at_danger.script` installs AlifeTactics's danger scheme as a function-level patch, at `on_game_start`, onto whichever `xr_danger.script` won the MO2 virtual filesystem (vanilla, GAMMA AI Rework, or REDONE Combat AI). AT no longer ships `xr_danger.script`, so it does not compete for that slot. Vanilla bug fixes run always-on; three improvements sit behind MCM toggles. Paired LTX (`configs/ai_tweaks/xr_danger.ltx`) carries weather-conditional distances and actor-source variant tables.
+`at_danger.script` installs AlifeTactics's danger scheme as a function-level patch, at `on_game_start`, onto whichever `xr_danger.script` won the MO2 virtual filesystem (vanilla, GAMMA AI Rework, or REDONE Combat AI). AT no longer ships `xr_danger.script`, so it does not compete for that slot. Vanilla bug fixes run always-on; three improvements sit behind MCM toggles. The paired DLTX overlay (`configs/ai_tweaks/mod_xr_danger_at.ltx`) carries weather-conditional distances and actor-source variant tables.
+
+### The flow
+
+```
+on_game_start: at_danger points the winning xr_danger's entry points at itself
+    setup_generic_scheme / add_to_binder / configure_actions / reset_generic_scheme /
+    get_danger_time / set_script_danger / has_danger
+bind time (modules.script): _G["xr_danger"].add_to_binder -> AT's evaluators + action
+    installed into every stalker's motivation manager under the danger scheme ids
+runtime, per plan solve:
+    eval_danger -> npc_on_eval_danger (third-party veto seam) -> best_danger type
+        -> inertion + ignore tables (the DLTX overlay onto ai_tweaks\xr_danger.ltx)
+        -> danger_flag
+    at_action_danger:execute -> per-type response
+        (scripted / grenade / corpse / attacked / attack_sound alert)
+feeders: the winner's own hear + death callbacks
+    -> patched set_script_danger -> script_danger table
+```
 
 ### How the patch installs
 
@@ -338,12 +399,12 @@ AT does not register the hear or death callbacks. It relies on the winning file'
 
 ### Paired LTX
 
-`configs/ai_tweaks/xr_danger.ltx` ships:
+`configs/ai_tweaks/mod_xr_danger_at.ltx` is a DLTX overlay (`![section]` override-merge on all four danger sections), not a file override - it applies to whichever `xr_danger.ltx` won the MO2 slot (vanilla, GAMMA AI Rework, and Stealth Overhaul all ship the four sections), so the danger tuning composes with rival AI mods instead of competing for the file (the same shape as the at_danger script patch). `!![section]` is NOT full-section replacement in this engine's DLTX - it deletes the section outright and discards the keys under it (`Xr_ini.cpp:721-739`, the 2026-07-09 nil-src condlist flood). It ships:
 - Weather-conditional ignore distances (rain/storm reduces detection)
 - Separate actor-source tables that respond to `actor_enemy` condition
-- Dead `hit`/`sound`/`visual` keys (PerceiveType names; collide with EDangerType enum values) are dropped
+- The dead `hit`/`sound`/`visual` keys (PerceiveType names; collide with EDangerType enum values) are dropped with per-key `!key` delete lines
 
-DLTX overlays that replace `[danger_inertion]` take precedence over these base values; absent those, the values here apply. The winning `xr_danger` reads whichever `xr_danger.ltx` won the MO2 slot; AT's actor-source sections degrade gracefully to the non-actor tables when a rival's LTX wins and lacks them.
+Later-alphabet DLTX overlays on the same sections still take precedence, load-order-wise, as with any DLTX stack.
 
 ### Composition
 
@@ -375,13 +436,30 @@ Per-NPC self-healing. Vanilla `xr_eat_medkit.script` has a working stage machine
 | Bandage tick logging | `xr_eat_medkit.heal_bleed = _patched_heal_bleed` | Logging-only wrapper around vanilla bleed loop |
 | Per-rank healing-charge | `RegisterScriptCallback("npc_on_net_spawn", _on_net_spawn)` | Reads `ranks.get_obj_rank_name(npc)`, folds the rank names into MCM tiers, rolls the per-tier chance, replacing vanilla's flat roll. Per-NPC `at_charge_processed` se_var prevents re-roll. |
 
+### The flow
+
+```
+heal:  vanilla xr_eat_medkit stage machine (untouched)
+         -> patched heal_hp / heal_bleed (rate multiplier, duration trace)
+         -> consume_medkit save-wrap logs item=<section> | CHARGE
+            (a real inventory item released vs the per-rank fallback)
+limp:  npc_on_update carrier
+         eligibility check (1s): hurt + no enemy + calm + standing
+             -> queue the hurt pose for the current gait
+         drop detectors (200ms): wounded/dead, gait changed,
+             drifted off the stand anchor, stopped displacing
+             -> clear_animations
+            (a queued script animation suspends the engine's whole animation
+             selection, so the pose must die the moment its gait stops matching)
+```
+
 ### Visual layer (Path 1 script-queue overlay)
 
 Two cosmetic cues using `npc:add_animation` directly. No state_mgr, no GOAP, no `state_lib` changes. See `doc/library/modding/state-lib-animations.md` for the Path 1 script-queue overlay mechanism.
 
 | Cue | Trigger | Animation(s) |
 |---|---|---|
-| Limping | `npc_on_update` per-NPC: per-tick drop on `not alive() or IsWounded or critically_wounded` (bypasses the throttle so the overlay never outlives a wounded transition); a throttled full eligibility check (`health < threshold`, `mental_state() == anim.free`, `body_state() == move.standing`, not zombied, not in smart_cover), periodically re-armed. Eligibility-lost branch drops tracking only; no `clear_animations()` (engine action transition or natural OMF expiry owns cleanup) | a per-slot `dmg_norm` torso overlay chosen from `active_slot()` + `movement_type()`; layers over engine-driven locomotion, legs stay attached to ground |
+| Limping | `npc_on_update` per-NPC: a 200ms drop-detector clock while the pose is worn (wounded/dead; commanded gait changed since add; stand-variant drifted off its add anchor; walk/run-variant stopped displacing over a 1s sample) - every drop calls `clear_animations()`; a 1s eligibility check (`health < threshold`, no `best_enemy`, `mental_state() == anim.free`, `body_state() == move.standing`, not zombied, not in smart_cover), re-armed every 5s | a per-slot `dmg_norm` hurt pose (clutch-the-torso) chosen from `active_slot()` + `movement_type()`. A queued script animation suspends the engine's whole animation selection (legs included, stalker_animation_manager_update.cpp:232), so the overlay must die the moment its gait stops matching - that is what the drop detectors do |
 | Heal anim | One-shot via `_try_play_heal_anim` on the first heal tick. Gated on `not npc:best_enemy()`, `not IsWounded(npc)`, `not npc:critically_wounded()`. No movement freeze, no stage machine, no mid-flight aborts. Engine drains the queue when the gesture ends; action transitions clear it on the way to action_wounded / action_critically_wounded (`stalker_base_action.cpp:24-29`) | a torso medkit / bandage gesture |
 
 Limping is independent of the healing master toggle (its callback registers unconditionally; gated at runtime by `limping_anim_enabled`). Heal cue is gated by `healing_anim_enabled` and the master toggle (it lives inside the heal_hp/heal_bleed patches that only install when healing is enabled).
@@ -425,7 +503,7 @@ Engine context: while `unlimited_ammo()` is TRUE (the stalker default, `ai_stalk
 
 ### Budget is the inventory
 
-No virtual ledger. The budget is the NPC's AP boxes themselves (box_size 15 rifle / 16 pistol; stocked to 1 box by trade, up to 3 by looting, per the box-aligned policy unification). `_find_ap` returns the first `AP_SECTIONS` entry in the weapon's `ammo_class` with a loose count > 0. `AP_SECTIONS` is the hardcoded clean-AP set; degraded `_bad` / `_verybad` variants are excluded.
+No virtual ledger. The budget is the NPC's AP boxes themselves, stocked by AlifePlus trade and looting. `_find_ap` returns the first `AP_SECTIONS` entry in the weapon's `ammo_class` with a loose count > 0. `AP_SECTIONS` is the clean-AP set; degraded `_bad` / `_verybad` variants are excluded.
 
 ### Tick algorithm
 
@@ -436,7 +514,7 @@ No virtual ledger. The budget is the NPC's AP boxes themselves (box_size 15 rifl
 
 ### Decay chance
 
-`ap_decay_base * (rpm / rpm_ref) * rank_weight`, clamped to [0,1]. `rpm` is the weapon's effective fire rate (bolt 25, SVD 60, rifle 600, SMG/MG 900). `rank_weight` lerps from 1.0 at `min_ap_rank` to `rank_weight_floor` at `rank_ceiling`. So fast weapons burn AP quickly and high rank conserves it -- a legend bolt-action shoots AP almost always. Deleting a whole box is permanent: `try_advance_ammo` (`object_actions.cpp:131-169`) refills rounds inside surviving boxes but cannot recreate a deleted box, so counting boxes never fights the top-up.
+`ap_decay_base * (rpm / rpm_ref) * rank_weight`, clamped to [0,1]. `rpm` is the weapon's effective fire rate; `rank_weight` lerps from 1.0 at `min_ap_rank` to `rank_weight_floor` at `rank_ceiling`. So fast weapons burn AP quickly and high rank conserves it -- a legend bolt-action shoots AP almost always. Deleting a whole box is permanent: `try_advance_ammo` (`object_actions.cpp:131-169`) refills rounds inside surviving boxes but cannot recreate a deleted box, so counting boxes never fights the top-up.
 
 ### No death hook
 
@@ -444,15 +522,11 @@ Vanilla `decide_items_to_keep` (`xr_motivator.script:362` -> `death_manager.scri
 
 ### Rank gate
 
-`character_rank() >= min_ap_rank`, veteran by default (12000 = veteran floor in `configs/creatures/game_relations.ltx [game_relations] rating`; professional caps at 11999, legend starts at 27000). Below-threshold NPCs early-exit at the rank read.
+`character_rank() >= min_ap_rank`, veteran by default (the veteran floor in `configs/creatures/game_relations.ltx [game_relations] rating`). Below-threshold NPCs early-exit at the rank read.
 
-### Tunables
+### Tuning
 
-`gamedata/configs/alifetactics/at_ammo.ltx`: `min_ap_rank`, `rank_ceiling`, `ap_decay_base`, `rpm_ref`, `rank_weight_floor`, `peace_debounce_ms`. Script-side fallbacks match so a missing key or file won't crash.
-
-### MCM
-
-`ammo_enabled` master toggle (cached, refreshed on `on_option_change`): off, `pick` early-exits with no `m_ammoType` writes and no box deletion.
+The numeric tunables live in `configs/alifetactics/at_ammo.ltx` with matching script-side fallbacks. The `ammo_enabled` MCM toggle early-exits `pick` with no `m_ammoType` writes and no box deletion.
 
 ### Scope and limits
 
