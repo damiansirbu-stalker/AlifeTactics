@@ -8,6 +8,7 @@ local string_sub, string_format = string.sub, string.format
 local IsStalker, RegisterScriptCallback = IsStalker, RegisterScriptCallback
 
 local log = xlog.get_logger("AT.HUD", { outfile = "alifetactics.log" })
+local _dbg = false
 local cfg = at_mcm.cfg
 
 local REFRESH_INTERVAL_SEC = 1
@@ -18,17 +19,18 @@ local HUD_SHOW_IDLE = false
 
 local ROW_H    = 13
 local PAD      = 6
-local COL_GAP  = 10
+local COL_GAP  = 6
 -- Columns auto-size to their widest cell (header + rows): width = maxchars * CHAR_W + CELL_PAD. CHAR_W is the
 -- approximate pixel advance of the HUD font; CELL_PAD keeps text off the next column. With no fixed column
--- widths a short column is not padded to a huge gap and long content is not clipped.
+-- widths a short column is not padded to a huge gap and long content is not clipped. The truncation caps
+-- below bound the panel to roughly half the 1024-unit screen; ranks render abbreviated for the same reason.
 local CHAR_W   = 6
-local CELL_PAD = 3
+local CELL_PAD = 2
 local MARGIN   = 15
-local MAX_ROWS = 50
-local NAME_MAX = 18
-local CELL_MAX = 20
-local TARGET_NAME_MAX = 12
+local MAX_ROWS = 20
+local NAME_MAX = 12
+local CELL_MAX = 10
+local TARGET_NAME_MAX = 10
 -- body-to-enemy angle above this many degrees reads as "pointed away" (the weird-aim flag)
 local FACING_DEG = 60
 
@@ -104,6 +106,12 @@ local function _enemy_cells(npc, enemy)
     return _sight_flag(npc, enemy), _cover_flag(npc, enemy), _target_desc(npc, enemy)
 end
 
+-- Rank names abbreviated to 3 chars so the rank column never widens the panel.
+local RANK_SHORT = {
+    novice = "nov", trainee = "trn", experienced = "exp", professional = "pro",
+    veteran = "vet", expert = "xpt", master = "mst", legend = "leg",
+}
+
 -- Reverse map anim enum -> label, built lazily (anim is a global enum, absent at file body).
 local _MENTAL
 local function _mental_name(npc)
@@ -112,36 +120,28 @@ local function _mental_name(npc)
     return _MENTAL[mental] or tostring(mental)
 end
 
--- Best danger as a short label: grenade called out (it drives the flee / retreat trigger), any other danger as
--- "danger", none as "-".
-local function _danger_name(npc)
-    local danger = npc:best_danger()
-    if not danger then return "-" end
-    if danger:type() == danger_object.grenade then return "grenade" end
-    return "danger"
-end
-
 -- Per-NPC readout across the AlifeTactics systems, one table. tag=AT drives the row COLOUR (green), so the
 -- AT-vs-engine distinction lives in that colour and ACTION carries the bare maneuver name (flee / kite / retreat /
--- snipe) when the takeover holds the NPC, else the engine motivation operator (combat / danger / alife). rank feeds
--- Accuracy / NPC Ammo / Healing; hp feeds Healing and the hurt situation; mental and danger feed combat posture and
--- the grenade situation; cover watches the planner-flag-vs-ray divergence; ENEMY keeps the sight cue.
+-- snipe) when the takeover holds the NPC, else the engine motivation operator (combat / danger / alife). The rank
+-- (feeds Accuracy / NPC Ammo / Healing) renders as a name prefix, not its own column; hp feeds Healing and the
+-- hurt situation; cover watches the planner-flag-vs-ray divergence; ENEMY keeps the sight cue. The old danger
+-- column is gone (near-always "-"); grenade evidence lives on the decision trace.
 local function _derive(npc, st)
     local maneuver = at_combat.get_maneuver(npc:id())
     local sm = st.state_mgr
     local enemy = npc:best_enemy()
     local sees, cover, enemy_desc = _enemy_cells(npc, enemy)
+    local rank = ranks.get_obj_rank_name(npc)
     return {
         tag       = maneuver and "AT" or nil,
-        rank      = ranks.get_obj_rank_name(npc) or "-",
+        rank      = rank and (RANK_SHORT[rank] or rank) or "-",
         hp        = math_floor((npc.health or 0) * 100) .. "%",
         scheme    = _truncate(st.active_scheme or st.active_section or "-", CELL_MAX),
         action    = maneuver or xcombat.get_operator(npc),
-        state     = (sm and sm.target_state) or "-",
+        state     = _truncate((sm and sm.target_state) or "-", CELL_MAX),
         mental    = _mental_name(npc),
         sees      = sees,
         cover     = cover,
-        danger    = _danger_name(npc),
         enemy     = enemy_desc,
         is_combat = enemy ~= nil,
     }
@@ -161,7 +161,7 @@ local function _row_for(id, st, ax, r2, actor_id, show_idle)
     if ax:distance_to_sqr(npc:position()) >= r2 then return nil end
     local row = _derive(npc, st)
     if not (show_idle or row.is_combat) then return nil end
-    row.name = _truncate(npc:character_name() or npc:name(), NAME_MAX)
+    row.name = "(" .. row.rank .. ")" .. _truncate(npc:character_name() or npc:name(), NAME_MAX)
     return row
 end
 
@@ -224,12 +224,12 @@ function UIDebugHUD:__init(rows) super()
     self:Enable(true)
 
     -- Build cell arrays (header first), then size each column to its widest cell.
-    local header = { "name", "rank", "hp", "scheme", "action", "state", "mental", "sees", "cover", "danger", "enemy" }
+    local header = { "name", "hp", "scheme", "action", "state", "mental", "sees", "cover", "enemy" }
     local cells = {}
     for i = 1, #rows do
         local row = rows[i]
-        cells[i] = { row.name or "", row.rank or "", row.hp or "", row.scheme or "", row.action or "",
-                     row.state or "", row.mental or "", row.sees or "", row.cover or "", row.danger or "", row.enemy or "" }
+        cells[i] = { row.name or "", row.hp or "", row.scheme or "", row.action or "",
+                     row.state or "", row.mental or "", row.sees or "", row.cover or "", row.enemy or "" }
     end
     local widths = _column_widths(header, cells)
     local total_w = PAD * 2
@@ -292,9 +292,13 @@ local function _hide()
 end
 
 local function _refresh()
+    local tmr = xprofiler.new_if(_dbg):start()
     _hide()
-    _hud = UIDebugHUD(_build_rows())
+    local rows = _build_rows()
+    _hud = UIDebugHUD(rows)
     get_hud():AddDialogToRender(_hud)
+    tmr:stop()
+    if _dbg then log.debug("[HUD] refresh rows=%d [%.2fms]", #rows, tmr:get_ms()) end
 end
 
 local function _is_visible()
@@ -329,11 +333,18 @@ local function _stop()
     log.info("Debug HUD disabled")
 end
 
+local function _refresh_log()
+    log.set_level(at_mcm.get_config("log_level") or "WARN")
+    _dbg = log.get_level() >= 5
+end
+
 local function _on_option_change()
+    _refresh_log()
     if cfg.hud_position ~= "off" then _start() else _stop() end
 end
 
 local function _on_first_update()
+    _refresh_log()
     if cfg.hud_position ~= "off" then _start() end
 end
 
