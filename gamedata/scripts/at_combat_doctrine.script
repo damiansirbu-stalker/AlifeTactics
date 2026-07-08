@@ -179,7 +179,7 @@ function at_combat_doctrine.load_config()
     local ini = ini_file(CONFIG_PATH)
     local function read_float(k, d) return ini:r_float_ex(CONFIG_SECTION, k) or d end
     local function read_int(k, d) local v = ini:r_float_ex(CONFIG_SECTION, k) return v and math_floor(v) or d end
-    HURT_FRAC      = read_float("hurt_frac",     0.20)
+    HURT_FRAC      = read_float("hurt_frac",     0.25)
     GRENADE_MS     = read_int("grenade_ms",      3000)
     STALL_MS       = read_int("stall_ms",        4000)
     local move_m   = read_float("stall_move_m",  2)
