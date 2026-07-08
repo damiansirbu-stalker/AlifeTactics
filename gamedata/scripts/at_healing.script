@@ -1,29 +1,36 @@
 --- at_healing: Heal-rate scaling, per-rank healing charge, limp + heal animations
 
-local math_random = math.random
+local math_random, tostring = math.random, tostring
 local se_save_var, se_load_var = se_save_var, se_load_var
 local RegisterScriptCallback, time_global = RegisterScriptCallback, time_global
 local IsStalker, IsWounded = IsStalker, IsWounded
 
 local LIMP_ELIGIBILITY_CHECK_MS = 1000
+local LIMP_DROP_CHECK_MS        = 200
+local LIMP_SAMPLE_MS            = 1000
 local LIMP_REARM_MS             = 5000
+-- Displacement that counts as "moved" for the drop detectors (anchor drift / path-stop sample).
+local LIMP_MOVE_M               = 0.2
+local LIMP_MOVE_SQR             = LIMP_MOVE_M * LIMP_MOVE_M
 -- xr_eat_medkit.consume_medkit schedules heal_hp/heal_bleed with left=15.
 local HEAL_TICK_FIRST           = 15
 
--- Posture-slot table for the dmg_norm torso overlay (damaged_walk / damaged_run anims).
--- Engine indexes torso anims by weapon posture slot, not inventory slot. Missing entries fall
--- through to slot 0 (fist). Slots 5, 7 not present in vanilla OMF.
+-- Posture-slot tables for the dmg_norm hurt pose (the clutch-the-torso overlay), one variant per
+-- commanded gait. Engine indexes torso anims by weapon posture slot, not inventory slot. Missing
+-- entries fall through to slot 0 (fist). Slots 5, 7 not present in the OMF; slot 6 exists only as
+-- the run variant (verified 2026-07-08 by binary grep across the GAMMA-installed and xrMPE
+-- stalker_animation.omf - a queued name the OMF lacks error-logs and plays nothing).
 local LIMP_IDLE_BY_SLOT = {
     [0] = "dmg_norm_torso_0_idle_0", [1] = "dmg_norm_torso_1_idle_0",
     [2] = "dmg_norm_torso_2_idle_0", [3] = "dmg_norm_torso_3_idle_0",
-    [4] = "dmg_norm_torso_4_idle_0", [6] = "dmg_norm_torso_6_idle_0",
+    [4] = "dmg_norm_torso_4_idle_0",
     [8] = "dmg_norm_torso_8_idle_0", [9] = "dmg_norm_torso_9_idle_0",
     [10] = "dmg_norm_torso_10_idle_0",
 }
 local LIMP_WALK_BY_SLOT = {
     [0] = "dmg_norm_torso_0_walk_0", [1] = "dmg_norm_torso_1_walk_0",
     [2] = "dmg_norm_torso_2_walk_0", [3] = "dmg_norm_torso_3_walk_0",
-    [4] = "dmg_norm_torso_4_walk_0", [6] = "dmg_norm_torso_6_walk_0",
+    [4] = "dmg_norm_torso_4_walk_0",
     [8] = "dmg_norm_torso_8_walk_0", [9] = "dmg_norm_torso_9_walk_0",
     [10] = "dmg_norm_torso_10_walk_0",
 }
@@ -78,9 +85,16 @@ end
 -- to action_wounded / action_critically_wounded (stalker_base_action.cpp:24-29).
 local function _try_play_heal_anim(npc, gesture)
     if not cfg.healing_anim_enabled then return end
-    if npc:best_enemy() then return end
-    if IsWounded(npc) or npc:critically_wounded() then return end
+    if npc:best_enemy() then
+        if _dbg then log.debug("[HEAL] anim skipped id=%d reason=combat", npc:id()) end
+        return
+    end
+    if IsWounded(npc) or npc:critically_wounded() then
+        if _dbg then log.debug("[HEAL] anim skipped id=%d reason=wounded", npc:id()) end
+        return
+    end
     utils_obj.add_anim(npc, gesture)
+    if _dbg then log.debug("[HEAL] anim id=%d gesture=%s", npc:id(), gesture) end
 end
 
 -- Vanilla xr_eat_medkit.heal_hp (script:188-201) with MCM rate multiplier.
@@ -147,6 +161,20 @@ local function _patched_heal_bleed(id, left)
     return true
 end
 
+-- xr_eat_medkit.consume_medkit save-wrap, logging only: the real-item-vs-charge proof. A non-nil
+-- medkit is a REAL inventory item the vanilla path is about to release (alife_release_id,
+-- xr_eat_medkit.script:218-221); nil is the per-rank healing_charge fallback (no item existed).
+-- This line is what distinguishes "they heal with real medkits" from silent magic healing.
+local _orig_consume
+
+local function _patched_consume(npc, medkit, kind)
+    if _dbg and npc then
+        log.debug("[HEAL] consume id=%d item=%s kind=%s",
+            npc:id(), medkit and medkit:section() or "CHARGE", tostring(kind))
+    end
+    return _orig_consume(npc, medkit, kind)
+end
+
 local function _install_heal_patch()
     if not (xr_eat_medkit and xr_eat_medkit.heal_hp and xr_eat_medkit.heal_bleed) then
         log.warn("[PATCH] xr_eat_medkit.heal_hp or heal_bleed unavailable; module disabled")
@@ -154,9 +182,14 @@ local function _install_heal_patch()
     end
     xr_eat_medkit.heal_hp = _patched_heal_hp
     xr_eat_medkit.heal_bleed = _patched_heal_bleed
+    if xr_eat_medkit.consume_medkit then
+        _orig_consume = xr_eat_medkit.consume_medkit
+        xr_eat_medkit.consume_medkit = _patched_consume
+    end
     _heal_active = true
     log.info("[PATCH] xr_eat_medkit.heal_hp replaced with multiplier-aware version")
     log.info("[PATCH] xr_eat_medkit.heal_bleed replaced with logged version")
+    log.info("[PATCH] xr_eat_medkit.consume_medkit wrapped (item-vs-charge trace)")
 end
 
 -- Per-rank charge override of vanilla's flat 50% roll at xr_eat_medkit.script:36-44.
@@ -188,13 +221,64 @@ local function _on_net_spawn(npc, _se_obj)
     end
 end
 
-local function _pick_limp_anim(npc)
-    local slot = npc:active_slot()
-    local mt   = npc:movement_type()
-    local tbl  = (mt == move.walk and LIMP_WALK_BY_SLOT)
-              or (mt == move.run  and LIMP_RUN_BY_SLOT)
-              or LIMP_IDLE_BY_SLOT
-    return tbl[slot] or tbl[0]
+-- Hurt pose for the active weapon posture slot, variant by the commanded gait.
+local function _pick_limp_anim(npc, mt)
+    local tbl = (mt == move.walk and LIMP_WALK_BY_SLOT)
+             or (mt == move.run  and LIMP_RUN_BY_SLOT)
+             or LIMP_IDLE_BY_SLOT
+    return tbl[npc:active_slot()] or tbl[0]
+end
+
+-- Drop one NPC's record and release the skeleton. clear_animations wipes only the script queue
+-- (script_game_object3.cpp:466-476); the next engine update resumes its own animation selection.
+local function _drop_limp(npc, id, reason, us)
+    _limping[id] = nil
+    if npc:alive() then npc:clear_animations() end
+    if _dbg then log.debug("[LIMP] lost id=%d hp=%.2f reason=%s [%dus]", id, npc.health, reason, us or -1) end
+end
+
+-- The drop detectors, on their own 200ms clock. While a script animation is queued the engine
+-- SUSPENDS its whole animation selection: update_impl returns right after play_script
+-- (stalker_animation_manager_update.cpp:232) so play_torso/play_legs never run, and the script bone
+-- mask covers every part but the head (stalker_animation_manager.cpp:97). The legs only look alive
+-- while the skeleton loops the last-fed cycle, so an overlay outliving its gait freezes or slides the
+-- body. Detectors: wounded/dead; the commanded gait changed from the add-time one; a stand-variant
+-- NPC drifted off its add-time anchor; a walk/run-variant NPC stopped displacing (path ended with the
+-- command still up). Returns true when the record was dropped.
+local function _try_drop_limp(npc, id, rec, tg)
+    local tmr = xprofiler.new_if(_dbg):start()
+    if not npc:alive() or IsWounded(npc) or npc:critically_wounded() then
+        tmr:stop()
+        _drop_limp(npc, id, "wounded_or_dead", tmr:get_us())
+        return true
+    end
+    if rec.mt == nil then tmr:stop() return false end
+    if npc:movement_type() ~= rec.mt then
+        tmr:stop()
+        _drop_limp(npc, id, "gait_changed", tmr:get_us())
+        return true
+    end
+    local pos = npc:position()
+    if rec.mt == move.stand then
+        if rec.anchor and pos:distance_to_sqr(rec.anchor) > LIMP_MOVE_SQR then
+            tmr:stop()
+            _drop_limp(npc, id, "moved", tmr:get_us())
+            return true
+        end
+        tmr:stop()
+        return false
+    end
+    if (tg - (rec.sample_ms or 0)) < LIMP_SAMPLE_MS then tmr:stop() return false end
+    local displaced = rec.last_pos == nil or pos:distance_to_sqr(rec.last_pos) > LIMP_MOVE_SQR
+    rec.sample_ms = tg
+    rec.last_pos = pos
+    if not displaced then
+        tmr:stop()
+        _drop_limp(npc, id, "stopped", tmr:get_us())
+        return true
+    end
+    tmr:stop()
+    return false
 end
 
 local function _on_npc_update(npc, st)
@@ -203,18 +287,14 @@ local function _on_npc_update(npc, st)
     local id = npc:id()
     local tg = time_global()
 
-    -- Per-tick drop on ground-state transitions; the throttled eligibility check below
-    -- would otherwise let the torso overlay loop on a prone body for up to 1s. The
-    -- action transition into action_wounded / action_critically_wounded clears the
-    -- engine queue via CStalkerActionBase::initialize, so we do not call
-    -- clear_animations here ourselves.
-    if _limping[id] and (not npc:alive() or IsWounded(npc) or npc:critically_wounded()) then
-        _limping[id] = nil
-        if _dbg then log.debug("[LIMP] lost id=%d hp=%.2f reason=wounded_or_dead", id, npc.health) end
-        return
+    local rec = _limping[id]
+    if rec and tg >= (rec.next_drop_ms or 0) then
+        rec.next_drop_ms = tg + LIMP_DROP_CHECK_MS
+        if _try_drop_limp(npc, id, rec, tg) then return end
     end
     if st._at_limp_next_check_ms and tg < st._at_limp_next_check_ms then return end
     st._at_limp_next_check_ms = tg + LIMP_ELIGIBILITY_CHECK_MS
+    local tmr = xprofiler.new_if(_dbg):start()
     local eligible = IsStalker(npc)
         and npc:alive()
         and not npc:in_smart_cover()
@@ -226,34 +306,35 @@ local function _on_npc_update(npc, st)
         and not IsWounded(npc)
 
     if not eligible then
+        tmr:stop()
         if not _limping[id] then return end
-        _limping[id] = nil
-        -- No clear_animations: the currently-playing overlay finishes on its OMF length
-        -- (~2-3s) and the 5s rearm gate prevents the next add. An external clear here
-        -- would race state_mgr's set_state early-return (state_mgr.script:388) on
-        -- non-action-transition flips (combat hand-off being the worst case) and could
-        -- strand the engine queue empty for the rest of a behavior_hold window.
-        if _dbg then log.debug("[LIMP] lost id=%d hp=%.2f", id, npc.health) end
+        _drop_limp(npc, id, "not_eligible", tmr:get_us())
         return
     end
-    local rec = _limping[id]
+    rec = _limping[id]
     if not rec then
         rec = { next_add_ms = 0 }
         _limping[id] = rec
-        if _dbg then log.debug("[LIMP] gained id=%d hp=%.2f", id, npc.health) end
+        if _dbg then tmr:stop() log.debug("[LIMP] gained id=%d hp=%.2f [%dus]", id, npc.health, tmr:get_us()) end
     end
     if tg < rec.next_add_ms then return end
     if npc:animation_count() > 0 then return end
 
-    local anim_name = _pick_limp_anim(npc)
+    local mt = npc:movement_type()
+    local anim_name = _pick_limp_anim(npc, mt)
     utils_obj.add_anim(npc, anim_name)
     rec.next_add_ms = tg + LIMP_REARM_MS
+    rec.mt = mt
+    rec.anchor = npc:position()
+    rec.last_pos = nil
+    rec.sample_ms = tg
     if _dbg then
+        tmr:stop()
         local slot = npc:active_slot()
         local wpn  = npc:active_item()
         local sect = wpn and wpn:section() or "none"
-        log.debug("[LIMP] anim id=%d name=%s slot=%d section=%s hp=%.2f",
-            id, anim_name, slot, sect, npc.health)
+        log.debug("[LIMP] anim id=%d name=%s slot=%d section=%s hp=%.2f [%dus]",
+            id, anim_name, slot, sect, npc.health, tmr:get_us())
     end
 end
 
