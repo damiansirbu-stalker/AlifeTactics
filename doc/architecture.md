@@ -45,7 +45,7 @@ Backlog (not built):
 
 Rejected (not backlogged): combat schemes (per-NPC `combat_type` via condlist). The `script_combat_type` condlist is the most contested combat surface in modpacks - it is GAMMA AI Rework's core mechanism and single-owner by design - and everything a scheme would express is already a maneuver (which forces its action) or a behavior (which composes). A scheme buys nothing here and surrenders composition.
 
-Groomed task entries in `stalker-dev/doc/todo/todo-alifetactics-next.md`; the takeover build plan in `todo-combat-takeover-v2.md`; the 2026-07-02 adversarial review in `todo-alifetactics-fable-review.md`.
+Groomed task entries in `stalker-dev/doc/todo/todo-alifetactics-next.md`; the takeover build plan in `todo-combat-takeover-v2.md`. The 2026-07-02 adversarial review closed 2026-07-08 with all findings terminal; its record lives in stalker-dev git history, and its standing ledger moved to `todo-xlibs-next.md` (x021).
 
 ---
 
