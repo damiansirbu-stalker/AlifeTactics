@@ -1,0 +1,63 @@
+; DLTX overlay on ai_tweaks\xr_danger.ltx - paired with the at_danger runtime patch. Section
+; override-merge (![section]) onto whichever xr_danger.ltx wins the MO2 slot (vanilla, GAMMA AI
+; Rework, Stealth Overhaul all ship the four sections), so the danger tuning composes with rival
+; AI mods instead of competing for the file. NOT !![section]: that is DLTX section-DELETE
+; (Xr_ini.cpp:721-739 marks SectionsToDelete and discards the keys under it).
+; The dead PerceiveType keys (hit/sound/visual) are removed with !key delete lines: they collide
+; with bullet_ricochet/attack_sound/entity_attacked enum values (danger_object.h:16-27) and would
+; be read under the wrong danger type.
+; Inertion values are in milliseconds. Distance values in [danger_object*] are SQUARED meters.
+; Ignore distance is only checked when the danger came from a game_object.enemy, except grenade and
+; entity corpse.
+
+![danger_inertion] ;May use condlists from xr_condition
+grenade         = 6000
+entity_corpse   = 60000
+entity_attacked = 30000
+attacked        = 120000
+bullet_ricochet = 250000
+enemy_sound     = 45000
+attack_sound    = 45000
+entity_death    = 30000
+!hit
+!sound
+!visual
+
+![danger_object] ;Ignore distances squared; weather-conditional
+grenade         = 400
+entity_corpse   = 10000
+entity_attacked = {=is_dark_night} 900, {=is_heavy_rain} 625, {=is_rain} 900, 2500
+attacked        = 90000
+bullet_ricochet = 16
+enemy_sound     = {=is_heavy_rain} 900, {=is_rain} 2500, 5625
+attack_sound    = {=is_heavy_rain} 900, {=is_rain} 2500, 5625
+entity_death    = {=is_heavy_rain} 225, {=is_rain} 400, 1000
+!hit
+!sound
+!visual
+
+![danger_inertion_actor] ;When the danger source is the actor
+grenade         = 6000
+entity_corpse   = 60000
+entity_attacked = 30000
+attacked        = 120000
+bullet_ricochet = 5000
+enemy_sound     = 45000
+attack_sound    = {=actor_enemy} 45000, 3000
+entity_death    = 30000
+!hit
+!sound
+!visual
+
+![danger_object_actor] ;When the danger source is the actor
+grenade         = 400
+entity_corpse   = 60000
+entity_attacked = {=is_dark_night} 900, {=is_heavy_rain} 625, {=is_rain} 900, 2500
+attacked        = 90000
+bullet_ricochet = {=actor_enemy} 250000, 10000
+enemy_sound     = {=is_heavy_rain} 900, {=is_rain} 2500, 5625
+attack_sound    = {=is_heavy_rain} 900, {=is_rain} 2500, 5625
+entity_death    = {=is_heavy_rain} 225, {=is_rain} 400, 1000
+!hit
+!sound
+!visual
