@@ -108,7 +108,7 @@ local function _begin_maneuver(npc)
     else
         state.flee_enemy = nil
     end
-    if _dbg then trace.begin_maneuver(state.id, maneuver.name, state.trigger, state.dest, fire, maneuver.movement, maneuver.fire, gate) end
+    if _dbg then trace.begin_maneuver(state.id, maneuver.name, state.trigger, state.dest, fire, maneuver.movement, maneuver.fire, gate, state.cover) end
 end
 
 -- One spec drives every AT NPC: gate = the per-NPC flag the grafted evaluator polls; on_begin = _begin_maneuver,
@@ -125,24 +125,43 @@ local SPEC = {
     on_begin = _begin_maneuver,
 }
 
--- Debug-only decision trace, gated here so the bridge reads (name, operator, facing, sight) never run
--- when tracing is off.
-local function _trace_decision(npc, state, enemy, fired)
+-- Debug-only decision trace, gated here so the bridge reads (name, operator, facing, sight, cover) never run
+-- when tracing is off. The cover read happens at DECIDE time, before any seize: under a takeover block the
+-- planner flags can only decay (the blocked planner cannot run take_cover, the on_best_cover_changed clear
+-- still fires), so the pre-seize value is the truthful one - the begin line reprints it from state.cover.
+local function _trace_decision(npc, state, enemy, result)
     if not _dbg then return end
+    local enemy_pos = enemy:position()
     state.enemy_name = xcreature.get_name(enemy:id())
     state.operator   = xcombat.get_operator(npc)
-    state.aim_off    = math_floor(xcombat.get_facing_offset(npc, enemy:position()))
+    state.aim_off    = math_floor(xcombat.get_facing_offset(npc, enemy_pos))
     state.seen       = xcombat.sees(npc, enemy)
-    trace.monitor(state.id, state, fired or "none")
+    local in_cover, looked_out, held = xcombat.get_cover_state(npc)
+    state.cover = trace.cover_string(in_cover, looked_out, held,
+        xcombat.has_obstacle_to_target(enemy_pos, npc:position()))
+    trace.decision(state.id, state, result or "none")
 end
 
--- Look for a maneuver to begin: managed, fighting, the enemy eligible, off cooldown, seizable, a trigger fired,
--- a row resolved. Staging = record the row + destination and raise the gate; the engine grants control at the
--- next plan solve and calls _begin_maneuver. No engine write happens here - vanilla still drives this frame.
+-- Look for a maneuver to begin: managed, off cooldown, fighting, the enemy eligible, seizable, a catalog row
+-- picked (its situation fired, palette matched, resolver yielded a destination). Staging = record the row +
+-- destination and raise the gate; the engine grants control at the next plan solve and calls _begin_maneuver.
+-- No engine write happens here - vanilla still drives this frame.
 local function _try_begin_maneuver(npc, state, tg)
     if not _manages(npc) then state.fighting = false return end
+
+    -- Reseize cooldown FIRST: hold off a fresh seize for a window after a maneuver ends, else the takeover
+    -- goes continuous. Checked before the fighting read so a cooling NPC skips the best_enemy luabind entirely.
+    if RESEIZE_COOLDOWN_MS > 0 and state.end_at and (tg - state.end_at) < RESEIZE_COOLDOWN_MS then
+        trace.monitor(state.id, state, "cooldown")
+        return
+    end
+
     state.fighting = _is_fighting(npc, state, tg)
-    if not state.fighting then state.stall_set = false return end
+    if not state.fighting then
+        state.stall_set = false
+        state.declined_at = nil
+        return
+    end
     if _dbg then trace.set_name(state.id, npc:name()) end
 
     local enemy = npc:best_enemy()
@@ -155,35 +174,24 @@ local function _try_begin_maneuver(npc, state, tg)
 
     if not _target_eligible(enemy) then return end
 
-    -- Reseize cooldown: hold off a fresh seize for a window after a maneuver ends, else the takeover goes continuous.
-    if RESEIZE_COOLDOWN_MS > 0 and state.end_at and (tg - state.end_at) < RESEIZE_COOLDOWN_MS then
-        trace.monitor(state.id, state, "cooldown")
-        return
-    end
-
     local can_seize, seize_block = _can_seize(npc)
     if not can_seize then
         trace.monitor(state.id, state, "cannot_seize", seize_block)
         return
     end
 
-    local fired = doctrine.eval_triggers(npc, enemy, state, tg)
-    if fired then
-        -- pick_maneuver returns (maneuver, dest) on a pick; on a decline (nil, reason) where reason is the
-        -- declined maneuver name (resolver not viable) or nil (no palette match) - handed straight to the trace.
-        local maneuver, dest = doctrine.pick_maneuver(npc, fired, enemy, state)
-        if maneuver then
-            state.gate = true
-            state.maneuver = maneuver
-            state.dest = dest
-            state.trigger = fired
-            state.maneuver_at = nil
-            state.begin_at = tg
-        elseif _dbg then
-            trace.declined(state.id, fired, dest)
-        end
+    -- pick_maneuver walks the catalog rows in order (situation -> palette -> decline backoff -> resolver),
+    -- returns (maneuver, dest) on a pick and nil when no row fires; it stores the fired situation on
+    -- state.trigger and the per-row walk on state.rows for the decision trace.
+    local maneuver, dest = doctrine.pick_maneuver(npc, enemy, state, tg)
+    if maneuver then
+        state.gate = true
+        state.maneuver = maneuver
+        state.dest = dest
+        state.maneuver_at = nil
+        state.begin_at = tg
     end
-    _trace_decision(npc, state, enemy, fired)
+    _trace_decision(npc, state, enemy, maneuver and maneuver.name)
 end
 
 -- Run the maneuver's own update from its catalog row (a firing row re-checks its shot, flee re-asserts its

@@ -10,16 +10,28 @@ at_combat_trace = at_combat_trace or {}
 local _on = false
 local _names = {}
 
--- The monitor outcomes that mean "the NPC was fighting and the triggers were evaluated this tick" (so the
--- line carries distance + every trigger value). Any other outcome is a skip before evaluation (short line).
-local SCAN_RESULTS = { too_close = true, grenade = true, hurt = true, stalled = true, none = true }
-
 local function _yes_no(v)
     return v and "yes" or "no"
 end
 
 local function _show(v)
     return v ~= nil and tostring(v) or "unknown"
+end
+
+-- Single-letter flag: y / n / ? (nil = unknowable, no planner to ask).
+local function _flag(v)
+    if v == nil then return "?" end
+    return v and "y" or "n"
+end
+
+--- Compact cover readout "<in_cover><looked_out><held>/<ray>": the combat planner's stored beliefs
+--- (xcombat.get_cover_state - "???" when there is no planner to ask) against the geometric line
+--- (xcombat.has_obstacle_to_target from the enemy to the NPC - y = something blocks the line to him). The
+--- divergence between the flag half and the ray half is the evidence the cover traces exist to collect
+--- (in_cover is arrived-at-my-chosen-point bookkeeping, never a concealment test). Pure formatting - the
+--- caller does the reads (at_combat._trace_decision, at_hud), so this stays probe-free.
+function at_combat_trace.cover_string(in_cover, looked_out, held, blocked)
+    return _flag(in_cover) .. _flag(looked_out) .. _flag(held) .. "/" .. (blocked and "y" or "n")
 end
 
 --- Cache a per-id display name (raw ids are unreadable in a fight log).
@@ -43,27 +55,18 @@ function at_combat_trace.installed(id, name)
     log.info("installed id=%s name=%s", _show(id), _show(name))
 end
 
---- One line when a fired trigger seized nobody: reason "not_viable" (a maneuver's palette matched this NPC but
---- its resolver declined - no cover reachable, fully walled in) names the maneuver; reason "no_maneuver" (no
---- palette matched - wrong faction or weapon, e.g. monolith / zombied on hurt) has maneuver "-". Distinguishes a
---- decline from a seize (which logs a begin) and from a quiet tick, and says which half declined.
-function at_combat_trace.declined(id, trigger, maneuver)
+--- One line when a maneuver begins (the graft action's initialize - the first engine write): the situation
+--- that fired it, the destination vertex, the applied fire mode, the movement (so RUN is visible on a flee),
+--- the mode the catalog row requested, the fire-gate value, and the DECIDE-time cover readout (see
+--- cover_string; read before the seize because the blocked planner can only let the flags decay).
+--- requested is the row's fire; fire is what set_combat got. Gate values: "seen" = enemy visible right now,
+--- fired with no further gate (vanilla kill_enemy order); "true" = blind but fire_make_sense allowed it (the
+--- 10s auto-weapon window); "false" = blind and denied, dropped to READY (occluded / floor gap / window
+--- expired); "na" = the row does not fire.
+function at_combat_trace.begin_maneuver(id, maneuver, trigger, dest, fire, movement, requested, fire_make_sense, cover)
     if not _on then return end
-    log.info("declined id=%s name=%s trigger=%s maneuver=%s reason=%s",
-        _show(id), _show(_names[id]), _show(trigger), _show(maneuver or "-"),
-        maneuver and "not_viable" or "no_maneuver")
-end
-
---- One line when a maneuver begins (the graft action's initialize - the first engine write): the trigger that
---- fired it, the destination vertex, the applied fire mode, the movement (so RUN is visible on a flee), the mode
---- the catalog row requested, and the fire-gate value. requested is the row's fire; fire is what set_combat got.
---- Gate values: "seen" = enemy visible right now, fired with no further gate (vanilla kill_enemy order);
---- "true" = blind but fire_make_sense allowed it (the 10s auto-weapon window); "false" = blind and denied,
---- dropped to READY (occluded / floor gap / window expired); "na" = the row does not fire.
-function at_combat_trace.begin_maneuver(id, maneuver, trigger, dest, fire, movement, requested, fire_make_sense)
-    if not _on then return end
-    log.info("begin id=%s name=%s maneuver=%s trigger=%s dest=%s fire=%s move=%s requested=%s fire_make_sense=%s",
-        _show(id), _show(_names[id]), _show(maneuver), _show(trigger), _show(dest), _show(fire), _show(movement), _show(requested), _show(fire_make_sense))
+    log.info("begin id=%s name=%s maneuver=%s trigger=%s dest=%s fire=%s move=%s requested=%s fire_make_sense=%s cover=%s",
+        _show(id), _show(_names[id]), _show(maneuver), _show(trigger), _show(dest), _show(fire), _show(movement), _show(requested), _show(fire_make_sense), _show(cover))
 end
 
 --- One line when a flee resolves its destination: path "squad_stands" (a squadmate lives, declined - a rout is
@@ -101,22 +104,28 @@ function at_combat_trace.resolve_retreat(id, path, vid, cover_dist, npc_dist)
         _show(id), _show(_names[id]), _show(path), _show(vid or "-"), cover_dist or -1, npc_dist or -1)
 end
 
---- One line per monitor tick for a fighting NPC: the selected enemy and the outcome. When the triggers were
---- evaluated (result is a trigger name or "none") the line also carries the distance and every trigger value;
---- when the NPC was skipped before evaluation (no_enemy / cooldown / cannot_seize) the line is short. cannot_seize
---- carries the blocking gate as reason (no_weapon / smart_cover / indoor), so the log says WHY, not just that it
---- could not. The ":" concat lives inside the _on guard, so the off path allocates nothing.
+--- One line per monitor tick for an NPC skipped BEFORE the catalog walk: no_enemy (fighting but no selected
+--- enemy), cooldown (the reseize window - fires before the fighting read, so target may be last tick's), or
+--- cannot_seize with the blocking gate as reason (no_weapon / smart_cover / indoor), so the log says WHY, not
+--- just that it could not. The ":" concat lives inside the _on guard, so the off path allocates nothing.
+--- Evaluated ticks log through decision() instead.
 function at_combat_trace.monitor(id, state, result, reason)
     if not _on then return end
-    if SCAN_RESULTS[result] then
-        log.info("monitor id=%s name=%s fighting=yes target=%s(%s) distance=%.1f seen=%s aim=%ddeg operator=%s too_close=%s hurt=%s grenade=%s stalled=%s result=%s",
-            _show(id), _show(_names[id]), _show(state.enemy_id), _show(state.enemy_name), state.dist or -1,
-            _yes_no(state.seen), state.aim_off or -1, _show(state.operator),
-            _yes_no(state.t_too_close), _yes_no(state.t_hurt), _yes_no(state.t_grenade), _yes_no(state.t_stalled), result)
-    else
-        log.info("monitor id=%s name=%s fighting=yes target=%s result=%s%s",
-            _show(id), _show(_names[id]), _show(state.enemy_id), result, reason and (":" .. reason) or "")
-    end
+    log.info("monitor id=%s name=%s target=%s result=%s%s",
+        _show(id), _show(_names[id]), _show(state.enemy_id), result, reason and (":" .. reason) or "")
+end
+
+--- The uniform decision line, one per evaluated monitor tick: the selected enemy, the distance, the sight and
+--- facing reads, who drives (operator), the DECIDE-time cover readout (cover_string), the per-row catalog
+--- walk, and the outcome. rows= is "name:situation/stage" per walked row - situation the fired one (too_close
+--- / grenade / hurt / stalled), stage how far the row got (palette / backoff / declined / picked), "-" a row
+--- whose situation did not hold; the walk stops at the first pick, so unwalked rows do not appear. result= is
+--- the picked maneuver or "none".
+function at_combat_trace.decision(id, state, result)
+    if not _on then return end
+    log.info("monitor id=%s name=%s target=%s(%s) distance=%.1f seen=%s aim=%ddeg operator=%s cover=%s rows=%s result=%s",
+        _show(id), _show(_names[id]), _show(state.enemy_id), _show(state.enemy_name), state.dist or -1,
+        _yes_no(state.seen), state.aim_off or -1, _show(state.operator), _show(state.cover), _show(state.rows), result)
 end
 
 --- One line when a maneuver ends and AT hands the NPC back to vanilla.

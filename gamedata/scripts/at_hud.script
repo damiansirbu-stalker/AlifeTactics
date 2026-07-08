@@ -1,6 +1,7 @@
 --- at_hud: live debug HUD listing nearby NPCs with their logic scheme, combat action, and target.
---- Per NPC: the active xr_logic section (scheme@subsection), the engine combat operator + physical state, and
---- the selected enemy with distance and an aim flag (blind = cannot see it, OFF = body pointed away from it).
+--- Per NPC: the active xr_logic section (scheme@subsection), the engine combat operator + physical state, the
+--- selected enemy with distance and an aim flag (blind = cannot see it, OFF = body pointed away from it), and
+--- the cover readout (planner flags / geometric ray, at_combat_trace.cover_string).
 
 local pairs, table_sort, math_floor, tostring = pairs, table.sort, math.floor, tostring
 local string_sub, string_format = string.sub, string.format
@@ -87,6 +88,22 @@ local function _sight_flag(npc, enemy)
     return "see"
 end
 
+-- Cover readout for a fighting row: the combat planner's stored flags against the geometric ray from the
+-- enemy to the NPC, formatted by at_combat_trace.cover_string ("ynn/y"). The divergence between the flag half
+-- (arrived-at-my-cover bookkeeping) and the ray half (is the line to him blocked) is what the column watches.
+-- Runs only while the HUD is visible and the row has an enemy, so the raycast costs nothing when the HUD is off.
+local function _cover_flag(npc, enemy)
+    local in_cover, looked_out, held = xcombat.get_cover_state(npc)
+    local blocked = xcombat.has_obstacle_to_target(enemy:position(), npc:position())
+    return at_combat_trace.cover_string(in_cover, looked_out, held, blocked)
+end
+
+-- The three enemy-keyed cells (sight flag, cover readout, name+distance), "-" across when no selected enemy.
+local function _enemy_cells(npc, enemy)
+    if not enemy then return "-", "-", "-" end
+    return _sight_flag(npc, enemy), _cover_flag(npc, enemy), _target_desc(npc, enemy)
+end
+
 -- Reverse map anim enum -> label, built lazily (anim is a global enum, absent at file body).
 local _MENTAL
 local function _mental_name(npc)
@@ -107,12 +124,13 @@ end
 -- Per-NPC readout across the AlifeTactics systems, one table. tag=AT drives the row COLOUR (green), so the
 -- AT-vs-engine distinction lives in that colour and ACTION carries the bare maneuver name (flee / kite / retreat /
 -- snipe) when the takeover holds the NPC, else the engine motivation operator (combat / danger / alife). rank feeds
--- Accuracy / NPC Ammo / Healing; hp feeds Healing and the hurt trigger; mental and danger feed combat posture and
--- the grenade trigger; ENEMY keeps the sight cue ("(no sight)" cannot see it, "(turned away)" body pointed away).
+-- Accuracy / NPC Ammo / Healing; hp feeds Healing and the hurt situation; mental and danger feed combat posture and
+-- the grenade situation; cover watches the planner-flag-vs-ray divergence; ENEMY keeps the sight cue.
 local function _derive(npc, st)
     local maneuver = at_combat.get_maneuver(npc:id())
     local sm = st.state_mgr
     local enemy = npc:best_enemy()
+    local sees, cover, enemy_desc = _enemy_cells(npc, enemy)
     return {
         tag       = maneuver and "AT" or nil,
         rank      = ranks.get_obj_rank_name(npc) or "-",
@@ -121,9 +139,10 @@ local function _derive(npc, st)
         action    = maneuver or xcombat.get_operator(npc),
         state     = (sm and sm.target_state) or "-",
         mental    = _mental_name(npc),
-        sees      = enemy and _sight_flag(npc, enemy) or "-",
+        sees      = sees,
+        cover     = cover,
         danger    = _danger_name(npc),
-        enemy     = enemy and _target_desc(npc, enemy) or "-",
+        enemy     = enemy_desc,
         is_combat = enemy ~= nil,
     }
 end
@@ -205,12 +224,12 @@ function UIDebugHUD:__init(rows) super()
     self:Enable(true)
 
     -- Build cell arrays (header first), then size each column to its widest cell.
-    local header = { "name", "rank", "hp", "scheme", "action", "state", "mental", "sees", "danger", "enemy" }
+    local header = { "name", "rank", "hp", "scheme", "action", "state", "mental", "sees", "cover", "danger", "enemy" }
     local cells = {}
     for i = 1, #rows do
         local row = rows[i]
         cells[i] = { row.name or "", row.rank or "", row.hp or "", row.scheme or "", row.action or "",
-                     row.state or "", row.mental or "", row.sees or "", row.danger or "", row.enemy or "" }
+                     row.state or "", row.mental or "", row.sees or "", row.cover or "", row.danger or "", row.enemy or "" }
     end
     local widths = _column_widths(header, cells)
     local total_w = PAD * 2

@@ -1,12 +1,14 @@
---- at_combat_doctrine: the decision half of the v2 takeover - the trigger predicates AND the maneuver catalog.
+--- at_combat_doctrine: the decision half of the v2 takeover - the maneuver catalog and its ordered checks.
 --- No engine class, no per-NPC store, no callbacks - the shell (at_combat) owns the monitor loop, the state
---- store, and the graft. This file answers two questions: which trigger (if any) should make AT seize, and
---- which maneuver answers it for this NPC. A maneuver is a catalog row: the triggers it handles, a faction/
---- weapon palette, a resolver whose return IS the gate (a destination vertex = seize there, nil = decline), and
---- an update - the periodic re-application the shell runs while the maneuver is open (nil = set once at begin).
+--- store, and the graft. This file answers one question: which catalog row (if any) should make AT seize this
+--- NPC now. A maneuver is a catalog row: a situation predicate (the cheap compare that says the row's moment
+--- is here), a faction/weapon palette, a resolver whose return IS the gate (a destination vertex = seize
+--- there, nil = decline and fall through), and an update - the periodic re-application the shell runs while
+--- the maneuver is open (nil = set once at begin). pick_maneuver walks the rows in order; the first full pass
+--- wins (t141).
 
-local math_sqrt, math_floor, vector = math.sqrt, math.floor, vector
-local character_community, time_global = character_community, time_global
+local pairs, math_sqrt, math_floor, vector = pairs, math.sqrt, math.floor, vector
+local character_community, time_global, table_concat = character_community, time_global, table.concat
 
 at_combat_doctrine = at_combat_doctrine or {}
 
@@ -15,34 +17,37 @@ local CONFIG_SECTION = "at_combat"
 
 local HURT_FRAC, GRENADE_MS, STALL_MS, STALL_MOVE_SQR, STALL_CLOSE_M
 local KITE_ARC_DEG, KITE_SPREAD_DEG
-local FLEE_MIN_DIST_SQR, FLEE_BASE_MIN_DIST_M, RETREAT_REAR_M, UNDER_FIRE_MS
+local FLEE_MIN_DIST_M, FLEE_BASE_MIN_DIST_M, RETREAT_REAR_M, UNDER_FIRE_MS
+local DECLINE_BACKOFF_MS
 
--- The maneuver catalog: an ordered array (array order = precedence when two maneuvers handle one trigger). Built
--- in load_config so xcombat.* constants and the LTX tunables are resolved. pick_maneuver walks it in order.
+-- The maneuver catalog: an ordered array (array order = precedence - the walk stops at the first row whose
+-- situation, palette, and resolver all pass). Built in load_config so xcombat.* constants and the LTX
+-- tunables are resolved.
 local CATALOG = {}
 
 
 -- =========================================================================
 -- Resolvers. A resolver reads its own geometry and returns a destination level vertex, or nil when the maneuver
 -- is not viable here - the resolver IS the viability gate, no separate predicate. Run only on the seize path
--- (after handles + palette pass), so the raycasts cost only when AT is about to take the NPC.
+-- (after situation + palette + backoff pass), so the raycasts cost only when AT is about to take the NPC. All
+-- of them read the walk's shared geometry (memo.npc_pos / memo.enemy_pos / state.dist) instead of re-probing.
 -- =========================================================================
 
 -- kite: back off to the NPC's OWN weapon minimum - the shotgunner reclaims his 2m, the rifleman his 3, the
 -- sniper walks back out to 10. The reseize cooldown keeps a re-triggered too_close from chaining takeovers.
 -- find_flee_lane fans the heading straight-back -> +-45 -> +-90 and ray-checks each for a wall or obstacle,
 -- first clear lane wins; nil only when fully boxed in (then the maneuver is not viable and AT declines).
-local function _resolve_kite(npc, enemy, _state)
-    local np, ep = npc:position(), enemy:position()
-    local dx, dz = np.x - ep.x, np.z - ep.z
-    local mag = math_sqrt(dx * dx + dz * dz)
-    local dir = (mag > 0) and vector():set(dx / mag, 0, dz / mag) or npc:direction()
-    local band = xcombat.get_weapon_range(xcombat.get_weapon_kind(npc) or "w_rifle")
+-- memo.kind is set by _situation_too_close, the only situation that opens this row.
+local function _resolve_kite(npc, _enemy, state, memo)
+    local np, ep = memo.npc_pos, memo.enemy_pos
+    local dist = state.dist
+    local dir = (dist > 0) and vector():set((np.x - ep.x) / dist, 0, (np.z - ep.z) / dist) or npc:direction()
+    local band = xcombat.get_weapon_range(memo.kind)
     -- lane length = what the minimum is short by; floored at 2 because the lane search steps in 2m decrements.
-    local back_m = band.min - mag
+    local back_m = band.min - dist
     if back_m < 2 then back_m = 2 end
     local vid = xcombat.find_flee_lane(npc, dir, back_m, KITE_ARC_DEG, KITE_SPREAD_DEG)
-    at_combat_trace.resolve_kite(npc:id(), band.min, mag, back_m, vid)
+    at_combat_trace.resolve_kite(npc:id(), band.min, dist, back_m, vid)
     return vid
 end
 
@@ -51,10 +56,10 @@ end
 -- motionless head inside the enemy's working range. ends_on=time runs it to the hold timeout, not an arrival.
 -- fire=SNIPE, and the fire gate in apply_state downgrades it to READY when a shot makes no sense (occluded /
 -- no LOS), so a sniper without a lane holds weapon-up instead of firing at a wall.
-local function _resolve_snipe(npc, enemy, state)
+local function _resolve_snipe(npc, enemy, state, _memo)
     local enemy_band = xcombat.get_weapon_range(xcombat.get_weapon_kind(enemy) or "w_rifle")
-    local planted = (state.dist or 0) > enemy_band.max
-    at_combat_trace.resolve_snipe(npc:id(), state.dist or 0, enemy_band.max, planted)
+    local planted = state.dist > enemy_band.max
+    at_combat_trace.resolve_snipe(npc:id(), state.dist, enemy_band.max, planted)
     if not planted then return nil end
     return npc:level_vertex_id()
 end
@@ -65,13 +70,13 @@ end
 -- cover declines. find_cover returns a free firing vertex; claim it so no other AT NPC picks the same spot, and
 -- record it on state so _end_maneuver releases the reservation on EVERY exit (t136). nil when no rear cover is
 -- reachable or the claim loses a race - the resolver IS the viability gate.
-local function _resolve_retreat(npc, enemy, state)
-    local np, ep = npc:position(), enemy:position()
+local function _resolve_retreat(npc, _enemy, state, memo)
+    local np, ep = memo.npc_pos, memo.enemy_pos
     local dx, dz = np.x - ep.x, np.z - ep.z
     local dist_sqr = dx * dx + dz * dz
     local center = np
     if dist_sqr > 0 then
-        local inv = RETREAT_REAR_M / math_sqrt(dist_sqr)
+        local inv = RETREAT_REAR_M / state.dist
         center = vector():set(np.x + dx * inv, np.y, np.z + dz * inv)
     end
     local vid = xcombat.find_cover(npc, ep, center)
@@ -83,14 +88,14 @@ local function _resolve_retreat(npc, enemy, state)
     local vdx, vdz = vp.x - ep.x, vp.z - ep.z
     local cover_dist_sqr = vdx * vdx + vdz * vdz
     if cover_dist_sqr <= dist_sqr then
-        at_combat_trace.resolve_retreat(npc:id(), "toward_enemy", vid, math_sqrt(cover_dist_sqr), math_sqrt(dist_sqr))
+        at_combat_trace.resolve_retreat(npc:id(), "toward_enemy", vid, math_sqrt(cover_dist_sqr), state.dist)
         return nil
     end
     if not xcombat.claim_cover(vid, npc:id()) then
         at_combat_trace.resolve_retreat(npc:id(), "claim_lost", vid)
         return nil
     end
-    at_combat_trace.resolve_retreat(npc:id(), "taken", vid, math_sqrt(cover_dist_sqr), math_sqrt(dist_sqr))
+    at_combat_trace.resolve_retreat(npc:id(), "taken", vid, math_sqrt(cover_dist_sqr), state.dist)
     state.cover_lvid = vid
     return vid
 end
@@ -114,27 +119,24 @@ local function _flee_blocked(npc, enemy, state)
     return nil
 end
 
-local function _resolve_flee(npc, enemy, state)
+-- memo.faction is set by the flee row's palette check, which always runs before this resolver.
+local function _resolve_flee(npc, enemy, state, memo)
     local blocked = _flee_blocked(npc, enemy, state)
     if blocked then
         if at_combat_trace.enabled() then at_combat_trace.resolve_flee(npc:id(), blocked) end
         return nil
     end
-    local np = npc:position()
-    local ep = enemy:position()
-    local dx, dz = np.x - ep.x, np.z - ep.z
-    local dist_sqr = dx * dx + dz * dz
     -- Point-blank gate: do not flee with the shooter in your face (< flee_min_dist). Turning your back to run to a
     -- far base at point-blank range is suicide; vanilla fights it out at range instead.
-    if dist_sqr < FLEE_MIN_DIST_SQR then
+    if state.dist < FLEE_MIN_DIST_M then
         if at_combat_trace.enabled() then at_combat_trace.resolve_flee(npc:id(), "too_close") end
         return nil
     end
     -- Target a friendly base in the distance (a smart the enemy does not hold), biased to the rear hemisphere so the
     -- rout increases distance instead of curving back past the enemy. A far base's winding path no longer swings the
     -- facing back - the update's holster re-assert holds the NPC facing its run path the whole way.
-    local base = xsmart.find_friendly_base(character_community(npc), np,
-        { level_id = xlevel.get_actor_level_id(), away_from_pos = ep, min_distance = FLEE_BASE_MIN_DIST_M })
+    local base = xsmart.find_friendly_base(memo.faction, memo.npc_pos,
+        { level_id = xlevel.get_actor_level_id(), away_from_pos = memo.enemy_pos, min_distance = FLEE_BASE_MIN_DIST_M })
     if base then
         if at_combat_trace.enabled() then at_combat_trace.resolve_flee(npc:id(), "base") end
         local vid = base.m_level_vertex_id
@@ -173,89 +175,6 @@ end
 at_combat_doctrine.apply_state = _apply_state
 
 
---- Load the trigger thresholds and (re)build the maneuver catalog. Called by the shell on_game_start; every key
---- has a script-side fallback. The catalog is built here so xcombat.* constants and the LTX values are ready.
-function at_combat_doctrine.load_config()
-    local ini = ini_file(CONFIG_PATH)
-    local function read_float(k, d) return ini:r_float_ex(CONFIG_SECTION, k) or d end
-    local function read_int(k, d) local v = ini:r_float_ex(CONFIG_SECTION, k) return v and math_floor(v) or d end
-    HURT_FRAC      = read_float("hurt_frac",     0.25)
-    GRENADE_MS     = read_int("grenade_ms",      3000)
-    STALL_MS       = read_int("stall_ms",        4000)
-    local move_m   = read_float("stall_move_m",  2)
-    STALL_MOVE_SQR = move_m * move_m
-    STALL_CLOSE_M  = read_float("stall_close_m", 2)
-    KITE_ARC_DEG    = read_int("kite_arc_deg",    45)
-    KITE_SPREAD_DEG = read_int("kite_spread_deg", 90)
-    RETREAT_REAR_M  = read_float("retreat_rear_m", 4)
-    UNDER_FIRE_MS   = read_int("under_fire_ms",   2000)
-    local flee_min       = read_int("flee_min_dist_m",         5)
-    FLEE_MIN_DIST_SQR    = flee_min * flee_min
-    FLEE_BASE_MIN_DIST_M = read_int("flee_base_min_dist_m",    100)
-
-    -- Ordered array = precedence when two rows handle one trigger (t136). kite is universal (any faction, any
-    -- weapon), too_close its only trigger, ends_on=arrival (a mover). snipe is w_sniper-only, answers stalled, and
-    -- is a HOLD: ends_on=time (dest is the own node, so there is no arrival), so it runs to snipe_hold_ms.
-    -- factions/weapons nil = match any. update = the row's periodic re-application; all four rows re-apply their
-    -- combat state (a firing row re-checks its shot, flee re-asserts its holster). flee sits BEFORE retreat:
-    -- both answer hurt/grenade, and a declined flee (squad stands / under fire / point-blank / no base) falls
-    -- through to retreat on pick_maneuver's ordered walk.
-    CATALOG = {
-        {
-            name     = "kite",
-            handles  = { too_close = true },
-            factions = nil,
-            weapons  = nil,
-            resolve  = _resolve_kite,
-            update   = _apply_state,
-            fire     = xcombat.FIRE, posture = xcombat.STAND, movement = xcombat.WALK,
-            ends_on  = "arrival",
-            timeout  = read_int("maneuver_max_ms", 8000),
-        },
-        {
-            name     = "snipe",
-            handles  = { stalled = true },
-            factions = nil,
-            weapons  = { w_sniper = true },
-            resolve  = _resolve_snipe,
-            update   = _apply_state,
-            fire     = xcombat.SNIPE, posture = xcombat.STAND, movement = xcombat.STILL,
-            ends_on  = "time",
-            timeout  = read_int("snipe_hold_ms", 8000),
-        },
-        {
-            -- flee: the rout, tried BEFORE retreat - a hurt timid NPC attempts it first, and a declined flee
-            -- (squad stands / under fire / point-blank / no base) falls through to retreat. Weapon HOLSTERED
-            -- (STOW -> the sprint state: weapon strapped, mental=panic), re-asserted by the row's update, so the
-            -- NPC turns its back and physically cannot fire while it runs. ecolog / clear sky / renegade only.
-            -- A rout runs longer than a maneuver, so its cap (flee_max_ms) is longer than the mover stuck-cap.
-            name     = "flee",
-            handles  = { hurt = true, grenade = true },
-            factions = { ecolog = true, csky = true, renegade = true },
-            weapons  = nil,
-            resolve  = _resolve_flee,
-            update   = _apply_state,
-            fire     = xcombat.STOW, posture = xcombat.STAND, movement = xcombat.RUN,
-            ends_on  = "arrival",
-            timeout  = read_int("flee_max_ms", 15000),
-        },
-        {
-            -- retreat: answer pressure (hurt / grenade) with a pull-back to rear cover, still firing. Brave
-            -- factions always; timid factions land here when their flee declines (the flee row sits first).
-            -- monolith and zombied get neither - fanatics do not break.
-            name     = "retreat",
-            handles  = { hurt = true, grenade = true },
-            factions = { army = true, dolg = true, freedom = true, killer = true, isg = true, stalker = true, bandit = true, greh = true, ecolog = true, csky = true, renegade = true },
-            weapons  = nil,
-            resolve  = _resolve_retreat,
-            update   = _apply_state,
-            fire     = xcombat.FIRE, posture = xcombat.STAND, movement = xcombat.WALK,
-            ends_on  = "arrival",
-            timeout  = read_int("maneuver_max_ms", 8000),
-        },
-    }
-end
-
 -- True once the NPC has held position (moved less than stall_move) for stall_ms while the enemy is not closing
 -- (distance not dropping by more than stall_close). Resets its timer on any move or on the enemy gaining ground,
 -- so it fires only on a genuine standoff - the one spot vanilla holds where AT wants to push. Reuses one cached
@@ -274,62 +193,215 @@ local function _eval_stalled(state, tg, npc_pos, dist)
     return (tg - state.stall_since) >= STALL_MS
 end
 
---- Evaluate every trigger, store each value on state, return the highest-precedence fired trigger or nil.
---- Precedence: too_close (enemy inside weapon min range - always answered first) > grenade > hurt > stalled.
---- The shell calls this only for a fighting, seizable NPC with a selected enemy; it reads the live enemy
---- position (the monitor decides off fresh geometry, not memory) and the weapon band for the range trigger.
-function at_combat_doctrine.eval_triggers(npc, enemy, state, tg)
-    local band = xcombat.get_weapon_range(xcombat.get_weapon_kind(npc) or "w_rifle")
-    local npc_pos, enemy_pos = npc:position(), enemy:position()
-    local dx, dz = enemy_pos.x - npc_pos.x, enemy_pos.z - npc_pos.z
-    local dist = math_sqrt(dx*dx + dz*dz)
-    state.dist = dist
 
-    state.t_too_close = dist < band.min
-    local danger = npc:best_danger()
-    state.t_grenade = danger ~= nil and danger:type() == danger_object.grenade and (tg - danger:time()) <= GRENADE_MS
-    state.t_hurt = npc.health < HURT_FRAC
-    state.t_stalled = _eval_stalled(state, tg, npc_pos, dist)
+-- =========================================================================
+-- Situation predicates - the cheap compares that open a row (no geometry; the resolver owns that). Each
+-- returns the situation NAME that holds (the begin trace's trigger field, the rows= walk) or nil. Shared
+-- reads come off the walk memo: kind/faction resolve once per walk, the grenade danger reads best_danger once.
+-- =========================================================================
 
-    if state.t_too_close then return "too_close" end
-    if state.t_grenade  then return "grenade"   end
-    if state.t_hurt     then return "hurt"      end
-    if state.t_stalled  then return "stalled"   end
+-- too_close: the enemy is inside the NPC's own weapon minimum.
+local function _situation_too_close(npc, _enemy, state, _tg, memo)
+    if memo.kind == nil then memo.kind = xcombat.get_weapon_kind(npc) or "w_rifle" end
+    if state.dist < xcombat.get_weapon_range(memo.kind).min then return "too_close" end
     return nil
 end
 
--- Does maneuver m apply to this NPC for the fired trigger: it handles the trigger AND its faction/weapon palette
--- (if any) matches. memo caches the NPC's faction and weapon kind across catalog entries, read only when a
--- maneuver actually filters on them (kite filters on neither, so neither is ever read for it).
-local function _maneuver_applies(m, fired, npc, memo)
-    if not m.handles[fired] then return false end
-    if m.factions then
-        memo.faction = memo.faction or character_community(npc)
-        if not m.factions[memo.faction] then return false end
+-- pressure: a grenade danger within GRENADE_MS, or health under HURT_FRAC. Grenade checked first, matching
+-- the old trigger precedence, so the traced situation name is the one the old shape would have fired.
+local function _situation_pressure(npc, _enemy, _state, tg, memo)
+    if memo.grenade == nil then
+        local danger = npc:best_danger()
+        memo.grenade = danger ~= nil and danger:type() == danger_object.grenade and (tg - danger:time()) <= GRENADE_MS
     end
-    if m.weapons then
-        memo.kind = memo.kind or (xcombat.get_weapon_kind(npc) or "w_rifle")
-        if not m.weapons[memo.kind] then return false end
+    if memo.grenade then return "grenade" end
+    if memo.hurt == nil then memo.hurt = npc.health < HURT_FRAC end
+    if memo.hurt then return "hurt" end
+    return nil
+end
+
+-- stalled: held position with the enemy not closing (_eval_stalled) - snipe's moment. The tracker runs on
+-- every walk that reaches the snipe row, so the stall memory stays warm across declined walks.
+local function _situation_stalled(_npc, _enemy, state, tg, memo)
+    if _eval_stalled(state, tg, memo.npc_pos, state.dist) then return "stalled" end
+    return nil
+end
+
+
+--- Load the tunables and (re)build the maneuver catalog. Called by the shell on_game_start; every key has a
+--- script-side fallback. The catalog is built here so xcombat.* constants and the LTX values are ready.
+function at_combat_doctrine.load_config()
+    local ini = ini_file(CONFIG_PATH)
+    local function read_float(k, d) return ini:r_float_ex(CONFIG_SECTION, k) or d end
+    local function read_int(k, d) local v = ini:r_float_ex(CONFIG_SECTION, k) return v and math_floor(v) or d end
+    HURT_FRAC      = read_float("hurt_frac",     0.25)
+    GRENADE_MS     = read_int("grenade_ms",      3000)
+    STALL_MS       = read_int("stall_ms",        4000)
+    local move_m   = read_float("stall_move_m",  2)
+    STALL_MOVE_SQR = move_m * move_m
+    STALL_CLOSE_M  = read_float("stall_close_m", 2)
+    KITE_ARC_DEG    = read_int("kite_arc_deg",    45)
+    KITE_SPREAD_DEG = read_int("kite_spread_deg", 90)
+    RETREAT_REAR_M  = read_float("retreat_rear_m", 4)
+    UNDER_FIRE_MS   = read_int("under_fire_ms",   2000)
+    FLEE_MIN_DIST_M      = read_int("flee_min_dist_m",      5)
+    FLEE_BASE_MIN_DIST_M = read_int("flee_base_min_dist_m", 100)
+    DECLINE_BACKOFF_MS   = read_int("decline_backoff_ms",   2000)
+
+    -- Ordered array = the walk order. kite first (a violated weapon minimum is answered before anything),
+    -- flee BEFORE retreat (both open on pressure; a declined flee - squad stands / under fire / point-blank /
+    -- no base - falls through to retreat), snipe LAST (this order reproduces the old trigger-precedence
+    -- behavior: a hurt or grenade-pressed sniper retreats, only the merely-stalled one plants - t141).
+    -- factions/weapons nil = match any. update = the row's periodic re-application; all four rows re-apply
+    -- their combat state (a firing row re-checks its shot, flee re-asserts its holster).
+    CATALOG = {
+        {
+            name      = "kite",
+            situation = _situation_too_close,
+            factions  = nil,
+            weapons   = nil,
+            resolve   = _resolve_kite,
+            update    = _apply_state,
+            fire      = xcombat.FIRE, posture = xcombat.STAND, movement = xcombat.WALK,
+            ends_on   = "arrival",
+            timeout   = read_int("maneuver_max_ms", 8000),
+        },
+        {
+            -- flee: the rout, tried BEFORE retreat. Weapon HOLSTERED (STOW -> the sprint state: weapon
+            -- strapped, mental=panic), re-asserted by the row's update, so the NPC turns its back and
+            -- physically cannot fire while it runs. ecolog / clear sky / renegade only. A rout runs longer
+            -- than a maneuver, so its cap (flee_max_ms) is longer than the mover stuck-cap.
+            name      = "flee",
+            situation = _situation_pressure,
+            factions  = { ecolog = true, csky = true, renegade = true },
+            weapons   = nil,
+            resolve   = _resolve_flee,
+            update    = _apply_state,
+            fire      = xcombat.STOW, posture = xcombat.STAND, movement = xcombat.RUN,
+            ends_on   = "arrival",
+            timeout   = read_int("flee_max_ms", 15000),
+        },
+        {
+            -- retreat: answer pressure (hurt / grenade) with a pull-back to rear cover, still firing. Brave
+            -- factions always; timid factions land here when their flee declines (the flee row sits first).
+            -- monolith and zombied get neither - fanatics do not break.
+            name      = "retreat",
+            situation = _situation_pressure,
+            factions  = { army = true, dolg = true, freedom = true, killer = true, isg = true, stalker = true, bandit = true, greh = true, ecolog = true, csky = true, renegade = true },
+            weapons   = nil,
+            resolve   = _resolve_retreat,
+            update    = _apply_state,
+            fire      = xcombat.FIRE, posture = xcombat.STAND, movement = xcombat.WALK,
+            ends_on   = "arrival",
+            timeout   = read_int("maneuver_max_ms", 8000),
+        },
+        {
+            -- snipe: w_sniper-only and a HOLD: ends_on=time (dest is the own node, so there is no arrival),
+            -- so it runs to snipe_hold_ms.
+            name      = "snipe",
+            situation = _situation_stalled,
+            factions  = nil,
+            weapons   = { w_sniper = true },
+            resolve   = _resolve_snipe,
+            update    = _apply_state,
+            fire      = xcombat.SNIPE, posture = xcombat.STAND, movement = xcombat.STILL,
+            ends_on   = "time",
+            timeout   = read_int("snipe_hold_ms", 8000),
+        },
+    }
+end
+
+
+-- Faction/weapon palette for a row (nil = match any), reads memoized on the walk.
+local function _palette_matches(row, npc, memo)
+    if row.factions then
+        if memo.faction == nil then memo.faction = character_community(npc) end
+        if not row.factions[memo.faction] then return false end
+    end
+    if row.weapons then
+        if memo.kind == nil then memo.kind = xcombat.get_weapon_kind(npc) or "w_rifle" end
+        if not row.weapons[memo.kind] then return false end
     end
     return true
 end
 
---- Given a fired trigger, return the first catalog maneuver (in precedence order) that applies to this NPC and
---- whose resolver yields a destination, plus that destination. The resolver IS the viability gate (a vertex =
---- seize there, nil = try the next maneuver) and is short-circuited by _maneuver_applies, so its raycasts run
---- only on the seize path. Returns (maneuver, dest) on a seize; on a decline returns (nil, reason) for the trace:
---- the name of the last maneuver whose palette matched but whose resolver declined (not viable - no cover / walled
---- in), or nil when no maneuver's palette matched the trigger at all (wrong faction / weapon).
-function at_combat_doctrine.pick_maneuver(npc, fired, enemy, state)
-    local memo = {}
-    local tried = nil
+-- One row's ordered check: situation compare (cheap) -> palette -> decline backoff -> resolver geometry.
+-- Returns (dest, situation, stage): dest non-nil = picked. stage is the trace word for how far the row got
+-- ("-" situation absent, "palette", "backoff", "declined", "picked"). A resolver decline stamps
+-- state.declined_at[row.name] so the geometry is skipped for DECLINE_BACKOFF_MS (t140); the situation and
+-- palette still run every walk (stalled must keep its tracker warm) - only the raycast tail backs off.
+local function _check_row(row, npc, enemy, state, tg, memo)
+    local sit = row.situation(npc, enemy, state, tg, memo)
+    if not sit then return nil, nil, "-" end
+    if not _palette_matches(row, npc, memo) then return nil, sit, "palette" end
+    local declined = state.declined_at
+    local stamp = declined and declined[row.name]
+    if stamp and (tg - stamp) < DECLINE_BACKOFF_MS then return nil, sit, "backoff" end
+    local dest = row.resolve(npc, enemy, state, memo)
+    if dest then return dest, sit, "picked" end
+    if not declined then declined = {} state.declined_at = declined end
+    declined[row.name] = tg
+    return nil, sit, "declined"
+end
+
+-- Reset the per-walk memo on the state record: wipe the lazy reads (faction, weapon kind, grenade, hurt),
+-- take this tick's positions, and compute the flat npc-enemy distance every row and resolver shares
+-- (state.dist). One table per NPC, reused across walks - no allocation on the monitor path.
+local function _reset_memo(state, npc, enemy)
+    local memo = state.memo
+    if not memo then memo = {} state.memo = memo end
+    memo.faction, memo.kind, memo.grenade, memo.hurt = nil, nil, nil, nil
+    local np, ep = npc:position(), enemy:position()
+    memo.npc_pos, memo.enemy_pos = np, ep
+    local dx, dz = ep.x - np.x, ep.z - np.z
+    state.dist = math_sqrt(dx * dx + dz * dz)
+    return memo
+end
+
+-- Reused per-walk buffer for the rows= trace string (built only when tracing is on).
+local _ROW_TRACE = {}
+
+local function _rows_string(count)
+    for i = count + 1, #_ROW_TRACE do _ROW_TRACE[i] = nil end
+    return table_concat(_ROW_TRACE, ",")
+end
+
+-- Wipe the per-row decline stamps (a pick or leaving the fight resets the t140 backoff).
+local function _clear_declines(state)
+    local declined = state.declined_at
+    if not declined then return end
+    for name in pairs(declined) do declined[name] = nil end
+end
+
+--- Walk the catalog in order and return (maneuver, dest) for the first row whose situation, palette, and
+--- resolver all pass, or nil when no row fires. The resolver IS the viability gate (a vertex = seize there,
+--- nil = stamp the decline backoff and fall through to the next row). The walk reads positions once
+--- (memo.npc_pos / memo.enemy_pos, state.dist) and memoizes the shared reads (faction, weapon kind, grenade
+--- danger) on state.memo for this walk only. A pick stores the fired situation on state.trigger and clears
+--- the decline stamps (t140: a successful begin resets the backoff); when tracing is on the per-row walk
+--- lands on state.rows ("name:situation/stage" per walked row) for the decision line.
+function at_combat_doctrine.pick_maneuver(npc, enemy, state, tg)
+    local memo = _reset_memo(state, npc, enemy)
+    local tracing = at_combat_trace.enabled()
+    local count = 0
+    local picked, dest
     for i = 1, #CATALOG do
-        local maneuver = CATALOG[i]
-        if _maneuver_applies(maneuver, fired, npc, memo) then
-            local dest = maneuver.resolve(npc, enemy, state)
-            if dest then return maneuver, dest end
-            tried = maneuver.name
+        local row = CATALOG[i]
+        local vid, sit, stage = _check_row(row, npc, enemy, state, tg, memo)
+        if tracing then
+            count = count + 1
+            _ROW_TRACE[count] = row.name .. ":" .. (sit and (sit .. "/" .. stage) or stage)
+        end
+        if vid then
+            picked, dest = row, vid
+            state.trigger = sit
+            break
         end
     end
-    return nil, tried
+    if tracing then state.rows = _rows_string(count) end
+    if picked then
+        _clear_declines(state)
+        return picked, dest
+    end
+    return nil
 end
