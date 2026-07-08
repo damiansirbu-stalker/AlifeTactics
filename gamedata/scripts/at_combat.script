@@ -132,7 +132,7 @@ local function _trace_decision(npc, state, enemy, fired)
     state.enemy_name = xcreature.get_name(enemy:id())
     state.operator   = xcombat.get_operator(npc)
     state.aim_off    = math_floor(xcombat.get_facing_offset(npc, enemy:position()))
-    state.seen       = npc:see(enemy)
+    state.seen       = xcombat.sees(npc, enemy)
     trace.monitor(state.id, state, fired or "none")
 end
 

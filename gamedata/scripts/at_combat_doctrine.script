@@ -155,7 +155,7 @@ end
 -- update_maneuver check. Returns (applied fire, gate result: seen/true/false/na) for the trace.
 -- The fire decision for a FIRE/SNIPE row, vanilla kill_enemy's order. Returns (fire to apply, gate value).
 local function _gate_fire(npc, requested, enemy)
-    if enemy and npc:see(enemy) then return requested, "seen" end
+    if enemy and xcombat.sees(npc, enemy) then return requested, "seen" end
     if enemy and xcombat.fire_make_sense(npc, enemy) then return requested, "true" end
     return xcombat.READY, "false"
 end

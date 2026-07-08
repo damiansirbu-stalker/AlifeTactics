@@ -82,7 +82,7 @@ end
 -- Sight to the enemy as its own short flag: "blind" (cannot see it), "off" (sees it but body pointed away from
 -- it), "see" (looking at it). The "does he see me" cue from the old HUD, promoted to its own column.
 local function _sight_flag(npc, enemy)
-    if not npc:see(enemy) then return "blind" end
+    if not xcombat.sees(npc, enemy) then return "blind" end
     if xcombat.get_facing_offset(npc, enemy:position()) >= FACING_DEG then return "off" end
     return "see"
 end
