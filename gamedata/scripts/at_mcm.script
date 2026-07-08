@@ -13,7 +13,7 @@ local defaults = {
     charge_chance_veteran     = 50,
     charge_chance_master      = 50,
     limping_anim_enabled      = true,
-    limping_health_threshold  = 0.65,
+    limping_health_threshold  = 0.25,
     healing_anim_enabled      = true,
     accuracy_enabled       = true,
     acc_disp_novice        = 1.00,
@@ -140,7 +140,7 @@ function on_mcm_load()
             gr = {
                 { id = "title", type = "slide", link = "at_mcm_banner",
                     text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
-                { id = "desc", type = "desc", text = "ui_mcm_at_wip_desc" },
+                { id = "desc", type = "desc", text = "ui_mcm_at_" .. id .. "_desc" },
                 { id = "div_version", type = "line" },
                 { id = "version", type = "desc", text = "ui_mcm_at_title",
                     ui_hook_functor = { set_version_text }, clr = {255, 212, 201, 168} },
@@ -291,7 +291,7 @@ function on_mcm_load()
                             { id = "div_visuals", type = "line" },
                             { id = "hdr_visuals", type = "desc", text = "ui_mcm_at_hdr_visuals", clr = {255, 200, 200, 200} },
                             { id = "limping_anim_enabled",     type = "check", val = 1, def = true, hint = "at_healing_limping_anim_enabled" },
-                            { id = "limping_health_threshold", type = "track", val = 2, min = 0.30, max = 1.00, step = 0.05, def = 0.65, hint = "at_healing_limping_health_threshold" },
+                            { id = "limping_health_threshold", type = "track", val = 2, min = 0.05, max = 1.00, step = 0.05, def = 0.25, hint = "at_healing_limping_health_threshold" },
                             { id = "healing_anim_enabled",     type = "check", val = 1, def = true, hint = "at_healing_healing_anim_enabled" },
 
                             { id = "div_version", type = "line" },

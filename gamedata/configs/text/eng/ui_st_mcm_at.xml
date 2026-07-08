@@ -48,7 +48,7 @@
   <string id="ui_mcm_menu_development">
     <text>Development</text>
   </string>
-  <!-- ==================== WIP SUB-PAGES ==================== -->
+  <!-- ==================== PLANNED SUB-PAGES ==================== -->
   <string id="ui_mcm_menu_behaviors">
     <text>Behaviors</text>
   </string>
@@ -64,29 +64,41 @@
   <string id="ui_mcm_menu_resistance">
     <text>Resistance</text>
   </string>
-  <!-- ==================== WIP CATEGORIES ==================== -->
-  <string id="ui_mcm_at_wip_desc">
-    <text>wip</text>
+  <!-- ==================== PLANNED PAGE DESCRIPTIONS ==================== -->
+  <string id="ui_mcm_at_behaviors_desc">
+    <text>Planned: new combat actions the vanilla planner lacks, grenades and melee first. Nothing to configure yet.</text>
+  </string>
+  <string id="ui_mcm_at_commitment_desc">
+    <text>Planned: holds a stalker on a good combat action instead of the break-contact shuffle. The engine hook behind it is already merged in the demonized exes. Nothing to configure yet.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_desc">
+    <text>Planned: per-stalker aim speed and vision speed. The engine hooks behind it are already merged in the demonized exes. Nothing to configure yet.</text>
+  </string>
+  <string id="ui_mcm_at_range_desc">
+    <text>Reserved for a future system. Nothing to configure yet.</text>
+  </string>
+  <string id="ui_mcm_at_resistance_desc">
+    <text>Reserved for a future system. Nothing to configure yet.</text>
   </string>
   <string id="ui_mcm_at_effects_desc">
-    <text>wip</text>
+    <text>Planned: player-facing combat feedback, concussion first. Nothing to configure yet.</text>
   </string>
   <string id="ui_mcm_at_mutants_desc">
-    <text>wip</text>
+    <text>Reserved for a future system. Nothing to configure yet.</text>
   </string>
   <!-- ==================== SHARED ==================== -->
   <string id="ui_mcm_at_title">
     <text>AlifeTactics</text>
   </string>
-  <!-- ==================== HIT SHARING TAB ==================== -->
+  <!-- ==================== DISCLOSURE PAGE ==================== -->
   <string id="ui_mcm_at_disclosure_desc">
-    <text>A hit on any squad member alerts every squadmate to the shooter on the first hit. Earshot, line of sight, and suppressor use do not block the alert. Vanilla relies on each squadmate hearing the shot, which is unreliable at best and useless against suppressors or long-range fire.</text>
+    <text>A hit on any squad member alerts the whole squad to the shooter on the first hit. Earshot, line of sight, and suppressor use do not block the alert. Vanilla relies on each squadmate hearing the shot, which fails against suppressors and long-range fire.</text>
   </string>
   <string id="ui_mcm_at_disclosure_disclosure_enabled">
-    <text>Enable Hit Sharing</text>
+    <text>Enable Disclosure</text>
   </string>
   <string id="ui_mcm_at_disclosure_disclosure_enabled_desc">
-    <text>Master toggle. When off, the hit handler skips entirely: no squad disclosure, no per-shooter hostility pin, no combat-mask flip. Vanilla engine behavior runs unmodified (audio-range squadmates still propagate hit memory through the engine's own pipeline; distant patrol members do not). Default: on.</text>
+    <text>When off, vanilla behavior runs unmodified: squadmates learn about a shooter only within earshot, and distant patrol members never do.</text>
   </string>
   <string id="ui_mcm_at_disclosure_hdr_survivor">
     <text>Stealth</text>
@@ -95,7 +107,7 @@
     <text>Suppress disclosure on kill</text>
   </string>
   <string id="ui_mcm_at_disclosure_disclosure_survivor_gate_desc">
-    <text>When the hit kills the victim, do not propagate the shooter to the squad. The dying victim never gets to radio it in. Squadmates still learn through the normal vanilla paths (engine sound propagation, corpse discovery via xr_motivator death_by_id writeback, line of sight). When the hit only wounds the victim, disclosure fires as today. Frame-deferred check costs ~16-33ms which is imperceptible. Default: on.</text>
+    <text>When the hit kills the victim outright, the shooter is not disclosed. The dying man never gets to radio it in, so silenced shots and backstabs stay quiet. The squad can still find you the honest way: by sound, by sight, or by the body. A hit that only wounds discloses as usual.</text>
   </string>
   <string id="ui_mcm_at_hdr_retention">
     <text>Retention</text>
@@ -104,17 +116,17 @@
     <text>Forget shooter after (game min)</text>
   </string>
   <string id="ui_mcm_at_disclosure_disclosure_retention_min_desc">
-    <text>Game minutes without new hits before the squad's pin on a given shooter expires. The next hit re-fires the full-squad alert. Game time, not real time. Default: 2.</text>
+    <text>Game minutes without new hits before a squad forgets a shooter. The next hit re-fires the full-squad alert. Game time, not real time.</text>
   </string>
-  <!-- ==================== HEALING TAB ==================== -->
+  <!-- ==================== HEALING PAGE ==================== -->
   <string id="ui_mcm_at_healing_desc">
-    <text>Per-stalker healing behaviors. Medkit and bandage item lists restored at boot via DLTX overlay on ai_tweaks/xr_eat_medkit.ltx (vanilla ships them empty, so stalkers carrying kits never use them). Sections below tune the runtime layer.</text>
+    <text>Stalkers heal with the medkits and bandages they carry. Vanilla ships the healing item lists empty, so carried kits were never used. AlifeTactics restores the lists at boot and tunes the runtime layer below.</text>
   </string>
   <string id="ui_mcm_at_healing_healing_enabled">
     <text>Enable Healing</text>
   </string>
   <string id="ui_mcm_at_healing_healing_enabled_desc">
-    <text>Master toggle for the runtime healing layer: heal-rate scaling and per-rank healing-charge override. When off, vanilla self-heal behavior runs unmodified. Restart required to toggle. The medkit and bandage item-list restoration is a boot-time DLTX overlay and is always active. Default: on.</text>
+    <text>Master toggle for the runtime layer: heal rate scaling and the per-rank healing charge. When off, vanilla self-heal behavior runs unmodified. Restart required to toggle. The item-list restoration is boot-time and always active.</text>
   </string>
   <!-- Healing - Heal Rate -->
   <string id="ui_mcm_at_hdr_heal_rate">
@@ -124,35 +136,35 @@
     <text>Heal rate multiplier</text>
   </string>
   <string id="ui_mcm_at_healing_heal_rate_multiplier_desc">
-    <text>Scales the per-tick HP recovery during a self-heal cycle. Vanilla restores 0.05 HP per tick for 13 ticks (0.65 HP total). At 2.0x each tick restores 0.10 HP; at 0.5x each tick restores 0.025 HP. The tick count is fixed by the engine. Default: 1.0.</text>
+    <text>Scales how much health each self-heal tick restores. At 2.0 a medkit heals twice as fast, at 0.5 half as fast. The number of ticks is fixed by the engine.</text>
   </string>
   <!-- Healing - Healing Charge -->
   <string id="ui_mcm_at_hdr_healing_charge">
-    <text>Healing Charge (vanilla 50% override)</text>
+    <text>Healing Charge</text>
   </string>
   <string id="ui_mcm_at_healing_charge_chance_novice">
     <text>Novice charge chance (%)</text>
   </string>
   <string id="ui_mcm_at_healing_charge_chance_novice_desc">
-    <text>Probability that a novice-rank stalker is granted a lifetime healing token at first spawn. The token fires once if the stalker drops below the medkit health threshold without a medkit in inventory. Vanilla rolls 50% for every rank. Default: 50.</text>
+    <text>Chance that a novice-rank stalker gets one lifetime healing charge at first spawn. The charge fires once when he drops below the heal threshold with no medkit in inventory. Vanilla rolls a flat 50% for every rank.</text>
   </string>
   <string id="ui_mcm_at_healing_charge_chance_experienced">
     <text>Experienced charge chance (%)</text>
   </string>
   <string id="ui_mcm_at_healing_charge_chance_experienced_desc">
-    <text>Probability for experienced-rank stalkers. Default: 50.</text>
+    <text>Chance for experienced-rank stalkers.</text>
   </string>
   <string id="ui_mcm_at_healing_charge_chance_veteran">
     <text>Veteran charge chance (%)</text>
   </string>
   <string id="ui_mcm_at_healing_charge_chance_veteran_desc">
-    <text>Probability for veteran-rank stalkers. Default: 50.</text>
+    <text>Chance for veteran-rank stalkers.</text>
   </string>
   <string id="ui_mcm_at_healing_charge_chance_master">
     <text>Master charge chance (%)</text>
   </string>
   <string id="ui_mcm_at_healing_charge_chance_master_desc">
-    <text>Probability for master-rank stalkers. Default: 50.</text>
+    <text>Chance for master-rank stalkers.</text>
   </string>
   <!-- Healing - Visual Layer -->
   <string id="ui_mcm_at_hdr_visuals">
@@ -162,29 +174,29 @@
     <text>Limping animation</text>
   </string>
   <string id="ui_mcm_at_healing_limping_anim_enabled_desc">
-    <text>Out-of-combat stalkers below the HP threshold visibly limp: an idle torso slump while standing, a damaged walk cycle while moving. Re-armed every 5 seconds per NPC. Combat NPCs are excluded so combat posture is not disrupted. Default: on.</text>
+    <text>Out-of-combat stalkers below the health threshold visibly limp: a hurt idle while standing, a hurt walk while moving, matched to the carried weapon. Fighting stalkers are excluded so combat posture is never disrupted.</text>
   </string>
   <string id="ui_mcm_at_healing_limping_health_threshold">
-    <text>Limp HP threshold</text>
+    <text>Limp health threshold</text>
   </string>
   <string id="ui_mcm_at_healing_limping_health_threshold_desc">
-    <text>HP fraction below which an eligible stalker starts limping. 0.65 means limping kicks in at 65% HP and below. Lower values delay the visual cue until the stalker is more seriously hurt. Default: 0.65.</text>
+    <text>Health fraction below which an eligible stalker starts limping. Lower values delay the cue until he is more seriously hurt.</text>
   </string>
   <string id="ui_mcm_at_healing_healing_anim_enabled">
     <text>Healing animation</text>
   </string>
   <string id="ui_mcm_at_healing_healing_anim_enabled_desc">
-    <text>Plays a medkit-injection or bandage-application torso animation when a stalker starts a heal cycle. The engine clears the animation when it completes. One-shot cue per cycle. Default: on.</text>
+    <text>Plays a medkit or bandage gesture when a stalker starts a heal cycle, out of combat only. The engine clears it when the gesture ends.</text>
   </string>
-  <!-- ==================== ACCURACY TAB ==================== -->
+  <!-- ==================== ACCURACY PAGE ==================== -->
   <string id="ui_mcm_at_accuracy_desc">
-    <text>Stalkers in vanilla fire with one shared dispersion - the engine's rank curve is dead at Anomaly's rank values. AlifeTactics restores per-rank scaling so masters shoot tighter than novices. Tune each tier below.</text>
+    <text>Vanilla stalkers all fire with the same dispersion because the engine rank curve is dead at Anomaly's rank values. AlifeTactics restores per-rank scaling so masters shoot tighter than novices. Tune each tier below.</text>
   </string>
   <string id="ui_mcm_at_accuracy_accuracy_enabled">
     <text>Enable Accuracy</text>
   </string>
   <string id="ui_mcm_at_accuracy_accuracy_enabled_desc">
-    <text>Master toggle for the per-shot accuracy hook. When off, the engine's default (flat) dispersion applies to every stalker regardless of rank. Default: on.</text>
+    <text>When off, the engine's flat dispersion applies to every stalker regardless of rank.</text>
   </string>
   <string id="ui_mcm_at_hdr_accuracy_curve">
     <text>Rank Curve</text>
@@ -193,85 +205,85 @@
     <text>Novice dispersion</text>
   </string>
   <string id="ui_mcm_at_accuracy_acc_disp_novice_desc">
-    <text>Shot cone width for novice-rank stalkers. Lower = tighter cone = more lethal. 1.00 matches vanilla engine baseline. Default: 1.00.</text>
+    <text>Shot cone scale for novice-rank stalkers. Lower is tighter and more lethal. 1.00 matches the vanilla cone.</text>
   </string>
   <string id="ui_mcm_at_accuracy_acc_disp_trainee">
     <text>Trainee dispersion</text>
   </string>
   <string id="ui_mcm_at_accuracy_acc_disp_trainee_desc">
-    <text>Shot cone width for trainee-rank stalkers. Lower = tighter cone = more lethal. Default: 0.90.</text>
+    <text>Shot cone scale for trainee-rank stalkers. Lower is tighter.</text>
   </string>
   <string id="ui_mcm_at_accuracy_acc_disp_experienced">
     <text>Experienced dispersion</text>
   </string>
   <string id="ui_mcm_at_accuracy_acc_disp_experienced_desc">
-    <text>Shot cone width for experienced-rank stalkers. Lower = tighter cone = more lethal. Default: 0.80.</text>
+    <text>Shot cone scale for experienced-rank stalkers. Lower is tighter.</text>
   </string>
   <string id="ui_mcm_at_accuracy_acc_disp_professional">
     <text>Professional dispersion</text>
   </string>
   <string id="ui_mcm_at_accuracy_acc_disp_professional_desc">
-    <text>Shot cone width for professional-rank stalkers. Lower = tighter cone = more lethal. Default: 0.70.</text>
+    <text>Shot cone scale for professional-rank stalkers. Lower is tighter.</text>
   </string>
   <string id="ui_mcm_at_accuracy_acc_disp_veteran">
     <text>Veteran dispersion</text>
   </string>
   <string id="ui_mcm_at_accuracy_acc_disp_veteran_desc">
-    <text>Shot cone width for veteran-rank stalkers. Lower = tighter cone = more lethal. Default: 0.60.</text>
+    <text>Shot cone scale for veteran-rank stalkers. Lower is tighter.</text>
   </string>
   <string id="ui_mcm_at_accuracy_acc_disp_expert">
     <text>Expert dispersion</text>
   </string>
   <string id="ui_mcm_at_accuracy_acc_disp_expert_desc">
-    <text>Shot cone width for expert-rank stalkers. Lower = tighter cone = more lethal. Default: 0.52.</text>
+    <text>Shot cone scale for expert-rank stalkers. Lower is tighter.</text>
   </string>
   <string id="ui_mcm_at_accuracy_acc_disp_master">
     <text>Master dispersion</text>
   </string>
   <string id="ui_mcm_at_accuracy_acc_disp_master_desc">
-    <text>Shot cone width for master-rank stalkers. Lower = tighter cone = more lethal. Default: 0.45.</text>
+    <text>Shot cone scale for master-rank stalkers. Lower is tighter.</text>
   </string>
   <string id="ui_mcm_at_accuracy_acc_disp_legend">
     <text>Legend dispersion</text>
   </string>
   <string id="ui_mcm_at_accuracy_acc_disp_legend_desc">
-    <text>Shot cone width for legend-rank stalkers (highest rank). Lower = tighter cone = more lethal. Default: 0.38.</text>
+    <text>Shot cone scale for legend-rank stalkers, the highest rank. Lower is tighter.</text>
   </string>
-  <!-- ==================== COMBAT TAB ==================== -->
+  <!-- ==================== MANEUVERS PAGE ==================== -->
   <string id="ui_mcm_at_combat_desc">
-    <text>AlifeTactics does not replace your combat AI. Vanilla - or whatever modpack AI you run - drives every fight. AlifeTactics watches, and when an NPC reaches a moment vanilla handles badly, it briefly takes that one NPC over for a single maneuver and then hands control straight back. The share slider below sets how many NPCs it may do this to; the rest fight entirely on your existing AI.</text>
+    <text>AlifeTactics does not replace your combat AI. Vanilla, or whatever modpack AI you run, drives every fight. When a stalker reaches a moment vanilla handles badly, AlifeTactics borrows that one stalker for a single committed maneuver and then hands control straight back. Four maneuvers: kite backs out of an enemy that closed too near, retreat pulls to rear cover under pressure, flee routs the last man to a distant friendly base, snipe holds a stalled marksman on precision aim. A maneuver runs only when it gains the stalker something.</text>
   </string>
   <string id="ui_mcm_at_combat_combat_enabled">
     <text>Enable combat takeover</text>
   </string>
   <string id="ui_mcm_at_combat_combat_enabled_desc">
-    <text>When off, AlifeTactics never touches combat and every fight runs on your existing AI. When on, it may briefly take an NPC over for one maneuver. Default: on.</text>
+    <text>When off, AlifeTactics never touches combat and every fight runs on your existing AI. When on, it may briefly borrow a stalker for one maneuver.</text>
   </string>
   <string id="ui_mcm_at_combat_combat_ignore_companions">
     <text>Ignore companions</text>
   </string>
   <string id="ui_mcm_at_combat_combat_ignore_companions_desc">
-    <text>When on, AlifeTactics never takes over your companions; their own follow and combat AI and your commands stay in control. Turn off to let it take them over too. Default: on.</text>
+    <text>When on, AlifeTactics never takes over your companions, so their follow and combat AI and your commands stay in control. Turn off to let it maneuver them too.</text>
   </string>
+  <!-- ==================== CROSSFIRE PAGE ==================== -->
   <string id="ui_mcm_at_crossfire_desc">
-    <text>Friendly fire</text>
+    <text>Squads stop dropping their own in a firefight. A stalker that hits a teammate of his own faction deals reduced damage, set by the slider below. Actual enemies still trade full damage, and your own shots are never touched.</text>
   </string>
   <string id="ui_mcm_at_crossfire_crossfire_enabled">
     <text>Block same-faction friendly fire</text>
   </string>
   <string id="ui_mcm_at_crossfire_crossfire_enabled_desc">
-    <text>When on, an NPC that hits a teammate of its own faction deals reduced damage set by the slider below. Stops squads from killing their own in crossfire. Does not affect damage you deal. Default: on.</text>
+    <text>When off, vanilla friendly-fire damage applies in full.</text>
   </string>
   <string id="ui_mcm_at_crossfire_crossfire_factor">
     <text>Same-faction damage multiplier</text>
   </string>
   <string id="ui_mcm_at_crossfire_crossfire_factor_desc">
-    <text>How much damage a same-faction hit deals. 0.00 = teammates take no damage from each other. 1.00 = full vanilla damage. Default: 0.00.</text>
+    <text>How much damage a same-faction hit deals. 0.00 means teammates take no damage from each other. 1.00 is full vanilla damage.</text>
   </string>
-  <!-- ==================== FIXES TAB (parent) ==================== -->
-  <!-- ==================== DANGER (child) ==================== -->
+  <!-- ==================== DANGER PAGE ==================== -->
   <string id="ui_mcm_at_danger_desc">
-    <text>Patches the vanilla danger response system. Bug fixes always on. Three improvements toggle below.</text>
+    <text>Reworks the vanilla danger response as a runtime patch on whichever danger script your modpack ships. Bug fixes are always on. Three improvements toggle below.</text>
   </string>
   <string id="ui_mcm_at_danger_hdr_improvements">
     <text>Improvements</text>
@@ -280,49 +292,49 @@
     <text>Hit-type bypass</text>
   </string>
   <string id="ui_mcm_at_fixes_danger_danger_hit_bypass_desc">
-    <text>Vanilla NPCs ignore distant shooters because the combat-ignore radius gates the response. With this on, a hit always registers, so a sniped NPC at 200m turns and seeks cover instead of standing still. Default: on.</text>
+    <text>Vanilla stalkers ignore distant shooters because a distance gate caps the response. With this on a direct hit always registers, so a sniped stalker at 200m turns and seeks cover instead of standing still.</text>
   </string>
   <string id="ui_mcm_at_fixes_danger_danger_attack_sound">
     <text>React to nearby gunfire</text>
   </string>
   <string id="ui_mcm_at_fixes_danger_danger_attack_sound_desc">
-    <text>NPCs hearing nearby gunfire seek cover and adopt threat poses. Vanilla does nothing on attack-sound events. An actor-aiming gate prevents NPCs from diving for cover when you walk past with a rifle holstered or pointed elsewhere. Default: on.</text>
+    <text>Stalkers hearing nearby gunfire seek cover and adopt threat poses. Vanilla does nothing on this danger type. An aiming gate keeps stalkers from diving for cover when you walk past with your rifle holstered or pointed elsewhere.</text>
   </string>
   <string id="ui_mcm_at_fixes_danger_danger_actor_tables">
     <text>Actor-source tuning</text>
   </string>
   <string id="ui_mcm_at_fixes_danger_danger_actor_tables_desc">
-    <text>Tune NPC reaction range and memory time separately for actor-triggered danger versus NPC-vs-NPC. The same encounter feels different depending on whether you opened fire or a stalker hit one of his squadmates. Default: on.</text>
+    <text>Danger caused by you reads its own reaction range and memory tables, separate from NPC-vs-NPC danger. The same shot feels different depending on who fired it.</text>
   </string>
   <string id="ui_mcm_at_danger_hdr_fixes">
     <text>Always-on bug fixes (not toggleable)</text>
   </string>
   <string id="ui_mcm_at_danger_fixes_list">
-    <text>Crash safety for mutant corpses left in the danger system. Guards against missing NPC references in evaluators. Animation state resets cleanly between danger transitions. A broken hit callback that corrupted danger state is now unregistered. A name collision was making three danger categories read each other's config; fixed. Dead helpers removed. Pose transitions react instantly to danger state changes.</text>
+    <text>Crash safety for mutant corpses in the danger check. Guards against torn-down NPC references. A broken hit callback that corrupted danger state is neutralized. A name collision that made three danger categories read the wrong config rows is fixed. Corpse investigation survives despawned corpses, drives the right stalker, and actually uses the cover it found. Animation state resets cleanly on danger transitions.</text>
   </string>
-  <!-- ==================== JAM (child) ==================== -->
+  <!-- ==================== JAMMING PAGE ==================== -->
   <string id="ui_mcm_at_jam_desc">
-    <text>NPCs fire 2-3 rounds, jam, and reload. The Demonized modded exes add a per-rank jam roll separate from weapon condition. The roll fires on ammo spent during combat, so even a full-condition rifle hits the cycle within seconds. Toggle below stops it for NPCs. Actor jams stay unchanged.</text>
+    <text>NPCs fire 2-3 rounds, jam, and reload. The demonized modded exes roll a per-rank jam from ammo spent, separate from weapon condition, so even a pristine rifle hits the cycle within seconds. The toggle below stops it for NPCs. Your own jams stay vanilla.</text>
   </string>
   <string id="ui_mcm_at_fixes_jam_jam_enabled">
     <text>Suppress NPC jams</text>
   </string>
   <string id="ui_mcm_at_fixes_jam_jam_enabled_desc">
-    <text>On: NPCs do not jam. Off: modded-exes default for NPCs. Actor weapon jams are unaffected either way.</text>
+    <text>On: NPC weapons never jam from the modded-exes roll. Off: the modded-exes default runs. Your own weapon jams are unaffected either way.</text>
   </string>
-  <!-- ==================== AMMO (child) ==================== -->
+  <!-- ==================== AMMO PAGE ==================== -->
   <string id="ui_mcm_at_ammo_desc">
-    <text>Simulated NPC ammo consumption. AlifeTactics tracks each NPC's remaining rounds per ammo tier and switches the firing type to match what they actually carry. NPCs fire their highest tier first, then step down through cheaper tiers as each depletes, and revert to vanilla magic FMJ when fully spent. Armor-piercing ammo is restricted to master rank and above. NPC corpses keep at least 3 rounds of each tier so the player sees the actual loadout.</text>
+    <text>Veteran-rank and higher stalkers fire the armor-piercing ammo they actually carry, with real ballistics. Each fight has a chance to use up one carried AP box, faster weapons and lower ranks burn it sooner, and when the supply runs out the stalker reverts to standard rounds. The AP comes from the world through trade and looting, and stalkers drop none of it as loot. Rank threshold and drain rate are tunable in configs/alifetactics/at_ammo.ltx.</text>
   </string>
   <string id="ui_mcm_at_fixes_ammo_ammo_enabled">
-    <text>Simulate ammo consumption</text>
+    <text>NPC armor-piercing ammo</text>
   </string>
   <string id="ui_mcm_at_fixes_ammo_ammo_enabled_desc">
-    <text>On: every 5 seconds during combat, drain the active NPC's tracked ammo tier, switch the firing type when one tier depletes, clamp inventory boxes for corpse loot. Off: vanilla magic FMJ for every NPC; no tracking, no loot adjustment.</text>
+    <text>On: eligible stalkers load the AP they carry and spend it per fight. Off: every stalker fires vanilla standard rounds and no carried ammo is consumed.</text>
   </string>
-  <!-- ==================== DEVELOPMENT TAB ==================== -->
+  <!-- ==================== DEVELOPMENT PAGE ==================== -->
   <string id="ui_mcm_at_development_desc">
-    <text>Debug and development tools. DEBUG enables structured tracing of every system: hit disclosure events, squad-memory decay, healing ticks and charges, per-shot accuracy, stance overrides, and limping cues. Written to alifetactics.log. Has performance cost; leave at WARN for normal play.</text>
+    <text>Debug and development tools. DEBUG log level traces every system with timings: maneuver decisions, danger evaluation, disclosure, healing ticks and consumed items, per-shot accuracy, ammo and reload events. Written to alifetactics.log. Tracing has a cost, leave at WARN for normal play.</text>
   </string>
   <!-- Development - Logging -->
   <string id="ui_mcm_at_hdr_logging">
@@ -332,7 +344,7 @@
     <text>Log level</text>
   </string>
   <string id="ui_mcm_at_development_log_level_desc">
-    <text>Controls log verbosity. ERROR: crashes only. WARN: anomalies. INFO: module init and patch installs. DEBUG: full per-event tracing.</text>
+    <text>Log verbosity. ERROR: failures only. WARN: anomalies. INFO: module init and patch installs. DEBUG: full per-event tracing with durations.</text>
   </string>
   <string id="at_development_log_level_lst_error">
     <text>Error</text>
@@ -354,7 +366,7 @@
     <text>Position</text>
   </string>
   <string id="ui_mcm_at_development_hud_position_desc">
-    <text>Live overlay of nearby NPCs: name, logic scheme, combat action and state, and the target with distance and sight flags. A green row marks an NPC AlifeTactics is driving. Refreshes every second, hides while the PDA is open. Pick a corner to show it, off to hide it. Default: off.</text>
+    <text>Live overlay of nearby stalkers: rank and name, health, logic scheme, combat action and state, mental state, sight and cover flags, and the current target with distance. A green row marks a stalker AlifeTactics is driving. Refreshes every second and hides while the PDA is open. Pick a corner to show it.</text>
   </string>
   <string id="at_development_hud_position_lst_off">
     <text>Off</text>
@@ -382,9 +394,9 @@
     <text>Reset to defaults</text>
   </string>
   <string id="ui_mcm_at_development_btn_reset_all_desc">
-    <text>Restore all AlifeTactics MCM settings to factory defaults. Use after upgrading from a version with different MCM structure (the old settings remain as orphaned keys in the MCM storage file but no longer apply).</text>
+    <text>Restore all AlifeTactics MCM settings to defaults. Use after upgrading from a version with a different MCM structure.</text>
   </string>
   <string id="ui_mcm_at_development_reset_warning">
-    <text>Warning: save or discard pending MCM changes first; otherwise they override the reset on the next Accept.</text>
+    <text>Warning: save or discard pending MCM changes first, otherwise they override the reset on the next Accept.</text>
   </string>
 </string_table>
