@@ -174,10 +174,10 @@ function on_mcm_load()
                             { id = "maneuver_flee",    type = "check", val = 1, def = true, hint = "at_combat_maneuver_flee" },
                             { id = "maneuver_snipe",   type = "check", val = 1, def = true, hint = "at_combat_maneuver_snipe" },
 
-                            -- Platform footer (shared builder: xmcm.platform_status)
+                            -- Platform footer (self-contained builder in _at_deps, not xlibs)
                             { id = "div_footer", type = "line" },
                             { id = "platform", type = "desc", text = "ui_mcm_xmcm_footer",
-                                ui_hook_functor = { xmcm.platform_functor(_at_deps.platform_spec()) }, clr = {255, 212, 201, 168} },                        },
+                                ui_hook_functor = { _at_deps.platform_functor() }, clr = {255, 212, 201, 168} },                        },
                     },
                     wip_page("behaviors"),
                 },

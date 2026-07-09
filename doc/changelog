@@ -1,3 +1,10 @@
+1.1.1
+  Summary: startup fix
+
+  Fixed
+    - An outdated xlibs no longer crashes AlifeTactics on load. The dependency check now shows the
+      "update xlibs" message instead of a raw script error from the MCM platform footer.
+
 1.1.0
   Summary: Maneuvers, Crossfire, Danger, Disclosure, Ammo, Jamming, Healing, AOEngine, platform status
 
