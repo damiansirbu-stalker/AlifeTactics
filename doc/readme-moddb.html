@@ -1,4 +1,4 @@
-<h3>Version: 1.0.0 (xlibs 1.7.6)</h3>
+<h3>Version: 1.1.0 (xlibs 1.8.1, demonized 20250908)</h3>
 <h3>GitHub: <a href="https://github.com/damiansirbu-stalker/AlifeTactics">https://github.com/damiansirbu-stalker/AlifeTactics</a></h3>
 <h3>Changelog: <a href="https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/changelog">doc/changelog</a> | <a href="https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/readme_ru.txt">Na russkom</a> | <a href="https://github.com/damiansirbu-stalker/AlifeTactics/issues">Bugs, suggestions</a></h3>
 <h2>Alife Collection</h2>
@@ -10,90 +10,106 @@
 </ul>
 <p><b>! Reset MCM settings to defaults after updating !</b></p>
 <p>https://www.youtube.com/watch?v=eKpzbmFOFC8</p>
-<p>AlifeTactics is a collection of fixes and systems focused on NPC combat behavior in STALKER Anomaly. Defaults match vanilla so the fixes apply on their own with no behavior shift you don't want.</p>
-<h2>Hit Sharing</h2>
-<p>On the first faction-enemy hit, AlifeTactics arms every online squadmate against the shooter, audio range or not. Every member's personal goodwill toward the shooter is forced to hostile, the shooter is registered in every member's memory, and the squad's combat-mask bit is set so the engine's own memory propagation carries the hit across the rest of the squad.<br />New squad members spawned mid-fight inherit the squad's active disclosures, and previously offline shooters coming back online get re-disclosed to the squads tracking them, so engagement state stays consistent across spawn churn.<br />After 2 game minutes of no further hits from that shooter the squad's pin expires and the next hit re-fires the alert.</p>
-<p>A survivor-gate toggle (MCM, default on) suppresses the squad alert when the hit kills the victim outright. Silenced shots, scoped-rifle headshots, and backstabs that drop the target no longer disclose the shooter to the surviving squadmates. Squadmates still learn through gunshot sound, corpse discovery, and line of sight.</p>
-<h2>Healing</h2>
-<p>Vanilla and most modpacks rely on a magic medkit use that triggers unreliably, and bandages don't work at all. About half of NPCs get a one-shot flag at register that lets them heal HP once without consuming any item, and the flag re-rolls on every save load. Bandages have no equivalent fallback, so bleeding NPCs in vanilla bleed out unless they happen to have a bandage AND the inventory list is populated. Vanilla doesn't populate it. AlifeTactics fixes both.</p>
-<p>Wounded stalkers below 50% HP consume medkits from their inventory. Bleeding stalkers above the wound threshold consume bandages. Stalkers carrying neither fall back to a per-rank lifetime healing charge. The heal rate is MCM-tunable.</p>
-<p>Animations were also fixed and are toggleable in MCM.<br />Stalkers below 65% HP visibly limp when out of combat through a torso overlay the engine layers over normal locomotion, re-armed every 5 seconds per NPC.<br />A medkit-injection or bandage-application torso animation plays as a one-shot cue when a stalker starts a heal cycle.</p>
-<h2>Accuracy</h2>
-<p>The engine's rank-based accuracy curve is dead on Anomaly's rank values, making all stalker ranks equal in practice. AlifeTactics hooks engine internals and allows that to function, while also making it configurable.</p>
-<p>AlifeTactics hooks the engine callbacks and applies a per-rank dispersion factor to every NPC shot, MCM configurable. Masters shoot tighter than novices, and the full spread is configurable per tier.</p>
+<p>AlifeTactics is a platform of systems that take how creatures behave and fight in STALKER to another level.<br />(Note that the readme covers the final shape of the mod, currently it is less than half finalized)</p>
+<p>The actual effects are</p>
+<ul>
+<li>All creatures will fight and behave much more intelligently, making emergent decisions based on environment, own state, enemy state, squad state, weapons, faction doctrine etc</li>
+<li>Nothing is player centric, everything is fair and there are no advantages or disadvantages given to anyone</li>
+<li>Creatures use real items they acquire themselves (medkits, ammo, props)</li>
+<li>Combat prowess categories that should have scaled by rank (accuracy, weapon spread, aim speed and others) now work for real and without hacks or side effects</li>
+<li>Features that never worked or were hijacked, now work for real (eg AP ammo is used by whoever owns it and is consumed, vanilla has NPCs using infinite cheapest ammo, modpacks have infinite AP ammo per rank and map)</li>
+<li>Bugs disguised as features, like fake weapon jamming or random tactical reloading are eliminated</li>
+</ul>
+<p>It is built in an engineered, architecture- and performance-first manner:</p>
+<ul>
+<li>it works on multiple levels, from most intrusive (complete takeover), to moderate (controlling xray and anomaly) to light (like improving threat, vision, etc)</li>
+<li>it respects XRAY and Anomaly engine fundamentals: the GOAP action planner, the xr_logic scheme and subscheme system, state_mgr, smart terrains and the gulag job system, condlists, and DLTX/DXML for data</li>
+<li>where it was not possible, it relies on multiple xray-monolith hooks created specifically for this mod</li>
+<li>it uses best practices in lua, xlibs and s-tier mods to ensure the performance impact is almost inexistent</li>
+<li>it also fixes dozens of vanilla Anomaly bugs, from dead branches, wrong calculations or plain crashes in original code</li>
+</ul>
+<p>Every system below has its own page in MCM, laid out in this exact order, where it is toggled and tuned.</p>
 <h2>Combat</h2>
-<p>This is the core of AlifeTactics. In a firefight the engine's own combat planner drives each stalker - posture, where it walks, when it shoots. AlifeTactics does not replace that. It watches the fight, and when vanilla handles a moment badly it borrows one stalker for a single committed maneuver, then hands control straight back. Most of the time the engine is driving; AlifeTactics steps in only where vanilla is weak, a few seconds at a time.</p>
-<p>The difference is commitment. Vanilla re-decides everything frame by frame, which is why stalkers so often dither in place - ducking and popping as they catch and lose sight of you, never quite going anywhere. A borrowed stalker instead picks one move and sees it through before control returns. The moves:</p>
+<h3>Maneuvers</h3>
+<p>A maneuver is a complete takeover of a NPC for a short period of time, then hands it back to the engine in a harmonized way.<br />Some are evolved vanilla versions, some are reimplementations of vanilla maneuvers (subschemes and actions) that never triggered, while others are completely new behaviors.<br />A maneuver fires only when the environment, situation, his own and his enemies state lead to him gaining an upper hand.</p>
+<p>These maneuvers cover the moments vanilla fumbles (wip, many will come):</p>
 <ul>
-<li><b>Kite:</b> an enemy has closed inside the stalker's weapon minimum range, too close to fight well, so it steps back to reopen the distance while firing.</li>
-<li><b>Retreat:</b> steadier factions, when badly hurt or with a grenade at their feet, pull back to nearby cover, still firing.</li>
-<li><b>Flee:</b> the cautious ones - ecologists, Clear Sky, renegades - break off under the same pressure and run for the nearest friendly base, weapon up, or a clear escape lane when no base is near. Monolith and zombies never break.</li>
-<li><b>Snipe:</b> a stalker with a sniper rifle (SVD, SVT, Mosin, SKS, M82 and the rest), stalled at range, holds and switches to the engine's sniper-aim mode for tighter shots instead of shuffling.</li>
+<li><b>Kite</b> backs a stalker out of an enemy that closed too near, still firing.</li>
+<li><b>Retreat</b> pulls a steady faction to cover under pressure.</li>
+<li><b>Flee</b> routs a cautious one to a distant friendly base.</li>
+<li><b>Snipe</b> holds a stalled marksman on precision aim.</li>
 </ul>
-<p>While AlifeTactics drives a maneuver the stalker keeps its weapon on you and fires with the engine's own aim, the same accuracy model as vanilla - but it holds fire when a shot makes no sense: no line of sight, a wall in the way, or point-blank. It lowers the weapon only to flee. When the maneuver ends the stalker goes back to vanilla, with a short cooldown before AlifeTactics can borrow it again.</p>
-<p>Companions are left out by default (MCM &gt; Combat &gt; Maneuvers); turn the toggle off to let them take maneuvers too. The same page carries the master toggle. AlifeTactics overrides no combat scripts, so any stalker it is not currently driving is completely untouched - you can watch AlifeTactics and vanilla stalkers fight in the same battle.</p>
-<p>Friendly fire between same-faction NPCs is blocked by default (MCM &gt; Effectiveness &gt; Crossfire). A stalker that hits a teammate of its own faction does no damage, so squads stop dropping their own in crossfire. A slider scales it back up to full vanilla damage if you want it. Your own shots are never touched.</p>
-<h2>Danger</h2>
-<p>A full-file override of Anomaly's xr_danger.script with bug fixes always-on and three improvements toggleable in MCM &gt; Danger.</p>
-<p>Six bug fixes are always on.<br />Three danger categories (direct hit, bullet ricochet, attacked nearby) were silently reading the wrong config row and reacting identically.<br />Mutant corpses crashed the evaluation on death-time reads.<br />The evaluator crashed when called on a torn-down NPC reference.<br />The evaluator also crashed when corpse death-time returned a non-numeric value.<br />Danger-state transitions reset only the upper-body animation tier and left a stale lower-body pose visible across the change.<br />The hit callback referenced an undefined variable and silently dropped responses on every hit.</p>
-<p>Danger-state transitions snap into place instead of soft-blending so the reaction delay across state changes is gone.</p>
-<p>The paired xr_danger.ltx widens corpse inertion to 15 game minutes (vanilla 12 seconds) and ricochet inertion to 10 minutes. Detection distances respond to weather so stalkers see less in storms.</p>
-<p>MCM-toggleable improvements (default on).<br />Hits override combat_ignore so allies of allies still get a danger response.<br />Gunshot reports register through the script danger pipeline gated on whether the actor is aiming.<br />Actor-sourced danger uses its own inertion and ignore tables so encounters with the player tune independently of NPC-vs-NPC.</p>
-<h2>Weapon Jam</h2>
-<p>NPCs fire 2-3 rounds, jam, and reload in a tight loop, even from full-condition rifles. The Demonized modded exes add a per-rank jam roll on top of the engine's condition-based one, fired from ammo spent rather than weapon damage. AlifeTactics suppresses the script-side roll for NPCs (MCM &gt; Fixes &gt; Weapon Jam, default on). Actor jams from damaged weapons stay vanilla.</p>
-<p>Requires demonized exes 2026.6.1 or later for this fix specifically. The engine hook it uses was added in that release. Loading on an older demonized or on AOEngine is harmless but does nothing.</p>
-<h2>NPC Ammo</h2>
-<p>Vanilla NPCs always fire the first ammo type in their weapon's list. AlifeTactics promotes veteran-rank and higher NPCs who carry armor-piercing ammo to fire AP-class rounds with real ballistics (MCM &gt; Fixes &gt; NPC Ammo, default on).</p>
-<p>A veteran or higher merc or military soldier carrying AP will fire AP at the player for a short window, then revert to vanilla magic FMJ when their virtual AP supply runs out. A novice bandit who looted an AP box still fires vanilla FMJ from it. The rank threshold and per-weapon drain rates are tunable in configs/alifetactics/at_ammo.ltx.</p>
-<p>NPC corpses keep at least 3 rounds of each ammo box so the player loots the remainder instead of just the procedural spawn from death_manager.</p>
-<p>The fixed AP section list covers vanilla Anomaly calibers (5.45x39, 5.56x45, 7.62x39, 7.62x51, 7.62x54, 7.92x33, 9x18, 9x19, 9x39, 12.7x55, 12x76). Add modpack calibers to the script's AP_SECTIONS table when needed.</p>
-<h2>Performance</h2>
-<p>Most systems above hook on engine callbacks but are throttled and situational.<br />All operations are done through xlibs which encapsulates best practices in workign with the engine and what Anomaly uses internally.<br />Also all operations are traced for performance and duration and can be checked if debug logging is activated.<br />Tests showed the perfromance impact is almost nonexistent.</p>
-<h2>Compatibility</h2>
-<ul>
-<li>Requires xlibs.</li>
-<li>Runs on themrdemonized modded exes 2025.9.10 or newer, or AOEngine v0.55 or newer.</li>
-<li>The full feature set needs the latest demonized build. A feature that needs a newer build stays inactive on older exes.</li>
-</ul>
-<p>Tested with vanilla Anomaly 1.5.3 and GAMMA. Mid-save install and uninstall both work. Friendly fire and same-community hits are filtered at the faction-relation gate, so story NPCs, companions, traders, and squadmates are never armed against their own faction.</p>
-<p>AlifeTactics overrides one Anomaly script (xr_danger.script) and hooks engine APIs for self-healing, accuracy, and combat AI. Most mods install alongside without issue. The cases below are worth knowing about.</p>
-<h3>Conflicts (pick one - running both breaks both)</h3>
-<ul>
-<li><b>NPC Limping and Healing (Vodoxleb):</b> same limp/heal animations, different system; stacks animations, breaks the heal cue.</li>
-<li><b>NPC Weapon Jamming, or any mod adding rank-based NPC jamming:</b> Anomaly has no jam animation, so jammed NPCs just reload forever. AlifeTactics removes that; the jam mod adds it back.</li>
-<li><b>Mods that ship xr_danger.script as a full file</b> (ReDone Combat AI, REDONE Combat AI, RE:VISION, AI More Cover, G.A.M.M.A. AI Rework): AlifeTactics full-overrides xr_danger too, so later-loaded wins and the other's danger layer does nothing. Only the xr_danger file collides; their combat AI itself coexists with the takeover (see below).</li>
-</ul>
-<h3>Affects / coexists</h3>
-<ul>
-<li><b>AI-overhaul combat (G.A.M.M.A. AI Rework, ReDone Combat AI and the like):</b> the takeover overrides no combat script - it borrows a stalker by blocking the combat planner for the few seconds it runs a maneuver, then hands back to whatever combat AI is installed.</li>
-<li><b>Wuut AI Extension, NPC_Fleeing, Mora's AI More Covered:</b> add planner actions; while AlifeTactics runs a maneuver on a stalker its own added action is suppressed for those few seconds, then resumes on hand-back. Disable Combat (MCM) to leave them fully in charge.</li>
-<li><b>Mods that replace NPC healing with their own heal path (Animated NPC Healing and similar):</b> their healer runs, so AlifeTactics's heal rate and per-rank charge become no-ops where both apply. Disable AlifeTactics Healing or theirs. A DLTX mod that rewrites the vanilla medkit list can also empty AlifeTactics's list depending on load order.</li>
-<li><b>No More Companion Friendly Fire:</b> different axis (actor-companion damage); AlifeTactics never touches your shots. No overlap.</li>
-<li><b>NO NPC Gun Jamming:</b> zeroes the engine-condition jam via ltx; different layer than the script-roll fix. Stack fine.</li>
-<li><b>Tougher Important NPCs and Companions:</b> damage reduction via npc_on_before_hit; composes.</li>
-<li><b>Dynamic AI Aim Settings, Worse NPC Vision and Accuracy:</b> perception tweaks; compose with the dispersion fix.</li>
-<li><b>Animated NPC Healing, NPC Animation Overhaul Part 1:</b> replace NPC heal/move animations; may fight the heal/limp cues.</li>
-<li><b>Dynamic Emission Cover:</b> emission-time movement, different trigger; coexists.</li>
-</ul>
+<p>The decisions come out looking human. Nobody turns his back on a shooter, two men never take the same cover, no one goes to cover when the enemy is in sight and weak.<br />The takeover overrides no combat scripts, so it fights side by side with vanilla and layers cleanly over AI overhauls. Companions are excluded by default.</p>
+<h3>Behaviors (planned)</h3>
+<p>New actions the vanilla planner lacks, like melee, hopefully peek etc.</p>
+<h2>Effectiveness</h2>
+<h3>Accuracy</h3>
+<p>Anomaly's rank curve clamps every NPC to the same dispersion, accuracy never scaled per rank, even though the engine code exists.<br />AlifeTactics restores a real per-rank curve through the engine's own dispersion callback, tunable per tier.<br />Note that the engine has many dispersion variables (eg barrel, weapon, npc), this is the NPC skill-based dispersion.</p>
+<h3>Disclosure</h3>
+<p>When a faction enemy wounds any squad member, the whole squad learns the shooter at once, even patrol members out of earshot and even against a silenced weapon.<br />Vanilla only shares a shooter the squadmates actually heard, so distant or suppressed attackers stay unknown.<br />It works through the engine's own memory, not by faking relations: the shooter is enabled in each member's memory and registered into the squad's combat, and the engine's normal propagation carries it from there.<br />A stalker with no squad discloses the shooter to himself.<br />New members inherit the fight when they spawn, and a shooter who went offline and returns is flagged again.<br />A survivor gate (default on) skips disclosure when the hit kills the victim outright, so a clean kill stays quiet.<br />The squad can still find you by sound, by sight, or by the body.</p>
+<h3>Danger</h3>
+<p>Stalkers read danger the way the engine always meant them to.<br />AlifeTactics reworks Anomaly's danger scheme as a runtime patch, laid onto whichever danger script a modpack ships instead of replacing the file.<br />A set of always-on fixes clears long-standing crashes and misreads across the danger check and the corpse investigation.<br />The paired config scales detection with weather, so stalkers see less in a storm, and gives player encounters their own tables.<br />Three of the improvements are optional: a direct hit answers at any range, nearby gunfire draws a response, and actor-sourced danger reads the separate tables.</p>
+<h3>Crossfire</h3>
+<p>Same-faction fighters no longer cut each other down in a crossfire.<br />A hit between two NPCs of the same faction deals reduced damage, set by a slider (no damage by default, up to full vanilla).<br />It keys on their actual relation, so genuinely hostile factions still trade fire while allies stay safe.<br />Your own shots are never affected.</p>
+<h3>Commitment (planned)</h3>
+<p>Vanilla stalkers re-decide the fight every frame and end up dithering, ducking and popping as they catch and lose sight of you.<br />An alternative many mods and modpacks took was activating a camper or camper-like scheme, muting 99% of Anomaly's combat variety.<br />NPCs evaluate the battle scenario and hold a good action instead of shuffling between cover, based on new hooks in xray-monolith.</p>
+<h3>Reaction (planned)</h3>
+<p>Again based on hooks created specifically in xray-monolith, per-NPC rank-based aim speed and vision.</p>
+<h3>Range (planned)</h3>
+<p>Engagement distance. The game stops NPC fights at a hard range cap regardless of weapon, so a sniper never fires at the distances his rifle exists for, and a stalker sniped from beyond the cap stands there while he is picked off. This page will let long-range NPCs answer and initiate at their weapon's real reach.</p>
+<h3>Resistance (planned)</h3>
+<p>NPC toughness from what they carry: armor and equipment, damage mitigators, and artefacts.</p>
+<h2>Mechanics</h2>
+<h3>Healing</h3>
+<p>Wounded NPCs actually heal, with the items they carry.<br />Vanilla's magic medkit fires unreliably and bandages do nothing, so bleeding stalkers die that should not.<br />AlifeTactics has them spend real medkits below half health and real bandages when bleeding, falling back to a per-rank charge only when empty.<br />The heal rate is tunable, and fixed limp and heal animations show it, out of combat only.</p>
+<h3>Jamming</h3>
+<p>Eliminates the fake NPC jams and the tactical-reload loop they cause.<br />On modded exes an NPC rolls a per-rank jam from ammo spent, so even a full-condition rifle chokes and reloads every few rounds.<br />AlifeTactics turns that roll off for NPCs, so they now jam only for real and reload only once the magazine is spent, which you can confirm in the debug log.<br />Your own weapon still jams normally when worn.</p>
+<h3>Ammo</h3>
+<p>NPCs fire the ammunition they actually carry, not infinite generic rounds.<br />Veteran-rank and higher stalkers use armor-piercing rounds from their own inventory, with real ballistics, and fall back to standard rounds once it runs out.<br />That AP comes from trade and looting through the Alife Collection, so what an NPC scavenged shapes how dangerous he is.<br />NPCs drop no AP as loot.<br />Rank threshold and consumption rate are tunable in configs/alifetactics/at_ammo.ltx.</p>
+<h3>Effects (planned)</h3>
+<p>Player-facing combat feedback, concussion first (tinnitus and blur).</p>
+<h3>Mutants (planned)</h3>
+<p>Mutant combat behavior.</p>
+<h2>Intended setup</h2>
+<p>AlifeTactics is designed against vanilla Anomaly on the latest demonized build, and that is what it is tuned for.<br />It runs on AOEngine and older demonized builds with fallbacks, where a feature that needs a newer hook stays inactive or reduced.<br />It coexists with AI-overhaul combat mods, but vanilla plus AlifeTactics is the intended experience.</p>
 <h2>Requirements</h2>
-<p>Anomaly 1.5.3<br /><a href="https://www.moddb.com/mods/stalker-anomaly/addons/xlibs-1001">xlibs</a><br />MCM</p>
+<p>Anomaly 1.5.3<br />Modded exes (themrdemonized 20250908 or newer, or AOEngine v0.55 or newer)<br /><a href="https://www.moddb.com/mods/stalker-anomaly/addons/xlibs-1001">xlibs</a><br />MCM</p>
 <h2>Install (MO2)</h2>
 <p>1. Install xlibs<br />2. Install AlifeTactics<br />3. Load order does not matter<br />4. Configure via MCM</p>
 <h2>Uninstall (MO2)</h2>
 <p>Disable or remove in MO2.</p>
+<h2>Compatibility</h2>
+<p>Tested with vanilla Anomaly 1.5.3 and GAMMA. Mid-save install and uninstall both work.<br />The takeover leaves combat scripts vanilla, and the danger rework patches at runtime, so AlifeTactics layers cleanly onto other combat and AI mods.<br />Friendly fire and same-community hits are filtered at the faction-relation gate.<br />Story NPCs, companions, traders, and squadmates are never armed against their own faction.</p>
+<h3>Conflicts (choose one)</h3>
+<ul>
+<li><b>NPC Limping and Healing (Vodoxleb):</b> the same limp and heal animations from a different system. The two stack and break the heal cue.</li>
+<li><b>NPC Weapon Jamming, or any rank-based NPC jam mod:</b> Anomaly has no jam animation, so jammed NPCs reload forever. AlifeTactics removes it, the mod re-adds it.</li>
+</ul>
+<h3>Coexists</h3>
+<ul>
+<li><b>xrMPE Animations (ANOMALY-GAMMA):</b> replaces the stalker animation files AlifeTactics's hurt and heal poses play from.<br />Every animation AlifeTactics uses exists in its files (verified), so the poses keep working and take on xrMPE's look.</li>
+<li><b>AI-overhaul combat (G.A.M.M.A. AI Rework, ReDone Combat AI, RE:VISION, AI More Cover):</b><br />The takeover blocks the combat planner only while it runs a maneuver, then hands back to their combat AI.<br />The danger rework patches their xr_danger at load, so their danger layer keeps running too.</li>
+<li><b>Wuut AI Extension, NPC_Fleeing, Mora's AI More Covered:</b> add planner actions.<br />While AlifeTactics runs a maneuver its own action is suppressed for those seconds, then resumes.<br />Disable Combat in MCM to leave them fully in charge.</li>
+<li><b>Mods that replace NPC healing with their own path (Animated NPC Healing and similar):</b><br />Their healer runs, so AlifeTactics's heal rate and per-rank charge do nothing where they overlap.<br />Disable one side. A DLTX mod that rewrites the vanilla medkit list can also empty AlifeTactics's list, by load order.</li>
+<li><b>No More Companion Friendly Fire:</b> a different axis (actor-companion damage). AlifeTactics never touches your shots.</li>
+<li><b>Tougher Important NPCs and Companions:</b> damage reduction through npc_on_before_hit, composes.</li>
+<li><b>Dynamic AI Aim Settings, Worse NPC Vision and Accuracy:</b> perception tweaks that compose with the dispersion fix.</li>
+<li><b>g_ai_unlimited_ammo set to 0</b> (a console cvar on newer engine builds makes NPCs consume real inventory rounds):<br />the Ammo system detects the setting and goes inert, so carried AP is not drained twice. At 1 (the default) Ammo runs normally.</li>
+</ul>
 <h2>FAQ</h2>
-<p><b>Do I need modded exes?</b><br />Yes. AlifeTactics needs themrdemonized modded exes (2025.9.10 or newer) or AOEngine (v0.55 or newer). Vanilla Anomaly does not expose the APIs it relies on.</p>
+<p><b>Do I need modded exes?</b><br />Yes. AlifeTactics needs themrdemonized modded exes (20250908 or newer) or AOEngine (v0.55 or newer). Vanilla Anomaly does not expose the APIs it relies on.</p>
 <h2>Credits</h2>
 <p>Altogolik - support, ideas, source materials</p>
 <h2>Usage and License</h2>
 <p>Modpacks: allowed and encouraged. Keep the readme and license files.<br />Addons, patches, integrations: allowed. Credit "AlifeTactics by Damian Sirbu" visibly on your mod page.<br />Reproducing the implementation in other software: not allowed, even with credit.<br />Full license in LICENSE file and on GitHub.</p>
-
 <h2>Reporting issues and suggestions</h2>
 <p>Open a <a href="https://github.com/damiansirbu-stalker/AlifeTactics/issues/new/choose">bug report or a suggestion on GitHub</a>.<br />Also discussed on the GAMMA, EFP, Anomaly, and Zona Discord servers.</p>
 <p>Before posting, read this readme and the MCM options.</p>
+<p>AlifeTactics works deep in the engine, and combat is the hardest part of Anomaly to diagnose.<br />Before reporting a combat or AI issue, confirm it is actually this mod: reproduce it, disable AlifeTactics, reproduce again.<br />If it persists, it is not this mod. Much of what gets blamed on combat mods is the engine, the modpack, or another mod, and only the log tells them apart.<br />The cleanest test setup is vanilla Anomaly plus xlibs plus AlifeTactics.</p>
 <p>Include:</p>
 <ul>
 <li>Exact steps to reproduce, from a new game or a named save, with expected and actual result.</li>
+<li>Confirmation that the issue disappears with AlifeTactics disabled.</li>
 <li>xray.log and the mod debug log (MCM log level DEBUG), plus engine build, modlist, load order.</li>
 <li>Describe the behavior. With hundreds of mods and overrides, only the log shows whether this mod was involved and what caused it.</li>
 </ul>
