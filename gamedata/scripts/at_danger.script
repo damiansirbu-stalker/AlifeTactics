@@ -70,7 +70,7 @@
 local _evaid = 188113
 local _actid = 188113
 --------------------
-local math_random, tonumber = math.random, tonumber
+local math_random, tonumber, math_max = math.random, tonumber, math.max
 local time_global = time_global
 local IsStalker, IsMonster, IsWounded = IsStalker, IsMonster, IsWounded
 local character_community = character_community
@@ -261,6 +261,12 @@ function at_evaluator_danger:__init(name, storage, npc) super (nil, name)
 	self.a = storage
 end
 
+-- Slow-call attribution scratch: eval_danger stamps its segment costs here (debug only), and
+-- evaluate() logs them when one call crosses SLOW_EVAL_US - so a rare multi-ms call names the
+-- segment (engine read / callback / inertion resolve / is_danger) instead of hiding in the window.
+local SLOW_EVAL_US = 5000
+local _seg_bd, _seg_cb, _seg_inert, _seg_is, _seg_name = -1, -1, -1, -1, "-"
+
 local function eval_danger(self)
 	local npc = self.object
 	if not npc then
@@ -268,10 +274,20 @@ local function eval_danger(self)
 		return false
 	end
 
+	-- profile_timer ACCUMULATES across start/stop pairs (script_engine_script.cpp:186), so every
+	-- segment is a delta against the running total.
+	local prof = _dbg
+	local tmr, seg_mark
+	if prof then
+		_seg_bd, _seg_cb, _seg_inert, _seg_is, _seg_name = -1, -1, -1, -1, "-"
+		tmr = xprofiler.new_if(true):start()
+	end
 	local danger = npc:best_danger()
+	if prof then tmr:stop() _seg_bd = tmr:get_us() seg_mark = _seg_bd tmr:start() end
 
 	local flags = {ret_value = true}
 	SendScriptCallback("npc_on_eval_danger", npc, flags)
+	if prof then tmr:stop() local t = tmr:get_us() _seg_cb = t - seg_mark seg_mark = t end
 	if flags.ret_value == false then return false end
 
 	if not (danger) then
@@ -281,6 +297,7 @@ local function eval_danger(self)
 	local tg = time_global()
 	local bd_type = danger:type()
 	local bd_name = bd_types[bd_type]
+	if prof then _seg_name = bd_name or tostring(bd_type) tmr:start() end
 	local cur_danger_time = get_danger_time(danger, npc)
 	if type(cur_danger_time) ~= "number" then cur_danger_time = 0 end
 
@@ -299,6 +316,7 @@ local function eval_danger(self)
 	local from_actor = _enabled.actor_tables and danger:object() and danger:object():id() == db.actor:id()
 	local src = (from_actor and DangerInertionActor[bd_name]) or DangerInertion[bd_name]
 	local inertion = tonumber(xr_logic.pick_section_from_condlist(db.actor, npc, xr_logic.parse_condlist(npc, bd_name, "danger_inertion_time", src))) or 0
+	if prof then tmr:stop() local t = tmr:get_us() _seg_inert = t - seg_mark seg_mark = t end
 	local danger_time = cur_danger_time
 
 	if not danger_time or type(danger_time) ~= "number" then
@@ -310,7 +328,10 @@ local function eval_danger(self)
 		return false
 	end
 
-	if not(is_danger(npc, danger)) then
+	if prof then tmr:start() end
+	local is_dangerous = is_danger(npc, danger)
+	if prof then tmr:stop() _seg_is = tmr:get_us() - seg_mark end
+	if not is_dangerous then
 		return false
 	end
 
@@ -331,8 +352,11 @@ end
 
 -- eval_danger duration aggregate: the evaluator runs per NPC per plan solve (too hot for a line
 -- each), so durations accumulate and summarize every 200 evals. Pure-Lua counters; the timer is a
--- null object when debug is off.
-local _eval_n, _eval_sum_us, _eval_max_us = 0, 0, 0
+-- null object when debug is off. heap= is the Lua heap at window end with the delta across the
+-- window: a rare 20ms+ max alongside a large negative delta is a garbage-collector step landing
+-- inside a timed call, not eval_danger's own work (its measured per-call ceiling is ~0.3ms).
+local collectgarbage = collectgarbage
+local _eval_n, _eval_sum_us, _eval_max_us, _eval_heap_kb = 0, 0, 0, 0
 
 function at_evaluator_danger:evaluate()
 	local tmr = xprofiler.new_if(_dbg):start()
@@ -344,9 +368,20 @@ function at_evaluator_danger:evaluate()
 		_eval_n = _eval_n + 1
 		_eval_sum_us = _eval_sum_us + us
 		if us > _eval_max_us then _eval_max_us = us end
+		-- Attribute a single slow call to its segment. The four segments should sum to ~us; a large
+		-- gap between us and (bd+cb+inert+is) is time the profile_timer never charged to any segment
+		-- (a pause between segments) = a VM stall (GC step, engine block), not eval_danger's code.
+		if us > SLOW_EVAL_US then
+			local seg_sum = math_max(0, _seg_bd) + math_max(0, _seg_cb)
+				+ math_max(0, _seg_inert) + math_max(0, _seg_is)
+			log.debug("[PERF] eval_danger SLOW us=%d type=%s bd=%dus cb=%dus inert=%dus is=%dus unattributed=%dus heap=%dKB",
+				us, _seg_name, _seg_bd, _seg_cb, _seg_inert, _seg_is, us - seg_sum, collectgarbage("count"))
+		end
 		if _eval_n >= 200 then
-			log.debug("[PERF] eval_danger n=%d avg=%dus max=%dus", _eval_n, _eval_sum_us / _eval_n, _eval_max_us)
-			_eval_n, _eval_sum_us, _eval_max_us = 0, 0, 0
+			local heap_kb = collectgarbage("count")
+			log.debug("[PERF] eval_danger n=%d avg=%dus max=%dus heap=%dKB (%+dKB)",
+				_eval_n, _eval_sum_us / _eval_n, _eval_max_us, heap_kb, heap_kb - _eval_heap_kb)
+			_eval_n, _eval_sum_us, _eval_max_us, _eval_heap_kb = 0, 0, 0, heap_kb
 		end
 	end
 	return danger
