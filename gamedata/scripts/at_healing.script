@@ -12,6 +12,12 @@ local LIMP_REARM_MS             = 5000
 -- Displacement that counts as "moved" for the drop detectors (anchor drift / path-stop sample).
 local LIMP_MOVE_M               = 0.2
 local LIMP_MOVE_SQR             = LIMP_MOVE_M * LIMP_MOVE_M
+-- Presentation-only perceivability gate: the limp pose and heal gesture play only within this
+-- radius of the actor (nobody sees them farther; xcombat.actor_dist_sqr is the 5s-TTL cached
+-- read the combat seize gate shares). The healing SIMULATION (hp/bleed ticks, item consumption)
+-- is never distance-gated - off-screen stalkers heal identically.
+local ANIM_ACTOR_RADIUS_M       = 50
+local ANIM_RADIUS_SQR           = ANIM_ACTOR_RADIUS_M * ANIM_ACTOR_RADIUS_M
 -- xr_eat_medkit.consume_medkit schedules heal_hp/heal_bleed with left=15.
 local HEAL_TICK_FIRST           = 15
 
@@ -85,6 +91,7 @@ end
 -- to action_wounded / action_critically_wounded (stalker_base_action.cpp:24-29).
 local function _try_play_heal_anim(npc, gesture)
     if not cfg.healing_anim_enabled then return end
+    if xcombat.actor_dist_sqr(npc) > ANIM_RADIUS_SQR then return end
     if npc:best_enemy() then
         if _dbg then log.debug("[HEAL] anim skipped id=%d reason=combat", npc:id()) end
         return
@@ -281,6 +288,32 @@ local function _try_drop_limp(npc, id, rec, tg)
     return false
 end
 
+-- [LIMP] decline aggregate, debug only: for HURT stalkers that failed eligibility, count the first
+-- failing gate and summarize one line per window - the flood-free answer to "why is nobody limping"
+-- (a per-decline line would be one per hurt NPC per second). The reads duplicate the eligibility
+-- chain's, on the debug path only, so the live chain keeps its short-circuit shape.
+local _limp_declines = { n = 0, far = 0, enemy = 0, mental = 0, standing = 0, wounded = 0, smart_cover = 0, zombied = 0, other = 0 }
+local LIMP_DECLINE_WINDOW = 100
+
+local function _limp_note_decline(npc)
+    local d = _limp_declines
+    local reason = (xcombat.actor_dist_sqr(npc) > ANIM_RADIUS_SQR and "far")
+        or (npc:best_enemy() and "enemy")
+        or (npc:mental_state() ~= anim.free and "mental")
+        or (npc:body_state() ~= move.standing and "standing")
+        or (IsWounded(npc) and "wounded")
+        or (npc:in_smart_cover() and "smart_cover")
+        or (npc:character_community() == "zombied" and "zombied")
+        or "other"
+    d[reason] = d[reason] + 1
+    d.n = d.n + 1
+    if d.n >= LIMP_DECLINE_WINDOW then
+        log.debug("[LIMP] declined n=%d far=%d enemy=%d mental=%d standing=%d wounded=%d smart_cover=%d zombied=%d other=%d",
+            d.n, d.far, d.enemy, d.mental, d.standing, d.wounded, d.smart_cover, d.zombied, d.other)
+        d.n, d.far, d.enemy, d.mental, d.standing, d.wounded, d.smart_cover, d.zombied, d.other = 0, 0, 0, 0, 0, 0, 0, 0, 0
+    end
+end
+
 local function _on_npc_update(npc, st)
     if not st then return end
     if not cfg.limping_anim_enabled then return end
@@ -297,6 +330,7 @@ local function _on_npc_update(npc, st)
     local tmr = xprofiler.new_if(_dbg):start()
     local eligible = IsStalker(npc)
         and npc:alive()
+        and xcombat.actor_dist_sqr(npc) <= ANIM_RADIUS_SQR
         and not npc:in_smart_cover()
         and npc.health < cfg.limping_health_threshold
         and not npc:best_enemy()
@@ -307,6 +341,9 @@ local function _on_npc_update(npc, st)
 
     if not eligible then
         tmr:stop()
+        if _dbg and IsStalker(npc) and npc:alive() and npc.health < cfg.limping_health_threshold then
+            _limp_note_decline(npc)
+        end
         if not _limping[id] then return end
         _drop_limp(npc, id, "not_eligible", tmr:get_us())
         return
