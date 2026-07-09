@@ -8,7 +8,8 @@ update_period_ms = 200     ; update_maneuver check: re-run the row's update (fir
 end_period_ms    = 200     ; end_maneuver check: watch for arrival / the time cap, hand back
 hit_fight_ms      = 5000    ; a recent hit counts as "fighting" this long (far-shooter entry, best_enemy still nil)
 reseize_cooldown_ms = 5000  ; after a maneuver commits, hold off a fresh takeover of the same NPC this long (0 = off); also the flee disengage settle window
-max_concurrent_maneuvers = 8 ; failsafe: at most this many ONLINE NPCs (those near the player, within switch_distance) hold a maneuver at once; bounds ongoing cost and keeps most of the field on vanilla; brief maneuvers cycle slots in seconds (0 = no cap)
+max_concurrent_maneuvers = 20 ; runaway failsafe, never a behavior lever: at most this many NPCs hold a maneuver at once; the seize radius does the real bounding, high enough that a survival maneuver is never denied (0 = no cap)
+seize_actor_radius_m = 50   ; an NPC-vs-NPC fight qualifies for a maneuver only within this radius of the player (a maneuver beyond it is spectacle nobody sees); a fight WITH the player always qualifies at any range the engine lets it form (0 = off)
 
 ; Triggers (when AT seizes - only where vanilla is weak)
 hurt_frac     = 0.25       ; flee/retreat trigger below this HP fraction (25% - only when badly hurt, not a scratch)

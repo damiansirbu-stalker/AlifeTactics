@@ -4,13 +4,15 @@
 --- NPC now. A maneuver is a catalog row: a situation predicate (the cheap compare that says the row's moment
 --- is here), a faction/weapon palette, a resolver whose return IS the gate (a destination vertex = seize
 --- there, nil = decline and fall through), and an update - the periodic re-application the shell runs while
---- the maneuver is open (nil = set once at begin). pick_maneuver walks the rows in order; the first full pass
---- wins (t141).
+--- the maneuver is open (nil = set once at begin). pick_maneuver examines ONE row per call, rotating through
+--- the catalog by priority (state.row_cursor); a pick resets the rotation to the top.
 
 local math_sqrt, math_floor, vector = math.sqrt, math.floor, vector
-local character_community, time_global, table_concat = character_community, time_global, table.concat
+local character_community, time_global = character_community, time_global
 
 at_combat_doctrine = at_combat_doctrine or {}
+
+local cfg = at_mcm.cfg
 
 local CONFIG_PATH    = "alifetactics\\at_combat_config.ltx"
 local CONFIG_SECTION = "at_combat"
@@ -28,25 +30,30 @@ local CATALOG = {}
 -- =========================================================================
 -- Resolvers. A resolver reads its own geometry and returns a destination level vertex, or nil when the maneuver
 -- is not viable here - the resolver IS the viability gate, no separate predicate. Run only on the seize path
--- (after situation + palette + backoff pass), so the raycasts cost only when AT is about to take the NPC. All
+-- (after situation + palette pass), so the expensive work costs only when AT is about to take the NPC. All
 -- of them read the walk's shared geometry (memo.npc_pos / memo.enemy_pos / state.dist) instead of re-probing.
 -- =========================================================================
 
--- kite: back off to the NPC's OWN weapon minimum - the shotgunner reclaims his 2m, the rifleman his 3, the
--- sniper walks back out to 10. The reseize cooldown keeps a re-triggered too_close from chaining takeovers.
--- find_flee_lane fans the heading straight-back -> +-45 -> +-90 and ray-checks each for a wall or obstacle,
--- first clear lane wins; nil only when fully boxed in (then the maneuver is not viable and AT declines).
--- memo.kind is set by _situation_too_close, the only situation that opens this row.
-local function _resolve_kite(npc, _enemy, state, memo)
+-- Per-weapon kite back-off in metres: a kiting stalker retreats this far, full stop - a visible
+-- fighting withdrawal that always ends well outside his weapon minimum. Replaces the
+-- minimum-minus-distance arithmetic that produced 2m hops (2026-07-09).
+local KITE_BACK = {
+    w_melee = 4, w_shotgun = 4, w_pistol = 5, w_smg = 6, w_rifle = 8, w_sniper = 10, w_explosive = 8,
+}
+
+-- kite: back off a weapon-set distance, still firing - the shotgunner takes 4m, the rifleman 8, the
+-- sniper 10. The reseize cooldown keeps a re-triggered too_close from chaining takeovers.
+-- find_flee_lane runs the two-phase search: straight-back -> +-45 -> +-90 at the full distance, the
+-- same fan at half distance, then the longest straight stub; nil only when fully boxed in (then the
+-- maneuver is not viable and AT declines). memo.kind is set by _situation_too_close, the only
+-- situation that opens this row.
+local function _resolve_kite(npc, _enemy, state, tg, memo)
     local np, ep = memo.npc_pos, memo.enemy_pos
     local dist = state.dist
     local dir = (dist > 0) and vector():set((np.x - ep.x) / dist, 0, (np.z - ep.z) / dist) or npc:direction()
-    local band = xcombat.get_weapon_range(memo.kind)
-    -- lane length = what the minimum is short by; floored at 2 because the lane search steps in 2m decrements.
-    local back_m = band.min - dist
-    if back_m < 2 then back_m = 2 end
+    local back_m = KITE_BACK[memo.kind] or KITE_BACK.w_rifle
     local vid = xcombat.find_flee_lane(npc, dir, back_m, KITE_ARC_DEG, KITE_SPREAD_DEG)
-    at_combat_trace.resolve_kite(npc:id(), band.min, dist, back_m, vid)
+    at_combat_trace.resolve_kite(npc:id(), dist, back_m, vid)
     return vid
 end
 
@@ -57,7 +64,7 @@ end
 -- no LOS), so a sniper without a lane holds weapon-up instead of firing at a wall.
 -- A weaponless enemy (a mutant) has no kind and reads as the rifle band, so snipe only plants on it
 -- past 80m - conservative, and a melee mutant past 80m is no threat to a planted sniper anyway.
-local function _resolve_snipe(npc, enemy, state, _memo)
+local function _resolve_snipe(npc, enemy, state, _tg, _memo)
     local enemy_band = xcombat.get_weapon_range(xcombat.get_weapon_kind(enemy) or "w_rifle")
     local planted = state.dist > enemy_band.max
     at_combat_trace.resolve_snipe(npc:id(), state.dist, enemy_band.max, planted)
@@ -71,7 +78,7 @@ end
 -- cover declines. find_cover returns a free firing vertex; claim it so no other AT NPC picks the same spot, and
 -- record it on state so _end_maneuver releases the reservation on EVERY exit (t136). nil when no rear cover is
 -- reachable or the claim loses a race - the resolver IS the viability gate.
-local function _resolve_retreat(npc, _enemy, state, memo)
+local function _resolve_retreat(npc, _enemy, state, tg, memo)
     local np, ep = memo.npc_pos, memo.enemy_pos
     local dx, dz = np.x - ep.x, np.z - ep.z
     local dist_sqr = dx * dx + dz * dz
@@ -121,7 +128,7 @@ local function _flee_blocked(npc, enemy, state)
 end
 
 -- memo.faction is set by the flee row's palette check, which always runs before this resolver.
-local function _resolve_flee(npc, enemy, state, memo)
+local function _resolve_flee(npc, enemy, state, tg, memo)
     local blocked = _flee_blocked(npc, enemy, state)
     if blocked then
         if at_combat_trace.enabled() then at_combat_trace.resolve_flee(npc:id(), blocked) end
@@ -260,6 +267,7 @@ function at_combat_doctrine.load_config()
     CATALOG = {
         {
             name      = "kite",
+            toggle    = "maneuver_kite",
             situation = _situation_too_close,
             factions  = nil,
             weapons   = nil,
@@ -275,6 +283,7 @@ function at_combat_doctrine.load_config()
             -- physically cannot fire while it runs. ecolog / clear sky / renegade only. A rout runs longer
             -- than a maneuver, so its cap (flee_max_ms) is longer than the mover stuck-cap.
             name      = "flee",
+            toggle    = "maneuver_flee",
             situation = _situation_pressure,
             factions  = { ecolog = true, csky = true, renegade = true },
             weapons   = nil,
@@ -289,6 +298,7 @@ function at_combat_doctrine.load_config()
             -- factions always; timid factions land here when their flee declines (the flee row sits first).
             -- monolith and zombied get neither - fanatics do not break.
             name      = "retreat",
+            toggle    = "maneuver_retreat",
             situation = _situation_pressure,
             factions  = { army = true, dolg = true, freedom = true, killer = true, isg = true, stalker = true, bandit = true, greh = true, ecolog = true, csky = true, renegade = true },
             weapons   = nil,
@@ -302,6 +312,7 @@ function at_combat_doctrine.load_config()
             -- snipe: w_sniper-only and a HOLD: ends_on=time (dest is the own node, so there is no arrival),
             -- so it runs to snipe_hold_ms.
             name      = "snipe",
+            toggle    = "maneuver_snipe",
             situation = _situation_stalled,
             factions  = nil,
             weapons   = { w_sniper = true },
@@ -328,14 +339,16 @@ local function _palette_matches(row, npc, memo)
     return true
 end
 
--- One row's ordered check: situation compare (cheap) -> palette -> resolver geometry.
+-- One row's ordered check: MCM toggle first (one table read; live, so a mid-fight flip holds from the
+-- next walk) -> situation compare (cheap) -> palette -> resolver geometry.
 -- Returns (dest, situation, stage): dest non-nil = picked. stage is the trace word for how far the row got
--- ("-" situation absent, "palette", "declined", "picked").
+-- ("off" toggled off, "-" situation absent, "palette", "declined", "picked").
 local function _check_row(row, npc, enemy, state, tg, memo)
+    if cfg[row.toggle] == false then return nil, nil, "off" end
     local sit = row.situation(npc, enemy, state, tg, memo)
     if not sit then return nil, nil, "-" end
     if not _palette_matches(row, npc, memo) then return nil, sit, "palette" end
-    local dest = row.resolve(npc, enemy, state, memo)
+    local dest = row.resolve(npc, enemy, state, tg, memo)
     if dest then return dest, sit, "picked" end
     return nil, sit, "declined"
 end
@@ -354,50 +367,39 @@ local function _reset_memo(state, npc, enemy)
     return memo
 end
 
--- Reused per-walk buffer for the rows= trace string (built only when tracing is on).
-local _ROW_TRACE = {}
-
-local function _rows_string(count)
-    for i = count + 1, #_ROW_TRACE do _ROW_TRACE[i] = nil end
-    return table_concat(_ROW_TRACE, ",")
-end
-
---- Walk the catalog in order and return (maneuver, dest) for the first row whose situation, palette, and
---- resolver all pass, or nil when no row fires. The resolver IS the viability gate (a vertex = seize there,
---- nil = fall through to the next row). The walk reads positions once (memo.npc_pos / memo.enemy_pos,
---- state.dist) and memoizes the shared reads (faction, weapon kind, grenade danger) on state.memo for this
---- walk only. A pick stores the fired situation on state.trigger. When tracing is on, the per-row walk lands
---- on state.rows ("name:situation/stage/us" per walked row, the microseconds that row's check cost) and the
---- whole walk's microseconds on state.walk_us, for the decision line - the measurement that gates any future
---- cost work on this path. The timer is a null object when tracing is off (xprofiler.new_if), zero cost live.
+--- Examine ONE catalog row per call, rotating by priority (state.row_cursor): this tick's row runs
+--- its checks lightest-first (toggle -> situation -> palette -> resolver geometry) and fail-fast -
+--- any miss ends the tick, and the NEXT begin check (500ms later) examines the NEXT row, wrapping.
+--- A pick resets the rotation to the top, so after every maneuver (and when a fight starts) the
+--- catalog order rules again. Per NPC per tick the cost is one row's chain - usually a few
+--- microseconds at the situation compare, at most one geometry probe - and each row is considered
+--- every (catalog size x begin period) ~2s: maneuvers at human pace, cost flat as the catalog
+--- grows. The resolver IS the viability gate (a vertex = seize there, nil = decline). Positions
+--- and shared reads memoize on state.memo per tick. When tracing is on, state.rows carries this
+--- tick's row as "name:situation/stage/us" and state.walk_us its microseconds; the timer is a
+--- null object when tracing is off, zero cost live.
 function at_combat_doctrine.pick_maneuver(npc, enemy, state, tg)
+    local count = #CATALOG
+    if count == 0 then return nil end
+    local cursor = state.row_cursor or 1
+    if cursor > count then cursor = 1 end
+    local row = CATALOG[cursor]
     local memo = _reset_memo(state, npc, enemy)
     local tracing = at_combat_trace.enabled()
     local timer = xprofiler.new_if(tracing)
-    local count = 0
-    local walk_us = 0
-    local picked, dest
-    for i = 1, #CATALOG do
-        local row = CATALOG[i]
-        timer:start()
-        local vid, sit, stage = _check_row(row, npc, enemy, state, tg, memo)
-        timer:stop()
-        if tracing then
-            local total_us = timer:get_us()
-            count = count + 1
-            _ROW_TRACE[count] = row.name .. ":" .. (sit and (sit .. "/" .. stage) or stage) .. "/" .. math_floor(total_us - walk_us) .. "us"
-            walk_us = total_us
-        end
-        if vid then
-            picked, dest = row, vid
-            state.trigger = sit
-            break
-        end
-    end
+    timer:start()
+    local vid, sit, stage = _check_row(row, npc, enemy, state, tg, memo)
+    timer:stop()
     if tracing then
-        state.rows = _rows_string(count)
-        state.walk_us = math_floor(walk_us)
+        local us = math_floor(timer:get_us())
+        state.rows = row.name .. ":" .. (sit and (sit .. "/" .. stage) or stage) .. "/" .. us .. "us"
+        state.walk_us = us
     end
-    if picked then return picked, dest end
+    if vid then
+        state.trigger = sit
+        state.row_cursor = 1
+        return row, vid
+    end
+    state.row_cursor = cursor % count + 1
     return nil
 end

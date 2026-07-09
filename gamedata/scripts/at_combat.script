@@ -1,7 +1,7 @@
 --- at_combat: the intermittent takeover monitor - seizes one NPC for one committed maneuver where vanilla is weak, then hands back. Doctrine in at_combat_doctrine, graft in xcombat.
 
 local IsStalker, time_global, tostring = IsStalker, time_global, tostring
-local math_floor, RegisterScriptCallback = math.floor, RegisterScriptCallback
+local math_floor, RegisterScriptCallback, AC_ID = math.floor, RegisterScriptCallback, AC_ID
 
 local cfg = at_mcm.cfg
 local doctrine = at_combat_doctrine
@@ -12,6 +12,7 @@ local _dbg = false
 local LTX_PATH    = "alifetactics\\at_combat_config.ltx"
 local LTX_SECTION = "at_combat"
 local BEGIN_PERIOD_MS, UPDATE_PERIOD_MS, END_PERIOD_MS, HIT_FIGHT_MS, RESEIZE_COOLDOWN_MS
+local SEIZE_RADIUS_SQR
 
 local COMPANION_INFO = "npcx_is_companion"
 local MANEUVER_CAP_MS = 8000
@@ -101,16 +102,17 @@ end
 
 -- Begin the maneuver - the first engine write, at the grafted action's initialize (the engine granted control
 -- this frame; writing earlier would fight vanilla, which drives until the planner swap). Sets the destination
--- once (the engine walks it), applies the row's combat state once, opens a STOW rout's flee hold. Re-reads
--- best_enemy because it can change between _try_begin_maneuver and here. The begin write is timed in two parts
--- (send=/apply=, debug only) so a slow begin names which engine call cost it - send_to or apply_state.
+-- once (the engine walks it), applies the row's combat state once, opens a STOW rout's flee hold. Target
+-- commitment: the maneuver fights the enemy it was STAGED against (state.enemy_id), never whatever the brain
+-- re-selected since - a gone/dead target means the maneuver does not begin. The begin write is timed in two
+-- parts (send=/apply=, debug only) so a slow begin names which engine call cost it - send_to or apply_state.
 local function _begin_maneuver(npc)
     local state = _states[npc:id()]
     if not state or not state.maneuver then return end
     local tg = time_global()
     local maneuver = state.maneuver
-    local enemy = npc:best_enemy()
-    if not enemy then _end_maneuver(state, tg, "no_enemy") return end
+    local enemy = xcombat.resolve_enemy(state.enemy_id)
+    if not enemy then _end_maneuver(state, tg, "target_lost") return end
     local tmr_send = xprofiler.new_if(_dbg):start()
     xcombat.send_to(npc, state.dest)
     tmr_send:stop()
@@ -179,7 +181,7 @@ local function _try_begin_maneuver(npc, state, tg)
 
     local enemy = npc:best_enemy()
     state.fighting = _is_fighting(enemy, state, tg)
-    if not state.fighting then state.stall_set = false return end
+    if not state.fighting then state.stall_set = false state.row_cursor = 1 return end
     if _dbg then trace.set_name(state.id, npc:name()) end
 
     if not enemy then
@@ -189,6 +191,17 @@ local function _try_begin_maneuver(npc, state, tg)
         return
     end
     state.enemy_id = enemy:id()
+
+    -- Eligibility: a fight WITH the actor is never truncated (one compare; the engine's own is_enemy
+    -- distance gates bound where those fights form, so this adds no long-range behavior of its own). An
+    -- NPC-vs-NPC fight qualifies only within the seize radius of the actor - beyond it a maneuver is
+    -- spectacle nobody can see, and it holds a concurrency slot. actor_dist_sqr is a 5s-TTL cached read.
+    if SEIZE_RADIUS_SQR > 0 and state.enemy_id ~= AC_ID
+        and xcombat.actor_dist_sqr(npc) > SEIZE_RADIUS_SQR then
+        tmr:stop()
+        trace.monitor(state.id, state, "far", nil, tmr:get_us())
+        return
+    end
 
     local can_seize, seize_block = _can_seize(npc)
     if not can_seize then
@@ -224,13 +237,15 @@ end
 
 -- Run the maneuver's own update from its catalog row (a firing row re-checks its shot, flee re-asserts its
 -- holster, a row without one does nothing). Begun-guarded: no engine write before _begin_maneuver ran.
--- The debug trace is the mid-maneuver aim evidence: WHO the row aims at right now (the live best_enemy -
--- flagged SWITCHED when it is no longer the staged target), sight, body-to-target angle, applied fire + gate.
+-- Target commitment: the row keeps aiming at the STAGED enemy (state.enemy_id) for the maneuver's whole
+-- life; a gone/dead target applies READY here and the end check closes the maneuver on its next period.
+-- The debug trace is the mid-maneuver aim evidence: sight to the staged target, body-to-target angle,
+-- applied fire + gate.
 local function _update_maneuver(npc, state, _tg)
     local maneuver = state.maneuver
     if not maneuver or not state.maneuver_at then return end
     if not maneuver.update then return end
-    local enemy = npc:best_enemy()
+    local enemy = xcombat.resolve_enemy(state.enemy_id)
     local tmr = xprofiler.new_if(_dbg):start()
     local fire, gate = maneuver.update(npc, maneuver, enemy)
     tmr:stop()
@@ -243,16 +258,24 @@ local function _update_maneuver(npc, state, _tg)
     trace.update_maneuver(state.id, maneuver.name, {
         id       = enemy:id(),
         name     = xcreature.get_name(enemy:id()),
-        switched = state.enemy_id ~= nil and enemy:id() ~= state.enemy_id,
         seen     = xcombat.sees(npc, enemy),
         aim_off  = math_floor(xcombat.get_facing_offset(npc, enemy:position())),
     }, fire, gate, us)
 end
 
 -- Movers end on arrival; the cap (from begin_at) ends everything, so a gate that raised but never began a
--- maneuver cannot wedge the NPC. Holds have no arrival and end only on the cap.
+-- maneuver cannot wedge the NPC. Holds have no arrival and end only on the cap. A feature turned off
+-- mid-maneuver ends here too: SPEC.gate already handed the NPC back to vanilla, so the row's update must
+-- stop driving it - ending drops state.gate, which stops _update_maneuver on the same scan.
 local function _try_end_maneuver(npc, state, tg)
+    if not _manages(npc) then _end_maneuver(state, tg, "disabled") return end
     local maneuver = state.maneuver
+    -- Target commitment: the staged enemy died or despawned - hand back now, vanilla picks the next
+    -- fight. Only for a BEGUN maneuver; a staged-never-granted gate still ends on the cap below.
+    if maneuver and state.maneuver_at and not xcombat.resolve_enemy(state.enemy_id) then
+        _end_maneuver(state, tg, "target_lost")
+        return
+    end
     local tmr = xprofiler.new_if(_dbg):start()
     if maneuver and maneuver.ends_on == "arrival" and state.maneuver_at and xcombat.is_arrived(npc) then
         tmr:stop()
@@ -305,6 +328,18 @@ end
 function get_maneuver(id)
     local state = _states[id]
     return state and state.maneuver and state.maneuver.name
+end
+
+--- Takeover status word for an NPC: the maneuver name while one is open, "cooldown" through the
+--- reseize window after one ended, nil otherwise. The at_hud maneuver column reads this.
+function get_status(id)
+    local state = _states[id]
+    if not state then return nil end
+    if state.maneuver then return state.maneuver.name end
+    if state.end_at and RESEIZE_COOLDOWN_MS > 0 and (time_global() - state.end_at) < RESEIZE_COOLDOWN_MS then
+        return "cooldown"
+    end
+    return nil
 end
 
 
@@ -374,7 +409,9 @@ local function _load_config()
     END_PERIOD_MS       = read_int("end_period_ms",       200)
     HIT_FIGHT_MS        = read_int("hit_fight_ms",        5000)
     RESEIZE_COOLDOWN_MS = read_int("reseize_cooldown_ms", 5000)
-    MAX_CONCURRENT      = read_int("max_concurrent_maneuvers", 8)
+    MAX_CONCURRENT      = read_int("max_concurrent_maneuvers", 20)
+    local radius_m      = read_int("seize_actor_radius_m", 50)
+    SEIZE_RADIUS_SQR    = radius_m * radius_m
     _build_scan()
 end
 

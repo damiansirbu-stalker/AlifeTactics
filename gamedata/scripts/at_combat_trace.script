@@ -79,12 +79,12 @@ function at_combat_trace.resolve_flee(id, path)
     log.info("resolve_flee id=%s name=%s path=%s", _show(id), _show(_names[id]), _show(path))
 end
 
---- One line per kite resolve: the weapon minimum, the current distance, the computed lane length
---- (min - dist, floored at the 2m lane step), and the lane vertex ("none" = fully boxed in, kite declined).
-function at_combat_trace.resolve_kite(id, band_min, dist, back_m, vid)
+--- One line per kite resolve: the current distance, the weapon-set back-off (KITE_BACK), and the
+--- lane vertex ("none" = fully boxed in even at half length, kite declined).
+function at_combat_trace.resolve_kite(id, dist, back_m, vid)
     if not _on then return end
-    log.info("resolve_kite id=%s name=%s band_min=%s dist=%.1f back_m=%.1f lane=%s",
-        _show(id), _show(_names[id]), _show(band_min), dist or -1, back_m or -1, _show(vid or "none"))
+    log.info("resolve_kite id=%s name=%s dist=%.1f back_m=%.1f lane=%s",
+        _show(id), _show(_names[id]), dist or -1, back_m or -1, _show(vid or "none"))
 end
 
 --- One line per snipe resolve: the distance against the ENEMY's weapon maximum - "plant" when past it,
@@ -105,8 +105,9 @@ function at_combat_trace.resolve_retreat(id, path, vid, cover_dist, npc_dist)
 end
 
 --- One line per monitor tick for an NPC skipped BEFORE the catalog walk: no_enemy (fighting but no selected
---- enemy), cooldown (the reseize window - fires before the fighting read, so target may be last tick's), or
---- cannot_seize with the blocking gate as reason (no_weapon / smart_cover / indoor), so the log says WHY, not
+--- enemy), cooldown (the reseize window - fires before the fighting read, so target may be last tick's),
+--- far (an NPC-vs-NPC fight beyond the seize radius of the actor), or
+--- cannot_seize with the blocking gate as reason (no_weapon / smart_cover), so the log says WHY, not
 --- just that it could not. The ":" concat lives inside the _on guard, so the off path allocates nothing.
 --- Evaluated ticks log through decision() instead.
 function at_combat_trace.monitor(id, state, result, reason, us)
@@ -118,8 +119,8 @@ end
 --- The uniform decision line, one per evaluated monitor tick: the selected enemy, the distance, the sight and
 --- facing reads, who drives (operator), the DECIDE-time cover readout (cover_string), the per-row catalog
 --- walk with its cost, and the outcome. rows= is "name:situation/stage/us" per walked row - situation the
---- fired one (too_close / grenade / hurt / stalled), stage how far the row got (palette / declined / picked),
---- "-" a row whose situation did not hold, us the microseconds that row's check cost; the walk stops at the
+--- fired one (too_close / grenade / hurt / stalled), stage how far the row got (off / palette / declined /
+--- picked), "-" a row whose situation did not hold, us the microseconds that row's check cost; the walk stops at the
 --- first pick, so unwalked rows do not appear. walk= is the whole walk's microseconds - the wall-clock
 --- evidence for any cost claim about this path. result= is the picked maneuver or "none".
 function at_combat_trace.decision(id, state, result)
@@ -131,10 +132,10 @@ function at_combat_trace.decision(id, state, result)
 end
 
 --- One line per update tick of an open maneuver (200ms, debug only) - the mid-maneuver aim evidence.
---- target is nil or { id, name, switched, seen, aim_off }: the LIVE best_enemy the row just re-aimed
---- at; SWITCHED marks it no longer being the staged target (the engine re-selected mid-maneuver -
---- the "he is shooting at something else" case). aim= is the body-to-target angle in degrees (large
---- = body pointed away from the thing he aims at), fire=/gate= what apply_state issued and why.
+--- target is nil or { id, name, seen, aim_off }: the STAGED enemy the maneuver is committed to
+--- (never a mid-maneuver re-selection - the commitment lives in at_combat, xcombat.resolve_enemy).
+--- aim= is the body-to-target angle in degrees (large = body pointed away from the thing he aims
+--- at), fire=/gate= what apply_state issued and why.
 function at_combat_trace.update_maneuver(id, maneuver, target, fire, gate, us)
     if not _on then return end
     if not target then
@@ -142,9 +143,9 @@ function at_combat_trace.update_maneuver(id, maneuver, target, fire, gate, us)
             _show(id), _show(_names[id]), _show(maneuver), _show(fire), _show(gate), us or -1)
         return
     end
-    log.info("update id=%s name=%s maneuver=%s target=%s(%s)%s seen=%s aim=%ddeg fire=%s gate=%s [%dus]",
+    log.info("update id=%s name=%s maneuver=%s target=%s(%s) seen=%s aim=%ddeg fire=%s gate=%s [%dus]",
         _show(id), _show(_names[id]), _show(maneuver), _show(target.id), _show(target.name),
-        target.switched and " SWITCHED" or "", _yes_no(target.seen), target.aim_off or -1,
+        _yes_no(target.seen), target.aim_off or -1,
         _show(fire), _show(gate), us or -1)
 end
 
