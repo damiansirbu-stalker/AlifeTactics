@@ -52,6 +52,9 @@
 	   later corpse stages drive the right NPC.
 	10. Corpse stage 6 moves the NPC to the cover vertex it found instead of the cleared
 	   st.lvid (the found cover was never used).
+	11. Performance: the inertion and ignore-distance condlists are parsed once and
+	   memoized (_parse_cached); vanilla re-parsed the same fixed strings on every
+	   danger evaluation, per NPC per plan solve.
 
 	Extension callback
 	------------------
@@ -86,6 +89,22 @@ DangerIgnore = utils_data.collect_section(ini,"danger_object",true)
 DangerInertionActor = utils_data.collect_section(ini,"danger_inertion_actor",true)
 DangerIgnoreActor = utils_data.collect_section(ini,"danger_object_actor",true)
 ini = nil
+
+-- Parsed-condlist memo (fix 11): the inertion / ignore-distance strings are fixed after the DLTX
+-- merge, but vanilla re-parsed them on EVERY danger evaluation (per NPC per plan solve). Parse each
+-- distinct string once; keyed by the raw string so both the base and actor tables share entries.
+-- parse_condlist's npc/section/field args feed only its error messages - the parsed structure is
+-- npc-independent; the npc enters at pick_section_from_condlist time.
+local _condlist_cache = {}
+local function _parse_cached(npc, bd_name, key, src)
+	if src == nil then return nil end
+	local parsed = _condlist_cache[src]
+	if parsed == nil then
+		parsed = xr_logic.parse_condlist(npc, bd_name, key, src)
+		_condlist_cache[src] = parsed or false
+	end
+	return parsed or nil
+end
 
 local script_danger = {}
 local bd_types = {
@@ -144,7 +163,7 @@ local function danger_in_radius(npc,best_danger,bd_type)
 	local bd_name = bd_types[bd_type]
 	local from_actor = _enabled.actor_tables and best_danger:object() and best_danger:object():id() == db.actor:id()
 	local src = (from_actor and DangerIgnoreActor[bd_name]) or DangerIgnore[bd_name]
-	local condlist = xr_logic.parse_condlist(npc,bd_name,"danger_object",src)
+	local condlist = _parse_cached(npc, bd_name, "danger_object", src)
 	local ignore_distance = condlist and tonumber(xr_logic.pick_section_from_condlist(db.actor,npc,condlist)) or 0
 
 	if (ignore_distance == 0) then
@@ -264,8 +283,9 @@ end
 -- Slow-call attribution scratch: eval_danger stamps its segment costs here (debug only), and
 -- evaluate() logs them when one call crosses SLOW_EVAL_US - so a rare multi-ms call names the
 -- segment (engine read / callback / inertion resolve / is_danger) instead of hiding in the window.
-local SLOW_EVAL_US = 5000
-local _seg_bd, _seg_cb, _seg_inert, _seg_is, _seg_name = -1, -1, -1, -1, "-"
+-- Aligned with the 2ms budget ceiling: any over-ceiling eval gets its segment breakdown.
+local SLOW_EVAL_US = 2000
+local _seg_bd, _seg_cb, _seg_dtime, _seg_cond, _seg_is, _seg_name = -1, -1, -1, -1, -1, "-"
 
 local function eval_danger(self)
 	local npc = self.object
@@ -279,7 +299,7 @@ local function eval_danger(self)
 	local prof = _dbg
 	local tmr, seg_mark
 	if prof then
-		_seg_bd, _seg_cb, _seg_inert, _seg_is, _seg_name = -1, -1, -1, -1, "-"
+		_seg_bd, _seg_cb, _seg_dtime, _seg_cond, _seg_is, _seg_name = -1, -1, -1, -1, -1, "-"
 		tmr = xprofiler.new_if(true):start()
 	end
 	local danger = npc:best_danger()
@@ -299,6 +319,7 @@ local function eval_danger(self)
 	local bd_name = bd_types[bd_type]
 	if prof then _seg_name = bd_name or tostring(bd_type) tmr:start() end
 	local cur_danger_time = get_danger_time(danger, npc)
+	if prof then tmr:stop() local t = tmr:get_us() _seg_dtime = t - seg_mark seg_mark = t tmr:start() end
 	if type(cur_danger_time) ~= "number" then cur_danger_time = 0 end
 
 	if (type(self.a.inertion) == "number" and type(self.a.danger_time) == "number") then
@@ -315,8 +336,8 @@ local function eval_danger(self)
 
 	local from_actor = _enabled.actor_tables and danger:object() and danger:object():id() == db.actor:id()
 	local src = (from_actor and DangerInertionActor[bd_name]) or DangerInertion[bd_name]
-	local inertion = tonumber(xr_logic.pick_section_from_condlist(db.actor, npc, xr_logic.parse_condlist(npc, bd_name, "danger_inertion_time", src))) or 0
-	if prof then tmr:stop() local t = tmr:get_us() _seg_inert = t - seg_mark seg_mark = t end
+	local inertion = tonumber(xr_logic.pick_section_from_condlist(db.actor, npc, _parse_cached(npc, bd_name, "danger_inertion_time", src))) or 0
+	if prof then tmr:stop() local t = tmr:get_us() _seg_cond = t - seg_mark seg_mark = t end
 	local danger_time = cur_danger_time
 
 	if not danger_time or type(danger_time) ~= "number" then
@@ -359,9 +380,14 @@ local collectgarbage = collectgarbage
 local _eval_n, _eval_sum_us, _eval_max_us, _eval_heap_kb = 0, 0, 0, 0
 
 function at_evaluator_danger:evaluate()
+	-- Bug 3 guard, completed: eval_danger bails on a torn-down NPC, so the flag write must too,
+	-- or the deref below crashes on exactly the case the guard exists for.
+	local npc = self.object
+	if not npc then return false end
 	local tmr = xprofiler.new_if(_dbg):start()
 	local danger = eval_danger(self) or false
-	db.storage[self.object:id()].danger_flag = danger
+	local st = db.storage[npc:id()]
+	if st then st.danger_flag = danger end
 	tmr:stop()
 	if _dbg then
 		local us = tmr:get_us()
@@ -372,10 +398,10 @@ function at_evaluator_danger:evaluate()
 		-- gap between us and (bd+cb+inert+is) is time the profile_timer never charged to any segment
 		-- (a pause between segments) = a VM stall (GC step, engine block), not eval_danger's code.
 		if us > SLOW_EVAL_US then
-			local seg_sum = math_max(0, _seg_bd) + math_max(0, _seg_cb)
-				+ math_max(0, _seg_inert) + math_max(0, _seg_is)
-			log.debug("[PERF] eval_danger SLOW us=%d type=%s bd=%dus cb=%dus inert=%dus is=%dus unattributed=%dus heap=%dKB",
-				us, _seg_name, _seg_bd, _seg_cb, _seg_inert, _seg_is, us - seg_sum, collectgarbage("count"))
+			local seg_sum = math_max(0, _seg_bd) + math_max(0, _seg_cb) + math_max(0, _seg_dtime)
+				+ math_max(0, _seg_cond) + math_max(0, _seg_is)
+			log.debug("[PERF] eval_danger SLOW us=%d type=%s bd=%dus cb=%dus danger_time=%dus condlist=%dus is=%dus unattributed=%dus heap=%dKB",
+				us, _seg_name, _seg_bd, _seg_cb, _seg_dtime, _seg_cond, _seg_is, us - seg_sum, collectgarbage("count"))
 		end
 		if _eval_n >= 200 then
 			local heap_kb = collectgarbage("count")
