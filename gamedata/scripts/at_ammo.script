@@ -158,6 +158,18 @@ local function _delete_one_ap_box(npc, section)
     if se_item then alife_release(se_item) end
 end
 
+-- Re-key an AP-keyed weapon with no AP carried back to the default type. The disengage
+-- revert can miss: alife_release of an online box is a deferred GE_DESTROY event
+-- (alife_simulator_script.cpp:288-310), so the same-tick count still included the deleted
+-- box. Only AP sections revert - a looted weapon's own non-AP type is not ours to touch.
+local function _try_rekey_depleted(npc, wpn, wpn_sec, ammo_class)
+    local cur = wpn:get_ammo_type()
+    if cur ~= 0 and AP_SECTIONS[ammo_class[cur + 1]] then
+        wpn:set_ammo_type(0)
+        if _dbg then log.debug("[AP] rekey npc=%d wpn=%s ap depleted, back to type 0", npc:id(), wpn_sec) end
+    end
+end
+
 -- Combat tick: (re)scan AP on entry or weapon change, then hold AP as the loaded type.
 local function _on_combat_tick(npc, wpn, wpn_sec, ammo_class, st, now)
     if not st.fighting or st.wpn_sec ~= wpn_sec then
@@ -165,17 +177,7 @@ local function _on_combat_tick(npc, wpn, wpn_sec, ammo_class, st, now)
         st.fighting = true
         st.wpn_sec = wpn_sec
         st.idx, st.sec = _find_ap(wpn, ammo_class)
-        -- Re-key an AP-keyed weapon with no AP carried back to the default type. The disengage
-        -- revert can miss: alife_release of an online box is a deferred GE_DESTROY event
-        -- (alife_simulator_script.cpp:288-310), so the same-tick count still included the deleted
-        -- box. Only AP sections revert - a looted weapon's own non-AP type is not ours to touch.
-        if not st.idx then
-            local cur = wpn:get_ammo_type()
-            if cur ~= 0 and AP_SECTIONS[ammo_class[cur + 1]] then
-                wpn:set_ammo_type(0)
-                if _dbg then log.debug("[AP] rekey npc=%d wpn=%s ap depleted, back to type 0", npc:id(), wpn_sec) end
-            end
-        end
+        if not st.idx then _try_rekey_depleted(npc, wpn, wpn_sec, ammo_class) end
         tmr:stop()
         if _dbg then log.debug("[AP] engage npc=%d wpn=%s ap=%s [%dus]", npc:id(), wpn_sec, st.sec or "none", tmr:get_us()) end
     end

@@ -3,7 +3,7 @@
 local math_random, tostring = math.random, tostring
 local se_save_var, se_load_var = se_save_var, se_load_var
 local RegisterScriptCallback, time_global = RegisterScriptCallback, time_global
-local IsStalker, IsWounded = IsStalker, IsWounded
+local IsStalker, IsWounded, character_community = IsStalker, IsWounded, character_community
 
 local LIMP_ELIGIBILITY_CHECK_MS = 1000
 local LIMP_DROP_CHECK_MS        = 200
@@ -295,22 +295,27 @@ end
 local _limp_declines = { n = 0, far = 0, enemy = 0, mental = 0, standing = 0, wounded = 0, smart_cover = 0, zombied = 0, other = 0 }
 local LIMP_DECLINE_WINDOW = 100
 
+-- The first eligibility gate this hurt NPC fails, re-derived in the eligibility chain's order.
+local function _limp_decline_reason(npc)
+    if xcombat.actor_dist_sqr(npc) > ANIM_RADIUS_SQR then return "far" end
+    if npc:best_enemy() then return "enemy" end
+    if npc:mental_state() ~= anim.free then return "mental" end
+    if npc:body_state() ~= move.standing then return "standing" end
+    if IsWounded(npc) then return "wounded" end
+    if npc:in_smart_cover() then return "smart_cover" end
+    if character_community(npc) == "zombied" then return "zombied" end
+    return "other"
+end
+
 local function _limp_note_decline(npc)
-    local d = _limp_declines
-    local reason = (xcombat.actor_dist_sqr(npc) > ANIM_RADIUS_SQR and "far")
-        or (npc:best_enemy() and "enemy")
-        or (npc:mental_state() ~= anim.free and "mental")
-        or (npc:body_state() ~= move.standing and "standing")
-        or (IsWounded(npc) and "wounded")
-        or (npc:in_smart_cover() and "smart_cover")
-        or (npc:character_community() == "zombied" and "zombied")
-        or "other"
-    d[reason] = d[reason] + 1
-    d.n = d.n + 1
-    if d.n >= LIMP_DECLINE_WINDOW then
+    local counts = _limp_declines
+    local reason = _limp_decline_reason(npc)
+    counts[reason] = counts[reason] + 1
+    counts.n = counts.n + 1
+    if counts.n >= LIMP_DECLINE_WINDOW then
         log.debug("[LIMP] declined n=%d far=%d enemy=%d mental=%d standing=%d wounded=%d smart_cover=%d zombied=%d other=%d",
-            d.n, d.far, d.enemy, d.mental, d.standing, d.wounded, d.smart_cover, d.zombied, d.other)
-        d.n, d.far, d.enemy, d.mental, d.standing, d.wounded, d.smart_cover, d.zombied, d.other = 0, 0, 0, 0, 0, 0, 0, 0, 0
+            counts.n, counts.far, counts.enemy, counts.mental, counts.standing, counts.wounded, counts.smart_cover, counts.zombied, counts.other)
+        counts.n, counts.far, counts.enemy, counts.mental, counts.standing, counts.wounded, counts.smart_cover, counts.zombied, counts.other = 0, 0, 0, 0, 0, 0, 0, 0, 0
     end
 end
 

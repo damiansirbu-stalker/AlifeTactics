@@ -5,7 +5,7 @@
 --- engine (scheme + mental + state, everything Anomaly) | maneuver (name / cooldown / "-").
 --- The cover belief/ray forensics live in the decision trace, not here.
 
-local pairs, table_sort, math_floor, math_max, tostring = pairs, table.sort, math.floor, math.max, tostring
+local pairs, table_sort, math_floor, tostring = pairs, table.sort, math.floor, tostring
 local string_sub, string_format = string.sub, string.format
 local IsStalker, RegisterScriptCallback = IsStalker, RegisterScriptCallback
 
@@ -234,9 +234,9 @@ function UIDebugHUD:__init() super()
     self:_header(xml, self:_line(xml, PAD + ROW_H, widths, PAD), ROW_B, CLR_DIM)
     self.a, self.b = {}, {}
     for i = 1, MAX_ROWS + 1 do
-        local y = PAD + (1 + i * 2) * ROW_H
-        self.a[i] = self:_line(xml, y, widths, PAD)
-        self.b[i] = self:_line(xml, y + ROW_H, widths, PAD)
+        local row_y = PAD + (1 + i * 2) * ROW_H
+        self.a[i] = self:_line(xml, row_y, widths, PAD)
+        self.b[i] = self:_line(xml, row_y + ROW_H, widths, PAD)
     end
     self.used = 0
 end
