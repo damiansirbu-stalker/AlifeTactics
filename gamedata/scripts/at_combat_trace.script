@@ -69,38 +69,39 @@ function at_combat_trace.begin_maneuver(id, maneuver, trigger, dest, fire, movem
         _show(id), _show(_names[id]), _show(maneuver), _show(trigger), _show(dest), _show(fire), _show(movement), _show(requested), _show(fire_make_sense), _show(cover), send_us or -1, apply_us or -1)
 end
 
---- One line when a flee resolves its destination: path "squad_stands" (a squadmate lives, declined - a rout is
---- for the last man; falls through to retreat), "under_fire" (a fresh hit or a perceived shot from the enemy,
---- declined - nobody turns his back mid-burst), "too_close" (enemy inside flee_min_dist, declined - nobody flees
---- point-blank), "base" (a friendly base at least flee_base_min_dist_m away, biased to the rear hemisphere), or
---- "no_base" (no friendly base that far and clear was reachable, declined).
-function at_combat_trace.resolve_flee(id, path)
+--- One line per flee feasibility check: path "squad_stands" (a squadmate lives, declined - a rout is for the
+--- last man; a squadded timid NPC answers pressure with retreat, the row above), "under_fire" (a fresh hit or
+--- a perceived shot from the enemy, declined - nobody turns his back mid-burst; the cursor defers and re-asks
+--- a lap later), "too_close" (enemy inside flee_min_dist, declined - nobody flees point-blank), "base" (a
+--- friendly base at least flee_base_min_dist_m away, biased to the rear hemisphere), or "no_base" (no friendly
+--- base that far and clear was reachable, declined).
+function at_combat_trace.can_flee(id, path)
     if not _on then return end
-    log.info("resolve_flee id=%s name=%s path=%s", _show(id), _show(_names[id]), _show(path))
+    log.info("can_flee id=%s name=%s path=%s", _show(id), _show(_names[id]), _show(path))
 end
 
---- One line per kite resolve: the current distance, the weapon-set back-off (KITE_BACK), and the
+--- One line per kite feasibility check: the current distance, the weapon-set back-off (KITE_BACK), and the
 --- lane vertex ("none" = fully boxed in even at half length, kite declined).
-function at_combat_trace.resolve_kite(id, dist, back_m, vid)
+function at_combat_trace.can_kite(id, dist, back_m, vid)
     if not _on then return end
-    log.info("resolve_kite id=%s name=%s dist=%.1f back_m=%.1f lane=%s",
+    log.info("can_kite id=%s name=%s dist=%.1f back_m=%.1f lane=%s",
         _show(id), _show(_names[id]), dist or -1, back_m or -1, _show(vid or "none"))
 end
 
---- One line per snipe resolve: the distance against the ENEMY's weapon maximum - "plant" when past it,
---- "in_enemy_range" when declined (a motionless head inside the enemy's band is a gift).
-function at_combat_trace.resolve_snipe(id, dist, enemy_max, planted)
+--- One line per snipe feasibility check: the distance against the ENEMY's weapon maximum - "plant" when past
+--- it, "in_enemy_range" when declined (a motionless head inside the enemy's band is a gift).
+function at_combat_trace.can_snipe(id, dist, enemy_max, planted)
     if not _on then return end
-    log.info("resolve_snipe id=%s name=%s dist=%.1f enemy_max=%s result=%s",
+    log.info("can_snipe id=%s name=%s dist=%.1f enemy_max=%s result=%s",
         _show(id), _show(_names[id]), dist or -1, _show(enemy_max), planted and "plant" or "in_enemy_range")
 end
 
---- One line per retreat resolve: path "taken" (vertex accepted; cover_dist > npc_dist is the proof the retreat
---- grows the distance), "no_cover" (nothing behind him), "toward_enemy" (the winner sat closer to the enemy
---- than he stands, rejected), or "claim_lost" (another NPC reserved the vertex first).
-function at_combat_trace.resolve_retreat(id, path, vid, cover_dist, npc_dist)
+--- One line per retreat feasibility check: path "taken" (vertex accepted; cover_dist > npc_dist is the proof
+--- the retreat grows the distance), "no_cover" (nothing behind him), "toward_enemy" (the winner sat closer to
+--- the enemy than he stands, rejected), or "claim_lost" (another NPC reserved the vertex first).
+function at_combat_trace.can_retreat(id, path, vid, cover_dist, npc_dist)
     if not _on then return end
-    log.info("resolve_retreat id=%s name=%s path=%s cover=%s cover_dist=%.1f npc_dist=%.1f",
+    log.info("can_retreat id=%s name=%s path=%s cover=%s cover_dist=%.1f npc_dist=%.1f",
         _show(id), _show(_names[id]), _show(path), _show(vid or "-"), cover_dist or -1, npc_dist or -1)
 end
 
@@ -118,10 +119,12 @@ end
 
 --- The uniform decision line, one per evaluated monitor tick: the selected enemy, the distance, the sight and
 --- facing reads, who drives (operator), the DECIDE-time cover readout (cover_string), the per-row catalog
---- walk with its cost, and the outcome. rows= is "name:situation/stage/us" per walked row - situation the
---- fired one (too_close / grenade / hurt / stalled), stage how far the row got (off / palette / declined /
---- picked), "-" a row whose situation did not hold, us the microseconds that row's check cost; the walk stops at the
---- first pick, so unwalked rows do not appear. walk= is the whole walk's microseconds - the wall-clock
+--- walk with its cost, and the outcome. rows= is one comma-joined entry per examined row, in walk order:
+--- "name:situation/stage" - situation the fired need (too_close / grenade / hurt / stalled), stage how far
+--- the row got (off / palette / declined / picked), "-" a row whose need did not hold (fell through in the
+--- same tick). The one row whose can_maneuver ran carries the per-layer timings "/should=Xus/can=Yus" - the
+--- evidence the need layer stays microseconds while the feasibility owns the geometry cost; the walk ends at
+--- that row, so rows below it do not appear. walk= is the whole walk's microseconds - the wall-clock
 --- evidence for any cost claim about this path. result= is the picked maneuver or "none".
 function at_combat_trace.decision(id, state, result)
     if not _on then return end

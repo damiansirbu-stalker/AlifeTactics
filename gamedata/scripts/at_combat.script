@@ -86,7 +86,7 @@ local function _drop_gate(state)
 end
 
 -- End the maneuver: lower the gate, clear the row, keep end_at for the reseize cooldown. Releases any cover the
--- resolver reserved, on EVERY exit (arrived, cap, never-begun) so a gate that raised but never ran a maneuver
+-- feasibility check reserved, on EVERY exit (arrived, cap, never-begun) so a gate that raised but never ran a maneuver
 -- does not leak the reservation in db.used_level_vertex_ids (t136).
 local function _end_maneuver(state, tg, reason, check_us)
     if _dbg then trace.end_maneuver(state.id, state.maneuver and state.maneuver.name, reason, math_floor(tg - (state.begin_at or tg)), check_us) end
@@ -163,8 +163,27 @@ local function _trace_decision(npc, state, enemy, result)
     trace.decision(state.id, state, result or "none")
 end
 
+-- The seize gates after the fighting read, cheapest first. Returns (skip reason, detail) for the monitor
+-- trace, or nil when the NPC may walk the catalog.
+-- Eligibility: a fight WITH the actor is never truncated (one compare; the engine's own is_enemy
+-- distance gates bound where those fights form, so this adds no long-range behavior of its own). An
+-- NPC-vs-NPC fight qualifies only within the seize radius of the actor - beyond it a maneuver is
+-- spectacle nobody can see, and it holds a concurrency slot. actor_dist_sqr is a 5s-TTL cached read.
+-- Concurrency cap (failsafe): the field is full, so skip the catalog walk (and its can_maneuver
+-- raycasts) before any expensive read; the NPC retries on its next begin check.
+local function _seize_blocked(npc, state)
+    if SEIZE_RADIUS_SQR > 0 and state.enemy_id ~= AC_ID
+        and xcombat.actor_dist_sqr(npc) > SEIZE_RADIUS_SQR then
+        return "far"
+    end
+    local can_seize, seize_block = _can_seize(npc)
+    if not can_seize then return "cannot_seize", seize_block end
+    if MAX_CONCURRENT > 0 and _open_count >= MAX_CONCURRENT then return "at_cap" end
+    return nil
+end
+
 -- Look for a maneuver to begin: managed, off cooldown, fighting, the enemy eligible, seizable, under the cap,
--- a catalog row picked (its situation fired, palette matched, resolver yielded a destination). Staging =
+-- a catalog row picked (its need fired, palette matched, its can_maneuver yielded a destination). Staging =
 -- record the row + destination and raise the gate; the engine grants control at the next plan solve and calls
 -- _begin_maneuver. No engine write happens here - vanilla still drives this frame.
 local function _try_begin_maneuver(npc, state, tg)
@@ -192,36 +211,19 @@ local function _try_begin_maneuver(npc, state, tg)
     end
     state.enemy_id = enemy:id()
 
-    -- Eligibility: a fight WITH the actor is never truncated (one compare; the engine's own is_enemy
-    -- distance gates bound where those fights form, so this adds no long-range behavior of its own). An
-    -- NPC-vs-NPC fight qualifies only within the seize radius of the actor - beyond it a maneuver is
-    -- spectacle nobody can see, and it holds a concurrency slot. actor_dist_sqr is a 5s-TTL cached read.
-    if SEIZE_RADIUS_SQR > 0 and state.enemy_id ~= AC_ID
-        and xcombat.actor_dist_sqr(npc) > SEIZE_RADIUS_SQR then
+    local blocked, block_detail = _seize_blocked(npc, state)
+    if blocked then
         tmr:stop()
-        trace.monitor(state.id, state, "far", nil, tmr:get_us())
+        trace.monitor(state.id, state, blocked, block_detail, tmr:get_us())
         return
     end
 
-    local can_seize, seize_block = _can_seize(npc)
-    if not can_seize then
-        tmr:stop()
-        trace.monitor(state.id, state, "cannot_seize", seize_block, tmr:get_us())
-        return
-    end
-
-    -- Concurrency cap (failsafe): the field is full, so skip the catalog walk (and its resolver raycasts)
-    -- before any expensive read. The NPC retries on its next begin check.
-    if MAX_CONCURRENT > 0 and _open_count >= MAX_CONCURRENT then
-        tmr:stop()
-        trace.monitor(state.id, state, "at_cap", nil, tmr:get_us())
-        return
-    end
-
-    -- pick_maneuver walks the catalog rows in order (situation -> palette -> resolver), returns
-    -- (maneuver, dest) on a pick and nil when no row fires; it stores the fired situation on state.trigger
-    -- and the per-row walk with its timings on state.rows / state.walk_us for the decision trace.
-    local maneuver, dest = doctrine.pick_maneuver(npc, enemy, state, tg)
+    -- resolve_maneuver arbitrates the catalog from the per-NPC cursor (per row: should_maneuver ->
+    -- palette -> can_maneuver). A row whose need is absent falls through in the same tick; the one
+    -- can_maneuver that runs ends the walk and moves the cursor past its row (decline = defer, pick =
+    -- the next decision starts below). Returns (maneuver, dest) on a pick and nil otherwise; it stores
+    -- the fired situation on state.trigger and the walked rows + timings on state.rows / state.walk_us.
+    local maneuver, dest = doctrine.resolve_maneuver(npc, enemy, state, tg)
     if maneuver then
         state.gate = true
         _open_count = _open_count + 1

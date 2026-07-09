@@ -3,7 +3,7 @@ next
 
   Combat
     - Maneuvers: an intermittent combat takeover that borrows a stalker for a committed maneuver.
-      Stalkers kite when crowded, hold sniper aim when stalled, and cover or flee when badly hurt.
+      Stalkers kite when crowded, hold sniper aim when stalled, take cover then flee when badly hurt.
       A borrowed stalker holds fire when it has no clear shot instead of firing into cover.
       Companions are excluded by default. Replaces the old Stance Switch system.
 
