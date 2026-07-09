@@ -26,6 +26,10 @@ local defaults = {
     acc_disp_legend        = 0.38,
     combat_enabled = true,
     combat_ignore_companions = true,
+    maneuver_kite    = true,
+    maneuver_retreat = true,
+    maneuver_flee    = true,
+    maneuver_snipe   = true,
     crossfire_enabled        = true,
     crossfire_factor         = 0.0,
     danger_hit_bypass   = true,
@@ -67,6 +71,10 @@ local _key_to_tab = {
     acc_disp_legend        = "effectiveness/accuracy",
     combat_enabled = "combat/maneuvers",
     combat_ignore_companions = "combat/maneuvers",
+    maneuver_kite    = "combat/maneuvers",
+    maneuver_retreat = "combat/maneuvers",
+    maneuver_flee    = "combat/maneuvers",
+    maneuver_snipe   = "combat/maneuvers",
     crossfire_enabled = "effectiveness/crossfire",
     crossfire_factor  = "effectiveness/crossfire",
     danger_hit_bypass   = "effectiveness/danger",
@@ -140,11 +148,7 @@ function on_mcm_load()
             gr = {
                 { id = "title", type = "slide", link = "at_mcm_banner",
                     text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
-                { id = "desc", type = "desc", text = "ui_mcm_at_" .. id .. "_desc" },
-                { id = "div_version", type = "line" },
-                { id = "version", type = "desc", text = "ui_mcm_at_title",
-                    ui_hook_functor = { set_version_text }, clr = {255, 212, 201, 168} },
-            },
+                { id = "desc", type = "desc", text = "ui_mcm_at_" .. id .. "_desc" },            },
         }
     end
     return {
@@ -163,10 +167,17 @@ function on_mcm_load()
                             { id = "combat_enabled", type = "check", val = 1, def = true, hint = "at_combat_combat_enabled" },
                             { id = "combat_ignore_companions", type = "check", val = 1, def = true, hint = "at_combat_combat_ignore_companions" },
 
-                            { id = "div_version", type = "line" },
-                            { id = "version", type = "desc", text = "ui_mcm_at_title",
-                                ui_hook_functor = { set_version_text }, clr = {255, 212, 201, 168} },
-                        },
+                            { id = "div_maneuvers", type = "line" },
+                            { id = "hdr_maneuvers", type = "desc", text = "ui_mcm_at_combat_hdr_maneuvers", clr = {255, 200, 200, 200} },
+                            { id = "maneuver_kite",    type = "check", val = 1, def = true, hint = "at_combat_maneuver_kite" },
+                            { id = "maneuver_retreat", type = "check", val = 1, def = true, hint = "at_combat_maneuver_retreat" },
+                            { id = "maneuver_flee",    type = "check", val = 1, def = true, hint = "at_combat_maneuver_flee" },
+                            { id = "maneuver_snipe",   type = "check", val = 1, def = true, hint = "at_combat_maneuver_snipe" },
+
+                            -- Platform footer (shared builder: xmcm.platform_status)
+                            { id = "div_footer", type = "line" },
+                            { id = "platform", type = "desc", text = "ui_mcm_xmcm_footer",
+                                ui_hook_functor = { xmcm.platform_functor(_at_deps.platform_spec()) }, clr = {255, 212, 201, 168} },                        },
                     },
                     wip_page("behaviors"),
                 },
@@ -193,10 +204,6 @@ function on_mcm_load()
                             { id = "acc_disp_expert",       type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 0.52, hint = "at_accuracy_acc_disp_expert" },
                             { id = "acc_disp_master",       type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 0.45, hint = "at_accuracy_acc_disp_master" },
                             { id = "acc_disp_legend",       type = "track", val = 2, min = 0.20, max = 1.50, step = 0.05, def = 0.38, hint = "at_accuracy_acc_disp_legend" },
-
-                            { id = "div_version", type = "line" },
-                            { id = "version", type = "desc", text = "ui_mcm_at_title",
-                                ui_hook_functor = { set_version_text }, clr = {255, 212, 201, 168} },
                         },
                     },
                     {
@@ -215,10 +222,6 @@ function on_mcm_load()
                             { id = "div_retention", type = "line" },
                             { id = "hdr_retention", type = "desc", text = "ui_mcm_at_hdr_retention", clr = {255, 200, 200, 200} },
                             { id = "disclosure_retention_min", type = "track", val = 2, min = 1, max = 30, step = 1, def = 2, hint = "at_disclosure_disclosure_retention_min" },
-
-                            { id = "div_version", type = "line" },
-                            { id = "version", type = "desc", text = "ui_mcm_at_title",
-                                ui_hook_functor = { set_version_text }, clr = {255, 212, 201, 168} },
                         },
                     },
                     {
@@ -238,10 +241,6 @@ function on_mcm_load()
                             { id = "div_fixes", type = "line" },
                             { id = "hdr_fixes", type = "desc", text = "ui_mcm_at_danger_hdr_fixes", clr = {255, 200, 200, 200} },
                             { id = "fixes_list", type = "desc", text = "ui_mcm_at_danger_fixes_list" },
-
-                            { id = "div_version", type = "line" },
-                            { id = "version", type = "desc", text = "ui_mcm_at_title",
-                                ui_hook_functor = { set_version_text }, clr = {255, 212, 201, 168} },
                         },
                     },
                     {
@@ -253,10 +252,6 @@ function on_mcm_load()
                             { id = "desc", type = "desc", text = "ui_mcm_at_crossfire_desc" },
                             { id = "crossfire_enabled", type = "check", val = 1, def = true, hint = "at_crossfire_crossfire_enabled" },
                             { id = "crossfire_factor", type = "track", val = 2, min = 0.0, max = 1.0, step = 0.05, def = 0.0, hint = "at_crossfire_crossfire_factor" },
-
-                            { id = "div_version", type = "line" },
-                            { id = "version", type = "desc", text = "ui_mcm_at_title",
-                                ui_hook_functor = { set_version_text }, clr = {255, 212, 201, 168} },
                         },
                     },
                     wip_page("commitment"),
@@ -293,10 +288,6 @@ function on_mcm_load()
                             { id = "limping_anim_enabled",     type = "check", val = 1, def = true, hint = "at_healing_limping_anim_enabled" },
                             { id = "limping_health_threshold", type = "track", val = 2, min = 0.05, max = 1.00, step = 0.05, def = 0.25, hint = "at_healing_limping_health_threshold" },
                             { id = "healing_anim_enabled",     type = "check", val = 1, def = true, hint = "at_healing_healing_anim_enabled" },
-
-                            { id = "div_version", type = "line" },
-                            { id = "version", type = "desc", text = "ui_mcm_at_title",
-                                ui_hook_functor = { set_version_text }, clr = {255, 212, 201, 168} },
                         },
                     },
                     {
@@ -307,10 +298,6 @@ function on_mcm_load()
                                 text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
                             { id = "desc", type = "desc", text = "ui_mcm_at_jam_desc" },
                             { id = "jam_enabled", type = "check", val = 1, def = true, hint = "at_fixes_jam_jam_enabled" },
-
-                            { id = "div_version", type = "line" },
-                            { id = "version", type = "desc", text = "ui_mcm_at_title",
-                                ui_hook_functor = { set_version_text }, clr = {255, 212, 201, 168} },
                         },
                     },
                     {
@@ -321,10 +308,6 @@ function on_mcm_load()
                                 text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
                             { id = "desc", type = "desc", text = "ui_mcm_at_ammo_desc" },
                             { id = "ammo_enabled", type = "check", val = 1, def = true, hint = "at_fixes_ammo_ammo_enabled" },
-
-                            { id = "div_version", type = "line" },
-                            { id = "version", type = "desc", text = "ui_mcm_at_title",
-                                ui_hook_functor = { set_version_text }, clr = {255, 212, 201, 168} },
                         },
                     },
                 },
@@ -336,10 +319,6 @@ function on_mcm_load()
                     { id = "title", type = "slide", link = "at_mcm_banner",
                         text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
                     { id = "desc", type = "desc", text = "ui_mcm_at_effects_desc" },
-
-                    { id = "div_version", type = "line" },
-                    { id = "version", type = "desc", text = "ui_mcm_at_title",
-                        ui_hook_functor = { set_version_text }, clr = {255, 212, 201, 168} },
                 },
             },
             {
@@ -349,10 +328,6 @@ function on_mcm_load()
                     { id = "title", type = "slide", link = "at_mcm_banner",
                         text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
                     { id = "desc", type = "desc", text = "ui_mcm_at_mutants_desc" },
-
-                    { id = "div_version", type = "line" },
-                    { id = "version", type = "desc", text = "ui_mcm_at_title",
-                        ui_hook_functor = { set_version_text }, clr = {255, 212, 201, 168} },
                 },
             },
             {
@@ -392,21 +367,14 @@ function on_mcm_load()
                     { id = "warn_reset", type = "desc", text = "ui_mcm_at_development_reset_warning", clr = {255, 240, 200, 80} },
                     { id = "btn_reset_all", type = "button", functor_ui = { btn_reset_all } },
 
-                    { id = "div_version", type = "line" },
-                    { id = "version", type = "desc", text = "ui_mcm_at_title",
-                        ui_hook_functor = { set_version_text }, clr = {255, 212, 201, 168} },
                 },
             },
         },
     }
 end
 
-function set_version_text(_anchor, handlers)
-    handlers.desc:SetText(_at_deps.get_version())
-end
-
--- Dump every MCM setting to the debug log (like AlifePlus's [MCM] line): the runtime value per key, so a
--- misread flag (combat_enabled, ...) is visible at a glance after load_config has run.
+-- Dump every MCM setting to the debug log: the runtime value per key, so a misread flag
+-- (combat_enabled, ...) is visible at a glance after load_config has run.
 local function _log_mcm_settings()
     local parts = {}
     for key in pairs(defaults) do

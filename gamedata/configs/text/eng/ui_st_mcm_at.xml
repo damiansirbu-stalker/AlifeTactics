@@ -66,16 +66,16 @@
   </string>
   <!-- ==================== PLANNED PAGE DESCRIPTIONS ==================== -->
   <string id="ui_mcm_at_behaviors_desc">
-    <text>Planned: new combat actions the vanilla planner lacks, grenades and melee first. Nothing to configure yet.</text>
+    <text>Planned: new combat actions the vanilla planner lacks, melee first. Nothing to configure yet.</text>
   </string>
   <string id="ui_mcm_at_commitment_desc">
-    <text>Planned: holds a stalker on a good combat action instead of the break-contact shuffle. The engine hook behind it is already merged in the demonized exes. Nothing to configure yet.</text>
+    <text>Planned: stalkers evaluate the fight and hold a good combat action instead of dithering between cover as they catch and lose sight of you. The engine hook behind it is already merged in the demonized exes. Nothing to configure yet.</text>
   </string>
   <string id="ui_mcm_at_reaction_desc">
-    <text>Planned: per-stalker aim speed and vision speed. The engine hooks behind it are already merged in the demonized exes. Nothing to configure yet.</text>
+    <text>Planned: per-stalker aim speed and vision speed, scaled by rank. The engine hooks behind it are already merged in the demonized exes. Nothing to configure yet.</text>
   </string>
   <string id="ui_mcm_at_range_desc">
-    <text>Planned: keeps players from cheesing NPCs at long range. A stalker shot at from beyond his usual reaction distance answers or repositions instead of standing there while he is picked off. Nothing to configure yet.</text>
+    <text>Planned: engagement distance. The game stops NPC fights at a hard range cap regardless of weapon, so a sniper never fires at the distances his rifle exists for, and a stalker sniped from beyond the cap stands there while he is picked off. This page will let long-range NPCs answer and initiate at their weapon's real reach. Nothing to configure yet.</text>
   </string>
   <string id="ui_mcm_at_resistance_desc">
     <text>Planned: NPC toughness from what they carry - armor and equipment, damage mitigators, and artefacts. Nothing to configure yet.</text>
@@ -92,7 +92,7 @@
   </string>
   <!-- ==================== DISCLOSURE PAGE ==================== -->
   <string id="ui_mcm_at_disclosure_desc">
-    <text>When a faction enemy wounds any squad member, the whole squad learns the shooter on the first hit. Earshot, line of sight, and suppressor use do not block it. Vanilla relies on each squadmate hearing the shot, which fails against suppressors and long-range fire.</text>
+    <text>Wound one member of a squad and the whole squad learns the shooter at once, including patrol members out of earshot and against a suppressed weapon. Vanilla shares only a shooter the squadmates heard. AlifeTactics enables the shooter in every member's memory and registers the squad into combat, then the engine's own propagation carries it. No relations are faked. The survivor gate below keeps a clean instant kill quiet, and the squad can still find the body.</text>
   </string>
   <string id="ui_mcm_at_disclosure_disclosure_enabled">
     <text>Enable Disclosure</text>
@@ -120,7 +120,7 @@
   </string>
   <!-- ==================== HEALING PAGE ==================== -->
   <string id="ui_mcm_at_healing_desc">
-    <text>Stalkers heal with the medkits and bandages they carry. Vanilla ships the healing item lists empty, so carried kits were never used. AlifeTactics restores the lists at boot and tunes the runtime layer below.</text>
+    <text>Wounded stalkers heal with the medkits and bandages they carry, and you can watch it: a hurt man limps, a healing man plays the gesture, out of combat only. Vanilla ships the healing item lists empty, so carried kits were never used and bleeders died with full pockets. AlifeTactics restores the lists at boot. Heal rate, the per-rank charge for empty pockets, and the animations tune below.</text>
   </string>
   <string id="ui_mcm_at_healing_healing_enabled">
     <text>Enable Healing</text>
@@ -190,7 +190,7 @@
   </string>
   <!-- ==================== ACCURACY PAGE ==================== -->
   <string id="ui_mcm_at_accuracy_desc">
-    <text>Vanilla stalkers all fire with the same dispersion because the engine rank curve is dead at Anomaly's rank values. AlifeTactics restores per-rank scaling so masters shoot tighter than novices. Tune each tier below.</text>
+    <text>Stalker accuracy scales with rank. A master shoots tighter than a novice, each tier tunable below. The engine has a per-rank dispersion curve, but Anomaly's rank values leave it flat, so every stalker fires with the same spread. AlifeTactics drives the curve through the engine's own dispersion callback. Weapon and barrel dispersion stay untouched. This scales the stalker's skill.</text>
   </string>
   <string id="ui_mcm_at_accuracy_accuracy_enabled">
     <text>Enable Accuracy</text>
@@ -251,7 +251,7 @@
   </string>
   <!-- ==================== MANEUVERS PAGE ==================== -->
   <string id="ui_mcm_at_combat_desc">
-    <text>AlifeTactics does not replace your combat AI. Vanilla, or whatever modpack AI you run, drives every fight. When a stalker reaches a moment vanilla handles badly, AlifeTactics borrows that one stalker for a single committed maneuver and then hands control straight back. Four maneuvers: kite backs out of an enemy that closed too near, retreat pulls to rear cover under pressure, flee routs the last man to a distant friendly base, snipe holds a stalled marksman on precision aim. A maneuver runs only when it gains the stalker something.</text>
+    <text>A maneuver is a complete takeover of one stalker for a few seconds. AlifeTactics drives him through one committed move and hands him back to the engine cleanly. Vanilla, or whatever AI overhaul you run, drives every fight the rest of the time. A maneuver fires only when the situation, his own state, and his enemy's state give him an upper hand. The decisions come out looking human. Nobody turns his back on a shooter, two men never take the same cover. The takeover overrides no combat scripts, so it layers over AI overhauls. Each maneuver below toggles on its own.</text>
   </string>
   <string id="ui_mcm_at_combat_combat_enabled">
     <text>Enable combat takeover</text>
@@ -265,9 +265,36 @@
   <string id="ui_mcm_at_combat_combat_ignore_companions_desc">
     <text>When on, AlifeTactics never takes over your companions, so their follow and combat AI and your commands stay in control. Turn off to let it maneuver them too.</text>
   </string>
+  <string id="ui_mcm_at_combat_hdr_maneuvers">
+    <text>Maneuvers</text>
+  </string>
+  <string id="ui_mcm_at_combat_maneuver_kite">
+    <text>Kite</text>
+  </string>
+  <string id="ui_mcm_at_combat_maneuver_kite_desc">
+    <text>An enemy closed inside the stalker's minimum weapon range. He backs out to his own distance, still firing, down a lane he checked is clear.</text>
+  </string>
+  <string id="ui_mcm_at_combat_maneuver_retreat">
+    <text>Retreat</text>
+  </string>
+  <string id="ui_mcm_at_combat_maneuver_retreat_desc">
+    <text>Badly hurt or grenade-pressed, a stalker pulls back to cover behind him, still firing. The cover always grows the distance to the shooter, and two men never claim the same spot.</text>
+  </string>
+  <string id="ui_mcm_at_combat_maneuver_flee">
+    <text>Flee</text>
+  </string>
+  <string id="ui_mcm_at_combat_maneuver_flee_desc">
+    <text>The last man of a broken squad routs to a distant friendly base, weapon slung. He waits for a lull in the shooting first. Cautious factions only, fanatics never break.</text>
+  </string>
+  <string id="ui_mcm_at_combat_maneuver_snipe">
+    <text>Snipe</text>
+  </string>
+  <string id="ui_mcm_at_combat_maneuver_snipe_desc">
+    <text>A marksman stuck in a standoff plants and takes precision shots. He only plants beyond his enemy's effective range, where the enemy cannot answer.</text>
+  </string>
   <!-- ==================== CROSSFIRE PAGE ==================== -->
   <string id="ui_mcm_at_crossfire_desc">
-    <text>Same-faction fighters no longer cut each other down in a crossfire. A hit between two NPCs of the same faction deals reduced damage, set by the slider below. Genuinely hostile factions still trade full damage, and your own shots are never touched.</text>
+    <text>Same-faction fighters no longer cut each other down in a crossfire. A hit between two NPCs of the same faction deals reduced damage, set by the slider below. It keys on their actual relation, so genuinely hostile factions still trade full damage. Your own shots are never touched.</text>
   </string>
   <string id="ui_mcm_at_crossfire_crossfire_enabled">
     <text>Block same-faction friendly fire</text>
@@ -283,7 +310,7 @@
   </string>
   <!-- ==================== DANGER PAGE ==================== -->
   <string id="ui_mcm_at_danger_desc">
-    <text>Reworks the vanilla danger response as a runtime patch on whichever danger script your modpack ships. Bug fixes are always on. Three improvements toggle below.</text>
+    <text>Stalkers read danger and investigate the way the engine always meant them to. A set of always-on fixes clears crashes and misreads across the danger check and the corpse investigation. Detection scales with weather, so a storm covers your approach, and player-sourced danger reads its own tables. It installs as a runtime patch onto whichever danger script your modpack ships, so it layers over AI overhauls instead of replacing the file. Three improvements toggle below.</text>
   </string>
   <string id="ui_mcm_at_danger_hdr_improvements">
     <text>Improvements</text>
@@ -310,11 +337,11 @@
     <text>Always-on bug fixes (not toggleable)</text>
   </string>
   <string id="ui_mcm_at_danger_fixes_list">
-    <text>Crash safety for mutant corpses in the danger check. Guards against torn-down NPC references. A broken hit callback that corrupted danger state is neutralized. A name collision that made three danger categories read the wrong config rows is fixed. Corpse investigation survives despawned corpses, drives the right stalker, and actually uses the cover it found. Animation state resets cleanly on danger transitions.</text>
+    <text>1. Three danger categories read the wrong config rows through a name collision. Each now reads its own. \n2. A mutant corpse crashed the danger time check. \n3. A torn-down NPC reference crashed the danger evaluator. \n4. A bad danger time value crashed the evaluator. \n5. The hit callback corrupted the danger memory with a missing shooter on every hit. \n6. Danger transitions left a stale lower-body animation playing. \n7. Leaving the danger state wiped every stalker's cover reservation instead of only its own. \n8. A corpse despawning mid-investigation crashed the investigator. \n9. The corpse investigation drove the wrong squad member through its stages. \n10. The investigator walked to a cleared spot instead of the cover it had found. \n11. The danger check re-parsed the same config strings on every evaluation. They parse once now (performance).</text>
   </string>
   <!-- ==================== JAMMING PAGE ==================== -->
   <string id="ui_mcm_at_jam_desc">
-    <text>Eliminates the fake NPC jams and the tactical-reload loop they cause. On modded exes an NPC rolls a per-rank jam from ammo spent, so even a full-condition rifle chokes and reloads every few rounds. AlifeTactics turns that roll off, so NPCs jam only for real and reload only once the magazine is spent. Your own jams stay vanilla.</text>
+    <text>NPC weapons jam only for real, and reload only when the magazine is spent. On modded exes every NPC rolls a fake per-rank jam from ammo spent, so even a full-condition rifle chokes and reloads every few rounds, and Anomaly has no jam animation to show it. AlifeTactics turns that roll off for NPCs. Your own jams stay vanilla.</text>
   </string>
   <string id="ui_mcm_at_fixes_jam_jam_enabled">
     <text>Suppress NPC jams</text>
@@ -324,7 +351,7 @@
   </string>
   <!-- ==================== AMMO PAGE ==================== -->
   <string id="ui_mcm_at_ammo_desc">
-    <text>Veteran-rank and higher stalkers fire the armor-piercing ammo they actually carry, with real ballistics. Each fight has a chance to use up one carried AP box, faster weapons and lower ranks burn it sooner, and when the supply runs out the stalker reverts to standard rounds. The AP comes from the world through trade and looting, and stalkers drop none of it as loot. Rank threshold and drain rate are tunable in configs/alifetactics/at_ammo.ltx.</text>
+    <text>Stalkers fire the ammunition they actually carry. Veteran-rank and higher use the armor-piercing rounds from their own inventory, with real ballistics, and revert to standard rounds when the supply runs out. Each fight has a chance to consume one carried AP box, and faster weapons and lower ranks burn it sooner. The AP comes from the world through trade and looting, so what a stalker scavenged shapes how dangerous he is, and he drops none of it as loot. Rank threshold and drain rate tune in configs/alifetactics/at_ammo.ltx.</text>
   </string>
   <string id="ui_mcm_at_fixes_ammo_ammo_enabled">
     <text>NPC armor-piercing ammo</text>
