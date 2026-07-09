@@ -75,16 +75,16 @@
     <text>Planned: per-stalker aim speed and vision speed. The engine hooks behind it are already merged in the demonized exes. Nothing to configure yet.</text>
   </string>
   <string id="ui_mcm_at_range_desc">
-    <text>Reserved for a future system. Nothing to configure yet.</text>
+    <text>Planned: keeps players from cheesing NPCs at long range. A stalker shot at from beyond his usual reaction distance answers or repositions instead of standing there while he is picked off. Nothing to configure yet.</text>
   </string>
   <string id="ui_mcm_at_resistance_desc">
-    <text>Reserved for a future system. Nothing to configure yet.</text>
+    <text>Planned: NPC toughness from what they carry - armor and equipment, damage mitigators, and artefacts. Nothing to configure yet.</text>
   </string>
   <string id="ui_mcm_at_effects_desc">
     <text>Planned: player-facing combat feedback, concussion first. Nothing to configure yet.</text>
   </string>
   <string id="ui_mcm_at_mutants_desc">
-    <text>Reserved for a future system. Nothing to configure yet.</text>
+    <text>Planned: mutant combat behavior. Nothing to configure yet.</text>
   </string>
   <!-- ==================== SHARED ==================== -->
   <string id="ui_mcm_at_title">
@@ -92,7 +92,7 @@
   </string>
   <!-- ==================== DISCLOSURE PAGE ==================== -->
   <string id="ui_mcm_at_disclosure_desc">
-    <text>A hit on any squad member alerts the whole squad to the shooter on the first hit. Earshot, line of sight, and suppressor use do not block the alert. Vanilla relies on each squadmate hearing the shot, which fails against suppressors and long-range fire.</text>
+    <text>When a faction enemy wounds any squad member, the whole squad learns the shooter on the first hit. Earshot, line of sight, and suppressor use do not block it. Vanilla relies on each squadmate hearing the shot, which fails against suppressors and long-range fire.</text>
   </string>
   <string id="ui_mcm_at_disclosure_disclosure_enabled">
     <text>Enable Disclosure</text>
@@ -267,7 +267,7 @@
   </string>
   <!-- ==================== CROSSFIRE PAGE ==================== -->
   <string id="ui_mcm_at_crossfire_desc">
-    <text>Squads stop dropping their own in a firefight. A stalker that hits a teammate of his own faction deals reduced damage, set by the slider below. Actual enemies still trade full damage, and your own shots are never touched.</text>
+    <text>Same-faction fighters no longer cut each other down in a crossfire. A hit between two NPCs of the same faction deals reduced damage, set by the slider below. Genuinely hostile factions still trade full damage, and your own shots are never touched.</text>
   </string>
   <string id="ui_mcm_at_crossfire_crossfire_enabled">
     <text>Block same-faction friendly fire</text>
@@ -314,7 +314,7 @@
   </string>
   <!-- ==================== JAMMING PAGE ==================== -->
   <string id="ui_mcm_at_jam_desc">
-    <text>NPCs fire 2-3 rounds, jam, and reload. The demonized modded exes roll a per-rank jam from ammo spent, separate from weapon condition, so even a pristine rifle hits the cycle within seconds. The toggle below stops it for NPCs. Your own jams stay vanilla.</text>
+    <text>Eliminates the fake NPC jams and the tactical-reload loop they cause. On modded exes an NPC rolls a per-rank jam from ammo spent, so even a full-condition rifle chokes and reloads every few rounds. AlifeTactics turns that roll off, so NPCs jam only for real and reload only once the magazine is spent. Your own jams stay vanilla.</text>
   </string>
   <string id="ui_mcm_at_fixes_jam_jam_enabled">
     <text>Suppress NPC jams</text>
