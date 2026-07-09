@@ -1,5 +1,5 @@
 next
-  Summary: Maneuvers, Crossfire, Danger, Disclosure, Ammo, Jamming, Healing, AOEngine
+  Summary: Maneuvers, Crossfire, Danger, Disclosure, Ammo, Jamming, Healing, AOEngine, platform status
 
   Combat
     - Maneuvers: an intermittent combat takeover that borrows a stalker for a committed maneuver.
@@ -33,6 +33,7 @@ next
 
   Compatibility
     - AOEngine v0.55+ support.
+    - Added dynamic checking of xlibs and xray-monolith/AOEngine versions with a compatibility verdict.
     - The Danger rework is a runtime patch, so it coexists with GAMMA AI Rework and REDONE.
     - Ammo goes inert while the engine cvar g_ai_unlimited_ammo is 0, so NPC ammo is not drained twice.
 

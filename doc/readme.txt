@@ -94,7 +94,7 @@ Reaction (planned):
 Again based on hooks created specifically in xray-monolith, per-NPC rank-based aim speed and vision.
 
 Range (planned):
-Keeps players from cheesing NPCs at long range. A stalker shot at from beyond his usual reaction distance answers or repositions instead of standing there while he is picked off.
+Engagement distance. The game stops NPC fights at a hard range cap regardless of weapon, so a sniper never fires at the distances his rifle exists for, and a stalker sniped from beyond the cap stands there while he is picked off. This page will let long-range NPCs answer and initiate at their weapon's real reach.
 
 Resistance (planned):
 NPC toughness from what they carry: armor and equipment, damage mitigators, and artefacts.
