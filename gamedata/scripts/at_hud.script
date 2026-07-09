@@ -1,7 +1,9 @@
---- at_hud: live debug HUD listing nearby NPCs with their logic scheme, combat action, and target.
---- Per NPC: the active xr_logic section (scheme@subsection), the engine combat operator + physical state, the
---- selected enemy with distance and an aim flag (blind = cannot see it, OFF = body pointed away from it), and
---- the cover readout (planner flags / geometric ray, at_combat_trace.cover_string).
+--- at_hud: live debug HUD listing nearby NPCs, TWO lines per NPC on ONE shared 2-column grid -
+--- identical column positions on both lines, so everything aligns by construction (the old two-line
+--- layout failed because each line had its own grid). Line A, bright (green while a maneuver
+--- drives): stalker (rank + name + hp) | target (name + distance + sees). Line B, dim:
+--- engine (scheme + mental + state, everything Anomaly) | maneuver (name / cooldown / "-").
+--- The cover belief/ray forensics live in the decision trace, not here.
 
 local pairs, table_sort, math_floor, math_max, tostring = pairs, table.sort, math.floor, math.max, tostring
 local string_sub, string_format = string.sub, string.format
@@ -20,16 +22,17 @@ local HUD_SHOW_IDLE = false
 local ROW_H    = 13
 local PAD      = 6
 local COL_GAP  = 6
--- Fixed-char column widths (width = chars * CHAR_W + CELL_PAD). CHAR_W is the HUD font's approximate pixel
--- advance. Each NPC renders on TWO lines (see LINE_A / LINE_B): the essentials bright on top, the detail
--- dim and indented below, so the panel is ~half as wide as one row of nine columns and nothing clips.
+-- Fixed-char column widths (width = chars * CHAR_W + CELL_PAD). CHAR_W is the HUD font's approximate
+-- pixel advance. Two lines per NPC over one shared 2-column grid: the panel is ~316px (under 1/3
+-- screen) and the name budgets are LARGER than the single-line layout allowed.
 local CHAR_W   = 6
 local CELL_PAD = 2
 local MARGIN   = 15
 local MAX_ROWS = 16
-local NAME_MAX = 16
-local CELL_MAX = 10
-local TARGET_NAME_MAX = 12
+local SUBJECT_NAME_MAX = 14
+local TARGET_NAME_MAX  = 12
+local SCHEME_MAX       = 8
+local STATE_MAX        = 10
 -- body-to-enemy angle above this many degrees reads as "pointed away" (the weird-aim flag)
 local FACING_DEG = 60
 
@@ -75,34 +78,21 @@ local function _truncate(s, limit)
     return s
 end
 
--- Enemy name + distance (the sight cue is its own column via _sight_flag).
-local function _target_desc(npc, enemy)
-    local dist = math_floor(npc:position():distance_to(enemy:position()))
-    return string_format("%s %dm", _truncate(xcreature.get_name(enemy:id()), TARGET_NAME_MAX), dist)
-end
-
--- Sight to the enemy as its own short flag: "blind" (cannot see it), "off" (sees it but body pointed away from
--- it), "see" (looking at it). The "does he see me" cue from the old HUD, promoted to its own column.
+-- Sight to the enemy in words: "no" (the engine's visible_now is false - he does not see the enemy right
+-- now), "away" (sees it but body pointed >= FACING_DEG off it), "yes" (looking at it).
 local function _sight_flag(npc, enemy)
-    if not xcombat.sees(npc, enemy) then return "blind" end
-    if xcombat.get_facing_offset(npc, enemy:position()) >= FACING_DEG then return "off" end
-    return "see"
+    if not xcombat.sees(npc, enemy) then return "no" end
+    if xcombat.get_facing_offset(npc, enemy:position()) >= FACING_DEG then return "away" end
+    return "yes"
 end
 
--- Cover readout for a fighting row: the combat planner's stored flags against the geometric ray from the
--- enemy to the NPC, formatted by at_combat_trace.cover_string ("ynn/y"). The divergence between the flag half
--- (arrived-at-my-cover bookkeeping) and the ray half (is the line to him blocked) is what the column watches.
--- Runs only while the HUD is visible and the row has an enemy, so the raycast costs nothing when the HUD is off.
-local function _cover_flag(npc, enemy)
-    local in_cover, looked_out, held = xcombat.get_cover_state(npc)
-    local blocked = xcombat.has_obstacle_to_target(enemy:position(), npc:position())
-    return at_combat_trace.cover_string(in_cover, looked_out, held, blocked)
-end
-
--- The three enemy-keyed cells (sight flag, cover readout, name+distance), "-" across when no selected enemy.
-local function _enemy_cells(npc, enemy)
-    if not enemy then return "-", "-", "-" end
-    return _sight_flag(npc, enemy), _cover_flag(npc, enemy), _target_desc(npc, enemy)
+-- The target cell: enemy name + distance + sight word, "-" when no selected enemy.
+local function _target_cell(npc, enemy)
+    if not enemy then return "-" end
+    return string_format("%s %dm %s",
+        _truncate(xcreature.get_name(enemy:id()), TARGET_NAME_MAX),
+        math_floor(npc:position():distance_to(enemy:position())),
+        _sight_flag(npc, enemy))
 end
 
 -- Rank names abbreviated to 3 chars so the rank column never widens the panel.
@@ -119,29 +109,28 @@ local function _mental_name(npc)
     return _MENTAL[mental] or tostring(mental)
 end
 
--- Per-NPC readout across the AlifeTactics systems, one table. tag=AT drives the row COLOUR (green), so the
--- AT-vs-engine distinction lives in that colour and ACTION carries the bare maneuver name (flee / kite / retreat /
--- snipe) when the takeover holds the NPC, else the engine motivation operator (combat / danger / alife). The rank
--- (feeds Accuracy / NPC Ammo / Healing) renders as a name prefix, not its own column; hp feeds Healing and the
--- hurt situation; cover watches the planner-flag-vs-ray divergence; ENEMY keeps the sight cue. The old danger
--- column is gone (near-always "-"); grenade evidence lives on the decision trace.
+-- Per-NPC readout, one table, one HUD line of 4 composite cells. tag=AT drives the row COLOUR (green,
+-- only while a maneuver is actually open); the maneuver cell carries the takeover status word - the
+-- maneuver name, "cooldown" through the reseize window, "-" when vanilla drives. engine packs
+-- everything Anomaly: the xr_logic scheme, the mental word, and the state_mgr target state.
 local function _derive(npc, st)
     local maneuver = at_combat.get_maneuver(npc:id())
     local sm = st.state_mgr
     local enemy = npc:best_enemy()
-    local sees, cover, enemy_desc = _enemy_cells(npc, enemy)
     local rank = ranks.get_obj_rank_name(npc)
     return {
-        tag       = maneuver and "AT" or nil,
-        rank      = rank and (RANK_SHORT[rank] or rank) or "-",
-        hp        = math_floor((npc.health or 0) * 100) .. "%",
-        scheme    = _truncate(st.active_scheme or st.active_section or "-", CELL_MAX),
-        action    = maneuver or xcombat.get_operator(npc),
-        state     = _truncate((sm and sm.target_state) or "-", CELL_MAX),
-        mental    = _mental_name(npc),
-        sees      = sees,
-        cover     = cover,
-        enemy     = enemy_desc,
+        tag     = maneuver and "AT" or nil,
+        stalker = string_format("(%s)%s %d%%",
+            rank and (RANK_SHORT[rank] or rank) or "-",
+            _truncate(npc:character_name() or npc:name(), SUBJECT_NAME_MAX),
+            math_floor((npc.health or 0) * 100)),
+        target  = _target_cell(npc, enemy),
+        -- scheme and state are omitted when absent, not printed as "-" (a leading dash reads
+        -- as a stray minus); mental is always present, so the cell is never empty.
+        engine  = (st.active_scheme and (_truncate(st.active_scheme, SCHEME_MAX) .. " ") or "")
+            .. _mental_name(npc)
+            .. (sm and sm.target_state and (" " .. _truncate(sm.target_state, STATE_MAX)) or ""),
+        maneuver = at_combat.get_status(npc:id()) or "-",
         is_combat = enemy ~= nil,
     }
 end
@@ -192,13 +181,10 @@ local function _build_rows()
     local visible = count > MAX_ROWS and MAX_ROWS or count
     local rows = {}
     for i = 1, visible do
-        local cand = cands[i]
-        local row = _derive(cand.npc, cand.st)
-        row.name = "(" .. row.rank .. ")" .. _truncate(cand.npc:character_name() or cand.npc:name(), NAME_MAX)
-        rows[i] = row
+        rows[i] = _derive(cands[i].npc, cands[i].st)
     end
     if count > MAX_ROWS then
-        rows[visible + 1] = { name = string_format("+%d more", count - MAX_ROWS), is_overflow = true }
+        rows[visible + 1] = { stalker = string_format("+%d more", count - MAX_ROWS), is_overflow = true }
     end
 
     return rows
@@ -207,19 +193,18 @@ end
 
 -- =========================================================================
 -- UIDebugHUD: CUIScriptWnd built ONCE, refresh only rewrites text + colors
--- (no per-tick widget construction). Each NPC is TWO lines: LINE_A carries the
--- essentials bright (AT-green when driven), LINE_B the detail dim and indented.
--- Two narrow lines beat one wide row - the panel is half as wide, nothing clips.
+-- (no per-tick widget construction). Two lines per NPC on ONE shared grid.
 -- =========================================================================
 
-local LINE_A = { { "name", NAME_MAX + 6 }, { "hp", 4 }, { "action", 12 }, { "enemy", TARGET_NAME_MAX + 6 } }
-local LINE_B = { { "scheme", CELL_MAX }, { "state", CELL_MAX }, { "mental", 6 }, { "sees", 5 }, { "cover", 6 } }
-local LINE_B_INDENT = CHAR_W * 2
+-- The shared grid (chars per column) and what each line puts in it.
+local GRID  = { 26, 22 }
+local ROW_A = { "stalker", "target" }
+local ROW_B = { "engine", "maneuver" }
 
-local function _lay_widths(cols)
+local function _lay_widths(chars)
     local widths, total = {}, 0
-    for i = 1, #cols do
-        widths[i] = cols[i][2] * CHAR_W + CELL_PAD
+    for i = 1, #chars do
+        widths[i] = chars[i] * CHAR_W + CELL_PAD
         total = total + widths[i] + COL_GAP
     end
     return widths, total
@@ -232,9 +217,8 @@ function UIDebugHUD:__init() super()
     self:SetAutoDelete(true)
     self:Enable(true)
 
-    local wa, wa_total = _lay_widths(LINE_A)
-    local wb, wb_total = _lay_widths(LINE_B)
-    local total_w = math_max(wa_total, LINE_B_INDENT + wb_total) + PAD * 2
+    local widths, total_w = _lay_widths(GRID)
+    total_w = total_w + PAD * 2
     -- 2 header lines + spacer + MAX_ROWS entries (2 lines each) + 1 overflow line
     local panel_h = (MAX_ROWS * 2 + 4) * ROW_H + PAD * 2
     local pos = _calc_position(panel_h, total_w)
@@ -244,17 +228,15 @@ function UIDebugHUD:__init() super()
     local xml = CScriptXmlInit()
     xml:ParseFile("ui_at_stats.xml")
 
-    -- Header: LINE_A labels on row 0, LINE_B labels on row 1 (dim). Entries start after a spacer row.
-    self:_header(xml, self:_line(xml, PAD, wa, PAD), LINE_A, CLR_TITLE)
-    self:_header(xml, self:_line(xml, PAD + ROW_H, wb, PAD + LINE_B_INDENT), LINE_B, CLR_DIM)
-
-    -- Header rows 0-1, spacer row 2, entry i on rows (1+i*2) and (2+i*2). Entry MAX_ROWS+1 is the
-    -- single-line "+N more" overflow: its A-row lands on the last panel row, its B-row stays blank.
+    -- Header rows 0-1 (A labels bright, B labels dim, SAME grid), spacer row 2, entry i on rows
+    -- (1+i*2) and (2+i*2). Entry MAX_ROWS+1 is the single-line "+N more" overflow.
+    self:_header(xml, self:_line(xml, PAD, widths, PAD), ROW_A, CLR_TITLE)
+    self:_header(xml, self:_line(xml, PAD + ROW_H, widths, PAD), ROW_B, CLR_DIM)
     self.a, self.b = {}, {}
     for i = 1, MAX_ROWS + 1 do
-        local y_a = PAD + (1 + i * 2) * ROW_H
-        self.a[i] = self:_line(xml, y_a, wa, PAD)
-        self.b[i] = self:_line(xml, y_a + ROW_H, wb, PAD + LINE_B_INDENT)
+        local y = PAD + (1 + i * 2) * ROW_H
+        self.a[i] = self:_line(xml, y, widths, PAD)
+        self.b[i] = self:_line(xml, y + ROW_H, widths, PAD)
     end
     self.used = 0
 end
@@ -269,9 +251,9 @@ function UIDebugHUD:_line(xml, y, widths, x0)
     return cells
 end
 
-function UIDebugHUD:_header(_xml, cells, cols, color)
-    for i = 1, #cols do
-        cells[i]:SetText(cols[i][1])
+function UIDebugHUD:_header(_xml, cells, labels, color)
+    for i = 1, #labels do
+        cells[i]:SetText(labels[i])
         cells[i]:SetTextColor(color)
     end
 end
@@ -283,8 +265,9 @@ function UIDebugHUD:_cell(xml, x, y, w)
     return st:TextControl()
 end
 
--- Rewrite both lines per row from freshly built rows; blank only what the previous refresh used.
--- No allocation, no widget construction.
+-- Rewrite both lines per entry from freshly built rows; blank only what the previous refresh used.
+-- No allocation, no widget construction. Line A takes the row color (green while a maneuver
+-- drives), line B stays dim - the pairing cue. The overflow entry fills only its first A cell.
 function UIDebugHUD:set_rows(rows)
     local count = #rows
     if count > MAX_ROWS + 1 then count = MAX_ROWS + 1 end
@@ -292,21 +275,19 @@ function UIDebugHUD:set_rows(rows)
         local row = rows[i]
         local color = (row.is_overflow and CLR_DIM) or (row.tag == "AT" and CLR_AT) or CLR_NORMAL
         local a, b = self.a[i], self.b[i]
-        a[1]:SetText(row.name or ""); a[2]:SetText(row.hp or "")
-        a[3]:SetText(row.action or ""); a[4]:SetText(row.enemy or "")
-        for c = 1, #a do a[c]:SetTextColor(color) end
-        if row.is_overflow then
-            for c = 1, #b do b[c]:SetText("") end
-        else
-            b[1]:SetText(row.scheme or ""); b[2]:SetText(row.state or ""); b[3]:SetText(row.mental or "")
-            b[4]:SetText(row.sees or ""); b[5]:SetText(row.cover or "")
-            for c = 1, #b do b[c]:SetTextColor(CLR_DIM) end
+        for c = 1, #ROW_A do
+            a[c]:SetText(row[ROW_A[c]] or "")
+            a[c]:SetTextColor(color)
+        end
+        for c = 1, #ROW_B do
+            b[c]:SetText(row.is_overflow and "" or (row[ROW_B[c]] or ""))
+            b[c]:SetTextColor(CLR_DIM)
         end
     end
     for i = count + 1, self.used do
         local a, b = self.a[i], self.b[i]
-        for c = 1, #a do a[c]:SetText("") end
-        for c = 1, #b do b[c]:SetText("") end
+        for c = 1, #ROW_A do a[c]:SetText("") end
+        for c = 1, #ROW_B do b[c]:SetText("") end
     end
     self.used = count
 end
@@ -315,7 +296,7 @@ function UIDebugHUD:__finalize() end
 
 
 -- =========================================================================
--- Lifecycle: visibility-gated 1s refresh via ResetTimeEvent
+-- Lifecycle: visibility-gated refresh (REFRESH_INTERVAL_SEC) via ResetTimeEvent
 -- =========================================================================
 
 local _hud = nil
