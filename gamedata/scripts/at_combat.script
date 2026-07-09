@@ -15,12 +15,17 @@ local BEGIN_PERIOD_MS, UPDATE_PERIOD_MS, END_PERIOD_MS, HIT_FIGHT_MS, RESEIZE_CO
 
 local COMPANION_INFO = "npcx_is_companion"
 local MANEUVER_CAP_MS = 8000
+local MAX_CONCURRENT
 
 
 -- Per-NPC state store: one flat record per installed NPC, created on first touch. Never saved.
 
 local _installed = {}
 local _states    = {}
+-- ONLINE NPCs currently holding a maneuver. MAX_CONCURRENT caps how many run at once (bounds ongoing
+-- cost and keeps most of the field on vanilla). _drop_gate keeps it honest on every gate-clearing path
+-- (end AND despawn), so a dead NPC can never leak a slot.
+local _open_count = 0
 
 local function _state(id)
     local state = _states[id]
@@ -32,9 +37,10 @@ end
 -- Fight detection and the seize gates: one named predicate each.
 
 -- In a fight = the engine selected an enemy, OR a hit landed recently (the far-shooter case, where the enemy is
--- out of the distance gate so best_enemy is still nil but the NPC is plainly under fire).
-local function _is_fighting(npc, state, tg)
-    if npc:best_enemy() ~= nil then return true end
+-- out of the distance gate so best_enemy is still nil but the NPC is plainly under fire). Takes the enemy the
+-- caller already read (one best_enemy luabind per begin check, not two).
+local function _is_fighting(enemy, state, tg)
+    if enemy ~= nil then return true end
     return state.hit_at ~= nil and (tg - state.hit_at) < HIT_FIGHT_MS
 end
 
@@ -45,11 +51,12 @@ local function _manages(npc)
     return true
 end
 
--- Seizability: armed, not already in a smart cover, and outdoors (see architecture.md Combat for why each).
+-- Seizability: armed and not already in a smart cover (vanilla owns that micro). No indoor gate - the
+-- takeover fights everywhere; xcombat.is_indoor (a proper roof+walls raycast) stays available if a future
+-- maneuver ever needs it, but the takeover does not.
 local function _can_seize(npc)
     if not xcombat.get_weapon_kind(npc) then return false, "no_weapon" end
     if npc:in_smart_cover() then return false, "smart_cover" end
-    if xcombat.is_indoor(npc:position()) then return false, "indoor" end
     return true
 end
 
@@ -67,12 +74,22 @@ local function _release_cover(state)
     end
 end
 
+-- Lower the gate and keep the concurrent count honest. EVERY path that clears an open gate routes here
+-- (_end_maneuver AND the death/despawn handlers), so _open_count can never leak a slot to a dead NPC.
+local function _drop_gate(state)
+    if state and state.gate then
+        _open_count = _open_count - 1
+        if _open_count < 0 then _open_count = 0 end
+        state.gate = false
+    end
+end
+
 -- End the maneuver: lower the gate, clear the row, keep end_at for the reseize cooldown. Releases any cover the
 -- resolver reserved, on EVERY exit (arrived, cap, never-begun) so a gate that raised but never ran a maneuver
 -- does not leak the reservation in db.used_level_vertex_ids (t136).
 local function _end_maneuver(state, tg, reason, check_us)
     if _dbg then trace.end_maneuver(state.id, state.maneuver and state.maneuver.name, reason, math_floor(tg - (state.begin_at or tg)), check_us) end
-    state.gate = false
+    _drop_gate(state)
     state.maneuver = nil
     state.dest = nil
     state.trigger = nil
@@ -85,7 +102,8 @@ end
 -- Begin the maneuver - the first engine write, at the grafted action's initialize (the engine granted control
 -- this frame; writing earlier would fight vanilla, which drives until the planner swap). Sets the destination
 -- once (the engine walks it), applies the row's combat state once, opens a STOW rout's flee hold. Re-reads
--- best_enemy because it can change between _try_begin_maneuver and here.
+-- best_enemy because it can change between _try_begin_maneuver and here. The begin write is timed in two parts
+-- (send=/apply=, debug only) so a slow begin names which engine call cost it - send_to or apply_state.
 local function _begin_maneuver(npc)
     local state = _states[npc:id()]
     if not state or not state.maneuver then return end
@@ -93,10 +111,12 @@ local function _begin_maneuver(npc)
     local maneuver = state.maneuver
     local enemy = npc:best_enemy()
     if not enemy then _end_maneuver(state, tg, "no_enemy") return end
-    local tmr = xprofiler.new_if(_dbg):start()
+    local tmr_send = xprofiler.new_if(_dbg):start()
     xcombat.send_to(npc, state.dest)
+    tmr_send:stop()
+    local tmr_apply = xprofiler.new_if(_dbg):start()
     local fire, gate = doctrine.apply_state(npc, maneuver, enemy)
-    tmr:stop()
+    tmr_apply:stop()
     state.maneuver_at = tg
     if maneuver.fire == xcombat.STOW then
         state.flee_enemy = enemy:id()
@@ -104,7 +124,10 @@ local function _begin_maneuver(npc)
     else
         state.flee_enemy = nil
     end
-    if _dbg then trace.begin_maneuver(state.id, maneuver.name, state.trigger, state.dest, fire, maneuver.movement, maneuver.fire, gate, state.cover, math_floor(tmr:get_us())) end
+    if _dbg then
+        trace.begin_maneuver(state.id, maneuver.name, state.trigger, state.dest, fire, maneuver.movement,
+            maneuver.fire, gate, state.cover, math_floor(tmr_send:get_us()), math_floor(tmr_apply:get_us()))
+    end
 end
 
 -- One spec drives every AT NPC: gate = the per-NPC flag the grafted evaluator polls; on_begin = _begin_maneuver,
@@ -138,10 +161,10 @@ local function _trace_decision(npc, state, enemy, result)
     trace.decision(state.id, state, result or "none")
 end
 
--- Look for a maneuver to begin: managed, off cooldown, fighting, the enemy eligible, seizable, a catalog row
--- picked (its situation fired, palette matched, resolver yielded a destination). Staging = record the row +
--- destination and raise the gate; the engine grants control at the next plan solve and calls _begin_maneuver.
--- No engine write happens here - vanilla still drives this frame.
+-- Look for a maneuver to begin: managed, off cooldown, fighting, the enemy eligible, seizable, under the cap,
+-- a catalog row picked (its situation fired, palette matched, resolver yielded a destination). Staging =
+-- record the row + destination and raise the gate; the engine grants control at the next plan solve and calls
+-- _begin_maneuver. No engine write happens here - vanilla still drives this frame.
 local function _try_begin_maneuver(npc, state, tg)
     if not _manages(npc) then state.fighting = false return end
     local tmr = xprofiler.new_if(_dbg):start()
@@ -154,11 +177,11 @@ local function _try_begin_maneuver(npc, state, tg)
         return
     end
 
-    state.fighting = _is_fighting(npc, state, tg)
+    local enemy = npc:best_enemy()
+    state.fighting = _is_fighting(enemy, state, tg)
     if not state.fighting then state.stall_set = false return end
     if _dbg then trace.set_name(state.id, npc:name()) end
 
-    local enemy = npc:best_enemy()
     if not enemy then
         state.enemy_id = nil
         tmr:stop()
@@ -174,12 +197,21 @@ local function _try_begin_maneuver(npc, state, tg)
         return
     end
 
+    -- Concurrency cap (failsafe): the field is full, so skip the catalog walk (and its resolver raycasts)
+    -- before any expensive read. The NPC retries on its next begin check.
+    if MAX_CONCURRENT > 0 and _open_count >= MAX_CONCURRENT then
+        tmr:stop()
+        trace.monitor(state.id, state, "at_cap", nil, tmr:get_us())
+        return
+    end
+
     -- pick_maneuver walks the catalog rows in order (situation -> palette -> resolver), returns
     -- (maneuver, dest) on a pick and nil when no row fires; it stores the fired situation on state.trigger
     -- and the per-row walk with its timings on state.rows / state.walk_us for the decision trace.
     local maneuver, dest = doctrine.pick_maneuver(npc, enemy, state, tg)
     if maneuver then
         state.gate = true
+        _open_count = _open_count + 1
         state.maneuver = maneuver
         state.dest = dest
         state.maneuver_at = nil
@@ -302,6 +334,7 @@ local function _on_net_destroy(npc)
     if not npc then return end
     local id = npc:id()
     xcombat.release_takeover(npc)
+    _drop_gate(_states[id])
     _release_cover(_states[id])
     _installed[id] = nil
     _states[id] = nil
@@ -313,6 +346,7 @@ local function _on_entity_unregister(se_obj)
     -- Clear xcombat's install guard too: an id unregistered WITHOUT a prior net_destroy would leave a stale
     -- guard there and the recycled id would silently skip its next graft.
     xcombat.release_takeover_id(id)
+    _drop_gate(_states[id])
     _release_cover(_states[id])
     _installed[id] = nil
     _states[id] = nil
@@ -340,6 +374,7 @@ local function _load_config()
     END_PERIOD_MS       = read_int("end_period_ms",       200)
     HIT_FIGHT_MS        = read_int("hit_fight_ms",        5000)
     RESEIZE_COOLDOWN_MS = read_int("reseize_cooldown_ms", 5000)
+    MAX_CONCURRENT      = read_int("max_concurrent_maneuvers", 8)
     _build_scan()
 end
 
@@ -351,9 +386,10 @@ end
 
 local function _on_first_update()
     trace.reset()
+    _open_count = 0
     _refresh_log()
-    log.info("Combat monitor initialized (enabled=%s dbg=%s)",
-        tostring(cfg.combat_enabled), tostring(_dbg))
+    log.info("Combat monitor initialized (enabled=%s dbg=%s cap=%d)",
+        tostring(cfg.combat_enabled), tostring(_dbg), MAX_CONCURRENT)
 end
 
 function on_game_start()
