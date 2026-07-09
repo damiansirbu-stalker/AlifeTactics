@@ -3,7 +3,7 @@
 --- selected enemy with distance and an aim flag (blind = cannot see it, OFF = body pointed away from it), and
 --- the cover readout (planner flags / geometric ray, at_combat_trace.cover_string).
 
-local pairs, table_sort, math_floor, tostring = pairs, table.sort, math.floor, tostring
+local pairs, table_sort, math_floor, math_max, tostring = pairs, table.sort, math.floor, math.max, tostring
 local string_sub, string_format = string.sub, string.format
 local IsStalker, RegisterScriptCallback = IsStalker, RegisterScriptCallback
 
@@ -11,7 +11,7 @@ local log = xlog.get_logger("AT.HUD", { outfile = "alifetactics.log" })
 local _dbg = false
 local cfg = at_mcm.cfg
 
-local REFRESH_INTERVAL_SEC = 1
+local REFRESH_INTERVAL_SEC = 3
 -- Scan radius and idle-row visibility are code constants, not MCM options: every key in at_mcm defaults
 -- must have a tree widget (ui_mcm.get validates the path against the option tree), and these never had one.
 local HUD_RADIUS_M  = 100
@@ -20,17 +20,16 @@ local HUD_SHOW_IDLE = false
 local ROW_H    = 13
 local PAD      = 6
 local COL_GAP  = 6
--- Columns auto-size to their widest cell (header + rows): width = maxchars * CHAR_W + CELL_PAD. CHAR_W is the
--- approximate pixel advance of the HUD font; CELL_PAD keeps text off the next column. With no fixed column
--- widths a short column is not padded to a huge gap and long content is not clipped. The truncation caps
--- below bound the panel to roughly half the 1024-unit screen; ranks render abbreviated for the same reason.
+-- Fixed-char column widths (width = chars * CHAR_W + CELL_PAD). CHAR_W is the HUD font's approximate pixel
+-- advance. Each NPC renders on TWO lines (see LINE_A / LINE_B): the essentials bright on top, the detail
+-- dim and indented below, so the panel is ~half as wide as one row of nine columns and nothing clips.
 local CHAR_W   = 6
 local CELL_PAD = 2
 local MARGIN   = 15
-local MAX_ROWS = 20
-local NAME_MAX = 12
+local MAX_ROWS = 16
+local NAME_MAX = 16
 local CELL_MAX = 10
-local TARGET_NAME_MAX = 10
+local TARGET_NAME_MAX = 12
 -- body-to-enemy angle above this many degrees reads as "pointed away" (the weird-aim flag)
 local FACING_DEG = 60
 
@@ -152,17 +151,21 @@ end
 -- Row builder: walk db.storage, derive per NPC, sort, cap
 -- =========================================================================
 
-local function _row_for(id, st, ax, r2, actor_id, show_idle)
+-- Cheap candidate pass: no raycast, no name read, no operator read - just the row's identity and
+-- sort keys. The expensive derivation (_derive: cover ray, operator, names) runs only for the
+-- capped visible set, so a huge crowd costs MAX_ROWS derivations, not one per NPC in radius.
+local function _candidate(id, st, ax, r2, actor_id, show_idle)
     if id == actor_id then return nil end
-    local npc = level.object_by_id(id)
+    local npc = st.object or level.object_by_id(id)
     if not npc then return nil end
     if not IsStalker(npc) then return nil end
     if not npc:alive() then return nil end
-    if ax:distance_to_sqr(npc:position()) >= r2 then return nil end
-    local row = _derive(npc, st)
-    if not (show_idle or row.is_combat) then return nil end
-    row.name = "(" .. row.rank .. ")" .. _truncate(npc:character_name() or npc:name(), NAME_MAX)
-    return row
+    local dist_sqr = ax:distance_to_sqr(npc:position())
+    if dist_sqr >= r2 then return nil end
+    local maneuver = at_combat.get_maneuver(id)
+    local is_combat = maneuver ~= nil or npc:best_enemy() ~= nil
+    if not (show_idle or is_combat) then return nil end
+    return { npc = npc, st = st, dist_sqr = dist_sqr, at = maneuver ~= nil, is_combat = is_combat }
 end
 
 local function _build_rows()
@@ -170,25 +173,32 @@ local function _build_rows()
     if not actor then return {} end
     local ax = actor:position()
     local r2 = HUD_RADIUS_M * HUD_RADIUS_M
-    local show_idle = HUD_SHOW_IDLE
     local actor_id = actor:id()
 
-    local rows = {}
+    local cands = {}
     for id, st in pairs(db.storage) do
-        local row = _row_for(id, st, ax, r2, actor_id, show_idle)
-        if row then rows[#rows + 1] = row end
+        local cand = _candidate(id, st, ax, r2, actor_id, HUD_SHOW_IDLE)
+        if cand then cands[#cands + 1] = cand end
     end
 
-    table_sort(rows, function(a, b)
-        if (a.tag == "AT") ~= (b.tag == "AT") then return a.tag == "AT" end
+    -- AT-driven first, then anyone fighting, then nearest first.
+    table_sort(cands, function(a, b)
+        if a.at ~= b.at then return a.at end
         if a.is_combat ~= b.is_combat then return a.is_combat end
-        return a.name < b.name
+        return a.dist_sqr < b.dist_sqr
     end)
 
-    if #rows > MAX_ROWS then
-        local extra = #rows - MAX_ROWS
-        for i = #rows, MAX_ROWS + 1, -1 do rows[i] = nil end
-        rows[#rows + 1] = { name = string_format("+%d more", extra), is_overflow = true }
+    local count = #cands
+    local visible = count > MAX_ROWS and MAX_ROWS or count
+    local rows = {}
+    for i = 1, visible do
+        local cand = cands[i]
+        local row = _derive(cand.npc, cand.st)
+        row.name = "(" .. row.rank .. ")" .. _truncate(cand.npc:character_name() or cand.npc:name(), NAME_MAX)
+        rows[i] = row
+    end
+    if count > MAX_ROWS then
+        rows[visible + 1] = { name = string_format("+%d more", count - MAX_ROWS), is_overflow = true }
     end
 
     return rows
@@ -196,47 +206,37 @@ end
 
 
 -- =========================================================================
--- UIDebugHUD: CUIScriptWnd painting one static-text widget per cell
+-- UIDebugHUD: CUIScriptWnd built ONCE, refresh only rewrites text + colors
+-- (no per-tick widget construction). Each NPC is TWO lines: LINE_A carries the
+-- essentials bright (AT-green when driven), LINE_B the detail dim and indented.
+-- Two narrow lines beat one wide row - the panel is half as wide, nothing clips.
 -- =========================================================================
 
--- Per-column pixel widths from the widest cell (header + every row), so each column fits its own content.
-local function _column_widths(header, cells)
-    local cols = #header
-    local max_chars = {}
-    for col = 1, cols do max_chars[col] = #header[col] end
-    for row_i = 1, #cells do
-        local row = cells[row_i]
-        for col = 1, cols do
-            local chars = #(row[col] or "")
-            if chars > max_chars[col] then max_chars[col] = chars end
-        end
+local LINE_A = { { "name", NAME_MAX + 6 }, { "hp", 4 }, { "action", 12 }, { "enemy", TARGET_NAME_MAX + 6 } }
+local LINE_B = { { "scheme", CELL_MAX }, { "state", CELL_MAX }, { "mental", 6 }, { "sees", 5 }, { "cover", 6 } }
+local LINE_B_INDENT = CHAR_W * 2
+
+local function _lay_widths(cols)
+    local widths, total = {}, 0
+    for i = 1, #cols do
+        widths[i] = cols[i][2] * CHAR_W + CELL_PAD
+        total = total + widths[i] + COL_GAP
     end
-    local widths = {}
-    for col = 1, cols do widths[col] = max_chars[col] * CHAR_W + CELL_PAD end
-    return widths
+    return widths, total
 end
 
 class "UIDebugHUD" (CUIScriptWnd)
 
-function UIDebugHUD:__init(rows) super()
+function UIDebugHUD:__init() super()
     _init_colors()
     self:SetAutoDelete(true)
     self:Enable(true)
 
-    -- Build cell arrays (header first), then size each column to its widest cell.
-    local header = { "name", "hp", "scheme", "action", "state", "mental", "sees", "cover", "enemy" }
-    local cells = {}
-    for i = 1, #rows do
-        local row = rows[i]
-        cells[i] = { row.name or "", row.hp or "", row.scheme or "", row.action or "",
-                     row.state or "", row.mental or "", row.sees or "", row.cover or "", row.enemy or "" }
-    end
-    local widths = _column_widths(header, cells)
-    local total_w = PAD * 2
-    for col = 1, #widths do total_w = total_w + widths[col] + (col < #widths and COL_GAP or 0) end
-
-    -- +2 rows for the header + spacer
-    local panel_h = (#rows + 2) * ROW_H + PAD * 2
+    local wa, wa_total = _lay_widths(LINE_A)
+    local wb, wb_total = _lay_widths(LINE_B)
+    local total_w = math_max(wa_total, LINE_B_INDENT + wb_total) + PAD * 2
+    -- 2 header lines + spacer + MAX_ROWS entries (2 lines each) + 1 overflow line
+    local panel_h = (MAX_ROWS * 2 + 4) * ROW_H + PAD * 2
     local pos = _calc_position(panel_h, total_w)
     self:SetWndPos(vector2():set(pos[1], pos[2]))
     self:SetWndSize(vector2():set(total_w, panel_h))
@@ -244,34 +244,71 @@ function UIDebugHUD:__init(rows) super()
     local xml = CScriptXmlInit()
     xml:ParseFile("ui_at_stats.xml")
 
-    self:_row(xml, PAD, header, widths, CLR_TITLE)
+    -- Header: LINE_A labels on row 0, LINE_B labels on row 1 (dim). Entries start after a spacer row.
+    self:_header(xml, self:_line(xml, PAD, wa, PAD), LINE_A, CLR_TITLE)
+    self:_header(xml, self:_line(xml, PAD + ROW_H, wb, PAD + LINE_B_INDENT), LINE_B, CLR_DIM)
 
-    for i = 1, #rows do
-        local row = rows[i]
-        local color
-        if row.is_overflow then color = CLR_DIM
-        elseif row.tag == "AT" then color = CLR_AT
-        else color = CLR_NORMAL end
-        self:_row(xml, PAD + (i + 1) * ROW_H, cells[i], widths, color)
+    -- Header rows 0-1, spacer row 2, entry i on rows (1+i*2) and (2+i*2). Entry MAX_ROWS+1 is the
+    -- single-line "+N more" overflow: its A-row lands on the last panel row, its B-row stays blank.
+    self.a, self.b = {}, {}
+    for i = 1, MAX_ROWS + 1 do
+        local y_a = PAD + (1 + i * 2) * ROW_H
+        self.a[i] = self:_line(xml, y_a, wa, PAD)
+        self.b[i] = self:_line(xml, y_a + ROW_H, wb, PAD + LINE_B_INDENT)
+    end
+    self.used = 0
+end
+
+-- Build one row of static-text cells at y from x0, one per width. Returns the TextControl array.
+function UIDebugHUD:_line(xml, y, widths, x0)
+    local cells, col_x = {}, x0
+    for i = 1, #widths do
+        cells[i] = self:_cell(xml, col_x, y, widths[i])
+        col_x = col_x + widths[i] + COL_GAP
+    end
+    return cells
+end
+
+function UIDebugHUD:_header(_xml, cells, cols, color)
+    for i = 1, #cols do
+        cells[i]:SetText(cols[i][1])
+        cells[i]:SetTextColor(color)
     end
 end
 
-function UIDebugHUD:_row(xml, y, cells, widths, color)
-    local col_x = PAD
-    for col = 1, #cells do
-        self:_cell(xml, col_x, y, widths[col], cells[col], color)
-        col_x = col_x + widths[col] + COL_GAP
-    end
-end
-
-function UIDebugHUD:_cell(xml, x, y, w, text, color)
+function UIDebugHUD:_cell(xml, x, y, w)
     local st = xml:InitStatic("line", self)
     st:SetWndPos(vector2():set(x, y))
     st:SetWndSize(vector2():set(w, ROW_H - 2))
-    local tc = st:TextControl()
-    tc:SetText(text or "")
-    tc:SetTextColor(color)
-    return st
+    return st:TextControl()
+end
+
+-- Rewrite both lines per row from freshly built rows; blank only what the previous refresh used.
+-- No allocation, no widget construction.
+function UIDebugHUD:set_rows(rows)
+    local count = #rows
+    if count > MAX_ROWS + 1 then count = MAX_ROWS + 1 end
+    for i = 1, count do
+        local row = rows[i]
+        local color = (row.is_overflow and CLR_DIM) or (row.tag == "AT" and CLR_AT) or CLR_NORMAL
+        local a, b = self.a[i], self.b[i]
+        a[1]:SetText(row.name or ""); a[2]:SetText(row.hp or "")
+        a[3]:SetText(row.action or ""); a[4]:SetText(row.enemy or "")
+        for c = 1, #a do a[c]:SetTextColor(color) end
+        if row.is_overflow then
+            for c = 1, #b do b[c]:SetText("") end
+        else
+            b[1]:SetText(row.scheme or ""); b[2]:SetText(row.state or ""); b[3]:SetText(row.mental or "")
+            b[4]:SetText(row.sees or ""); b[5]:SetText(row.cover or "")
+            for c = 1, #b do b[c]:SetTextColor(CLR_DIM) end
+        end
+    end
+    for i = count + 1, self.used do
+        local a, b = self.a[i], self.b[i]
+        for c = 1, #a do a[c]:SetText("") end
+        for c = 1, #b do b[c]:SetText("") end
+    end
+    self.used = count
 end
 
 function UIDebugHUD:__finalize() end
@@ -282,21 +319,32 @@ function UIDebugHUD:__finalize() end
 -- =========================================================================
 
 local _hud = nil
+local _shown = false
 local _tick_active = false
 
 local function _hide()
-    if _hud then
+    if _hud and _shown then
         get_hud():RemoveDialogToRender(_hud)
-        _hud = nil
+        _shown = false
     end
+end
+
+-- Drop the window entirely (position change, actor teardown); the next
+-- refresh rebuilds it at the current preset.
+local function _drop_hud()
+    _hide()
+    _hud = nil
 end
 
 local function _refresh()
     local tmr = xprofiler.new_if(_dbg):start()
-    _hide()
     local rows = _build_rows()
-    _hud = UIDebugHUD(rows)
-    get_hud():AddDialogToRender(_hud)
+    if not _hud then _hud = UIDebugHUD() end
+    if not _shown then
+        get_hud():AddDialogToRender(_hud)
+        _shown = true
+    end
+    _hud:set_rows(rows)
     tmr:stop()
     if _dbg then log.debug("[HUD] refresh rows=%d [%.2fms]", #rows, tmr:get_ms()) end
 end
@@ -329,7 +377,7 @@ end
 local function _stop()
     _tick_active = false
     RemoveTimeEvent("at_hud", "tick")
-    _hide()
+    _drop_hud()
     log.info("Debug HUD disabled")
 end
 
@@ -340,6 +388,7 @@ end
 
 local function _on_option_change()
     _refresh_log()
+    _drop_hud()
     if cfg.hud_position ~= "off" then _start() else _stop() end
 end
 
