@@ -55,6 +55,9 @@
 	11. Performance: the inertion and ignore-distance condlists are parsed once and
 	   memoized (_parse_cached); vanilla re-parsed the same fixed strings on every
 	   danger evaluation, per NPC per plan solve.
+	12. script_danger entries are dropped on entity unregister. Vanilla kept a dead
+	   perceiver's entry until expiry, so a recycled id inside the inertion window
+	   inherited a scripted danger the new NPC never perceived.
 
 	Extension callback
 	------------------
@@ -63,9 +66,15 @@
 
 	Improvements (MCM-toggleable on the Effectiveness > Danger page)
 	---------------------------------------------------------------
-	1. danger_hit_bypass: a direct hit bypasses the combat-ignore distance gate.
-	2. danger_actor_tables: dangers sourced from the actor read separate inertion/ignore tables.
-	3. danger_attack_sound: the attack-sound danger type gets a script-side handler.
+	1. danger_hit_bypass: a direct hit is danger at any distance (being hit is proof of range);
+	   bypasses the relation, combat-ignore and ignore-distance gates. Only the scripted
+	   combat-ignore override still suppresses it. Squad-level response to the same hit is
+	   at_disclosure's job; this is the victim's own reflex when combat cannot engage.
+	2. danger_actor_tables: dangers sourced from the actor read the separate [_actor] tables,
+	   where the installed config differentiates them (GAMMA AI Rework does; vanilla ships copies).
+	3. danger_attack_sound: the attack-sound danger type gets a script-side handler, admitted by
+	   at_evaluator_check_danger while the toggle is on. Reaction distance is the winning config's
+	   attack_sound row.
 	Snap danger-state transitions (not toggleable) remove the reaction-delay blend.
 --]]
 
@@ -238,10 +247,13 @@ local function is_danger(npc,best_danger,script)
 		best_danger_object = best_danger:dependent_object()
 	end
 
+	-- A direct hit is proof of danger at any distance: no relation, combat-ignore or radius gate
+	-- applies (being hit already proves the shooter is in range). Only the scripted combat-ignore
+	-- override still suppresses it (quest-forced non-reaction must hold).
 	if _enabled.hit_bypass and best_danger_object and (best_danger:perceive_type() == danger_object.hit)
 		and not xr_combat_ignore.ignore_enemy_by_overrides(npc, best_danger_object) then
 		if _dbg then log.debug("hit-type bypass npc=%s src=%s", npc:name(), best_danger_object:name()) end
-		return danger_in_radius(npc, best_danger, bd_type)
+		return true
 	end
 
 	if not (best_danger_object and (IsMonster(best_danger_object) or IsStalker(best_danger_object)) and npc:relation(best_danger_object) >= 2) then
@@ -987,7 +999,11 @@ function at_evaluator_check_danger:evaluate()
 		return false
 	end
 
-	if not (bd_type == danger_object.attacked or bd_type == danger_object.entity_corpse or bd_type == danger_object.grenade) then
+	-- attack_sound is admitted only while the React-to-nearby-gunfire improvement is on: it routes
+	-- the danger action to script_action_danger_alert. Without this admission the dispatch in
+	-- at_action_danger:execute was unreachable (the 1.1.0 bug: the improvement never fired).
+	if not (bd_type == danger_object.attacked or bd_type == danger_object.entity_corpse or bd_type == danger_object.grenade
+		or (_enabled.attack_sound and bd_type == danger_object.attack_sound)) then
 		return false
 	end
 
@@ -1114,6 +1130,12 @@ end
 -----------------------------------------------------------------------------
 -- 															ON GAME START
 -----------------------------------------------------------------------------
+-- Fix 12: drop a dead perceiver's scripted-danger entry, so a recycled id inside the
+-- inertion window cannot inherit a danger the new NPC never perceived.
+local function _on_entity_unregister(se_obj)
+	if se_obj then script_danger[se_obj.id] = nil end
+end
+
 local function _refresh_log()
 	log.set_level(at_mcm and at_mcm.get_config("log_level") or "WARN")
 	_dbg = log.get_level() >= 5
@@ -1147,6 +1169,7 @@ end
 
 function on_game_start()
 	_install_patches()
+	RegisterScriptCallback("server_entity_on_unregister", _on_entity_unregister)
 	RegisterScriptCallback("actor_on_first_update", _on_actor_first_update)
 	RegisterScriptCallback("on_option_change", _refresh_log)
 	RegisterScriptCallback("mcm_option_restore_default", _refresh_log)

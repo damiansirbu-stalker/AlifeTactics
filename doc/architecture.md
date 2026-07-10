@@ -12,7 +12,7 @@ Part of a four-mod alife family: **AlifePlus** extends A-Life with new behaviors
 
 Project-wide constraints. Every system holds all of them; a change that violates one is wrong even when it works.
 
-- **No per-frame work. Never.** Ongoing work runs on a throttled tick (a fixed interval) or on a discrete engine event (a hit, a shot, a spawn, an option change) - never continuously every frame. A per-frame engine callback (`npc_on_update`) is only a carrier: its first act is a throttle compare that returns until the interval elapses (the at_combat scan is three integer compares between due checks). We never place code on a path the engine itself runs every frame (a visibility functor, a fire functor) - a function there runs every frame no matter how small its body. Frame-spreading a bounded one-off batch (xslice, 1 item per frame) is the one allowed use of the frame; it completes and stops. Full rule: `doc/standards/code-standards.md` "No Per-Frame Work".
+- **No per-frame work. Never.** Ongoing work runs on a throttled tick (a fixed interval) or on a discrete engine event (a hit, a shot, a spawn, an option change) - never continuously every frame. A per-frame engine callback (`npc_on_update`) is only a carrier: its first act is a throttle compare that returns until the interval elapses (the at_combat scan between due checks is two trivial engine reads - `npc:id()`, `time_global()` - plus three integer compares). We never place code on a path the engine itself runs every frame (a visibility functor, a fire functor) - a function there runs every frame no matter how small its body. Frame-spreading a bounded one-off batch (xslice, 1 item per frame) is the one allowed use of the frame; it completes and stops. Full rule: `doc/standards/code-standards.md` "No Per-Frame Work".
 - **2ms is the ceiling.** Every measured flow targets 0.1ms average per call with a hard 2ms ceiling - an eighth of a 60fps frame. No exceptions: cold start, save load, and level transition all count, and debug-only tools count too. A flow that averages above 0.1ms or ever crosses 2ms is a regression and gets a perf task. When a flow costs too much, the answer is a simpler design, not a faster version of the same one.
 - **Measured, not asserted.** Every flow carries a duration field in its DEBUG trace (`walk=us`, `[us]`, `[ms]`); the timers are null objects when debug is off, so measurement costs nothing live. No mechanism (cache, backoff, throttle, precompute) is justified by an unmeasured cost - the decide-path decline backoff was built and removed the same day for this, and the per-row walk timings that replaced it are the gate any future cost mechanism must pass.
 - **No file overrides.** AT replaces no vanilla file. Every system attaches by callback, function patch, save-wrap, DLTX overlay, scheme patch, or the time-boxed takeover transaction. Composition with modpacks falls out of the attach mechanism, never out of luck.
@@ -25,7 +25,7 @@ Project-wide constraints. Every system holds all of them; a change that violates
 
 ## Status
 
-Version 1.0.0.
+Version 1.1.1.
 
 | Module | Type | State |
 |---|---|---|
@@ -43,7 +43,7 @@ Version 1.0.0.
 | `at_ammo.script` | feature | done (AP fired from carried boxes, box-delete decay) |
 | `zzz_at_healing_patch.script` | feature | done (vanilla xr_eat_medkit re-roll suppressor) |
 | `configs/ai_tweaks/mod_xr_eat_medkit_at.ltx` | data | done |
-| `configs/ai_tweaks/mod_xr_danger_at.ltx` | data | done (DLTX overlay, replaced the whole-file xr_danger.ltx override 2026-07-08) |
+| `configs/ai_tweaks/mod_xr_danger_at.ltx` | data | done (delete-lines-only DLTX: drops the collision keys; the copied value rows removed 2026-07-10) |
 | `configs/alifetactics/at_combat_config.ltx` | data | done (Combat takeover tunables) |
 | `configs/ui/ui_at_stats.xml` | data | done (at_hud layout) |
 
@@ -170,7 +170,7 @@ Per begin_maneuver check (on npc_on_update, self-throttled) `resolve_maneuver` a
 One maneuver, birth to hand-back:
 
 ```
-npc_on_update (per frame: three integer compares, nothing else)
+npc_on_update (per frame: two trivial engine reads + three compares, nothing else)
   no maneuver open -> begin check (500ms)
       reseize cooldown running                          -> skip
       not fighting (no best_enemy, no recent hit)       -> skip
@@ -357,7 +357,7 @@ Both paths short-circuit quickly when no entries match. Most spawn events trigge
 
 ## Danger
 
-`at_danger.script` installs AlifeTactics's danger scheme as a function-level patch, at `on_game_start`, onto whichever `xr_danger.script` won the MO2 virtual filesystem (vanilla, GAMMA AI Rework, or REDONE Combat AI). AT no longer ships `xr_danger.script`, so it does not compete for that slot. Vanilla bug fixes run always-on; three improvements sit behind MCM toggles. The paired DLTX overlay (`configs/ai_tweaks/mod_xr_danger_at.ltx`) carries weather-conditional distances and actor-source variant tables.
+`at_danger.script` installs AlifeTactics's danger scheme as a function-level patch, at `on_game_start`, onto whichever `xr_danger.script` won the MO2 virtual filesystem (vanilla, GAMMA AI Rework, or REDONE Combat AI). AT no longer ships `xr_danger.script`, so it does not compete for that slot. Vanilla bug fixes run always-on; three improvements sit behind MCM toggles. The paired DLTX overlay (`configs/ai_tweaks/mod_xr_danger_at.ltx`) is delete-lines only: AT ships no danger values, so detection distances and inertion stay owned by the setup's own `xr_danger.ltx` (GAMMA plays AI Rework's tuning unchanged, vanilla plays vanilla's rows).
 
 ### The flow
 
@@ -369,7 +369,7 @@ bind time (modules.script): _G["xr_danger"].add_to_binder -> AT's evaluators + a
     installed into every stalker's motivation manager under the danger scheme ids
 runtime, per plan solve:
     eval_danger -> npc_on_eval_danger (third-party veto seam) -> best_danger type
-        -> inertion + ignore tables (the DLTX overlay onto ai_tweaks\xr_danger.ltx)
+        -> inertion + ignore tables (the winning ai_tweaks\xr_danger.ltx rows)
         -> danger_flag
     at_action_danger:execute -> per-type response
         (scripted / grenade / corpse / attacked / attack_sound alert)
@@ -396,6 +396,7 @@ AT does not register the hear or death callbacks. It relies on the winning file'
 9. The corpse force-hostile loop reused the acting NPC variable for squad members, so later corpse stages drove the last member (or nil) instead of the acting NPC. The loop uses its own local.
 10. Corpse stage 6 sent the NPC to the just-cleared `st.lvid` instead of the cover vertex `try_go_cover` found, so the found cover was never used.
 11. Performance: vanilla re-parsed the danger inertion and ignore-distance condlists on every evaluation, per NPC per plan solve. The strings are fixed after the DLTX merge, so they parse once into a memo (`_parse_cached`) and every later evaluation is a table lookup; only the condition evaluation (weather, actor state) still runs per call.
+12. `script_danger` entries are dropped on entity unregister. Vanilla kept a dead perceiver's entry until expiry, so an id recycled inside the inertion window inherited a scripted danger the new NPC never perceived.
 
 ### Extension callback
 
@@ -403,18 +404,15 @@ AT does not register the hear or death callbacks. It relies on the winning file'
 
 ### Improvements (MCM Effectiveness > Danger, default on)
 
-- `danger_hit_bypass`: direct hits bypass the combat-ignore distance gate. Sniped NPCs respond regardless of attacker distance.
-- `danger_attack_sound`: script_action_danger_alert dispatch for `attack_sound` danger type. Includes an actor-aim gate (the actor must be facing the NPC) so actors walking past with rifle out do not trigger cover-seek. Vanilla had no script handler for this danger type.
-- `danger_actor_tables`: read separate inertion and ignore tables from `[danger_inertion_actor]` and `[danger_object_actor]` when danger source is the actor. Tune player encounters independently of NPC-vs-NPC.
+- `danger_hit_bypass`: a direct hit is danger at any distance - the branch returns true past the relation, combat-ignore and ignore-distance gates (being hit is proof of range); only the scripted combat-ignore override still suppresses it. The division of labor around a hit: at_disclosure owns "the squad learns the shooter" (faction enemies, combat memory, rangeless by construction); hit_bypass owns "the victim ducks even when he cannot fight back" (a neutral or combat-ignored shooter, where combat cannot engage); the future Range page owns answering fire at weapon reach.
+- `danger_attack_sound`: script_action_danger_alert dispatch for the `attack_sound` danger type, admitted by `at_evaluator_check_danger` while the toggle is on (2026-07-10: the dispatch alone was unreachable - the evaluator admitted only attacked/corpse/grenade, so the improvement never fired). Reaction distance is the winning config's `attack_sound` row. Vanilla had no script handler for this danger type. The handler's actor-aim gate is dormant: the relation gate upstream blocks non-enemy actor sources; opening that path is a future feature.
+- `danger_actor_tables`: read separate inertion and ignore tables from `[danger_inertion_actor]` and `[danger_object_actor]` when the danger source is the actor - meaningful where the installed config differentiates them (GAMMA AI Rework does; vanilla ships identical copies, so the toggle is a no-op there).
 
 ### Paired LTX
 
-`configs/ai_tweaks/mod_xr_danger_at.ltx` is a DLTX overlay (`![section]` override-merge on all four danger sections), not a file override - it applies to whichever `xr_danger.ltx` won the MO2 slot (vanilla, GAMMA AI Rework, and Stealth Overhaul all ship the four sections), so the danger tuning composes with rival AI mods instead of competing for the file (the same shape as the at_danger script patch). `!![section]` is NOT full-section replacement in this engine's DLTX - it deletes the section outright and discards the keys under it (`Xr_ini.cpp:721-739`, the 2026-07-09 nil-src condlist flood). It ships:
-- Weather-conditional ignore distances (rain/storm reduces detection)
-- Separate actor-source tables that respond to `actor_enemy` condition
-- The dead `hit`/`sound`/`visual` keys (PerceiveType names; collide with EDangerType enum values) are dropped with per-key `!key` delete lines
+`configs/ai_tweaks/mod_xr_danger_at.ltx` is delete-lines only (2026-07-10): `![section]` override-merge on all four danger sections, each dropping only the dead `hit`/`sound`/`visual` keys (PerceiveType names colliding with EDangerType values 0/1/2; nothing reads them after the bd_types fix). AT ships NO danger values - every detection distance and inertion comes from whichever `xr_danger.ltx` won the MO2 slot plus later DLTX overlays: GAMMA plays AI Rework's tuning unchanged, vanilla plays vanilla's true-name rows (the rows the collision always hid), Stealth Overhaul plays xcvb's. The 1.1.0 value rows were a verbatim GAMMA AI Rework copy; on non-GAMMA setups they cut effective reaction ranges 3-50x (the 2026-07-10 user report), so they were removed and the setup owns the tuning. `!![section]` is NOT full-section replacement in this engine's DLTX - it deletes the section outright and discards the keys under it (`Xr_ini.cpp:721-739`, the 2026-07-09 nil-src condlist flood).
 
-Later-alphabet DLTX overlays on the same sections still take precedence, load-order-wise, as with any DLTX stack.
+Later-alphabet DLTX overlays on the same sections still take precedence, load-order-wise, as with any DLTX stack (in GAMMA, Useful Idiots' `mod_xr_danger_z_idiots.ltx` owns `[danger_inertion]` this way).
 
 ### Composition
 
@@ -554,7 +552,7 @@ The architecture principle is to feed engine memory and state, not fight it. Per
 
 | System | Engine state we write | Engine APIs called |
 |---|---|---|
-| Disclosure | RELATION_REGISTRY personal goodwill, memory entry m_enabled, agent_member_manager m_combat_mask | `force_set_goodwill`, `enable_memory_object`, `register_in_combat` |
+| Disclosure | memory entry m_enabled, agent_member_manager m_combat_mask | `enable_memory_object`, `register_in_combat` |
 | Healing | NPC health field, bleeding field, `healing_charge` se_var | `change_health`, direct `bleeding =` write, `se_save_var` |
 | Accuracy | Per-shot dispersion radius via callback return | (subscribes to `npc_shot_dispersion`) |
 | Combat | NPC GOAP action (at_combat_action), Pattern B preconditions on action_combat_planner/action_danger_planner/xr_danger.actid/state_mgr+2/alife, set_dest_level_vertex_id, state_mgr.set_state, set_body_state, set_movement_type, set_sight, `m_sniper_fire_mode` flag | GOAP `add_evaluator`/`add_action`/`add_precondition` (custom evaid/actid), `npc:best_cover`, `level.vertex_in_direction`, `npc:sniper_fire_mode`, `db.used_level_vertex_ids` reservation |

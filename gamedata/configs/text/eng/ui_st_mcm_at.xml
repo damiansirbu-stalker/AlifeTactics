@@ -75,7 +75,7 @@
     <text>Planned: per-stalker aim speed and vision speed, scaled by rank. The engine hooks behind it are already merged in the demonized exes. Nothing to configure yet.</text>
   </string>
   <string id="ui_mcm_at_range_desc">
-    <text>Planned: engagement distance. The game stops NPC fights at a hard range cap regardless of weapon, so a sniper never fires at the distances his rifle exists for, and a stalker sniped from beyond the cap stands there while he is picked off. This page will let long-range NPCs answer and initiate at their weapon's real reach. Nothing to configure yet.</text>
+    <text>Planned: engagement distance. The game stops NPC fights at a hard range cap regardless of weapon, so a sniper never fires at the distances his rifle exists for, and a stalker sniped from beyond the cap can duck (the Danger hit response) but never answer. This page will let long-range NPCs answer and initiate at their weapon's real reach. Nothing to configure yet.</text>
   </string>
   <string id="ui_mcm_at_resistance_desc">
     <text>Planned: NPC toughness from what they carry - armor and equipment, damage mitigators, and artefacts. Nothing to configure yet.</text>
@@ -310,7 +310,7 @@
   </string>
   <!-- ==================== DANGER PAGE ==================== -->
   <string id="ui_mcm_at_danger_desc">
-    <text>Stalkers read danger and investigate the way the engine always meant them to. A set of always-on fixes clears crashes and misreads across the danger check and the corpse investigation. Detection scales with weather, so a storm covers your approach, and player-sourced danger reads its own tables. It installs as a runtime patch onto whichever danger script your modpack ships, so it layers over AI overhauls instead of replacing the file. Three improvements toggle below.</text>
+    <text>Stalkers read danger and investigate the way the engine always meant them to. A set of always-on fixes clears crashes and misreads across the danger check and the corpse investigation. Detection distances come from your setup's danger config, AlifeTactics adds the reactions. It installs as a runtime patch onto whichever danger script your modpack ships, so it layers over AI overhauls instead of replacing the file. Three improvements toggle below.</text>
   </string>
   <string id="ui_mcm_at_danger_hdr_improvements">
     <text>Improvements</text>
@@ -325,19 +325,19 @@
     <text>React to nearby gunfire</text>
   </string>
   <string id="ui_mcm_at_fixes_danger_danger_attack_sound_desc">
-    <text>Stalkers hearing nearby gunfire seek cover and adopt threat poses. Vanilla does nothing on this danger type. An aiming gate keeps stalkers from diving for cover when you walk past with your rifle holstered or pointed elsewhere.</text>
+    <text>Stalkers hearing enemy gunfire seek cover and adopt threat poses, no line of sight needed. Vanilla does nothing on this danger type. Reaction distance follows your setup's danger config.</text>
   </string>
   <string id="ui_mcm_at_fixes_danger_danger_actor_tables">
     <text>Actor-source tuning</text>
   </string>
   <string id="ui_mcm_at_fixes_danger_danger_actor_tables_desc">
-    <text>Danger caused by you reads its own reaction range and memory tables, separate from NPC-vs-NPC danger. The same shot feels different depending on who fired it.</text>
+    <text>Danger caused by you reads the separate actor tables where your setup's danger config differentiates them (GAMMA AI Rework does). With a config that ships identical tables this has no effect.</text>
   </string>
   <string id="ui_mcm_at_danger_hdr_fixes">
     <text>Always-on bug fixes (not toggleable)</text>
   </string>
   <string id="ui_mcm_at_danger_fixes_list">
-    <text>1. Three danger categories read the wrong config rows through a name collision. Each now reads its own. \n2. A mutant corpse crashed the danger time check. \n3. A torn-down NPC reference crashed the danger evaluator. \n4. A bad danger time value crashed the evaluator. \n5. The hit callback corrupted the danger memory with a missing shooter on every hit. \n6. Danger transitions left a stale lower-body animation playing. \n7. Leaving the danger state wiped every stalker's cover reservation instead of only its own. \n8. A corpse despawning mid-investigation crashed the investigator. \n9. The corpse investigation drove the wrong squad member through its stages. \n10. The investigator walked to a cleared spot instead of the cover it had found. \n11. The danger check re-parsed the same config strings on every evaluation. They parse once now (performance).</text>
+    <text>1. Three danger categories read the wrong config rows through a name collision. Each now reads its own. \n2. A mutant corpse crashed the danger time check. \n3. A torn-down NPC reference crashed the danger evaluator. \n4. A bad danger time value crashed the evaluator. \n5. The hit callback corrupted the danger memory with a missing shooter on every hit. \n6. Danger transitions left a stale lower-body animation playing. \n7. Leaving the danger state wiped every stalker's cover reservation instead of only its own. \n8. A corpse despawning mid-investigation crashed the investigator. \n9. The corpse investigation drove the wrong squad member through its stages. \n10. The investigator walked to a cleared spot instead of the cover it had found. \n11. The danger check re-parsed the same config strings on every evaluation. They parse once now (performance). \n12. A dead stalker's scripted danger no longer lingers on its id, so a respawn reusing the id starts clean.</text>
   </string>
   <!-- ==================== JAMMING PAGE ==================== -->
   <string id="ui_mcm_at_jam_desc">

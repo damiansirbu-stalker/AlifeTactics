@@ -76,8 +76,8 @@ Danger:
 Stalkers read danger the way the engine always meant them to.
 AlifeTactics reworks Anomaly's danger scheme as a runtime patch, laid onto whichever danger script a modpack ships instead of replacing the file.
 A set of always-on fixes clears long-standing crashes and misreads across the danger check and the corpse investigation.
-The paired config scales detection with weather, so stalkers see less in a storm, and gives player encounters their own tables.
-Three of the improvements are optional: a direct hit answers at any range, nearby gunfire draws a response, and actor-sourced danger reads the separate tables.
+Detection distances stay owned by your setup's danger config. AlifeTactics adds the reactions, never the tuning.
+Three of the improvements are optional: a direct hit answers at any range, nearby gunfire draws a cover-and-threat response, and actor-sourced danger reads the separate tables where your config provides them.
 
 Crossfire:
 Same-faction fighters no longer cut each other down in a crossfire.
@@ -94,7 +94,7 @@ Reaction (planned):
 Again based on hooks created specifically in xray-monolith, per-NPC rank-based aim speed and vision.
 
 Range (planned):
-Engagement distance. The game stops NPC fights at a hard range cap regardless of weapon, so a sniper never fires at the distances his rifle exists for, and a stalker sniped from beyond the cap stands there while he is picked off. This page will let long-range NPCs answer and initiate at their weapon's real reach.
+Engagement distance. The game stops NPC fights at a hard range cap regardless of weapon, so a sniper never fires at the distances his rifle exists for, and a stalker sniped from beyond the cap can duck (the Danger hit response) but never answer. This page will let long-range NPCs answer and initiate at their weapon's real reach.
 
 Resistance (planned):
 NPC toughness from what they carry: armor and equipment, damage mitigators, and artefacts.
@@ -104,7 +104,7 @@ Mechanics
 Healing:
 Wounded NPCs actually heal, with the items they carry.
 Vanilla's magic medkit fires unreliably and bandages do nothing, so bleeding stalkers die that should not.
-AlifeTactics has them spend real medkits below half health and real bandages when bleeding, falling back to a per-rank charge only when empty.
+AlifeTactics has them spend real medkits when injured and real bandages when bleeding, falling back to a per-rank charge only when empty.
 The heal rate is tunable, and fixed limp and heal animations show it, out of combat only.
 
 Jamming:
