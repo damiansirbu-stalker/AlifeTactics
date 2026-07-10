@@ -310,7 +310,8 @@ local function _run_check(check, npc, state, tg)
 end
 
 -- npc_on_update fires every frame for every online stalker (xr_motivator.script:486); between due periods this
--- walk is three compares and returns - no engine read or write happens outside a due check.
+-- walk is two trivial engine reads (npc:id(), time_global()) plus three compares and returns - no other
+-- engine read or write happens outside a due check.
 local function _on_update(npc)
     local id = npc:id()
     if not _installed[id] then return end

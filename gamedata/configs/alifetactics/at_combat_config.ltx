@@ -18,7 +18,7 @@ stall_ms      = 4000       ; held position with the enemy not closing this long 
 stall_move_m  = 2          ; movement under this counts as "held position"
 stall_close_m = 2          ; enemy gaining more than this much ground resets the stall timer
 
-; Maneuvers (kite backs off to the NPC's own weapon min range - no key, WEAPON_RANGES is the source)
+; Maneuvers (kite backs off a fixed per-weapon distance - no key, KITE_BACK in at_combat_doctrine is the source)
 kite_arc_deg    = 45       ; back-lane fan step: try straight-back, then +-45, then +-90 for a clear lane
 kite_spread_deg = 90       ; max fan to either side when the straight-back lane is blocked by a wall or obstacle
 retreat_rear_m  = 4        ; retreat centers its cover search this far behind the NPC; the winning spot must be farther from the enemy than he stands
