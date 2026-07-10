@@ -19,6 +19,9 @@ local log = xlog.get_logger("AT.JAM", { outfile = "alifetactics.log" })
 local _dbg = false
 
 local _original
+-- Snapshot of the jam_enabled MCM value (mcm.md snapshot pattern): the functor runs per NPC shot,
+-- so it reads this boolean instead of a live ui_mcm.get; refreshed on every option change.
+local _jam_enabled = true
 -- Suppressed-roll counter, summarized to the debug log every SUMMARY_EVERY rolls (a per-shot line
 -- would flood; the counter is one pure-Lua increment per NPC shot).
 local _suppressed = 0
@@ -69,7 +72,7 @@ local function _install()
     end
     _original = xr_weapon_jam.GetConditionMisfireProbability
     xr_weapon_jam.GetConditionMisfireProbability = function(weapon, npc, base_value)
-        if at_mcm.get_config("jam_enabled") == false then
+        if not _jam_enabled then
             return _original(weapon, npc, base_value)
         end
         _suppressed = _suppressed + 1
@@ -84,6 +87,7 @@ end
 local function _refresh_log()
     log.set_level(at_mcm.get_config("log_level") or "WARN")
     _dbg = log.get_level() >= 5
+    _jam_enabled = at_mcm.get_config("jam_enabled") ~= false
 end
 
 function on_game_start()
