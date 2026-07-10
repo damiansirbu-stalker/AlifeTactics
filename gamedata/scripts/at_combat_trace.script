@@ -88,12 +88,21 @@ function at_combat_trace.can_kite(id, dist, back_m, vid)
         _show(id), _show(_names[id]), dist or -1, back_m or -1, _show(vid or "none"))
 end
 
---- One line per snipe feasibility check: the distance against the ENEMY's weapon maximum - "plant" when past
---- it, "in_enemy_range" when declined (a motionless head inside the enemy's band is a gift).
-function at_combat_trace.can_snipe(id, dist, enemy_max, planted)
+--- One line per snipe feasibility check: path "plant" (taken), "in_enemy_range" (inside the enemy's weapon
+--- maximum, declined - a motionless head inside the enemy's band is a gift), "under_fire" (a fresh hit or a
+--- perceived shot, declined - a hold's premise is being unbothered), or "targeted" (the actor's aim is on
+--- him, declined). dist/enemy_max carry the range evidence on the range path.
+function at_combat_trace.can_snipe(id, dist, enemy_max, path)
     if not _on then return end
     log.info("can_snipe id=%s name=%s dist=%.1f enemy_max=%s result=%s",
-        _show(id), _show(_names[id]), dist or -1, _show(enemy_max), planted and "plant" or "in_enemy_range")
+        _show(id), _show(_names[id]), dist or -1, _show(enemy_max), _show(path))
+end
+
+--- One line per turn feasibility check: path "taken" (clear line to the actor, holds in place and engages)
+--- or "obstructed" (a wall or object blocks the line - facing him is theater, declined).
+function at_combat_trace.can_turn(id, path)
+    if not _on then return end
+    log.info("can_turn id=%s name=%s path=%s", _show(id), _show(_names[id]), _show(path))
 end
 
 --- One line per retreat feasibility check: path "taken" (vertex accepted; cover_dist > npc_dist is the proof
@@ -105,24 +114,23 @@ function at_combat_trace.can_retreat(id, path, vid, cover_dist, npc_dist)
         _show(id), _show(_names[id]), _show(path), _show(vid or "-"), cover_dist or -1, npc_dist or -1)
 end
 
---- One line per monitor tick for an NPC skipped BEFORE the catalog walk: no_enemy (fighting but no selected
---- enemy), cooldown (the reseize window - fires before the fighting read, so target may be last tick's),
---- far (an NPC-vs-NPC fight beyond the seize radius of the actor), or
---- cannot_seize with the blocking gate as reason (no_weapon / smart_cover), so the log says WHY, not
---- just that it could not. The ":" concat lives inside the _on guard, so the off path allocates nothing.
---- Evaluated ticks log through decision() instead.
+--- One line per begin check for an NPC skipped BEFORE the catalog walk: no_enemy (fighting but no selected
+--- enemy), at_cap (the concurrency failsafe), or cannot_seize with the blocking gate as reason (no_weapon /
+--- smart_cover), so the log says WHY, not just that it could not. The ":" concat lives inside the _on
+--- guard, so the off path allocates nothing. Evaluated checks log through decision() instead.
 function at_combat_trace.monitor(id, state, result, reason, us)
     if not _on then return end
     log.info("monitor id=%s name=%s target=%s result=%s%s [%dus]",
         _show(id), _show(_names[id]), _show(state.enemy_id), result, reason and (":" .. reason) or "", us or -1)
 end
 
---- The uniform decision line, one per evaluated monitor tick: the selected enemy, the distance, the sight and
+--- The uniform decision line, one per evaluated begin check: the selected enemy, the distance, the sight and
 --- facing reads, who drives (operator), the DECIDE-time cover readout (cover_string), the per-row catalog
 --- walk with its cost, and the outcome. rows= is one comma-joined entry per examined row, in walk order:
---- "name:situation/stage" - situation the fired need (too_close / grenade / hurt / stalled), stage how far
---- the row got (off / palette / declined / picked), "-" a row whose need did not hold (fell through in the
---- same tick). The one row whose can_maneuver ran carries the per-layer timings "/should=Xus/can=Yus" - the
+--- "name:situation/stage" - situation the fired need (actor_close / too_close / hurt / stalled), stage how
+--- far the row got (scope / off / palette / declined / picked), "-" a row whose need did not hold (fell
+--- through in the same tick). The one row whose can_maneuver ran carries the per-layer timings
+--- "/should=Xus/can=Yus" - the
 --- evidence the need layer stays microseconds while the feasibility owns the geometry cost; the walk ends at
 --- that row, so rows below it do not appear. walk= is the whole walk's microseconds - the wall-clock
 --- evidence for any cost claim about this path. result= is the picked maneuver or "none".

@@ -1,6 +1,9 @@
---- at_combat: the intermittent takeover monitor - seizes one NPC for one committed maneuver where vanilla is weak, then hands back. Doctrine in at_combat_doctrine, graft in xcombat.
+--- at_combat: the intermittent takeover monitor - seizes one NPC for one committed maneuver the actor is
+--- party to, then hands back. Doctrine in at_combat_doctrine, graft in xcombat. The monitor is one
+--- scheduled pass (_run_monitor, a vanilla time event every MONITOR_PERIOD_SEC) over _npc_states - AT
+--- runs zero code on any per-frame path.
 
-local IsStalker, time_global, tostring = IsStalker, time_global, tostring
+local IsStalker, time_global, tostring, pairs = IsStalker, time_global, tostring, pairs
 local math_floor, RegisterScriptCallback, AC_ID = math.floor, RegisterScriptCallback, AC_ID
 
 local cfg = at_mcm.cfg
@@ -11,28 +14,25 @@ local _dbg = false
 
 local LTX_PATH    = "alifetactics\\at_combat_config.ltx"
 local LTX_SECTION = "at_combat"
-local BEGIN_PERIOD_MS, UPDATE_PERIOD_MS, END_PERIOD_MS, HIT_FIGHT_MS, RESEIZE_COOLDOWN_MS
-local SEIZE_RADIUS_SQR
+local BEGIN_PERIOD_MS, UPDATE_PERIOD_MS, END_PERIOD_MS, HIT_FIGHT_MS
+
+-- The monitor pass period. update/end checks run on the pass directly (200ms); the begin period is a
+-- multiple of it (600ms = every 3rd pass), so every check fires at its exact configured cadence.
+local MONITOR_PERIOD_SEC = 0.2
 
 local COMPANION_INFO = "npcx_is_companion"
 local MANEUVER_CAP_MS = 8000
 local MAX_CONCURRENT
 
 
--- Per-NPC state store: one flat record per installed NPC, created on first touch. Never saved.
+-- Per-NPC state store: one flat record per tracked NPC, created by _install on spawn, dropped on
+-- net_destroy / entity unregister. Existence of a record IS "AT tracks this NPC". Never saved.
 
-local _installed = {}
-local _states    = {}
--- ONLINE NPCs currently holding a maneuver. MAX_CONCURRENT caps how many run at once (bounds ongoing
--- cost and keeps most of the field on vanilla). _drop_gate keeps it honest on every gate-clearing path
--- (end AND despawn), so a dead NPC can never leak a slot.
+local _npc_states = {}
+-- ONLINE NPCs currently holding a maneuver. MAX_CONCURRENT caps how many run at once (a runaway
+-- failsafe). _drop_gate keeps it honest on every gate-clearing path (end AND despawn), so a dead NPC
+-- can never leak a slot.
 local _open_count = 0
-
-local function _state(id)
-    local state = _states[id]
-    if not state then state = { id = id, ran_at = {} } _states[id] = state end
-    return state
-end
 
 
 -- Fight detection and the seize gates: one named predicate each.
@@ -85,9 +85,11 @@ local function _drop_gate(state)
     end
 end
 
--- End the maneuver: lower the gate, clear the row, keep end_at for the reseize cooldown. Releases any cover the
--- feasibility check reserved, on EVERY exit (arrived, cap, never-begun) so a gate that raised but never ran a maneuver
--- does not leak the reservation in db.used_level_vertex_ids (t136).
+-- End the maneuver: lower the gate, clear the row, release any cover the feasibility check reserved, on
+-- EVERY exit (arrived, cap, never-begun) so a gate that raised but never ran a maneuver does not leak the
+-- reservation in db.used_level_vertex_ids (t136). Also resets the stall tracker: a transaction consumes
+-- the situation's accumulated measurement, so `stalled` means "standoff SINCE the last maneuver" and a
+-- completed hold negates its own need (a fresh stall must accumulate before the next one).
 local function _end_maneuver(state, tg, reason, check_us)
     if _dbg then trace.end_maneuver(state.id, state.maneuver and state.maneuver.name, reason, math_floor(tg - (state.begin_at or tg)), check_us) end
     _drop_gate(state)
@@ -96,18 +98,18 @@ local function _end_maneuver(state, tg, reason, check_us)
     state.trigger = nil
     state.maneuver_at = nil
     state.begin_at = nil
-    state.end_at = tg
+    state.stall_set = false
     _release_cover(state)
 end
 
 -- Begin the maneuver - the first engine write, at the grafted action's initialize (the engine granted control
 -- this frame; writing earlier would fight vanilla, which drives until the planner swap). Sets the destination
--- once (the engine walks it), applies the row's combat state once, opens a STOW rout's flee hold. Target
+-- once (the engine walks it), applies the row's combat state once. Target
 -- commitment: the maneuver fights the enemy it was STAGED against (state.enemy_id), never whatever the brain
 -- re-selected since - a gone/dead target means the maneuver does not begin. The begin write is timed in two
 -- parts (send=/apply=, debug only) so a slow begin names which engine call cost it - send_to or apply_state.
 local function _begin_maneuver(npc)
-    local state = _states[npc:id()]
+    local state = _npc_states[npc:id()]
     if not state or not state.maneuver then return end
     local tg = time_global()
     local maneuver = state.maneuver
@@ -120,12 +122,6 @@ local function _begin_maneuver(npc)
     local fire, gate = doctrine.apply_state(npc, maneuver, enemy)
     tmr_apply:stop()
     state.maneuver_at = tg
-    if maneuver.fire == xcombat.STOW then
-        state.flee_enemy = enemy:id()
-        state.flee_until = tg + (maneuver.timeout or MANEUVER_CAP_MS) + RESEIZE_COOLDOWN_MS
-    else
-        state.flee_enemy = nil
-    end
     if _dbg then
         trace.begin_maneuver(state.id, maneuver.name, state.trigger, state.dest, fire, maneuver.movement,
             maneuver.fire, gate, state.cover, math_floor(tmr_send:get_us()), math_floor(tmr_apply:get_us()))
@@ -133,14 +129,14 @@ local function _begin_maneuver(npc)
 end
 
 -- One spec drives every AT NPC: gate = the per-NPC flag the grafted evaluator polls; on_begin = _begin_maneuver,
--- called once when the grafted action activates. Per-NPC state lives in _states, keyed by id.
+-- called once when the grafted action activates. Per-NPC state lives in _npc_states, keyed by id.
 -- The gate reads cfg.combat_enabled FIRST: the graft installs for every stalker even when the feature is off,
 -- and the engine re-evaluates the grafted evaluator every plan solve (problem_solver actual()), so with the
 -- feature disabled the whole crossing is one Lua boolean read - the npc:id() luabind never runs.
 local SPEC = {
     gate = function(npc)
         if not cfg.combat_enabled then return false end
-        local state = _states[npc:id()]
+        local state = _npc_states[npc:id()]
         return state ~= nil and state.gate == true
     end,
     on_begin = _begin_maneuver,
@@ -164,39 +160,27 @@ local function _trace_decision(npc, state, enemy, result)
 end
 
 -- The seize gates after the fighting read, cheapest first. Returns (skip reason, detail) for the monitor
--- trace, or nil when the NPC may walk the catalog.
--- Eligibility: a fight WITH the actor is never truncated (one compare; the engine's own is_enemy
--- distance gates bound where those fights form, so this adds no long-range behavior of its own). An
--- NPC-vs-NPC fight qualifies only within the seize radius of the actor - beyond it a maneuver is
--- spectacle nobody can see, and it holds a concurrency slot. actor_dist_sqr is a 5s-TTL cached read.
+-- trace, or nil when the NPC may walk the catalog. Which fights qualify is not decided here: every row
+-- declares whose problem it answers (vs_actor), and the walk skips rows out of scope - AT seizes only
+-- problems the actor is party to, as row data, not as a gate branch.
 -- Concurrency cap (failsafe): the field is full, so skip the catalog walk (and its can_maneuver
 -- raycasts) before any expensive read; the NPC retries on its next begin check.
-local function _seize_blocked(npc, state)
-    if SEIZE_RADIUS_SQR > 0 and state.enemy_id ~= AC_ID
-        and xcombat.actor_dist_sqr(npc) > SEIZE_RADIUS_SQR then
-        return "far"
-    end
+local function _seize_blocked(npc)
     local can_seize, seize_block = _can_seize(npc)
     if not can_seize then return "cannot_seize", seize_block end
     if MAX_CONCURRENT > 0 and _open_count >= MAX_CONCURRENT then return "at_cap" end
     return nil
 end
 
--- Look for a maneuver to begin: managed, off cooldown, fighting, the enemy eligible, seizable, under the cap,
--- a catalog row picked (its need fired, palette matched, its can_maneuver yielded a destination). Staging =
--- record the row + destination and raise the gate; the engine grants control at the next plan solve and calls
--- _begin_maneuver. No engine write happens here - vanilla still drives this frame.
+-- Look for a maneuver to begin: managed, fighting, seizable, under the cap, a catalog row picked (its
+-- need fired, palette matched, its can_maneuver yielded a destination). Staging = record the row +
+-- destination + the row's committed target and raise the gate; the engine grants control at the next
+-- plan solve and calls _begin_maneuver. No engine write happens here - vanilla still drives this frame.
+-- There is no reseize cooldown: every row's need states the full problem and the maneuver's success
+-- negates it, so the trigger itself is the throttle - a re-fired need is a real, recurred problem.
 local function _try_begin_maneuver(npc, state, tg)
     if not _manages(npc) then state.fighting = false return end
     local tmr = xprofiler.new_if(_dbg):start()
-
-    -- Reseize cooldown FIRST: hold off a fresh seize for a window after a maneuver ends, else the takeover
-    -- goes continuous. Checked before the fighting read so a cooling NPC skips the best_enemy luabind entirely.
-    if RESEIZE_COOLDOWN_MS > 0 and state.end_at and (tg - state.end_at) < RESEIZE_COOLDOWN_MS then
-        tmr:stop()
-        trace.monitor(state.id, state, "cooldown", nil, tmr:get_us())
-        return
-    end
 
     local enemy = npc:best_enemy()
     state.fighting = _is_fighting(enemy, state, tg)
@@ -211,20 +195,24 @@ local function _try_begin_maneuver(npc, state, tg)
     end
     state.enemy_id = enemy:id()
 
-    local blocked, block_detail = _seize_blocked(npc, state)
+    local blocked, block_detail = _seize_blocked(npc)
     if blocked then
         tmr:stop()
         trace.monitor(state.id, state, blocked, block_detail, tmr:get_us())
         return
     end
 
-    -- resolve_maneuver arbitrates the catalog from the per-NPC cursor (per row: should_maneuver ->
-    -- palette -> can_maneuver). A row whose need is absent falls through in the same tick; the one
-    -- can_maneuver that runs ends the walk and moves the cursor past its row (decline = defer, pick =
-    -- the next decision starts below). Returns (maneuver, dest) on a pick and nil otherwise; it stores
-    -- the fired situation on state.trigger and the walked rows + timings on state.rows / state.walk_us.
+    -- resolve_maneuver arbitrates the catalog from the per-NPC cursor (per row: scope -> toggle ->
+    -- should_maneuver -> palette -> can_maneuver). A row whose need is absent falls through in the same
+    -- tick; the one can_maneuver that runs ends the walk and moves the cursor past its row (decline =
+    -- defer, pick = the next decision starts below). Returns (maneuver, dest) on a pick and nil
+    -- otherwise; it stores the fired situation on state.trigger and the walked rows + timings on
+    -- state.rows / state.walk_us.
     local maneuver, dest = doctrine.resolve_maneuver(npc, enemy, state, tg)
     if maneuver then
+        -- A vs_actor row commits to the ACTOR: its problem is the actor, not the selected enemy, so the
+        -- maneuver aims at, ends on, and resolves the actor for its whole life.
+        if maneuver.vs_actor then state.enemy_id = AC_ID end
         state.gate = true
         _open_count = _open_count + 1
         state.maneuver = maneuver
@@ -266,36 +254,51 @@ local function _update_maneuver(npc, state, _tg)
 end
 
 -- Movers end on arrival; the cap (from begin_at) ends everything, so a gate that raised but never began a
--- maneuver cannot wedge the NPC. Holds have no arrival and end only on the cap. A feature turned off
--- mid-maneuver ends here too: SPEC.gate already handed the NPC back to vanilla, so the row's update must
--- stop driving it - ending drops state.gate, which stops _update_maneuver on the same scan.
+-- maneuver cannot wedge the NPC. Holds have no arrival and end only on the cap. A row's should_end is its
+-- PREMISE: the need terms that must hold for the transaction's whole life (snipe: not under fire, not
+-- targeted) - a broken premise ends the maneuver now, not at the cap. A feature turned off mid-maneuver
+-- ends here too: SPEC.gate already handed the NPC back to vanilla, so the row's update must stop driving
+-- it - ending drops state.gate, which stops _update_maneuver on the same pass.
+-- Why an open maneuver should end NOW, or nil to keep running: the row's premise (should_end, a broken
+-- premise names itself), arrival for begun movers, the time cap for everything - a staged-never-granted
+-- gate ends on the cap too, so it cannot wedge the NPC.
+local function _end_reason(npc, enemy, state, tg)
+    local maneuver = state.maneuver
+    local begun = maneuver ~= nil and state.maneuver_at ~= nil
+    local broken = begun and maneuver.should_end and maneuver.should_end(npc, enemy, state, tg)
+    if broken then return broken end
+    if begun and maneuver.ends_on == "arrival" and xcombat.is_arrived(npc) then return "arrived" end
+    if (tg - (state.begin_at or tg)) >= ((maneuver and maneuver.timeout) or MANEUVER_CAP_MS) then return "cap" end
+    return nil
+end
+
 local function _try_end_maneuver(npc, state, tg)
     if not _manages(npc) then _end_maneuver(state, tg, "disabled") return end
-    local maneuver = state.maneuver
     -- Target commitment: the staged enemy died or despawned - hand back now, vanilla picks the next
-    -- fight. Only for a BEGUN maneuver; a staged-never-granted gate still ends on the cap below.
-    if maneuver and state.maneuver_at and not xcombat.resolve_enemy(state.enemy_id) then
-        _end_maneuver(state, tg, "target_lost")
-        return
+    -- fight. Only for a BEGUN maneuver; a staged-never-granted gate still ends on the cap in _end_reason.
+    local enemy
+    if state.maneuver and state.maneuver_at then
+        enemy = xcombat.resolve_enemy(state.enemy_id)
+        if not enemy then
+            _end_maneuver(state, tg, "target_lost")
+            return
+        end
     end
     local tmr = xprofiler.new_if(_dbg):start()
-    if maneuver and maneuver.ends_on == "arrival" and state.maneuver_at and xcombat.is_arrived(npc) then
-        tmr:stop()
-        _end_maneuver(state, tg, "arrived", math_floor(tmr:get_us()))
-    elseif (tg - (state.begin_at or tg)) >= ((maneuver and maneuver.timeout) or MANEUVER_CAP_MS) then
-        tmr:stop()
-        _end_maneuver(state, tg, "cap", math_floor(tmr:get_us()))
-    end
+    local reason = _end_reason(npc, enemy, state, tg)
+    tmr:stop()
+    if reason then _end_maneuver(state, tg, reason, math_floor(tmr:get_us())) end
 end
 
 
--- The scan: every timed operation is one row { name, period, open, run }; open is the state.gate value the check
--- requires (false = no maneuver open, true = one running). Built in _load_config, after the periods are read.
+-- The check catalog: every timed operation is one row { name, period, open, run }; open is the state.gate
+-- value the check requires (false = no maneuver open, true = one running). Built in _load_config, after
+-- the periods are read.
 
-local SCAN
+local CHECKS
 
-local function _build_scan()
-    SCAN = {
+local function _build_checks()
+    CHECKS = {
         { name = "begin_maneuver",  period = BEGIN_PERIOD_MS,  open = false, run = _try_begin_maneuver },
         { name = "update_maneuver", period = UPDATE_PERIOD_MS, open = true,  run = _update_maneuver    },
         { name = "end_maneuver",    period = END_PERIOD_MS,    open = true,  run = _try_end_maneuver   },
@@ -309,19 +312,43 @@ local function _run_check(check, npc, state, tg)
     check.run(npc, state, tg)
 end
 
--- npc_on_update fires every frame for every online stalker (xr_motivator.script:486); between due periods this
--- walk is two trivial engine reads (npc:id(), time_global()) plus three compares and returns - no other
--- engine read or write happens outside a due check.
-local function _on_update(npc)
-    local id = npc:id()
-    if not _installed[id] then return end
-    local state = _state(id)
-    local tg = time_global()
+-- The monitor pass, a vanilla time event every MONITOR_PERIOD_SEC: for each tracked NPC, resolve the
+-- object and run whichever checks are due. The per-frame cost of the whole monitor is ONE timer compare
+-- inside vanilla's own ProcessEventQueue walk (_g.script:364, driven from the actor update at
+-- bind_stalker_ext.script:26); the real work runs 5 times a second total, never per frame, never per NPC
+-- per frame. level.object_by_id is a hash net_Find returning nil for a gone id (level_script.cpp:131-138)
+-- - the nil guard covers the same-pass window between an object dying and its net_destroy cleanup.
+local _monitor_active = false
+
+-- One NPC's slice of the pass: run whichever checks match its open/closed state and are due.
+local function _run_npc_checks(npc, state, tg)
     local open = state.gate == true
-    for i = 1, #SCAN do
-        local check = SCAN[i]
+    for i = 1, #CHECKS do
+        local check = CHECKS[i]
         if check.open == open then _run_check(check, npc, state, tg) end
     end
+end
+
+local function _run_monitor()
+    if not _monitor_active then return true end
+    local tg = time_global()
+    for id, state in pairs(_npc_states) do
+        local npc = level.object_by_id(id)
+        if npc then _run_npc_checks(npc, state, tg) end
+    end
+    ResetTimeEvent("at_combat", "monitor", MONITOR_PERIOD_SEC)
+end
+
+local function _start_monitor()
+    if _monitor_active then return end
+    _monitor_active = true
+    RemoveTimeEvent("at_combat", "monitor")
+    CreateTimeEvent("at_combat", "monitor", MONITOR_PERIOD_SEC, _run_monitor)
+end
+
+local function _stop_monitor()
+    _monitor_active = false
+    RemoveTimeEvent("at_combat", "monitor")
 end
 
 
@@ -329,20 +356,8 @@ end
 
 --- Current maneuver name for an NPC, or nil when AT is not driving one.
 function get_maneuver(id)
-    local state = _states[id]
+    local state = _npc_states[id]
     return state and state.maneuver and state.maneuver.name
-end
-
---- Takeover status word for an NPC: the maneuver name while one is open, "cooldown" through the
---- reseize window after one ended, nil otherwise. The at_hud maneuver column reads this.
-function get_status(id)
-    local state = _states[id]
-    if not state then return nil end
-    if state.maneuver then return state.maneuver.name end
-    if state.end_at and RESEIZE_COOLDOWN_MS > 0 and (time_global() - state.end_at) < RESEIZE_COOLDOWN_MS then
-        return "cooldown"
-    end
-    return nil
 end
 
 
@@ -351,31 +366,28 @@ end
 local function _install(npc)
     if not npc or not IsStalker(npc) then return end
     local id = npc:id()
-    if _installed[id] then return end
-    _installed[id] = true
+    if _npc_states[id] then return end
+    _npc_states[id] = { id = id, ran_at = {} }
     xcombat.install_takeover(npc, SPEC)
     if _dbg then trace.installed(id, npc:name()) end
 end
 
--- A hit stamps the fight clock (far-shooter reads as fighting). After hand-back a hit means the fled enemy
--- caught up, so clear flee_enemy and let the NPC fight back.
+-- A hit stamps the fight clock so a far shooter - out of the engine's enemy-distance gate, best_enemy still nil -
+-- reads as fighting on the next begin check.
 local function _on_hit(npc, amount)
     if not npc or not amount or amount <= 0 then return end
-    local id = npc:id()
-    if not _installed[id] then return end
-    local state = _state(id)
+    local state = _npc_states[npc:id()]
+    if not state then return end
     state.hit_at = time_global()
-    if not state.gate then state.flee_enemy = nil end
 end
 
 local function _on_net_destroy(npc)
     if not npc then return end
     local id = npc:id()
     xcombat.release_takeover(npc)
-    _drop_gate(_states[id])
-    _release_cover(_states[id])
-    _installed[id] = nil
-    _states[id] = nil
+    _drop_gate(_npc_states[id])
+    _release_cover(_npc_states[id])
+    _npc_states[id] = nil
 end
 
 local function _on_entity_unregister(se_obj)
@@ -384,38 +396,21 @@ local function _on_entity_unregister(se_obj)
     -- Clear xcombat's install guard too: an id unregistered WITHOUT a prior net_destroy would leave a stale
     -- guard there and the recycled id would silently skip its next graft.
     xcombat.release_takeover_id(id)
-    _drop_gate(_states[id])
-    _release_cover(_states[id])
-    _installed[id] = nil
-    _states[id] = nil
+    _drop_gate(_npc_states[id])
+    _release_cover(_npc_states[id])
+    _npc_states[id] = nil
     if _dbg then trace.forget(id) end
-end
-
--- While a fleeing NPC still has an active ignore (state.flee_enemy set, state.flee_until not reached), answer the
--- engine is_enemy check false so it does not turn the NPC back to fight. _begin_maneuver sets it; a non-flee
--- maneuver or a hit clears it.
-local function _on_enemy_eval(obj, enemy, flags)
-    if not obj or not enemy then return end
-    local state = _states[obj:id()]
-    if not state or not state.flee_enemy then return end
-    if enemy:id() == state.flee_enemy and time_global() < state.flee_until then
-        flags.override = true
-        flags.result = false
-    end
 end
 
 local function _load_config()
     local ini = ini_file(LTX_PATH)
     local function read_int(k, d) local v = ini:r_float_ex(LTX_SECTION, k) return v and math_floor(v) or d end
-    BEGIN_PERIOD_MS     = read_int("begin_period_ms",     500)
+    BEGIN_PERIOD_MS     = read_int("begin_period_ms",     600)
     UPDATE_PERIOD_MS    = read_int("update_period_ms",    200)
     END_PERIOD_MS       = read_int("end_period_ms",       200)
     HIT_FIGHT_MS        = read_int("hit_fight_ms",        5000)
-    RESEIZE_COOLDOWN_MS = read_int("reseize_cooldown_ms", 5000)
     MAX_CONCURRENT      = read_int("max_concurrent_maneuvers", 20)
-    local radius_m      = read_int("seize_actor_radius_m", 50)
-    SEIZE_RADIUS_SQR    = radius_m * radius_m
-    _build_scan()
+    _build_checks()
 end
 
 local function _refresh_log()
@@ -424,10 +419,32 @@ local function _refresh_log()
     trace.set_enabled(_dbg)
 end
 
+-- The monitor runs only while the feature is on. Turning it off mid-game first ends every open maneuver
+-- through the normal path (gate down, cover released, count honest) - SPEC.gate already handed those NPCs
+-- back to vanilla at the next plan solve - then stops the pass, so a disabled feature costs zero.
+local function _apply_enabled()
+    if cfg.combat_enabled then
+        _start_monitor()
+        return
+    end
+    local tg = time_global()
+    for _, state in pairs(_npc_states) do
+        if state.maneuver then _end_maneuver(state, tg, "disabled") end
+    end
+    _stop_monitor()
+end
+
+local function _on_option_change()
+    _refresh_log()
+    _apply_enabled()
+end
+
 local function _on_first_update()
     trace.reset()
     _open_count = 0
     _refresh_log()
+    -- Time events do not survive a save load (_g.script header), so the monitor arms here, per session.
+    _apply_enabled()
     log.info("Combat monitor initialized (enabled=%s dbg=%s cap=%d)",
         tostring(cfg.combat_enabled), tostring(_dbg), MAX_CONCURRENT)
 end
@@ -437,11 +454,9 @@ function on_game_start()
     doctrine.load_config()
     RegisterScriptCallback("npc_on_net_spawn",            _install)
     RegisterScriptCallback("npc_on_hit_callback",         _on_hit)
-    RegisterScriptCallback("npc_on_update",               _on_update)
     RegisterScriptCallback("npc_on_net_destroy",          _on_net_destroy)
     RegisterScriptCallback("server_entity_on_unregister", _on_entity_unregister)
-    RegisterScriptCallback("on_enemy_eval",               _on_enemy_eval)
     RegisterScriptCallback("actor_on_first_update",       _on_first_update)
-    RegisterScriptCallback("on_option_change",            _refresh_log)
-    RegisterScriptCallback("mcm_option_restore_default",  _refresh_log)
+    RegisterScriptCallback("on_option_change",            _on_option_change)
+    RegisterScriptCallback("mcm_option_restore_default",  _on_option_change)
 end

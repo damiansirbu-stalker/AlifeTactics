@@ -2,29 +2,31 @@
 ; All keys have script-side fallback defaults, so a missing key or file won't crash.
 
 [at_combat]
-; The scan (npc_on_update) - each check self-throttles on its own period
-begin_period_ms  = 500     ; begin_maneuver check: no maneuver open, look for a trigger and stage a row
+; The monitor pass (a vanilla time event, 200ms) - each check self-throttles on its own period.
+; begin_period_ms quantizes to the pass: 600 = every 3rd pass, its true cadence.
+begin_period_ms  = 600     ; begin_maneuver check: no maneuver open, look for a fired need and stage a row
 update_period_ms = 200     ; update_maneuver check: re-run the row's update (fire re-check / holster re-assert)
-end_period_ms    = 200     ; end_maneuver check: watch for arrival / the time cap, hand back
+end_period_ms    = 200     ; end_maneuver check: watch for arrival / the time cap / a broken premise, hand back
 hit_fight_ms      = 5000    ; a recent hit counts as "fighting" this long (far-shooter entry, best_enemy still nil)
-reseize_cooldown_ms = 5000  ; after a maneuver commits, hold off a fresh takeover of the same NPC this long (0 = off); also the flee disengage settle window
-max_concurrent_maneuvers = 20 ; runaway failsafe, never a behavior lever: at most this many NPCs hold a maneuver at once; the seize radius does the real bounding, high enough that a survival maneuver is never denied (0 = no cap)
-seize_actor_radius_m = 50   ; an NPC-vs-NPC fight qualifies for a maneuver only within this radius of the player (a maneuver beyond it is spectacle nobody sees); a fight WITH the player always qualifies at any range the engine lets it form (0 = off)
+max_concurrent_maneuvers = 20 ; runaway failsafe, never a behavior lever: at most this many NPCs hold a maneuver at once (0 = no cap)
 
-; Triggers (when AT seizes - only where vanilla is weak)
-hurt_frac     = 0.25       ; flee/retreat trigger below this HP fraction (25% - only when badly hurt, not a scratch)
-grenade_ms    = 3000       ; how recently a grenade danger counts as "near"
-stall_ms      = 4000       ; held position with the enemy not closing this long fires the stalled trigger
+; Needs (when AT seizes - only where vanilla is weak). Each row's need states the FULL problem and the
+; maneuver's success negates it, so a solved problem does not re-fire; there is no reseize cooldown.
+hurt_frac     = 0.25       ; flee/retreat need below this HP fraction (25% - only when badly hurt, not a scratch), with the enemy inside his own weapon's reach
+stall_ms      = 4000       ; held position with the enemy not closing this long fires the stalled need (measured SINCE the last maneuver - a finished hold resets it)
 stall_move_m  = 2          ; movement under this counts as "held position"
 stall_close_m = 2          ; enemy gaining more than this much ground resets the stall timer
+turn_actor_dist_m = 5      ; turn fires when an enemy actor is inside this range while the NPC's committed target is farther than him
 
 ; Maneuvers (kite backs off a fixed per-weapon distance - no key, KITE_BACK in at_combat_doctrine is the source)
 kite_arc_deg    = 45       ; back-lane fan step: try straight-back, then +-45, then +-90 for a clear lane
 kite_spread_deg = 90       ; max fan to either side when the straight-back lane is blocked by a wall or obstacle
 retreat_rear_m  = 4        ; retreat centers its cover search this far behind the NPC; the winning spot must be farther from the enemy than he stands
-under_fire_ms   = 2000     ; flee declines while a hit landed or a shot from that enemy was perceived within this window (the rout fires in the lull)
+under_fire_ms   = 2000     ; flee and snipe decline while a hit landed or a shot from that enemy was perceived within this window
+snipe_targeted_deg = 10    ; snipe declines (and an open hold ends) while the actor's aim is within this many degrees of the NPC - no motionless head under a crosshair
 maneuver_max_ms = 8000     ; stuck cap - a committed maneuver hands back after this even if it never arrives
 snipe_hold_ms   = 8000     ; snipe is a precision-fire hold (ends_on=time); it hands back to vanilla after this
-flee_max_ms     = 15000    ; flee is a rout (ends_on=arrival); a rout to a far base needs a longer cap than a maneuver
+turn_max_ms     = 3000     ; turn is a hold: aim at the actor, the turn makes him seen, the engine's selection flips; hands back after this
+flee_max_ms     = 20000    ; flee is a rout (ends_on=arrival); a rout to a far base needs a longer cap than a maneuver
 flee_min_dist_m = 5        ; flee only when the enemy is at least this far - nobody turns their back point-blank; most combat is <20m so keep this small (0 = off)
 flee_base_min_dist_m = 100 ; flee only to a friendly base/smart at least this far away - a real rout to safety, not a near hop

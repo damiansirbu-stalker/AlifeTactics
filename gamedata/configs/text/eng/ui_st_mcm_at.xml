@@ -268,6 +268,12 @@
   <string id="ui_mcm_at_combat_hdr_maneuvers">
     <text>Maneuvers</text>
   </string>
+  <string id="ui_mcm_at_combat_maneuver_turn">
+    <text>Turn</text>
+  </string>
+  <string id="ui_mcm_at_combat_maneuver_turn_desc">
+    <text>A stalker shooting a distant target while a hostile player stands at contact range turns and engages the closer threat instead of presenting his back.</text>
+  </string>
   <string id="ui_mcm_at_combat_maneuver_kite">
     <text>Kite</text>
   </string>
@@ -278,7 +284,7 @@
     <text>Retreat</text>
   </string>
   <string id="ui_mcm_at_combat_maneuver_retreat_desc">
-    <text>Badly hurt or grenade-pressed, a stalker pulls back to cover behind him, still firing. The cover always grows the distance to the shooter, and two men never claim the same spot.</text>
+    <text>Badly hurt with the shooter still in reach, a stalker pulls back to cover behind him, still firing. The cover always grows the distance to the shooter, and two men never claim the same spot.</text>
   </string>
   <string id="ui_mcm_at_combat_maneuver_flee">
     <text>Flee</text>
@@ -290,7 +296,7 @@
     <text>Snipe</text>
   </string>
   <string id="ui_mcm_at_combat_maneuver_snipe_desc">
-    <text>A marksman stuck in a standoff plants and takes precision shots. He only plants beyond his enemy's effective range, where the enemy cannot answer.</text>
+    <text>A marksman stuck in a standoff plants and takes precision shots. He only plants beyond his enemy's effective range, and never while taking fire or under your crosshair.</text>
   </string>
   <!-- ==================== CROSSFIRE PAGE ==================== -->
   <string id="ui_mcm_at_crossfire_desc">
@@ -322,7 +328,7 @@
     <text>Vanilla stalkers ignore distant shooters because a distance gate caps the response. With this on a direct hit always registers, so a sniped stalker at 200m turns and seeks cover instead of standing still.</text>
   </string>
   <string id="ui_mcm_at_fixes_danger_danger_attack_sound">
-    <text>React to nearby gunfire</text>
+    <text>React to enemy gunfire</text>
   </string>
   <string id="ui_mcm_at_fixes_danger_danger_attack_sound_desc">
     <text>Stalkers hearing enemy gunfire seek cover and adopt threat poses, no line of sight needed. Vanilla does nothing on this danger type. Reaction distance follows your setup's danger config.</text>
