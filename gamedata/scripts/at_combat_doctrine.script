@@ -29,7 +29,7 @@ local CONFIG_SECTION = "at_combat"
 local HURT_FRAC, STALL_MS, STALL_MOVE_SQR, STALL_CLOSE_M
 local KITE_ARC_DEG, KITE_SPREAD_DEG
 local FLEE_MIN_DIST_M, FLEE_BASE_MIN_DIST_M, RETREAT_REAR_M, UNDER_FIRE_MS
-local TURN_ACTOR_DIST_SQR, SNIPE_TARGETED_DEG
+local CONFRONT_ACTOR_DIST_SQR, SNIPE_TARGETED_DEG
 
 -- The maneuver catalog: an ordered array (array order = priority - resolve_maneuver walks it in order and
 -- the first row whose need, palette, and feasibility all pass wins the tick). Built in load_config so
@@ -111,19 +111,19 @@ local function _should_end_snipe(npc, enemy, state, tg)
     return _snipe_blocked(npc, enemy, state, tg, npc:position())
 end
 
--- turn: the actor-party row - an enemy actor at near-contact range while this NPC's committed fight is
--- someone FARTHER than him (shooting past the man who can kill him first, the enemy_manager's seen-now
+-- confront: the actor-party row - an enemy actor at near-contact range while this NPC's committed fight
+-- is someone FARTHER than him (shooting past the man who can kill him first, the enemy_manager's seen-now
 -- scoring artifact: a seen distant target outranks the unseen man on his shoulder, enemy_manager.cpp:110-175).
 -- A HOLD on his own node: aim at the actor, the turn makes him SEEN, and seen at contact range wins the
 -- engine's own selection outright - at hand-back best_enemy IS the actor, which is what negates the need
 -- (the transaction's success is the engine changing its mind). One raycast at feasibility: a wall between
 -- them means facing him is theater, decline.
-local function _can_turn(npc, _enemy, _state, _tg, memo)
+local function _can_confront(npc, _enemy, _state, _tg, memo)
     if xcombat.has_obstacle_to_target(memo.npc_pos, memo.actor_pos) then
-        at_combat_trace.can_turn(npc:id(), "obstructed")
+        at_combat_trace.can_confront(npc:id(), "obstructed")
         return nil
     end
-    at_combat_trace.can_turn(npc:id(), "taken")
+    at_combat_trace.can_confront(npc:id(), "taken")
     return npc:level_vertex_id()
 end
 
@@ -256,7 +256,7 @@ end
 -- the NEXT row in the SAME tick, so a row whose need is absent never consumes a decision slot. Shared
 -- reads come off the walk memo: my kind, the enemy's kind, faction, and the actor reads resolve once per
 -- walk. The success-negates-the-need law: every term here is chosen so the maneuver's completion makes
--- the need read false (kite clears its own minimum, retreat/flee push past the enemy's reach, turn flips
+-- the need read false (kite clears its own minimum, retreat/flee push past the enemy's reach, confront flips
 -- the engine's selection, a finished hold resets the stall measurement).
 -- =========================================================================
 
@@ -293,7 +293,7 @@ local function _should_stalled(npc, _enemy, state, tg, memo)
     return "stalled"
 end
 
--- actor_close: an enemy actor inside TURN_ACTOR_DIST while my committed fight is someone FARTHER than him
+-- actor_close: an enemy actor inside CONFRONT_ACTOR_DIST while my committed fight is someone FARTHER than him
 -- - the threat ordering is inverted and my back or side is what he sees. All pure math over the walk memo
 -- (the actor position resolves once per walk); the relation luabind is last and paid only inside the
 -- radius. Success is the engine's: the turn makes the actor SEEN and seen-at-contact wins his selection,
@@ -308,7 +308,7 @@ local function _should_actor_close(npc, _enemy, state, _tg, memo)
     local np = memo.npc_pos
     local dx, dz = ap.x - np.x, ap.z - np.z
     local actor_dist_sqr = dx * dx + dz * dz
-    if actor_dist_sqr > TURN_ACTOR_DIST_SQR then return nil end
+    if actor_dist_sqr > CONFRONT_ACTOR_DIST_SQR then return nil end
     if state.dist * state.dist <= actor_dist_sqr then return nil end
     if memo.actor_enemy == nil then memo.actor_enemy = npc:relation(db.actor) == game_object.enemy end
     if not memo.actor_enemy then return nil end
@@ -316,7 +316,7 @@ local function _should_actor_close(npc, _enemy, state, _tg, memo)
 end
 
 
--- Ordered array = the priority (user-set 2026-07-10): turn FIRST - an ignored enemy actor at contact
+-- Ordered array = the priority (user-set 2026-07-10): confront FIRST - an ignored enemy actor at contact
 -- range outranks every other problem; retreat SECOND - pressure (hurt inside the enemy's reach) is
 -- answered with a firing pull-back before anything else; flee THIRD - the timid escalation: the cursor
 -- moves past a picked retreat, so a still-hurt timid NPC tries the rout on his NEXT decision, and a
@@ -329,19 +329,19 @@ end
 local function _build_catalog(read_int)
     return {
         {
-            -- turn: stop shooting past the man who can kill you first. A 3s hold: aim at the actor, the
-            -- turn makes him seen, the engine's own selection flips, vanilla drives the new fight.
-            name           = "turn",
-            toggle         = "maneuver_turn",
+            -- confront: stop shooting past the man who can kill you first. A 3s hold: aim at the actor,
+            -- the turn makes him seen, the engine's own selection flips, vanilla drives the new fight.
+            name           = "confront",
+            toggle         = "maneuver_confront",
             vs_actor       = true,
             should_maneuver = _should_actor_close,
             factions       = nil,
             weapons        = nil,
-            can_maneuver   = _can_turn,
+            can_maneuver   = _can_confront,
             update         = _apply_state,
             fire           = xcombat.FIRE, posture = xcombat.STAND, movement = xcombat.STILL,
             ends_on        = "time",
-            timeout        = read_int("turn_max_ms", 3000),
+            timeout        = read_int("confront_max_ms", 3000),
         },
         {
             -- retreat: answer pressure (hurt inside the enemy's reach) with a pull-back to rear cover,
@@ -412,7 +412,7 @@ function at_combat_doctrine.load_config()
     local ini = ini_file(CONFIG_PATH)
     local function read_float(k, d) return ini:r_float_ex(CONFIG_SECTION, k) or d end
     local function read_int(k, d) local v = ini:r_float_ex(CONFIG_SECTION, k) return v and math_floor(v) or d end
-    HURT_FRAC      = read_float("hurt_frac",     0.25)
+    HURT_FRAC      = read_float("hurt_frac",     0.40)
     STALL_MS       = read_int("stall_ms",        4000)
     local move_m   = read_float("stall_move_m",  2)
     STALL_MOVE_SQR = move_m * move_m
@@ -423,8 +423,8 @@ function at_combat_doctrine.load_config()
     UNDER_FIRE_MS   = read_int("under_fire_ms",   2000)
     FLEE_MIN_DIST_M      = read_int("flee_min_dist_m",      5)
     FLEE_BASE_MIN_DIST_M = read_int("flee_base_min_dist_m", 100)
-    local turn_dist_m    = read_float("turn_actor_dist_m",  5)
-    TURN_ACTOR_DIST_SQR  = turn_dist_m * turn_dist_m
+    local confront_dist_m    = read_float("confront_actor_dist_m",  5)
+    CONFRONT_ACTOR_DIST_SQR  = confront_dist_m * confront_dist_m
     SNIPE_TARGETED_DEG   = read_float("snipe_targeted_deg", 10)
     CATALOG = _build_catalog(read_int)
 end

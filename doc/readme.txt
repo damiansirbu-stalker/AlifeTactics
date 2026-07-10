@@ -46,7 +46,7 @@ A maneuver fires only when the environment, situation, his own and his enemies s
 
 
 These maneuvers cover the moments vanilla fumbles (wip, many will come):
-  Turn snaps a stalker around when a hostile player stands at contact range while he shoots someone far away.
+  Confront snaps a stalker around when a hostile player stands at contact range while he shoots someone far away.
   Kite backs a stalker out of an enemy that closed too near, still firing.
   Retreat pulls a steady faction to cover under pressure.
   Flee routs a cautious one to a distant friendly base.
