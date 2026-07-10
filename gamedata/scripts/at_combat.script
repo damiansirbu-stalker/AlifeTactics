@@ -316,12 +316,23 @@ end
 -- object and run whichever checks are due. The per-frame cost of the whole monitor is ONE timer compare
 -- inside vanilla's own ProcessEventQueue walk (_g.script:364, driven from the actor update at
 -- bind_stalker_ext.script:26); the real work runs 5 times a second total, never per frame, never per NPC
--- per frame. level.object_by_id is a hash net_Find returning nil for a gone id (level_script.cpp:131-138)
--- - the nil guard covers the same-pass window between an object dying and its net_destroy cleanup.
+-- per frame. level.object_by_id is a hash net_Find returning nil for a gone id (level_script.cpp:131-138).
+-- The pass re-arms FIRST: ProcessEventQueue has no error protection, so an error mid-pass with the event
+-- still expired would re-fire and re-error every frame, starving every time event in the game (the
+-- 2026-07-11 frozen-HUD loop); re-armed, a fault costs one aborted pass and the queue heals itself.
 local _monitor_active = false
 
 -- One NPC's slice of the pass: run whichever checks match its open/closed state and are due.
+-- ALIVE only - the engine combat binds (see, fire_make_sense, best_enemy) fault on a dead stalker's
+-- torn-down AI state (the smart_cast guards type, not liveness). A tracked NPC found dead releases its
+-- maneuver here; the roster entry itself dies on net_destroy/unregister.
 local function _run_npc_checks(npc, state, tg)
+    if not npc:alive() then
+        _drop_gate(state)
+        _release_cover(state)
+        state.maneuver = nil
+        return
+    end
     local open = state.gate == true
     for i = 1, #CHECKS do
         local check = CHECKS[i]
@@ -331,12 +342,12 @@ end
 
 local function _run_monitor()
     if not _monitor_active then return true end
+    ResetTimeEvent("at_combat", "monitor", MONITOR_PERIOD_SEC)
     local tg = time_global()
     for id, state in pairs(_npc_states) do
         local npc = level.object_by_id(id)
         if npc then _run_npc_checks(npc, state, tg) end
     end
-    ResetTimeEvent("at_combat", "monitor", MONITOR_PERIOD_SEC)
 end
 
 local function _start_monitor()

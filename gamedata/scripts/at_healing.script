@@ -391,14 +391,17 @@ local _monitor_active = false
 
 local function _run_monitor()
     if not _monitor_active then return true end
-    if cfg.limping_anim_enabled then
-        local tg = time_global()
-        for id, state in pairs(_npc_states) do
-            local npc = level.object_by_id(id)
-            if npc then _run_limp_check(npc, state, tg) end
-        end
-    end
+    -- Re-arm FIRST: ProcessEventQueue has no error protection, so an expired event that errors would
+    -- re-fire and re-error every frame, starving every time event in the game. Re-armed, a fault costs
+    -- one aborted pass. Liveness inside the check (_try_drop_limp and the eligibility chain test alive
+    -- before any engine combat read).
     ResetTimeEvent("at_healing", "monitor", MONITOR_PERIOD_SEC)
+    if not cfg.limping_anim_enabled then return end
+    local tg = time_global()
+    for id, state in pairs(_npc_states) do
+        local npc = level.object_by_id(id)
+        if npc then _run_limp_check(npc, state, tg) end
+    end
 end
 
 -- Roster fill. Unconditional (the limp overlay is independent of the healing master toggle); the

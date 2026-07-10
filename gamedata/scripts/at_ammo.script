@@ -254,14 +254,16 @@ local _monitor_active = false
 
 local function _run_monitor()
     if not _monitor_active then return true end
-    if _enabled then
-        local now = time_global()
-        for id in pairs(_npc_ids) do
-            local npc = level.object_by_id(id)
-            if npc then pick(npc, now) end
-        end
-    end
+    -- Re-arm FIRST: ProcessEventQueue has no error protection, so an expired event that errors would
+    -- re-fire and re-error every frame, starving every time event in the game. Re-armed, a fault costs
+    -- one aborted pass. Liveness inside pick (alive/IsStalker gates precede every engine combat read).
     ResetTimeEvent("at_ammo", "monitor", MONITOR_PERIOD_SEC)
+    if not _enabled then return end
+    local now = time_global()
+    for id in pairs(_npc_ids) do
+        local npc = level.object_by_id(id)
+        if npc then pick(npc, now) end
+    end
 end
 
 -- Time events do not survive a save load (_g.script header), so the monitor arms here, per session.
