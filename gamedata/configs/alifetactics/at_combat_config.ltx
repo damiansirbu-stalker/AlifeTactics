@@ -21,7 +21,7 @@ counterflank_actor_dist_m = 5  ; counterflank fires when an enemy actor is insid
 ; Maneuvers (kite backs off a fixed per-weapon distance - no key, KITE_BACK in at_combat_doctrine is the source)
 kite_arc_deg    = 45       ; back-lane fan step: try straight-back, then +-45, then +-90 for a clear lane
 kite_spread_deg = 90       ; max fan to either side when the straight-back lane is blocked by a wall or obstacle
-retreat_rear_m  = 4        ; retreat centers its cover search this far behind the NPC; the winning spot must be farther from the enemy than he stands
+retreat_rear_m  = 8        ; retreat centers its cover search this far behind the NPC; the winning spot must be farther from the enemy than he stands. MUST exceed the 7m cover-search radius: at 4 the circle included the NPC's own cover, best_cover kept re-picking it, and retreat declined toward_enemy forever (2026-07-11 playtest)
 under_fire_ms   = 2000     ; flee and snipe decline while a hit landed or a shot from that enemy was perceived within this window
 snipe_targeted_deg = 10    ; snipe declines (and an open hold ends) while the actor's aim is within this many degrees of the NPC - no motionless head under a crosshair
 maneuver_max_ms = 8000     ; stuck cap - a committed maneuver hands back after this even if it never arrives
