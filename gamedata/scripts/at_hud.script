@@ -1,13 +1,14 @@
 --- at_hud: live debug HUD listing nearby NPCs, TWO lines per NPC on ONE shared 2-column grid -
 --- identical column positions on both lines, so everything aligns by construction (the old two-line
---- layout failed because each line had its own grid). Line A, bright (green while a maneuver
---- drives): stalker (rank + name + hp) | target (name + distance + sees). Line B, dim except the
---- maneuver cell (green while one is open): engine (scheme + mental + state, everything Anomaly) |
---- maneuver (the open maneuver's name, "-" when vanilla drives).
+--- layout failed because each line had its own grid). Line A, bright: stalker (rank + name + hp) |
+--- MANEUVER - the headline cell, the open maneuver's name in caps and green for the takeover's whole
+--- life, "-" dim when vanilla drives. Line B, dim: target (name + distance + sees) | engine (scheme +
+--- mental). The cover belief/ray forensics and the state_mgr target state live in the decision trace,
+--- not here.
 --- The cover belief/ray forensics live in the decision trace, not here.
 
 local pairs, table_sort, math_floor, tostring = pairs, table.sort, math.floor, tostring
-local string_sub, string_format = string.sub, string.format
+local string_sub, string_format, string_upper = string.sub, string.format, string.upper
 local IsStalker, RegisterScriptCallback = IsStalker, RegisterScriptCallback
 
 local log = xlog.get_logger("AT.HUD", { outfile = "alifetactics.log" })
@@ -32,10 +33,9 @@ local CHAR_W   = 6
 local CELL_PAD = 2
 local MARGIN   = 15
 local MAX_ROWS = 16
-local SUBJECT_NAME_MAX = 14
-local TARGET_NAME_MAX  = 12
-local SCHEME_MAX       = 8
-local STATE_MAX        = 10
+local SUBJECT_NAME_MAX = 20
+local TARGET_NAME_MAX  = 20
+local SCHEME_MAX       = 10
 -- body-to-enemy angle above this many degrees reads as "pointed away" (the weird-aim flag)
 local FACING_DEG = 60
 
@@ -112,13 +112,12 @@ local function _mental_name(npc)
     return _MENTAL[mental] or tostring(mental)
 end
 
--- Per-NPC readout, one table, one HUD line of 4 composite cells. tag=AT drives the row COLOUR (green,
--- only while a maneuver is actually open); the maneuver cell carries the open maneuver's name, "-" when
--- vanilla drives. engine packs everything Anomaly: the xr_logic scheme, the mental word, and the
--- state_mgr target state.
+-- Per-NPC readout, one table, one HUD line of 4 composite cells. tag=AT drives the COLOUR (green, only
+-- while a maneuver is actually open); the maneuver cell is the HEADLINE - the open maneuver's name in
+-- caps, "-" when vanilla drives. engine is the xr_logic scheme plus the mental word; the state_mgr
+-- target state moved to the decision trace (it enumerated without informing at a glance).
 local function _derive(npc, st)
     local maneuver = at_combat.get_maneuver(npc:id())
-    local sm = st.state_mgr
     local enemy = npc:best_enemy()
     local rank = ranks.get_obj_rank_name(npc)
     return {
@@ -128,12 +127,11 @@ local function _derive(npc, st)
             _truncate(npc:character_name() or npc:name(), SUBJECT_NAME_MAX),
             math_floor((npc.health or 0) * 100)),
         target  = _target_cell(npc, enemy),
-        -- scheme and state are omitted when absent, not printed as "-" (a leading dash reads
-        -- as a stray minus); mental is always present, so the cell is never empty.
+        -- scheme is omitted when absent, not printed as "-" (a leading dash reads as a stray
+        -- minus); mental is always present, so the cell is never empty.
         engine  = (st.active_scheme and (_truncate(st.active_scheme, SCHEME_MAX) .. " ") or "")
-            .. _mental_name(npc)
-            .. (sm and sm.target_state and (" " .. _truncate(sm.target_state, STATE_MAX)) or ""),
-        maneuver = maneuver or "-",
+            .. _mental_name(npc),
+        maneuver = maneuver and string_upper(maneuver) or "-",
         is_combat = enemy ~= nil,
     }
 end
@@ -199,10 +197,11 @@ end
 -- (no per-tick widget construction). Two lines per NPC on ONE shared grid.
 -- =========================================================================
 
--- The shared grid (chars per column) and what each line puts in it.
-local GRID  = { 26, 22 }
-local ROW_A = { "stalker", "target" }
-local ROW_B = { "engine", "maneuver" }
+-- The shared grid (chars per column) and what each line puts in it. The maneuver sits top-right on the
+-- bright line - the headline; the target reads under its owner, the engine words dim beside it.
+local GRID  = { 30, 20 }
+local ROW_A = { "stalker", "maneuver" }
+local ROW_B = { "target", "engine" }
 
 local function _lay_widths(chars)
     local widths, total = {}, 0
@@ -269,10 +268,9 @@ function UIDebugHUD:_cell(xml, x, y, w)
 end
 
 -- Rewrite both lines per entry from freshly built rows; blank only what the previous refresh used.
--- No allocation, no widget construction. Line A takes the row color (green while a maneuver drives);
--- line B stays dim - the pairing cue - EXCEPT the maneuver cell, which takes the row color too, so the
--- open maneuver's name reads green for the maneuver's whole life instead of being dimmed by its line.
--- The overflow entry fills only its first A cell.
+-- No allocation, no widget construction. Line A takes the row color (green while a maneuver drives),
+-- and the maneuver cell reads green only while one is open, dim "-" otherwise - the headline never
+-- lies. Line B stays dim, the pairing cue. The overflow entry fills only its first A cell.
 function UIDebugHUD:set_rows(rows)
     local count = #rows
     if count > MAX_ROWS + 1 then count = MAX_ROWS + 1 end
@@ -281,12 +279,13 @@ function UIDebugHUD:set_rows(rows)
         local color = (row.is_overflow and CLR_DIM) or (row.tag == "AT" and CLR_AT) or CLR_NORMAL
         local a, b = self.a[i], self.b[i]
         for c = 1, #ROW_A do
-            a[c]:SetText(row[ROW_A[c]] or "")
-            a[c]:SetTextColor(color)
+            local key = ROW_A[c]
+            a[c]:SetText(row[key] or "")
+            a[c]:SetTextColor((key == "maneuver" and row.tag ~= "AT") and CLR_DIM or color)
         end
         for c = 1, #ROW_B do
             b[c]:SetText(row.is_overflow and "" or (row[ROW_B[c]] or ""))
-            b[c]:SetTextColor((ROW_B[c] == "maneuver" and row.tag == "AT") and CLR_AT or CLR_DIM)
+            b[c]:SetTextColor(CLR_DIM)
         end
     end
     for i = count + 1, self.used do
@@ -347,8 +346,10 @@ local function _tick()
         _hide()
         return true
     end
-    if _is_visible() then _refresh() else _hide() end
+    -- Re-arm FIRST: ProcessEventQueue has no error protection, so an expired event that errors would
+    -- re-fire and re-error every frame, starving every time event in the game.
     ResetTimeEvent("at_hud", "tick", REFRESH_INTERVAL_SEC)
+    if _is_visible() then _refresh() else _hide() end
 end
 
 local function _start()
