@@ -46,11 +46,14 @@ A maneuver fires only when the environment, situation, his own and his enemies s
 
 
 These maneuvers cover the moments vanilla fumbles (wip, many will come):
+  Turn snaps a stalker around when a hostile player stands at contact range while he shoots someone far away.
   Kite backs a stalker out of an enemy that closed too near, still firing.
   Retreat pulls a steady faction to cover under pressure.
   Flee routs a cautious one to a distant friendly base.
   Snipe holds a stalled marksman on precision aim.
-The decisions come out looking human. Nobody turns his back on a shooter, two men never take the same cover, no one goes to cover when the enemy is in sight and weak.
+Maneuvers run only in fights the player is part of; NPC-only fights stay fully vanilla.
+A maneuver fires when its problem is real and ends when it is solved; if you keep creating the problem (keep pressing a shotgunner's minimum range), the answer keeps coming.
+The decisions come out looking human. Nobody turns his back on a shooter, two men never take the same cover, a sniper never plants under your crosshair.
 The takeover overrides no combat scripts, so it fights side by side with vanilla and layers cleanly over AI overhauls. Companions are excluded by default.
 
 Behaviors (planned):
@@ -77,7 +80,8 @@ Stalkers read danger the way the engine always meant them to.
 AlifeTactics reworks Anomaly's danger scheme as a runtime patch, laid onto whichever danger script a modpack ships instead of replacing the file.
 A set of always-on fixes clears long-standing crashes and misreads across the danger check and the corpse investigation.
 Detection distances stay owned by your setup's danger config. AlifeTactics adds the reactions, never the tuning.
-Three of the improvements are optional: a direct hit answers at any range, nearby gunfire draws a cover-and-threat response, and actor-sourced danger reads the separate tables where your config provides them.
+Three of the improvements are optional: a direct hit answers at any range, ENEMY gunfire draws a cover-and-threat response with no line of sight needed, and actor-sourced danger reads the separate tables where your config provides them.
+Gunfire from neutral or friendly stalkers, including your own weapon, is not a danger to them - reactions follow the engine's relation rule, same as vanilla.
 
 Crossfire:
 Same-faction fighters no longer cut each other down in a crossfire.

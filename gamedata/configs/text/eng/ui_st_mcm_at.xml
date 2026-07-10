@@ -251,7 +251,7 @@
   </string>
   <!-- ==================== MANEUVERS PAGE ==================== -->
   <string id="ui_mcm_at_combat_desc">
-    <text>A maneuver is a complete takeover of one stalker for a few seconds. AlifeTactics drives him through one committed move and hands him back to the engine cleanly. Vanilla, or whatever AI overhaul you run, drives every fight the rest of the time. A maneuver fires only when the situation, his own state, and his enemy's state give him an upper hand. The decisions come out looking human. Nobody turns his back on a shooter, two men never take the same cover. The takeover overrides no combat scripts, so it layers over AI overhauls. Each maneuver below toggles on its own.</text>
+    <text>A maneuver is a complete takeover of one stalker for a few seconds. AlifeTactics drives him through one committed move and hands him back to the engine cleanly. Vanilla, or whatever AI overhaul you run, drives every fight the rest of the time. Maneuvers run only in fights you are part of; NPC-only fights stay fully vanilla. A maneuver fires when its problem is real and ends when it is solved, so pressing the same stalker keeps drawing the same answer. The decisions come out looking human. Nobody turns his back on a shooter, two men never take the same cover. The takeover overrides no combat scripts, so it layers over AI overhauls. Each maneuver below toggles on its own.</text>
   </string>
   <string id="ui_mcm_at_combat_combat_enabled">
     <text>Enable combat takeover</text>
@@ -331,7 +331,7 @@
     <text>React to enemy gunfire</text>
   </string>
   <string id="ui_mcm_at_fixes_danger_danger_attack_sound_desc">
-    <text>Stalkers hearing enemy gunfire seek cover and adopt threat poses, no line of sight needed. Vanilla does nothing on this danger type. Reaction distance follows your setup's danger config.</text>
+    <text>Stalkers hearing gunfire from an ENEMY seek cover and adopt threat poses, no line of sight needed. Gunfire from neutral or friendly stalkers, including yours, does not alarm them - that is the engine's relation rule, same as vanilla. Vanilla does nothing on this danger type even for enemies. Reaction distance follows your setup's danger config.</text>
   </string>
   <string id="ui_mcm_at_fixes_danger_danger_actor_tables">
     <text>Actor-source tuning</text>
@@ -399,7 +399,7 @@
     <text>Position</text>
   </string>
   <string id="ui_mcm_at_development_hud_position_desc">
-    <text>Live overlay of nearby stalkers: rank and name, health, logic scheme, combat action and state, mental state, sight and cover flags, and the current target with distance. A green row marks a stalker AlifeTactics is driving. Refreshes every second and hides while the PDA is open. Pick a corner to show it.</text>
+    <text>Live overlay of nearby stalkers: rank and name, health, logic scheme, mental state, and the current target with distance. A green row with the maneuver name in green marks a stalker AlifeTactics is driving, for the maneuver's whole life. Refreshes twice per second and hides while the PDA is open. Pick a corner to show it.</text>
   </string>
   <string id="at_development_hud_position_lst_off">
     <text>Off</text>
