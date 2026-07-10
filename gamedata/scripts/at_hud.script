@@ -1,8 +1,9 @@
 --- at_hud: live debug HUD listing nearby NPCs, TWO lines per NPC on ONE shared 2-column grid -
 --- identical column positions on both lines, so everything aligns by construction (the old two-line
 --- layout failed because each line had its own grid). Line A, bright (green while a maneuver
---- drives): stalker (rank + name + hp) | target (name + distance + sees). Line B, dim:
---- engine (scheme + mental + state, everything Anomaly) | maneuver (name / cooldown / "-").
+--- drives): stalker (rank + name + hp) | target (name + distance + sees). Line B, dim except the
+--- maneuver cell (green while one is open): engine (scheme + mental + state, everything Anomaly) |
+--- maneuver (the open maneuver's name, "-" when vanilla drives).
 --- The cover belief/ray forensics live in the decision trace, not here.
 
 local pairs, table_sort, math_floor, tostring = pairs, table.sort, math.floor, tostring
@@ -13,7 +14,9 @@ local log = xlog.get_logger("AT.HUD", { outfile = "alifetactics.log" })
 local _dbg = false
 local cfg = at_mcm.cfg
 
-local REFRESH_INTERVAL_SEC = 3
+-- 0.5s: the takeover state this HUD reports changes on a 200ms cadence and maneuvers can live ~2-3s;
+-- a slower refresh can miss a whole maneuver between two paints (the 2026-07-10 invisible-kite report).
+local REFRESH_INTERVAL_SEC = 0.5
 -- Scan radius and idle-row visibility are code constants, not MCM options: every key in at_mcm defaults
 -- must have a tree widget (ui_mcm.get validates the path against the option tree), and these never had one.
 local HUD_RADIUS_M  = 100
@@ -110,9 +113,9 @@ local function _mental_name(npc)
 end
 
 -- Per-NPC readout, one table, one HUD line of 4 composite cells. tag=AT drives the row COLOUR (green,
--- only while a maneuver is actually open); the maneuver cell carries the takeover status word - the
--- maneuver name, "cooldown" through the reseize window, "-" when vanilla drives. engine packs
--- everything Anomaly: the xr_logic scheme, the mental word, and the state_mgr target state.
+-- only while a maneuver is actually open); the maneuver cell carries the open maneuver's name, "-" when
+-- vanilla drives. engine packs everything Anomaly: the xr_logic scheme, the mental word, and the
+-- state_mgr target state.
 local function _derive(npc, st)
     local maneuver = at_combat.get_maneuver(npc:id())
     local sm = st.state_mgr
@@ -130,7 +133,7 @@ local function _derive(npc, st)
         engine  = (st.active_scheme and (_truncate(st.active_scheme, SCHEME_MAX) .. " ") or "")
             .. _mental_name(npc)
             .. (sm and sm.target_state and (" " .. _truncate(sm.target_state, STATE_MAX)) or ""),
-        maneuver = at_combat.get_status(npc:id()) or "-",
+        maneuver = maneuver or "-",
         is_combat = enemy ~= nil,
     }
 end
@@ -266,8 +269,10 @@ function UIDebugHUD:_cell(xml, x, y, w)
 end
 
 -- Rewrite both lines per entry from freshly built rows; blank only what the previous refresh used.
--- No allocation, no widget construction. Line A takes the row color (green while a maneuver
--- drives), line B stays dim - the pairing cue. The overflow entry fills only its first A cell.
+-- No allocation, no widget construction. Line A takes the row color (green while a maneuver drives);
+-- line B stays dim - the pairing cue - EXCEPT the maneuver cell, which takes the row color too, so the
+-- open maneuver's name reads green for the maneuver's whole life instead of being dimmed by its line.
+-- The overflow entry fills only its first A cell.
 function UIDebugHUD:set_rows(rows)
     local count = #rows
     if count > MAX_ROWS + 1 then count = MAX_ROWS + 1 end
@@ -281,7 +286,7 @@ function UIDebugHUD:set_rows(rows)
         end
         for c = 1, #ROW_B do
             b[c]:SetText(row.is_overflow and "" or (row[ROW_B[c]] or ""))
-            b[c]:SetTextColor(CLR_DIM)
+            b[c]:SetTextColor((ROW_B[c] == "maneuver" and row.tag == "AT") and CLR_AT or CLR_DIM)
         end
     end
     for i = count + 1, self.used do
