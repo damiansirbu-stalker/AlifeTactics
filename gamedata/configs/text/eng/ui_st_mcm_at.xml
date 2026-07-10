@@ -268,10 +268,10 @@
   <string id="ui_mcm_at_combat_hdr_maneuvers">
     <text>Maneuvers</text>
   </string>
-  <string id="ui_mcm_at_combat_maneuver_confront">
-    <text>Confront</text>
+  <string id="ui_mcm_at_combat_maneuver_counterflank">
+    <text>Counterflank</text>
   </string>
-  <string id="ui_mcm_at_combat_maneuver_confront_desc">
+  <string id="ui_mcm_at_combat_maneuver_counterflank_desc">
     <text>A stalker shooting a distant target while a hostile player stands at contact range turns and engages the closer threat instead of presenting his back.</text>
   </string>
   <string id="ui_mcm_at_combat_maneuver_kite">

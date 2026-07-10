@@ -16,7 +16,7 @@ hurt_frac     = 0.40       ; flee/retreat need below this HP fraction, with the 
 stall_ms      = 4000       ; held position with the enemy not closing this long fires the stalled need (measured SINCE the last maneuver - a finished hold resets it)
 stall_move_m  = 2          ; movement under this counts as "held position"
 stall_close_m = 2          ; enemy gaining more than this much ground resets the stall timer
-confront_actor_dist_m = 5  ; confront fires when an enemy actor is inside this range while the NPC's committed target is farther than him
+counterflank_actor_dist_m = 5  ; counterflank fires when an enemy actor is inside this range while the NPC's committed target is farther than him
 
 ; Maneuvers (kite backs off a fixed per-weapon distance - no key, KITE_BACK in at_combat_doctrine is the source)
 kite_arc_deg    = 45       ; back-lane fan step: try straight-back, then +-45, then +-90 for a clear lane
@@ -26,7 +26,7 @@ under_fire_ms   = 2000     ; flee and snipe decline while a hit landed or a shot
 snipe_targeted_deg = 10    ; snipe declines (and an open hold ends) while the actor's aim is within this many degrees of the NPC - no motionless head under a crosshair
 maneuver_max_ms = 8000     ; stuck cap - a committed maneuver hands back after this even if it never arrives
 snipe_hold_ms   = 8000     ; snipe is a precision-fire hold (ends_on=time); it hands back to vanilla after this
-confront_max_ms = 3000     ; confront is a hold: aim at the actor, the turn makes him seen, the engine's selection flips; hands back after this
+counterflank_max_ms = 3000     ; counterflank is a hold: aim at the actor, the turn makes him seen, the engine's selection flips; hands back after this
 flee_max_ms     = 20000    ; flee is a rout (ends_on=arrival); a rout to a far base needs a longer cap than a maneuver
 flee_min_dist_m = 5        ; flee only when the enemy is at least this far - nobody turns their back point-blank; most combat is <20m so keep this small (0 = off)
 flee_base_min_dist_m = 100 ; flee only to a friendly base/smart at least this far away - a real rout to safety, not a near hop

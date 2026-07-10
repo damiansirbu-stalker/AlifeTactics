@@ -268,10 +268,10 @@
   <string id="ui_mcm_at_combat_hdr_maneuvers">
     <text>Манёвры</text>
   </string>
-  <string id="ui_mcm_at_combat_maneuver_confront">
+  <string id="ui_mcm_at_combat_maneuver_counterflank">
     <text>Разворот</text>
   </string>
-  <string id="ui_mcm_at_combat_maneuver_confront_desc">
+  <string id="ui_mcm_at_combat_maneuver_counterflank_desc">
     <text>Сталкер, стреляющий по дальней цели, пока враждебный игрок стоит вплотную, разворачивается и атакует ближнюю угрозу, вместо того чтобы подставлять спину.</text>
   </string>
   <string id="ui_mcm_at_combat_maneuver_kite">

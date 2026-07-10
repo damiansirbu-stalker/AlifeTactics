@@ -98,11 +98,11 @@ function at_combat_trace.can_snipe(id, dist, enemy_max, path)
         _show(id), _show(_names[id]), dist or -1, _show(enemy_max), _show(path))
 end
 
---- One line per confront feasibility check: path "taken" (clear line to the actor, holds in place and
+--- One line per counterflank feasibility check: path "taken" (clear line to the actor, holds in place and
 --- engages) or "obstructed" (a wall or object blocks the line - facing him is theater, declined).
-function at_combat_trace.can_confront(id, path)
+function at_combat_trace.can_counterflank(id, path)
     if not _on then return end
-    log.info("can_confront id=%s name=%s path=%s", _show(id), _show(_names[id]), _show(path))
+    log.info("can_counterflank id=%s name=%s path=%s", _show(id), _show(_names[id]), _show(path))
 end
 
 --- One line per retreat feasibility check: path "taken" (vertex accepted; cover_dist > npc_dist is the proof
