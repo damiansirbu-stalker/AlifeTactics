@@ -324,13 +324,15 @@ local _monitor_active = false
 
 -- One NPC's slice of the pass: run whichever checks match its open/closed state and are due.
 -- ALIVE only - the engine combat binds (see, fire_make_sense, best_enemy) fault on a dead stalker's
--- torn-down AI state (the smart_cast guards type, not liveness). A tracked NPC found dead releases its
--- maneuver here; the roster entry itself dies on net_destroy/unregister.
+-- torn-down AI state (the smart_cast guards type, not liveness). A tracked NPC found dead ends its
+-- maneuver through the normal path (gate, cover, count, the traced "died" reason - 4 begins with no
+-- end lines in the 2026-07-11 session were exactly these); the roster entry itself dies on
+-- net_destroy/unregister.
 local function _run_npc_checks(npc, state, tg)
     if not npc:alive() then
+        if state.maneuver then _end_maneuver(state, tg, "died") end
         _drop_gate(state)
         _release_cover(state)
-        state.maneuver = nil
         return
     end
     local open = state.gate == true
