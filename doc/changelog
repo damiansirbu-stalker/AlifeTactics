@@ -1,5 +1,8 @@
 next
-  Summary: danger detection from your setup, hit response at any range, gunfire reaction fix
+  Summary: danger detection from your setup, hit response at any range, gunfire reaction fix, localization
+
+  Localization
+    - Added Russian localization for the MCM reset confirmation.
 
   Effectiveness
     - Removed AlifeTactics's own danger detection values.

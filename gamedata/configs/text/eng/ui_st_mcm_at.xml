@@ -426,4 +426,7 @@
   <string id="ui_mcm_at_development_reset_warning">
     <text>Warning: save or discard pending MCM changes first, otherwise they override the reset on the next Accept.</text>
   </string>
+  <string id="st_at_reset_all_done">
+    <text>AlifeTactics: all settings restored to defaults.</text>
+  </string>
 </string_table>
