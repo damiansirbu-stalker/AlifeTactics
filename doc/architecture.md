@@ -455,10 +455,10 @@ heal:  vanilla xr_eat_medkit stage machine (untouched)
          -> patched heal_hp / heal_bleed (rate multiplier, duration trace)
          -> consume_medkit save-wrap logs item=<section> | CHARGE
             (a real inventory item released vs the per-rank fallback)
-limp:  npc_on_update carrier
-         eligibility check (1s): hurt + no enemy + calm + standing
+limp:  monitor pass (a vanilla time event, 200ms, over the spawn-filled roster)
+         eligibility check (1s, per-NPC stamp): hurt + no enemy + calm + standing
              -> queue the hurt pose for the current gait
-         drop detectors (200ms): wounded/dead, gait changed,
+         drop detectors (every pass): wounded/dead, gait changed,
              drifted off the stand anchor, stopped displacing
              -> clear_animations
             (a queued script animation suspends the engine's whole animation
@@ -471,10 +471,10 @@ Two cosmetic cues using `npc:add_animation` directly. No state_mgr, no GOAP, no 
 
 | Cue | Trigger | Animation(s) |
 |---|---|---|
-| Limping | `npc_on_update` per-NPC: a 200ms drop-detector clock while the pose is worn (wounded/dead; commanded gait changed since add; stand-variant drifted off its add anchor; walk/run-variant stopped displacing over a 1s sample) - every drop calls `clear_animations()`; a 1s eligibility check (`health < threshold`, no `best_enemy`, `mental_state() == anim.free`, `body_state() == move.standing`, not zombied, not in smart_cover), re-armed every 5s | a per-slot `dmg_norm` hurt pose (clutch-the-torso) chosen from `active_slot()` + `movement_type()`. A queued script animation suspends the engine's whole animation selection (legs included, stalker_animation_manager_update.cpp:232), so the overlay must die the moment its gait stops matching - that is what the drop detectors do |
+| Limping | the limp monitor pass (`_run_monitor`, a vanilla time event every 200ms over the spawn-filled roster): the drop detectors run on the pass itself while the pose is worn (wounded/dead; commanded gait changed since add; stand-variant drifted off its add anchor; walk/run-variant stopped displacing over a 1s sample) - every drop calls `clear_animations()`; a 1s eligibility check on a per-NPC stamp (`health < threshold`, no `best_enemy`, `mental_state() == anim.free`, `body_state() == move.standing`, not zombied, not in smart_cover), re-armed every 5s | a per-slot `dmg_norm` hurt pose (clutch-the-torso) chosen from `active_slot()` + `movement_type()`. A queued script animation suspends the engine's whole animation selection (legs included, stalker_animation_manager_update.cpp:232), so the overlay must die the moment its gait stops matching - that is what the drop detectors do |
 | Heal anim | One-shot via `_try_play_heal_anim` on the first heal tick. Gated on `not npc:best_enemy()`, `not IsWounded(npc)`, `not npc:critically_wounded()`. No movement freeze, no stage machine, no mid-flight aborts. Engine drains the queue when the gesture ends; action transitions clear it on the way to action_wounded / action_critically_wounded (`stalker_base_action.cpp:24-29`) | a torso medkit / bandage gesture |
 
-Limping is independent of the healing master toggle (its callback registers unconditionally; gated at runtime by `limping_anim_enabled`). Heal cue is gated by `healing_anim_enabled` and the master toggle (it lives inside the heal_hp/heal_bleed patches that only install when healing is enabled).
+Limping is independent of the healing master toggle (its monitor arms unconditionally; gated at runtime by `limping_anim_enabled` - one boolean per pass when off). Heal cue is gated by `healing_anim_enabled` and the master toggle (it lives inside the heal_hp/heal_bleed patches that only install when healing is enabled).
 
 Combat NPCs are excluded by the `mental_state == anim.free` gate. state_mgr drives mental to `anim.danger` in combat states (`state_lib.script:326-340` hide_fire / threat).
 
@@ -519,7 +519,7 @@ No virtual ledger. The budget is the NPC's AP boxes themselves, stocked by Alife
 
 ### Tick algorithm
 
-`pick(npc, now)` is the public entry, subscribed to `npc_on_update` (per-NPC throttle). Gates: cached `ammo_enabled`, `alive`/`IsStalker`, `character_rank() >= min_ap_rank`, `IsWeapon(active_item)`, non-empty `ammo_class`. Then it splits on `best_enemy()`:
+`pick(npc, now)` is the public entry, driven by the ammo monitor pass (a vanilla time event every 5s over the spawn-filled roster; at_test drives it directly). Gates: cached `ammo_enabled`, `alive`/`IsStalker`, `character_rank() >= min_ap_rank`, `IsWeapon(active_item)`, non-empty `ammo_class`. Then it splits on `best_enemy()`:
 
 - Combat tick: on combat entry or weapon change, `_find_ap` caches `idx`/`sec`; while AP is carried, hold `m_ammoType = idx` (re-asserted only if changed). AP is held for the whole fight, no mid-fight revert.
 - Peace tick: once `best_enemy()` has been nil past `peace_debounce_ms`, the engagement ends -- roll `_decay_chance`; on a hit, `alife_release` one AP box of `sec`; if that section is now empty, set `m_ammoType = 0`.

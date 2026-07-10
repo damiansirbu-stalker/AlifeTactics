@@ -1,12 +1,15 @@
 --- at_healing: Heal-rate scaling, per-rank healing charge, limp + heal animations
 
-local math_random, tostring = math.random, tostring
+local math_random, tostring, pairs = math.random, tostring, pairs
 local se_save_var, se_load_var = se_save_var, se_load_var
 local RegisterScriptCallback, time_global = RegisterScriptCallback, time_global
 local IsStalker, IsWounded, character_community = IsStalker, IsWounded, character_community
 
+-- The limp monitor pass period (a vanilla time event): the pass IS the drop-detector clock (a worn
+-- pose must die the moment its gait stops matching); the eligibility check self-throttles to its own
+-- slower period on a per-NPC stamp. Zero per-frame code.
+local MONITOR_PERIOD_SEC        = 0.2
 local LIMP_ELIGIBILITY_CHECK_MS = 1000
-local LIMP_DROP_CHECK_MS        = 200
 local LIMP_SAMPLE_MS            = 1000
 local LIMP_REARM_MS             = 5000
 -- Displacement that counts as "moved" for the drop detectors (anchor drift / path-stop sample).
@@ -51,6 +54,9 @@ local HEAL_ANIM_MEDKIT  = "dmg_norm_torso_11_attack_0"
 local HEAL_ANIM_BANDAGE = "norm_torso_12_attack_0"
 
 local _limping = {}
+-- ONLINE tracked stalkers, the limp monitor's roster: one record per NPC ({ eligibility_at }),
+-- filled on net spawn, dropped on net destroy / unregister.
+local _npc_states = {}
 
 -- Vanilla pstor writes to a wrong key when name is nil. Guard explicitly.
 local function _safe_save(id, name, key, val)
@@ -319,19 +325,16 @@ local function _limp_note_decline(npc)
     end
 end
 
-local function _on_npc_update(npc, st)
-    if not st then return end
-    if not cfg.limping_anim_enabled then return end
+-- One NPC's slice of the limp monitor pass: the drop detectors run on the pass itself (the pass
+-- period IS the drop clock), the eligibility chain self-throttles to its slower period on the
+-- roster record's stamp.
+local function _run_limp_check(npc, state, tg)
     local id = npc:id()
-    local tg = time_global()
 
     local rec = _limping[id]
-    if rec and tg >= (rec.next_drop_ms or 0) then
-        rec.next_drop_ms = tg + LIMP_DROP_CHECK_MS
-        if _try_drop_limp(npc, id, rec, tg) then return end
-    end
-    if st._at_limp_next_check_ms and tg < st._at_limp_next_check_ms then return end
-    st._at_limp_next_check_ms = tg + LIMP_ELIGIBILITY_CHECK_MS
+    if rec and _try_drop_limp(npc, id, rec, tg) then return end
+    if state.eligibility_at and tg < state.eligibility_at then return end
+    state.eligibility_at = tg + LIMP_ELIGIBILITY_CHECK_MS
     local tmr = xprofiler.new_if(_dbg):start()
     local eligible = IsStalker(npc)
         and npc:alive()
@@ -380,9 +383,41 @@ local function _on_npc_update(npc, st)
     end
 end
 
+-- The limp monitor pass, a vanilla time event every MONITOR_PERIOD_SEC: run the drop detectors and
+-- the throttled eligibility chain on each tracked stalker. Per frame the whole limp system costs one
+-- timer compare inside vanilla's own ProcessEventQueue walk; with the toggle off, one boolean per
+-- pass. level.object_by_id is nil for a gone id - the roster entry dies with the NPC.
+local _monitor_active = false
+
+local function _run_monitor()
+    if not _monitor_active then return true end
+    if cfg.limping_anim_enabled then
+        local tg = time_global()
+        for id, state in pairs(_npc_states) do
+            local npc = level.object_by_id(id)
+            if npc then _run_limp_check(npc, state, tg) end
+        end
+    end
+    ResetTimeEvent("at_healing", "monitor", MONITOR_PERIOD_SEC)
+end
+
+-- Roster fill. Unconditional (the limp overlay is independent of the healing master toggle); the
+-- per-rank charge roll rides the same spawn event behind its own _heal_active guard.
+local function _on_roster_spawn(npc, se_obj)
+    if not npc or not IsStalker(npc) then return end
+    _npc_states[npc:id()] = { eligibility_at = 0 }
+    _on_net_spawn(npc, se_obj)
+end
+
+local function _on_net_destroy(npc)
+    if not npc then return end
+    _npc_states[npc:id()] = nil
+end
+
 local function _on_entity_unregister(se_obj)
     if not se_obj then return end
     _limping[se_obj.id] = nil
+    _npc_states[se_obj.id] = nil
 end
 
 local function _refresh_log()
@@ -390,9 +425,15 @@ local function _refresh_log()
     _dbg = log.get_level() >= 5
 end
 
+-- Time events do not survive a save load (_g.script header), so the monitor arms here, per session.
 local function _on_actor_first_update()
     _limping = {}
     _refresh_log()
+    if not _monitor_active then
+        _monitor_active = true
+        RemoveTimeEvent("at_healing", "monitor")
+        CreateTimeEvent("at_healing", "monitor", MONITOR_PERIOD_SEC, _run_monitor)
+    end
     if not _heal_active then return end
     log.info("Health module initialized (heal_mult=%.2f tiers novice=%d%% experienced=%d%% veteran=%d%% master=%d%%)",
         cfg.heal_rate_multiplier,
@@ -403,7 +444,8 @@ local function _on_actor_first_update()
 end
 
 function on_game_start()
-    RegisterScriptCallback("npc_on_update",              _on_npc_update)
+    RegisterScriptCallback("npc_on_net_spawn",            _on_roster_spawn)
+    RegisterScriptCallback("npc_on_net_destroy",          _on_net_destroy)
     RegisterScriptCallback("server_entity_on_unregister", _on_entity_unregister)
     RegisterScriptCallback("actor_on_first_update",     _on_actor_first_update)
     RegisterScriptCallback("on_option_change",          _refresh_log)
@@ -415,5 +457,4 @@ function on_game_start()
         return
     end
     _install_heal_patch()
-    RegisterScriptCallback("npc_on_net_spawn", _on_net_spawn)
 end

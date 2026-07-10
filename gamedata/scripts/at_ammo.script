@@ -30,12 +30,14 @@
 --- rank_ceiling. Fast weapons burn AP quickly; high rank conserves it (a legend
 --- bolt-action shoots AP almost always).
 
-local IsStalker, IsWeapon, time_global = IsStalker, IsWeapon, time_global
+local IsStalker, IsWeapon, time_global, pairs = IsStalker, IsWeapon, time_global, pairs
 local RegisterScriptCallback, parse_list = RegisterScriptCallback, parse_list
 local alife_object, alife_release = alife_object, alife_release
 local math_random, math_min, math_max = math.random, math.min, math.max
 
-local TICK_MS = 5000
+-- The monitor pass period (a vanilla time event): the whole ammo state machine runs once per period
+-- over the tracked stalkers - zero per-frame code.
+local MONITOR_PERIOD_SEC = 5
 local LTX_PATH = "alifetactics\\at_ammo.ltx"
 local LTX_SECTION = "at_ammo"
 
@@ -79,9 +81,12 @@ end
 
 -- Per-NPC fight state. Shape: { fighting, last_seen, wpn_sec, idx, sec }.
 -- idx/sec are the active AP ammo index+section, cached on combat entry; idx nil
--- means "no AP this engagement" (the NPC fires vanilla FMJ).
+-- means "no AP this engagement" (the NPC fires vanilla FMJ). Survives an offline
+-- round-trip (cleared only on unregister), so a returning NPC resumes its fight state.
 local _state = {}
-local _last_tick = {}
+-- ONLINE tracked stalkers, the monitor pass roster: id set, filled on net spawn,
+-- dropped on net destroy / unregister.
+local _npc_ids = {}
 local _ammo_class_cache = {}
 local _rpm_cache = {}
 
@@ -241,21 +246,48 @@ function pick(npc, now)
     end
 end
 
-local function _on_update(npc)
+-- The monitor pass, a vanilla time event every MONITOR_PERIOD_SEC: run the state machine on each
+-- tracked stalker. Per frame the whole module costs one timer compare inside vanilla's own
+-- ProcessEventQueue walk; a disabled feature costs one boolean per pass (pick's own guard covers
+-- test-driven calls). level.object_by_id is nil for a gone id - the roster entry dies with the NPC.
+local _monitor_active = false
+
+local function _run_monitor()
+    if not _monitor_active then return true end
+    if _enabled then
+        local now = time_global()
+        for id in pairs(_npc_ids) do
+            local npc = level.object_by_id(id)
+            if npc then pick(npc, now) end
+        end
+    end
+    ResetTimeEvent("at_ammo", "monitor", MONITOR_PERIOD_SEC)
+end
+
+-- Time events do not survive a save load (_g.script header), so the monitor arms here, per session.
+local function _on_first_update()
+    if _monitor_active then return end
+    _monitor_active = true
+    RemoveTimeEvent("at_ammo", "monitor")
+    CreateTimeEvent("at_ammo", "monitor", MONITOR_PERIOD_SEC, _run_monitor)
+end
+
+local function _on_net_spawn(npc)
+    if not npc or not IsStalker(npc) then return end
+    _npc_ids[npc:id()] = true
+end
+
+-- Roster entry only: _state survives the offline round-trip and dies on unregister.
+local function _on_net_destroy(npc)
     if not npc then return end
-    local id = npc:id()
-    local now = time_global()
-    local last = _last_tick[id]
-    if last and (now - last) < TICK_MS then return end
-    _last_tick[id] = now
-    pick(npc, now)
+    _npc_ids[npc:id()] = nil
 end
 
 local function _on_entity_unregister(se_obj)
     if not se_obj then return end
     local id = se_obj.id
     _state[id] = nil
-    _last_tick[id] = nil
+    _npc_ids[id] = nil
 end
 
 local function _refresh_cfg()
@@ -267,7 +299,9 @@ end
 function on_game_start()
     _load_tunables()
     _refresh_cfg()
-    RegisterScriptCallback("npc_on_update",               _on_update)
+    RegisterScriptCallback("npc_on_net_spawn",            _on_net_spawn)
+    RegisterScriptCallback("npc_on_net_destroy",          _on_net_destroy)
+    RegisterScriptCallback("actor_on_first_update",       _on_first_update)
     RegisterScriptCallback("server_entity_on_unregister", _on_entity_unregister)
     RegisterScriptCallback("on_option_change",            _refresh_cfg)
     RegisterScriptCallback("mcm_option_restore_default",  _refresh_cfg)
