@@ -1,8 +1,21 @@
 next
-  Summary: danger detection from your setup, hit response at any range, gunfire reaction fix, localization
+  Summary: counterflank maneuver, player-only maneuvers, no dead windows, danger from your setup, performance
 
-  Localization
-    - Added Russian localization for the MCM reset confirmation.
+  Combat
+    - Added Counterflank: a stalker shooting a distant target while a hostile player stands at
+      contact range snaps around and engages the closer threat instead of presenting his back.
+    - Maneuvers now run only in fights you are part of, and fire as long as their problem is real.
+      Press a shotgunner's minimum range and he kites again and again, with no dead window between.
+      A badly hurt stalker acts at 40% health, before the wounded stagger beats him to it.
+      A stalker whose maneuvers provably change nothing stops trying and stands his ground.
+    - Cowardly factions now run before they fight.
+      A hurt ecolog routs first and falls back to fighting from cover only when his escape is cut off.
+    - A planted sniper no longer sits through being shot at or targeted.
+      Taking fire or your crosshair landing on him ends the hold at once.
+    - Retreats now actually reach cover behind the stalker.
+      The cover search kept re-picking the cover he already held, so retreats almost never ran.
+    - A cornered stalker no longer shuffles between two spots indoors.
+      A kite too short to clear his weapon minimum declines instead of arriving in place.
 
   Effectiveness
     - Removed AlifeTactics's own danger detection values.
@@ -10,10 +23,22 @@ next
       AlifeTactics adds reactions and fixes on top of any danger setup instead of overriding its tuning.
     - A stalker that takes a direct hit now enters the danger response at any distance.
       The response previously stopped at a configured detection distance that a hit should never read.
-    - Fixed React to nearby gunfire never firing.
+    - Fixed React to enemy gunfire never firing.
       The danger check never admitted the gunfire danger type, so its response handler was unreachable.
       Stalkers hearing enemy gunfire now seek cover and adopt threat poses, no line of sight needed.
     - A respawned stalker no longer inherits scripted danger from the dead stalker whose id it reuses.
+
+  Performance
+    - All combat, healing, and ammo monitoring moved off per-frame callbacks onto scheduled passes.
+      The per-frame cost of the whole mod is now 3 timer compares, whatever the NPC count.
+    - Fixed a rare freeze of every timed system in the game when a stalker died mid-maneuver.
+
+  Development
+    - The debug HUD now headlines the maneuver name in green for the takeover's whole life.
+      Wider name columns, a twice-per-second refresh, and no truncated stalker names.
+
+  Localization
+    - Added Russian localization for the MCM reset confirmation.
 
 1.1.1
   Summary: startup fix
