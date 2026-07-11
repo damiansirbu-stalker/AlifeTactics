@@ -13,7 +13,8 @@
 --- Engine `Weapon.cpp:1778` already gates the functor call to non-actor parents,
 --- so actor's own condition-based misfire mechanic is unaffected.
 
-local RegisterScriptCallback, IsWeapon, time_global = RegisterScriptCallback, IsWeapon, time_global
+local RegisterScriptCallback, UnregisterScriptCallback = RegisterScriptCallback, UnregisterScriptCallback
+local IsWeapon, time_global = IsWeapon, time_global
 
 local log = xlog.get_logger("AT.JAM", { outfile = "alifetactics.log" })
 local _dbg = false
@@ -29,8 +30,9 @@ local SUMMARY_EVERY = 200
 
 -- Reload trace: every NPC reload START with the magazine content it started with - the "reloading
 -- for nothing" evidence. A near-full mag_left is the planner topping up, not a misfire (the misfire
--- rolls are suppressed above and counted as [JAM] lines). Edge-detected on a 200ms per-NPC clock;
--- one boolean compare per npc_on_update when debug is off.
+-- rolls are suppressed above and counted as [JAM] lines). Edge-detected on a 200ms per-NPC clock.
+-- The npc_on_update subscription exists ONLY at DEBUG log level (_refresh_log registers/unregisters
+-- on the flag); below DEBUG the module has no per-frame subscriber at all.
 local RELOAD_CHECK_MS  = 200
 -- CWeapon::eReload (Weapon.h:185; the vanilla compare actor_effects.script:1105 uses == 5).
 local WPN_STATE_RELOAD = 5
@@ -88,11 +90,19 @@ local function _refresh_log()
     log.set_level(at_mcm.get_config("log_level") or "WARN")
     _dbg = log.get_level() >= 5
     _jam_enabled = at_mcm.get_config("jam_enabled") ~= false
+    -- The reload trace is per-frame work, so its subscription follows the debug flag: registered at
+    -- DEBUG, unregistered (and its edge-detect state dropped) below. Register/unregister are
+    -- function-keyed set writes (axr_main.callback_set/unset), so repeat calls are idempotent.
+    if _dbg then
+        RegisterScriptCallback("npc_on_update", _on_update)
+    else
+        UnregisterScriptCallback("npc_on_update", _on_update)
+        _reloading, _next_check = {}, {}
+    end
 end
 
 function on_game_start()
     _install()
-    RegisterScriptCallback("npc_on_update",               _on_update)
     RegisterScriptCallback("server_entity_on_unregister", _on_entity_unregister)
     RegisterScriptCallback("actor_on_first_update",      _refresh_log)
     RegisterScriptCallback("on_option_change",           _refresh_log)
