@@ -795,6 +795,11 @@ local function script_action_danger_attacked(npc,st,bd,best_danger_object,depend
 	end
 end
 
+-- script_action_danger_alert tunables. ALERT_CLOSE_DIST_SQR is in distance_to_sqr space
+-- (120 = ~11m); ALERT_AIM_DOT is the actor-aim cone as a dot product (0.85 = ~32 degrees).
+local ALERT_CLOSE_DIST_SQR = 120
+local ALERT_AIM_DOT        = 0.85
+
 local function script_action_danger_alert(npc, st, bd, best_danger_object, dependent_object, bd_type)
 	local bdo = dependent_object or best_danger_object
 	if not bdo or not bdo:alive() then return end
@@ -806,16 +811,20 @@ local function script_action_danger_alert(npc, st, bd, best_danger_object, depen
 	local tg = time_global()
 
 	if bdo:id() == db.actor:id() then
-		if npc:relation(db.actor) > 0 then
+		-- Non-enemy actor filter (REDONE xr_danger precedent): a neutral player shooting nearby is a
+		-- threat only with a weapon out and roughly aimed at the NPC. An ENEMY player skips it - his
+		-- gunfire alerts like any NPC enemy's, aimed or not. Dormant today: is_danger admits only
+		-- relation >= enemy sources, so no non-enemy actor reaches this handler yet.
+		if npc:relation(db.actor) < game_object.enemy then
 			local actor_wpn = db.actor:active_item()
 			if not actor_wpn then return end
 			local dir_to_npc = vector():set(npc_pos):sub(db.actor:position()):normalize()
 			local actor_dir = db.actor:direction()
-			if actor_dir:dotproduct(dir_to_npc) < 0.85 then return end
+			if actor_dir:dotproduct(dir_to_npc) < ALERT_AIM_DOT then return end
 		end
 	end
 
-	if dist <= 120 then
+	if dist <= ALERT_CLOSE_DIST_SQR then
 		if be and npc:see(be) then
 			state_mgr.set_state(npc, "hide_na", nil, nil, {look_object = be}, {fast_set = true})
 			if not utils_obj.squad_in_los(npc, be) then
