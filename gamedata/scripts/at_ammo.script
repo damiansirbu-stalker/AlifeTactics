@@ -194,7 +194,7 @@ end
 
 -- Peace tick: once the enemy has been gone past the debounce, end the fight and
 -- roll the AP-box decay. Revert to FMJ if the active AP section is now empty.
-local function _on_peace_tick(npc, wpn, st, now)
+local function _on_peace_tick(npc, wpn, wpn_sec, st, now)
     if not st.fighting then return end
     if now - (st.last_seen or 0) < PEACE_DEBOUNCE_MS then return end
     st.fighting = false
@@ -203,12 +203,19 @@ local function _on_peace_tick(npc, wpn, st, now)
     local chance = _decay_chance(npc, st.wpn_sec)
     local dropped = math_random() < chance
     if dropped then _delete_one_ap_box(npc, st.sec) end
-    local left = wpn:get_ammo_count_for_type(st.idx)
-    if left <= 0 and wpn:get_ammo_type() ~= 0 then wpn:set_ammo_type(0) end
+    -- st.idx indexes st.wpn_sec's ammo_class: after a mid-debounce weapon switch the current
+    -- weapon's slots are unrelated, so the depleted-revert is skipped (left = -1 in the log);
+    -- the next engagement rescans and re-keys. The decay roll and box delete above are keyed by
+    -- section, not index, and stay unconditional.
+    local left = -1
+    if st.wpn_sec == wpn_sec then
+        left = wpn:get_ammo_count_for_type(st.idx)
+        if left <= 0 and wpn:get_ammo_type() ~= 0 then wpn:set_ammo_type(0) end
+    end
     tmr:stop()
     if _dbg then
         log.debug("[AP] disengage npc=%d ap=%s p=%.2f %s left=%d%s [%.2fms]", npc:id(), st.sec, chance,
-            dropped and "DROP" or "keep", left, (left <= 0) and " fmj" or "", tmr:get_ms())
+            dropped and "DROP" or "keep", left, (left == 0) and " fmj" or "", tmr:get_ms())
     end
 end
 
@@ -242,7 +249,7 @@ function pick(npc, now)
     if npc:best_enemy() then
         _on_combat_tick(npc, wpn, wpn_sec, ammo_class, st, now)
     else
-        _on_peace_tick(npc, wpn, st, now)
+        _on_peace_tick(npc, wpn, wpn_sec, st, now)
     end
 end
 
