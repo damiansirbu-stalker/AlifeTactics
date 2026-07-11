@@ -1,5 +1,5 @@
 AlifeTactics: Боевое поведение NPC для STALKER Anomaly, автор Damian
-Версия: 1.1.1 (xlibs 1.8.1, demonized 20250908)
+Версия: 1.2.0 (xlibs 1.8.2, demonized 20250908)
 GitHub: https://github.com/damiansirbu-stalker/AlifeTactics
 Список изменений: https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/changelog
 English: https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/readme.txt
