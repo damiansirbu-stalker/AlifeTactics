@@ -393,9 +393,9 @@ AT does not register the hear or death callbacks. It relies on the winning file'
 2. `get_danger_time` crashes on mutant corpse: vanilla calls `corpse_object:death_time()` without `IsStalker` guard; trader interface absent on mutants.
 3. `eval_danger` nil-NPC guard missing: vanilla crashes when called on a torn-down NPC reference.
 4. `eval_danger` non-numeric `danger_time` check missing: vanilla type-asserts on bad return.
-5. The vanilla hit callback passed an undefined `who_id` and wrote a nil shooter id into `script_danger` on every hit. AT does not register it, and the patched `set_script_danger` rejects a nil `who_id` (`at_danger.script:99-102`), so the winning file's own copy of that callback cannot corrupt the entry either.
-6. Animstate reset missing on danger-state transitions: vanilla `state_mgr.set_state` calls did not invoke `sm.animstate:set_state(nil, true) + set_control()`, leaving stale lower-body animation visible across the transition. AT calls the reset at every state-change site (`at_danger.script:417-419, 487-489, 524-526, 741-773`).
-7. `at_action_danger:finalize` wiped the whole shared `db.used_level_vertex_ids` reservation map in vanilla, clobbering every other system's cover claims (the Combat takeover's, vanilla's). AT releases only the vertices this NPC owns (`at_danger.script:837-845`).
+5. The vanilla hit callback passed an undefined `who_id` and wrote a nil shooter id into `script_danger` on every hit. AT does not register it, and the patched `set_script_danger` rejects a nil `who_id` at its top, so the winning file's own copy of that callback cannot corrupt the entry either.
+6. Animstate reset missing on danger-state transitions: vanilla `state_mgr.set_state` calls did not invoke `sm.animstate:set_state(nil, true) + set_control()`, leaving stale lower-body animation visible across the transition. AT calls the reset at every state-change site (every `sm.animstate:set_state(nil, true)` + `set_control()` pair in the danger action handlers).
+7. `at_action_danger:finalize` wiped the whole shared `db.used_level_vertex_ids` reservation map in vanilla, clobbering every other system's cover claims (the Combat takeover's, vanilla's). AT releases only the vertices this NPC owns (the owner-filtered loop in `at_action_danger:finalize`).
 8. The corpse action crashed on the teardown race: a corpse despawning between the evaluator pass and the action execute left a nil danger object (`bdo:id()`) or a nil storage entry in the stage-6 look_position. Both paths are guarded.
 9. The corpse force-hostile loop reused the acting NPC variable for squad members, so later corpse stages drove the last member (or nil) instead of the acting NPC. The loop uses its own local.
 10. Corpse stage 6 sent the NPC to the just-cleared `st.lvid` instead of the cover vertex `try_go_cover` found, so the found cover was never used.
@@ -404,7 +404,7 @@ AT does not register the hear or death callbacks. It relies on the winning file'
 
 ### Extension callback
 
-`eval_danger` fires `npc_on_eval_danger` (`at_danger.script:265-267`) with `flags.ret_value = true` before it evaluates; a subscriber that sets `flags.ret_value = false` suppresses danger for that NPC on that tick. AT preserves this vanilla seam — `axr_main.script:125` declares it and vanilla `xr_danger.script:268` fires it from the same evaluator — so third-party subscribers keep working when AT's patch replaces `eval_danger`.
+`eval_danger` fires `npc_on_eval_danger` with `flags.ret_value = true` before it evaluates; a subscriber that sets `flags.ret_value = false` suppresses danger for that NPC on that tick. AT preserves this vanilla seam — `axr_main.script:125` declares it and vanilla `xr_danger.script:268` fires it from the same evaluator — so third-party subscribers keep working when AT's patch replaces `eval_danger`.
 
 ### Improvements (MCM Effectiveness > Danger, default on)
 

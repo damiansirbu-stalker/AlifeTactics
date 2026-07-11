@@ -455,8 +455,9 @@ function at_spawn_swarm()
 end
 
 -- Mixed faction wave: bandits ahead, military flank, monolith behind. Tests
--- different communities (monolith and zombied match no maneuver's faction palette,
--- so the takeover declines them), different weapon loadouts, simultaneous tracking.
+-- different communities (monolith and zombied are excluded from flee/retreat only;
+-- the universal rows - counterflank, kite, snipe - still fire for them), different
+-- weapon loadouts, simultaneous tracking.
 --- @export console
 function at_spawn_mixed()
     _spawn_set("mixed", {

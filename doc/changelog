@@ -1,5 +1,5 @@
 next
-  Summary: counterflank maneuver, player-only maneuvers, no dead windows, danger from your setup, performance
+  Summary: counterflank maneuver, player-only maneuvers, no dead windows, danger from your setup, performance, fixes
 
   Combat
     - Added Counterflank: a stalker shooting a distant target while a hostile player stands at
@@ -26,7 +26,12 @@ next
     - Fixed React to enemy gunfire never firing.
       The danger check never admitted the gunfire danger type, so its response handler was unreachable.
       Stalkers hearing enemy gunfire now seek cover and adopt threat poses, no line of sight needed.
+      Your own fire alerts your enemies the same way, whether or not you aim at them.
     - A respawned stalker no longer inherits scripted danger from the dead stalker whose id it reuses.
+
+  Mechanics
+    - Fixed the Stalker Healing master toggle only applying after a game restart.
+    - Fixed NPC armor-piercing ammo reverting on the wrong weapon after a mid-fight weapon switch.
 
   Performance
     - All combat, healing, and ammo monitoring moved off per-frame callbacks onto scheduled passes.
