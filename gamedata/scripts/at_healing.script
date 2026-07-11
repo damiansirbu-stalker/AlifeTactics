@@ -117,10 +117,13 @@ local function _patched_heal_hp(id, left)
     local nextl = left - 1
     local npc = level.object_by_id(id)
     if npc and npc:alive() and nextl > 1 then
-        local mult = cfg.heal_rate_multiplier
+        -- The master toggle is live: off = exact vanilla semantics (flat 0.05, no gesture) through
+        -- the same installed function, so an MCM flip applies on the next tick, no restart.
+        local enabled = cfg.healing_enabled ~= false
+        local mult = enabled and cfg.heal_rate_multiplier or 1
         npc:change_health(0.05 * mult)
         npc.bleeding = 0.01
-        if left == HEAL_TICK_FIRST then
+        if enabled and left == HEAL_TICK_FIRST then
             _try_play_heal_anim(npc, HEAL_ANIM_MEDKIT)
         end
         tmr:stop()
@@ -151,7 +154,9 @@ local function _patched_heal_bleed(id, left)
     local npc = level.object_by_id(id)
     if npc and npc:alive() and nextl > 1 then
         npc.bleeding = 0.07
-        if left == HEAL_TICK_FIRST then
+        -- The gesture is the only above-vanilla piece here; the bleeding set matches vanilla, so
+        -- the live master toggle gates the gesture alone.
+        if cfg.healing_enabled ~= false and left == HEAL_TICK_FIRST then
             _try_play_heal_anim(npc, HEAL_ANIM_BANDAGE)
         end
         tmr:stop()
@@ -209,6 +214,10 @@ end
 -- Vanilla's bug (re-roll on every save load) is suppressed in zzz_at_healing_patch.script.
 local function _on_net_spawn(npc, _se_obj)
     if not _heal_active then return end
+    -- Live master toggle: no charge roll (and no processed marker) while off, so a later ON rolls
+    -- this NPC on its next spawn. Vanilla's own roll stays unregistered either way
+    -- (zzz_at_healing_patch) - the re-roll bug must not return when the toggle is off.
+    if cfg.healing_enabled == false then return end
     if not npc or not IsStalker(npc) or not npc:alive() then return end
     local tmr = xprofiler.new_if(_dbg):start()
     local id = npc:id()
@@ -454,10 +463,7 @@ function on_game_start()
     RegisterScriptCallback("on_option_change",          _refresh_log)
     RegisterScriptCallback("mcm_option_restore_default", _refresh_log)
 
-    -- get_config (closure) bypasses cfg cache, safe before at_mcm.on_game_start runs.
-    if at_mcm.get_config("healing_enabled") == false then
-        log.info("Stalker Healing disabled at boot; vanilla xr_eat_medkit behavior in effect")
-        return
-    end
+    -- Installed unconditionally: the patched bodies read cfg.healing_enabled per tick, so the MCM
+    -- master toggle is live mid-session (off = exact vanilla semantics through the same functions).
     _install_heal_patch()
 end
