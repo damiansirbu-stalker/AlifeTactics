@@ -184,7 +184,7 @@ local function _try_begin_maneuver(npc, state, tg)
 
     local enemy = npc:best_enemy()
     state.fighting = _is_fighting(enemy, state, tg)
-    if not state.fighting then state.stall_set = false state.row_cursor = 1 return end
+    if not state.fighting then state.stall_set = false state.row_cursor = 1 state.circuit_sit = nil return end
     if _dbg then trace.set_name(state.id, npc:name()) end
 
     if not enemy then

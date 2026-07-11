@@ -29,7 +29,12 @@ local CONFIG_SECTION = "at_combat"
 local HURT_FRAC, STALL_MS, STALL_MOVE_SQR, STALL_CLOSE_M
 local KITE_ARC_DEG, KITE_SPREAD_DEG
 local FLEE_MIN_DIST_M, FLEE_BASE_MIN_DIST_M, RETREAT_REAR_M, UNDER_FIRE_MS
-local COUNTERFLANK_ACTOR_DIST_SQR, SNIPE_TARGETED_DEG
+local COUNTERFLANK_ACTOR_DIST_SQR, SNIPE_TARGETED_DEG, CIRCUIT_LIMIT
+
+-- Displacement under this between two same-situation picks reads as "the transaction changed nothing"
+-- (squared, flat - stairs do not read as movement).
+local CIRCUIT_MOVE_M   = 2
+local CIRCUIT_MOVE_SQR = CIRCUIT_MOVE_M * CIRCUIT_MOVE_M
 
 -- The maneuver catalog: an ordered array (array order = priority - resolve_maneuver walks it in order and
 -- the first row whose need, palette, and feasibility all pass wins the tick). Built in load_config so
@@ -57,15 +62,27 @@ local KITE_BACK = {
 -- sniper 10. The back-off ends well outside the minimum, so a completed kite negates its own need;
 -- the enemy pressing back in re-creates the problem and a fresh kite is then correct.
 -- find_flee_lane runs the two-phase search: straight-back -> +-45 -> +-90 at the full distance, the
--- same fan at half distance, then the longest straight stub; nil only when fully boxed in (then the
--- maneuver is not viable and AT declines). memo.kind is set by _should_too_close, the only
--- need that opens this row.
+-- same fan at half distance, then the longest straight stub; nil only when fully boxed in. The lane
+-- must be long enough that ARRIVING negates the need (lane > weapon_min - dist): the stub fallback
+-- indoors can return a sub-metre lane, and accepting it produced the 50-kite ping-pong between two
+-- adjacent vertices (2026-07-11 GAMMA session) - arrived, nothing moved, too_close still true, again.
+-- A short lane declines instead; with every other row declining too, AT leaves the cornered NPC to
+-- vanilla, which stands and fights. memo.kind is set by _should_too_close, the only need that opens
+-- this row.
 local function _can_kite(npc, _enemy, state, _tg, memo)
     local np, ep = memo.npc_pos, memo.enemy_pos
     local dist = state.dist
     local dir = (dist > 0) and vector():set((np.x - ep.x) / dist, 0, (np.z - ep.z) / dist) or npc:direction()
     local back_m = KITE_BACK[memo.kind] or KITE_BACK.w_rifle
     local vid = xcombat.find_flee_lane(npc, dir, back_m, KITE_ARC_DEG, KITE_SPREAD_DEG)
+    if vid then
+        local lane_sqr = xmath.dist_flat_sqr(level.vertex_position(vid), np)
+        local needed_m = xcombat.get_weapon_range(memo.kind).min - dist
+        if lane_sqr <= needed_m * needed_m then
+            at_combat_trace.can_kite(npc:id(), dist, math_sqrt(lane_sqr), nil)
+            return nil
+        end
+    end
     at_combat_trace.can_kite(npc:id(), dist, back_m, vid)
     return vid
 end
@@ -429,6 +446,7 @@ function at_combat_doctrine.load_config()
     local counterflank_dist_m    = read_float("counterflank_actor_dist_m",  5)
     COUNTERFLANK_ACTOR_DIST_SQR  = counterflank_dist_m * counterflank_dist_m
     SNIPE_TARGETED_DEG   = read_float("snipe_targeted_deg", 10)
+    CIRCUIT_LIMIT        = read_int("circuit_limit", 3)
     CATALOG = _build_catalog(read_int)
 end
 
@@ -515,6 +533,30 @@ local function _row_trace(row, sit, stage, should_us, can_us)
     return head .. "/should=" .. math_floor(should_us) .. "us/can=" .. math_floor(can_us) .. "us"
 end
 
+-- The short circuit: a pick of the SAME situation with the NPC still within CIRCUIT_MOVE_M of the
+-- previous pick means the last transaction changed nothing (the indoor kite ping-pong, a counterflank
+-- whose hold failed to flip the selection); past the limit the pick is refused and vanilla owns him.
+-- Displacement is the discriminator, never timing: a legitimate chain under a sprinting player re-fires
+-- instantly too, but each transaction MOVED him, which resets the count. Release is world change, not a
+-- clock - he moves 2m, the situation changes, or the fight ends (at_combat clears the record on fight
+-- exit). Returns true when the pick must be refused.
+local function _circuit_tripped(state, sit, npc_pos)
+    if CIRCUIT_LIMIT <= 0 then return false end
+    local stuck = state.circuit_sit == sit and state.circuit_pos ~= nil
+        and xmath.dist_flat_sqr(npc_pos, state.circuit_pos) <= CIRCUIT_MOVE_SQR
+    if stuck then
+        state.circuit_count = state.circuit_count + 1
+    else
+        state.circuit_sit = sit
+        state.circuit_count = 1
+        state.circuit_pos = state.circuit_pos or vector()
+    end
+    state.circuit_pos:set(npc_pos)
+    if state.circuit_count <= CIRCUIT_LIMIT then return false end
+    at_combat_trace.circuit(state.id, sit, state.circuit_count)
+    return true
+end
+
 function at_combat_doctrine.resolve_maneuver(npc, enemy, state, tg)
     local count = #CATALOG
     if count == 0 then return nil end
@@ -544,9 +586,7 @@ function at_combat_doctrine.resolve_maneuver(npc, enemy, state, tg)
         state.rows = table_concat(rows_trace, ",")
         state.walk_us = math_floor(walk_timer:get_us())
     end
-    if spent_vid then
-        state.trigger = spent_sit
-        return spent_row, spent_vid
-    end
-    return nil
+    if not spent_vid or _circuit_tripped(state, spent_sit, memo.npc_pos) then return nil end
+    state.trigger = spent_sit
+    return spent_row, spent_vid
 end

@@ -80,12 +80,24 @@ function at_combat_trace.can_flee(id, path)
     log.info("can_flee id=%s name=%s path=%s", _show(id), _show(_names[id]), _show(path))
 end
 
---- One line per kite feasibility check: the current distance, the weapon-set back-off (KITE_BACK), and the
---- lane vertex ("none" = fully boxed in even at half length, kite declined).
+--- One line per kite feasibility check: the current distance and the lane vertex. lane="none" with
+--- back_m carrying the SET back-off (KITE_BACK) = fully boxed in, no lane at all; lane="none" with
+--- back_m carrying the FOUND lane's length = the lane was too short to clear the weapon minimum (the
+--- indoor stub), declined - the arrived-but-nothing-moved ping-pong guard.
 function at_combat_trace.can_kite(id, dist, back_m, vid)
     if not _on then return end
     log.info("can_kite id=%s name=%s dist=%.1f back_m=%.1f lane=%s",
         _show(id), _show(_names[id]), dist or -1, back_m or -1, _show(vid or "none"))
+end
+
+--- One line when the short circuit refuses a pick: the same situation fired again with the NPC still
+--- within CIRCUIT_MOVE_M of the previous pick, past the limit - the transactions are provably changing
+--- nothing (the indoor ping-pong signature). Vanilla owns him until he moves, the situation changes, or
+--- the fight ends.
+function at_combat_trace.circuit(id, situation, picks)
+    if not _on then return end
+    log.info("circuit id=%s name=%s situation=%s picks=%d - takeover suspended until the world changes",
+        _show(id), _show(_names[id]), _show(situation), picks or -1)
 end
 
 --- One line per snipe feasibility check: path "plant" (taken), "in_enemy_range" (inside the enemy's weapon
