@@ -1,5 +1,5 @@
 STALKER Mod Validation Report
-Generated: 2026-07-11 16:16:06
+Generated: 2026-07-11 20:21:23
 Validator: stalker-manager validate
 Mods: 1
 
@@ -293,66 +293,66 @@ Files:
 [4/4] load - runtime loading (PASS)
   Test: lua54 interpreter + X-Ray engine stubs
   Load test: AlifeTactics
-  LOAD: _at_deps
-  LOAD: xpp
-  LOAD: xtime
-  LOAD: xpda
-  LOAD: xdata
-  LOAD: xsmart_spawn
+  LOAD: zzz_at_healing_patch
+  LOAD: xbus
+  LOAD: at_hud
+  LOAD: xttltable
+  LOAD: xslice
   LOAD: xcombat
-  LOAD: at_jam
-  LOAD: xcreature
-  LOAD: at_combat_doctrine
-  LOAD: xlibs
-  LOAD: xlevel
+  LOAD: xevent
+  LOAD: xsmart_spawn
+  LOAD: xprofiler
+  LOAD: xpda
   LOAD: xstash
-  LOAD: xsound
+  LOAD: xpp
+  LOAD: xmcm
   LOAD: at_mcm
   LOAD: xactor
+  LOAD: xchange
+  LOAD: xlibs_mcm
+  LOAD: xdata
+  LOAD: xlog
+  LOAD: xconst
+  LOAD: xsquad
+  LOAD: xmath
+  LOAD: xstring
   LOAD: xtable
   LOAD: xinspect
-  LOAD: xmcm
-  LOAD: xtrace
-  LOAD: xchange
-  LOAD: xevent
-  LOAD: zzz_at_healing_patch
-  LOAD: xinventory
-  LOAD: at_crossfire
-  LOAD: xbus
-  LOAD: at_accuracy
-  LOAD: at_hud
   LOAD: at_healing
-  LOAD: at_disclosure
-  LOAD: at_test
   LOAD: at_combat_trace
-  LOAD: xstring
-  LOAD: xlibs_mcm
-  LOAD: at_ammo
-  LOAD: xttltable
-  LOAD: at_combat
-  LOAD: xsquad
+  LOAD: at_test
+  LOAD: xlibs
   LOAD: xsmart
-  LOAD: xslice
-  LOAD: xprofiler
+  LOAD: xcreature
+  LOAD: at_disclosure
+  LOAD: xtrace
+  LOAD: at_ammo
+  LOAD: _at_deps
+  LOAD: at_combat_doctrine
   LOAD: xobject
-  LOAD: xconst
-  LOAD: xmath
-  LOAD: xlog
-  START: at_mcm.on_game_start
-  START: _at_deps.on_game_start
-  START: xtime.on_game_start
-  START: at_jam.on_game_start
-  START: xlog.on_game_start
-  START: xsound.on_game_start
-  START: at_disclosure.on_game_start
-  START: xpp.on_game_start
-  START: at_ammo.on_game_start
-  START: at_combat.on_game_start
+  LOAD: xinventory
+  LOAD: xsound
+  LOAD: at_accuracy
+  LOAD: at_crossfire
+  LOAD: xtime
+  LOAD: at_combat
+  LOAD: xlevel
+  LOAD: at_jam
   START: at_hud.on_game_start
-  START: zzz_at_healing_patch.on_game_start
+  START: xlog.on_game_start
+  START: xpp.on_game_start
+  START: at_healing.on_game_start
+  START: _at_deps.on_game_start
+  START: at_jam.on_game_start
+  START: xsound.on_game_start
   START: at_accuracy.on_game_start
   START: at_crossfire.on_game_start
-  START: at_healing.on_game_start
+  START: at_combat.on_game_start
+  START: zzz_at_healing_patch.on_game_start
+  START: at_disclosure.on_game_start
+  START: xtime.on_game_start
+  START: at_mcm.on_game_start
+  START: at_ammo.on_game_start
   OK: 45 loaded, 15 on_game_start
 
 ========================================================================
