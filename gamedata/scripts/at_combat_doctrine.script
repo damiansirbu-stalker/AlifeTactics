@@ -316,16 +316,17 @@ local function _should_actor_close(npc, _enemy, state, _tg, memo)
 end
 
 
--- Ordered array = the priority (user-set 2026-07-10): counterflank FIRST - an ignored enemy actor at contact
--- range outranks every other problem; retreat SECOND - pressure (hurt inside the enemy's reach) is
--- answered with a firing pull-back before anything else; flee THIRD - the timid escalation: the cursor
--- moves past a picked retreat, so a still-hurt timid NPC tries the rout on his NEXT decision, and a
--- blocked flee (under fire / no base) defers the same way; kite FOURTH (a violated weapon minimum);
--- snipe LAST (a pressed sniper retreats, only the merely-stalled one plants). factions/weapons nil =
--- match any. vs_actor marks the row whose problem is the ACTOR (walked only when he is NOT the
--- selected enemy; the shell stages him as the committed target). update = the row's periodic
--- re-application; every row re-applies its combat state (a firing row re-checks its shot, flee
--- re-asserts its holster). should_end = the row's premise re-check while it runs (snipe only).
+-- Ordered array = the priority (user-set 2026-07-10, flee above retreat 2026-07-11): counterflank FIRST
+-- - an ignored enemy actor at contact range outranks every other problem; flee SECOND - the rout is the
+-- FIRST pressure answer for the cowardly factions (its palette), and a blocked rout (under fire / squad
+-- stands / no base) defers via the cursor to retreat - the coward fights from cover only when he cannot
+-- run; retreat THIRD - the brave factions' pressure answer (they fall through flee's palette in the same
+-- tick and lose nothing to its position); kite FOURTH (a violated weapon minimum); snipe LAST (a pressed
+-- sniper retreats, only the merely-stalled one plants). factions/weapons nil = match any. vs_actor marks
+-- the row whose problem is the ACTOR (walked only when he is NOT the selected enemy; the shell stages
+-- him as the committed target). update = the row's periodic re-application; every row re-applies its
+-- combat state (a firing row re-checks its shot, flee re-asserts its holster). should_end = the row's
+-- premise re-check while it runs (snipe only).
 local function _build_catalog(read_int)
     return {
         {
@@ -344,26 +345,12 @@ local function _build_catalog(read_int)
             timeout        = read_int("counterflank_max_ms", 3000),
         },
         {
-            -- retreat: answer pressure (hurt inside the enemy's reach) with a pull-back to rear cover,
-            -- still firing. Every eligible faction pulls back before it routs ("first retreat, then flee").
-            -- monolith and zombied get neither retreat nor flee - fanatics do not break.
-            name           = "retreat",
-            toggle         = "maneuver_retreat",
-            should_maneuver = _should_pressure,
-            factions       = { army = true, dolg = true, freedom = true, killer = true, isg = true, stalker = true, bandit = true, greh = true, ecolog = true, csky = true, renegade = true },
-            weapons        = nil,
-            can_maneuver   = _can_retreat,
-            update         = _apply_state,
-            fire           = xcombat.FIRE, posture = xcombat.STAND, movement = xcombat.WALK,
-            ends_on        = "arrival",
-            timeout        = read_int("maneuver_max_ms", 8000),
-        },
-        {
-            -- flee: the rout, the escalation AFTER retreat (the cursor lands here once a retreat picked).
-            -- Weapon HOLSTERED (STOW -> the sprint state: weapon strapped, mental=panic), re-asserted by the
-            -- row's update, so the NPC turns its back and physically cannot fire while it runs. ecolog /
-            -- clear sky / renegade only. A rout runs longer than a maneuver, so its cap (flee_max_ms) is
-            -- longer than the mover stuck-cap.
+            -- flee: the rout, the cowardly factions' FIRST pressure answer (above retreat: a coward runs
+            -- before he fights). Weapon HOLSTERED (STOW -> the sprint state: weapon strapped, mental=panic),
+            -- re-asserted by the row's update, so the NPC turns its back and physically cannot fire while
+            -- it runs. ecolog / clear sky / renegade only; everyone else falls through the palette in the
+            -- same tick. A rout runs longer than a maneuver, so its cap (flee_max_ms) is longer than the
+            -- mover stuck-cap.
             name           = "flee",
             toggle         = "maneuver_flee",
             should_maneuver = _should_pressure,
@@ -374,6 +361,22 @@ local function _build_catalog(read_int)
             fire           = xcombat.STOW, posture = xcombat.STAND, movement = xcombat.RUN,
             ends_on        = "arrival",
             timeout        = read_int("flee_max_ms", 20000),
+        },
+        {
+            -- retreat: answer pressure (hurt inside the enemy's reach) with a pull-back to rear cover,
+            -- still firing - the brave factions' answer, and the cowardly ones' fallback when their rout
+            -- is blocked (the cursor lands here after a declined flee). monolith and zombied get neither
+            -- retreat nor flee - fanatics do not break.
+            name           = "retreat",
+            toggle         = "maneuver_retreat",
+            should_maneuver = _should_pressure,
+            factions       = { army = true, dolg = true, freedom = true, killer = true, isg = true, stalker = true, bandit = true, greh = true, ecolog = true, csky = true, renegade = true },
+            weapons        = nil,
+            can_maneuver   = _can_retreat,
+            update         = _apply_state,
+            fire           = xcombat.FIRE, posture = xcombat.STAND, movement = xcombat.WALK,
+            ends_on        = "arrival",
+            timeout        = read_int("maneuver_max_ms", 8000),
         },
         {
             name           = "kite",

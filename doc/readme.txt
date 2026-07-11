@@ -48,8 +48,8 @@ A maneuver fires only when the environment, situation, his own and his enemies s
 These maneuvers cover the moments vanilla fumbles (wip, many will come):
   Counterflank snaps a stalker around when a hostile player stands at contact range while he shoots someone far away.
   Kite backs a stalker out of an enemy that closed too near, still firing.
-  Retreat pulls a steady faction to cover under pressure.
-  Flee routs a cautious one to a distant friendly base.
+  Flee routs a cautious faction to a distant friendly base - a coward runs before he fights.
+  Retreat pulls a steady one to cover under pressure; a coward whose escape is cut off does the same.
   Snipe holds a stalled marksman on precision aim.
 Maneuvers run only in fights the player is part of; NPC-only fights stay fully vanilla.
 A maneuver fires when its problem is real and ends when it is solved; if you keep creating the problem (keep pressing a shotgunner's minimum range), the answer keeps coming.
