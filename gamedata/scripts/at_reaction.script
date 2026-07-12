@@ -49,13 +49,13 @@ local _predict = {
 
 local _vision = {
     novice       = 1.00,
-    trainee      = 1.00,
-    experienced  = 1.00,
-    professional = 1.00,
-    veteran      = 1.00,
-    expert       = 1.00,
-    master       = 1.00,
-    legend       = 1.00,
+    trainee      = 1.13,
+    experienced  = 1.24,
+    professional = 1.33,
+    veteran      = 1.44,
+    expert       = 1.54,
+    master       = 1.65,
+    legend       = 2.00,
 }
 
 local _get_obj_rank_name = ranks.get_obj_rank_name
@@ -125,8 +125,9 @@ local function _refresh_config()
     _dbg = log.get_level() >= 5
     for i = 1, #TIERS do
         local tier = TIERS[i]
-        _aim[tier]    = at_mcm.get_config("rct_aim_" .. tier)    or _aim[tier]
-        _vision[tier] = at_mcm.get_config("rct_vision_" .. tier) or _vision[tier]
+        _aim[tier]     = at_mcm.get_config("rct_aim_" .. tier)     or _aim[tier]
+        _predict[tier] = at_mcm.get_config("rct_predict_" .. tier) or _predict[tier]
+        _vision[tier]  = at_mcm.get_config("rct_vision_" .. tier)  or _vision[tier]
     end
 end
 

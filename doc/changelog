@@ -9,14 +9,24 @@
       they fight.
     - Retreats now reach real cover behind the retreating stalker. Cornered stalkers hold
       their ground instead of shuffling in place indoors.
-
-  Effectiveness
-    - Added Reaction: stalker rank now shapes gun handling per stalker, through new engine binds.
-      Higher ranks track a moving target visibly tighter and lead it closer; rookies stay at vanilla.
-      Vision speed ships neutral, tunable per rank. Needs a recent engine build, silent on older ones.
+    - Maneuver fire now bursts per weapon kind: pistol and rifle bursts, single sniper shots.
+      Replaces the uniform 5-round burst the game's script machinery fires for every weapon.
     - Added Commitment: stalkers stand their ground instead of jogging to new cover mid-exchange.
       A stalker seeing his target with a clear shot keeps fighting from where he stands.
       Losing the target or the hold limit lets the cover move through. Needs a recent engine build.
+
+  Effectiveness
+    - Added Reaction: rank-tiered gun handling through new engine binds, set per stalker at
+      spawn. Carries the 3 curves below, each an 8-slider MCM block over the rank tiers.
+      Requires a recent engine build, inert on older ones.
+    - Added the Tracking Speed curve: how tightly the barrel follows a moving target per rank
+      tier, from the vanilla speed up to the hardcore AI aim option's speed at the top tier.
+    - Added the Target Lead curve: the aim-ahead time on a moving target per rank tier.
+      Lower tiers aim further ahead and miss wider when the target changes direction.
+    - Added the Vision Speed curve: detection speed per rank tier, up to 2x the installed
+      detection speed at the top tier.
+    - Added the Moving Fire curve to Accuracy: each rank tier cancels a set share of the movement
+      dispersion penalty, keeping higher tiers accurate while repositioning.
     - Danger detection now comes from your installed danger config. AlifeTactics adds reactions
       and fixes on top instead of overriding its tuning.
     - Stalkers hit or hearing enemy gunfire react at any range, even to fire not aimed at them.

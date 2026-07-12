@@ -38,7 +38,7 @@ aim_master       = 1.70
 aim_legend       = 2.50
 
 ; predict_* is seconds of target lead (predict_object_position, sight_action.cpp:380). Same
-; derivation, endpoints 0.40 (vanilla) -> 0.28 (hardcore preset). Not MCM-exposed.
+; derivation, endpoints 0.40 (vanilla) -> 0.28 (hardcore preset).
 predict_novice       = 0.40
 predict_trainee      = 0.38
 predict_experienced  = 0.37
@@ -49,18 +49,18 @@ predict_master       = 0.32
 predict_legend       = 0.28
 
 ; vision_* multiplies detection-speed accumulation (get_visible_value, visual_memory_manager.cpp:365-379)
-; ON TOP of the installed detection stack - LTX thresholds, script detection formulas, everything.
-; Vanilla ties detection speed to NO rank (every stalker reads the same [stalker_vision_*] params,
-; m_stalker.ltx:76-99), and NO source establishes a per-rank spread - so the shipped default is 1.00
-; flat: the installed detection, unchanged, for every rank. Raise deliberately, knowing it stacks:
-; widely played modpacks already cut visibility_threshold 150->80 (free) / 75->35 (danger) = ~2x
-; faster detection for EVERY NPC, so a 2.00 here on plain Anomaly gives one rank that same grade,
-; while on such a modpack the same value STACKS to ~4x vanilla - keep it at or near 1.00 there.
+; AFTER whichever detection stack the install runs (engine formula or a Lua get_visible_value
+; functor) - so the curve is a RELATIVE rank spread over the installed baseline, the only semantics
+; the seam supports. Every install is rank-blind at detection (vanilla: one [stalker_vision_*] set
+; for all stalkers, m_stalker.ltx:76-99); this adds the rank axis. Same lerp as aim_*, endpoints
+; sourced: novice 1.00 = the installed baseline, untouched; legend 2.00 = the detection grade
+; widely played modpack tuning gives every NPC by cutting visibility_threshold 150->80 (free) /
+; 75->35 (danger) vs vanilla, ~2x (latency ~ threshold / rate, so threshold-halving = rate x2).
 vision_novice       = 1.00
-vision_trainee      = 1.00
-vision_experienced  = 1.00
-vision_professional = 1.00
-vision_veteran      = 1.00
-vision_expert       = 1.00
-vision_master       = 1.00
-vision_legend       = 1.00
+vision_trainee      = 1.13
+vision_experienced  = 1.24
+vision_professional = 1.33
+vision_veteran      = 1.44
+vision_expert       = 1.54
+vision_master       = 1.65
+vision_legend       = 2.00

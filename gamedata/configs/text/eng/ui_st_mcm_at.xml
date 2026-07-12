@@ -72,7 +72,7 @@
     <text>Stalkers stand their ground instead of jogging to new cover mid-exchange. A stalker who sees his target with a clear shot keeps fighting from where he stands; losing the target or the time limit below lets the cover move through again. Requires a recent engine build with the action-switch veto; on older builds the toggle has no effect and vanilla behavior applies.</text>
   </string>
   <string id="ui_mcm_at_reaction_desc">
-    <text>Stalker rank decides how tightly a stalker's gun tracks you while you move, how far it leads you, and how fast you are noticed at range (vision, neutral until raised). Tracking speed changes their gun handling on a moving target; it does not make the first shot come sooner. Requires a recent engine build with the per-stalker aim and vision binds; on older builds the page has no effect and vanilla behavior applies.</text>
+    <text>Stalker rank decides how tightly a stalker's gun tracks you while you move, how far it leads you, and how fast you are noticed at range. Tracking speed changes their gun handling on a moving target; it does not make the first shot come sooner. Requires a recent engine build with the per-stalker aim and vision binds; on older builds the page has no effect and vanilla behavior applies.</text>
   </string>
   <string id="ui_mcm_at_range_desc">
     <text>Planned: engagement distance. The game stops NPC fights at a hard range cap regardless of weapon, so a sniper never fires at the distances his rifle exists for, and a stalker sniped from beyond the cap can duck (the Danger hit response) but never answer. This page will let long-range NPCs answer and initiate at their weapon's real reach. Nothing to configure yet.</text>
@@ -249,6 +249,57 @@
   <string id="ui_mcm_at_accuracy_acc_disp_legend_desc">
     <text>Shot cone scale for legend-rank stalkers, the highest rank. Lower is tighter.</text>
   </string>
+  <string id="ui_mcm_at_hdr_accuracy_move">
+    <text>Moving Fire Curve</text>
+  </string>
+  <string id="ui_mcm_at_accuracy_acc_move_novice">
+    <text>Novice moving fire</text>
+  </string>
+  <string id="ui_mcm_at_accuracy_acc_move_novice_desc">
+    <text>How much of the movement spread penalty a novice-rank stalker keeps while shooting on the move. 1.00 is the full vanilla penalty; lower is steadier fire on the move.</text>
+  </string>
+  <string id="ui_mcm_at_accuracy_acc_move_trainee">
+    <text>Trainee moving fire</text>
+  </string>
+  <string id="ui_mcm_at_accuracy_acc_move_trainee_desc">
+    <text>How much of the movement spread penalty a trainee-rank stalker keeps while shooting on the move. Lower is steadier.</text>
+  </string>
+  <string id="ui_mcm_at_accuracy_acc_move_experienced">
+    <text>Experienced moving fire</text>
+  </string>
+  <string id="ui_mcm_at_accuracy_acc_move_experienced_desc">
+    <text>How much of the movement spread penalty an experienced-rank stalker keeps while shooting on the move. Lower is steadier.</text>
+  </string>
+  <string id="ui_mcm_at_accuracy_acc_move_professional">
+    <text>Professional moving fire</text>
+  </string>
+  <string id="ui_mcm_at_accuracy_acc_move_professional_desc">
+    <text>How much of the movement spread penalty a professional-rank stalker keeps while shooting on the move. Lower is steadier.</text>
+  </string>
+  <string id="ui_mcm_at_accuracy_acc_move_veteran">
+    <text>Veteran moving fire</text>
+  </string>
+  <string id="ui_mcm_at_accuracy_acc_move_veteran_desc">
+    <text>How much of the movement spread penalty a veteran-rank stalker keeps while shooting on the move. Lower is steadier.</text>
+  </string>
+  <string id="ui_mcm_at_accuracy_acc_move_expert">
+    <text>Expert moving fire</text>
+  </string>
+  <string id="ui_mcm_at_accuracy_acc_move_expert_desc">
+    <text>How much of the movement spread penalty an expert-rank stalker keeps while shooting on the move. Lower is steadier.</text>
+  </string>
+  <string id="ui_mcm_at_accuracy_acc_move_master">
+    <text>Master moving fire</text>
+  </string>
+  <string id="ui_mcm_at_accuracy_acc_move_master_desc">
+    <text>How much of the movement spread penalty a master-rank stalker keeps while shooting on the move. Lower is steadier.</text>
+  </string>
+  <string id="ui_mcm_at_accuracy_acc_move_legend">
+    <text>Legend moving fire</text>
+  </string>
+  <string id="ui_mcm_at_accuracy_acc_move_legend_desc">
+    <text>How much of the movement spread penalty a legend-rank stalker keeps while shooting on the move, the highest rank. 0.50 makes his moving fire as steady as his standing fire.</text>
+  </string>
   <!-- ==================== REACTION PAGE ==================== -->
   <string id="ui_mcm_at_reaction_reaction_enabled">
     <text>Enable Reaction</text>
@@ -307,6 +358,57 @@
   <string id="ui_mcm_at_reaction_rct_aim_legend_desc">
     <text>How tightly a legend-rank barrel follows a moving target, the highest rank. 2.50 matches the game's hardcore AI aim option.</text>
   </string>
+  <string id="ui_mcm_at_hdr_reaction_predict">
+    <text>Target Lead Curve</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_predict_novice">
+    <text>Novice target lead</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_predict_novice_desc">
+    <text>Seconds a novice-rank stalker aims ahead of a moving target. Lower lands closer when the target changes direction. 0.40 is the vanilla lead.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_predict_trainee">
+    <text>Trainee target lead</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_predict_trainee_desc">
+    <text>Seconds a trainee-rank stalker aims ahead of a moving target. Lower lands closer when the target changes direction.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_predict_experienced">
+    <text>Experienced target lead</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_predict_experienced_desc">
+    <text>Seconds an experienced-rank stalker aims ahead of a moving target. Lower lands closer when the target changes direction.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_predict_professional">
+    <text>Professional target lead</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_predict_professional_desc">
+    <text>Seconds a professional-rank stalker aims ahead of a moving target. Lower lands closer when the target changes direction.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_predict_veteran">
+    <text>Veteran target lead</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_predict_veteran_desc">
+    <text>Seconds a veteran-rank stalker aims ahead of a moving target. Lower lands closer when the target changes direction.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_predict_expert">
+    <text>Expert target lead</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_predict_expert_desc">
+    <text>Seconds an expert-rank stalker aims ahead of a moving target. Lower lands closer when the target changes direction.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_predict_master">
+    <text>Master target lead</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_predict_master_desc">
+    <text>Seconds a master-rank stalker aims ahead of a moving target. Lower lands closer when the target changes direction.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_predict_legend">
+    <text>Legend target lead</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_predict_legend_desc">
+    <text>Seconds a legend-rank stalker aims ahead of a moving target, the highest rank. Lower lands closer when the target changes direction. 0.28 matches the game's hardcore AI aim option.</text>
+  </string>
   <string id="ui_mcm_at_hdr_reaction_vision">
     <text>Vision Speed Curve</text>
   </string>
@@ -356,7 +458,7 @@
     <text>Legend vision speed</text>
   </string>
   <string id="ui_mcm_at_reaction_rct_vision_legend_desc">
-    <text>Detection speed factor for legend-rank stalkers, the highest rank. Higher notices targets faster at range.</text>
+    <text>Detection speed factor for legend-rank stalkers, the highest rank. Higher notices targets faster at range. 2.00 notices targets twice as fast as your setup's baseline.</text>
   </string>
   <!-- ==================== COMMITMENT PAGE ==================== -->
   <string id="ui_mcm_at_commitment_commitment_enabled">
