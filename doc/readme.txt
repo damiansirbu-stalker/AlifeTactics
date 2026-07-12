@@ -27,12 +27,13 @@ The actual effects are
 - Bugs disguised as features, like fake weapon jamming or random tactical reloading are eliminated
 
 
-It is built in an engineered, architecture- and performance-first manner:
-- it works on multiple levels, from most intrusive (complete takeover), to moderate (controlling xray and anomaly) to light (like improving threat, vision, etc)
-- it respects XRAY and Anomaly engine fundamentals: the GOAP action planner, the xr_logic scheme and subscheme system, state_mgr, smart terrains and the gulag job system, condlists, and DLTX/DXML for data
-- where it was not possible, it relies on multiple xray-monolith hooks created specifically for this mod
-- it uses best practices in lua, xlibs and s-tier mods to ensure the performance impact is almost inexistent
-- it also fixes dozens of vanilla Anomaly bugs, from dead branches, wrong calculations or plain crashes in original code
+Everything is 100% canon, engine-pure, safe and fast:
+- Every behavior is built from pure X-Ray and Anomaly primitives: the GOAP action planner, the xr_logic scheme system, state_mgr, smart terrains and the gulag job system, condlists, DLTX/DXML for data. Nothing is faked, nothing is simulated beside the engine.
+- Where the engine had no seam, the seam was added upstream first: per-NPC hooks created in xray-monolith specifically for this mod, merged into the official modded exes.
+- It never replaces a vanilla script file. Takeovers block the planner only for their seconds and hand back; patches lay onto whichever script your setup ships.
+- Every value ships as a formula over the engine's own constants, never an invented number.
+- Zero per-frame Lua. Everything runs on engine callbacks and scheduled passes; the whole mod costs 3 timer compares per frame, whatever the NPC count.
+- Dozens of vanilla Anomaly bugs fixed along the way: dead branches, wrong calculations, plain crashes in original code.
 
 
 Every system below has its own page in MCM, laid out in this exact order, where it is toggled and tuned.
@@ -54,6 +55,7 @@ These maneuvers cover the moments vanilla fumbles (wip, many will come):
 Maneuvers run only in fights the player is part of; NPC-only fights stay fully vanilla.
 A maneuver fires when its problem is real and ends when it is solved; if you keep creating the problem (keep pressing a shotgunner's minimum range), the answer keeps coming.
 The decisions come out looking human. Nobody turns his back on a shooter, two men never take the same cover, a sniper never plants under your crosshair.
+Maneuver fire bursts by weapon: pistols and rifles fire real bursts, sniper rifles single shots, in place of the uniform burst the game's script machinery uses for every weapon it drives.
 The takeover overrides no combat scripts, so it fights side by side with vanilla and layers cleanly over AI overhauls. Companions are excluded by default.
 
 Behaviors (planned):
@@ -64,6 +66,7 @@ Effectiveness
 Accuracy:
 Anomaly's rank curve clamps every NPC to the same dispersion, accuracy never scaled per rank, even though the engine code exists.
 AlifeTactics restores a real per-rank curve through the engine's own dispersion callback, tunable per tier.
+A second curve covers fire on the move: each rank keeps a share of the movement spread penalty, so rookies spray while repositioning and top ranks shoot nearly as well walking as standing.
 Note that the engine has many dispersion variables (eg barrel, weapon, npc), this is the NPC skill-based dispersion.
 
 Disclosure:
@@ -89,13 +92,20 @@ A hit between two NPCs of the same faction deals reduced damage, set by a slider
 It keys on their actual relation, so genuinely hostile factions still trade fire while allies stay safe.
 Your own shots are never affected.
 
-Commitment (planned):
+Commitment:
 Vanilla stalkers re-decide the fight every frame and end up dithering, ducking and popping as they catch and lose sight of you.
 An alternative many mods and modpacks took was activating a camper or camper-like scheme, muting 99% of Anomaly's combat variety.
-NPCs evaluate the battle scenario and hold a good action instead of shuffling between cover, based on new hooks in xray-monolith.
+AlifeTactics instead holds the good decision: a stalker who sees his target and has a clear shot keeps fighting from where he stands instead of jogging to new cover mid-exchange.
+Losing the target, a blocked line, or the hold limit lets the cover move through again.
+Based on an action-switch hook created in xray-monolith for this mod; on older builds the system stays inactive.
 
-Reaction (planned):
-Again based on hooks created specifically in xray-monolith, per-NPC rank-based aim speed and vision.
+Reaction:
+Stalker rank now shapes gun handling, applied per stalker at spawn.
+Tracking Speed sets how tightly a barrel follows a moving target, from vanilla at the bottom rank to the game's own hardcore AI aim at the top.
+Target Lead sets how far ahead of a mover each rank aims; low ranks overlead and miss wider when the target changes direction.
+Vision Speed sets how fast each rank notices a target at range, up to twice your setup's detection speed at the top.
+All three are MCM slider curves over the rank tiers.
+Based on per-NPC aim and vision hooks created in xray-monolith for this mod; on older builds the page has no effect.
 
 Range (planned):
 Engagement distance. The game stops NPC fights at a hard range cap regardless of weapon, so a sniper never fires at the distances his rifle exists for, and a stalker sniped from beyond the cap can duck (the Danger hit response) but never answer. This page will let long-range NPCs answer and initiate at their weapon's real reach.
