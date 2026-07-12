@@ -5,6 +5,7 @@
 
 local IsStalker, time_global, tostring, pairs = IsStalker, time_global, tostring, pairs
 local math_floor, RegisterScriptCallback, AC_ID = math.floor, RegisterScriptCallback, AC_ID
+local string_match, tonumber = string.match, tonumber
 
 local cfg = at_mcm.cfg
 local doctrine = at_combat_doctrine
@@ -33,6 +34,34 @@ local _npc_states = {}
 -- failsafe). _drop_gate keeps it honest on every gate-clearing path (end AND despawn), so a dead NPC
 -- can never leak a slot.
 local _open_count = 0
+
+-- Scheme fire discipline: while a maneuver drives an NPC, the state machinery asks
+-- state_mgr_weapon.get_queue_params for the burst, and every state without an animation-specific
+-- entry falls to the caller's generic {5,300,0} override - full-auto on a pistol, a burst on a
+-- sniper rifle (state_mgr.script:322). For maneuver-held NPCs we swap that fallback override for a
+-- per-weapon-kind triple {queue size, interval ms, aim time}; the animation-tuned entries
+-- (state_mgr_weapon state_queue_params) keep their priority, the original's aim_time machinery
+-- stays intact, and NPCs we are not driving pass through byte-identical. Triples default to the
+-- engine planner's own [fire_queue_params] medium-band midpoints (m_stalker.ltx:826-909).
+-- Band sources: pstl medium size 1-4 interval 400-500; shtg medium 1-4 / 600-750; auto medium
+-- 1-6 / 350-600; mchg medium 2-12 / 300-500 (ef types 6-8, 10); snp medium 1 / 1500-2000.
+local _queue_by_kind = {
+    w_pistol  = { 2, 450, 0 },
+    w_shotgun = { 2, 675, 0 },
+    w_rifle   = { 3, 475, 0 },
+    w_smg     = { 7, 400, 0 },
+    w_sniper  = { 1, 1750, 0 },
+}
+
+local _orig_get_queue_params
+local function _patched_get_queue_params(npc, st, override)
+    local state = npc and _npc_states[npc:id()]
+    if state and state.maneuver then
+        local kind = xcombat.get_weapon_kind(npc)
+        override = (kind and _queue_by_kind[kind]) or override
+    end
+    return _orig_get_queue_params(npc, st, override)
+end
 
 
 -- Fight detection and the seize gates: one named predicate each.
@@ -471,6 +500,13 @@ local function _load_config()
     END_PERIOD_MS       = read_int("end_period_ms",       200)
     HIT_FIGHT_MS        = read_int("hit_fight_ms",        5000)
     MAX_CONCURRENT      = read_int("max_concurrent_maneuvers", 20)
+    for kind, triple in pairs(_queue_by_kind) do
+        local raw = ini:r_string_ex(LTX_SECTION, "queue_" .. kind)
+        local size, interval = string_match(raw or "", "^%s*(%d+)%s*,%s*(%d+)")
+        if size then
+            triple[1], triple[2] = tonumber(size), tonumber(interval)
+        end
+    end
     _build_checks()
 end
 
@@ -513,6 +549,13 @@ end
 function on_game_start()
     _load_config()
     doctrine.load_config()
+    -- Function-level monkey-patch (script-loading.md pattern): the state machinery has no callback
+    -- at the queue-params seam. Install-once guard for defensive re-entry; the module reference
+    -- auto-loads in-game, and an environment without it (test harness) skips the patch.
+    if not _orig_get_queue_params and state_mgr_weapon and state_mgr_weapon.get_queue_params then
+        _orig_get_queue_params = state_mgr_weapon.get_queue_params
+        state_mgr_weapon.get_queue_params = _patched_get_queue_params
+    end
     RegisterScriptCallback("npc_on_net_spawn",            _install)
     RegisterScriptCallback("npc_on_hit_callback",         _on_hit)
     RegisterScriptCallback("npc_shot_dispersion",         _on_shot_fired)
