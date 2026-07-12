@@ -9,7 +9,7 @@
 	scheme_type: generic (danger)
 	base:    Anomaly 1.5.3 vanilla xr_danger (Alundaio)
 	applied: AlifeTactics, at on_game_start, onto whichever xr_danger.script won the
-	         MO2 virtual filesystem (vanilla, GAMMA AI Rework, or REDONE Combat AI).
+	         MO2 virtual filesystem (vanilla or any AI overhaul copy).
 
 	Composition
 	-----------
@@ -27,8 +27,8 @@
 	Feeder callbacks (npc_on_hear_callback, npc_on_death_callback) are left to the winning
 	file, which registers vanilla-derived versions of them. They route through the patched
 	set_script_danger and db.storage, feeding this module's evaluators. The winning file's
-	other danger callbacks (GAMMA AI Rework torch/weight perception, REDONE per-frame
-	perception) keep running untouched.
+	other danger callbacks (overhaul torch/weight or per-frame perception layers) keep
+	running untouched.
 
 	Vanilla bugs fixed (always on)
 	------------------------------
@@ -71,7 +71,7 @@
 	   combat-ignore override still suppresses it. Squad-level response to the same hit is
 	   at_disclosure's job; this is the victim's own reflex when combat cannot engage.
 	2. danger_actor_tables: dangers sourced from the actor read the separate [_actor] tables,
-	   where the installed config differentiates them (GAMMA AI Rework does; vanilla ships copies).
+	   where the installed config differentiates them (some AI overhauls do; vanilla ships copies).
 	3. danger_attack_sound: the attack-sound danger type gets a script-side handler, admitted by
 	   at_evaluator_check_danger while the toggle is on. Reaction distance is the winning config's
 	   attack_sound row.
@@ -645,8 +645,10 @@ local function script_action_danger_corpse(npc,st,bd,best_danger_object,dependen
 	local dst = db.storage[bdo:id()]
 	local killer = dependent_object or dst and dst.death_by_id and (db.storage[dst.death_by_id] and db.storage[dst.death_by_id].object or level.object_by_id(dst.death_by_id))
 
-	-- force hostile to killer
-	if (st.stage >= 4 and killer and killer:id() == AC_ID and killer:alive() and npc:relation(killer) < game_object.enemy and npc:see(killer)) then
+	-- force hostile to killer. (st.stage or 0): vanilla compares st.stage >= 4 bare (xr_danger.script:539)
+	-- and crashes when the corpse reaction fires before the scheme's initialize set the stage - and since
+	-- stage only ever holds 1 or 2 in this file, the bare compare could only ever crash, never pass.
+	if ((st.stage or 0) >= 4 and killer and killer:id() == AC_ID and killer:alive() and npc:relation(killer) < game_object.enemy and npc:see(killer)) then
 		local squad = get_object_squad(npc)
 		if (squad) then
 			for k in squad:squad_members() do
@@ -811,7 +813,7 @@ local function script_action_danger_alert(npc, st, bd, best_danger_object, depen
 	local tg = time_global()
 
 	if bdo:id() == db.actor:id() then
-		-- Non-enemy actor filter (REDONE xr_danger precedent): a neutral player shooting nearby is a
+		-- Non-enemy actor filter: a neutral player shooting nearby is a
 		-- threat only with a weapon out and roughly aimed at the NPC. An ENEMY player skips it - his
 		-- gunfire alerts like any NPC enemy's, aimed or not. Dormant today: is_danger admits only
 		-- relation >= enemy sources, so no non-enemy actor reaches this handler yet.
@@ -1164,7 +1166,7 @@ local _patched = false
 local function _install_patches()
 	if _patched then return end
 	_patched = true
-	-- xr_danger here is the winning MO2 file (vanilla, GAMMA AI Rework, or REDONE).
+	-- xr_danger here is the winning MO2 file (vanilla or any overhaul copy).
 	-- Referencing it auto-loads that module first, so its table exists before we patch.
 	_actid = xr_danger.actid or _actid
 	xr_danger.setup_generic_scheme = setup_generic_scheme
