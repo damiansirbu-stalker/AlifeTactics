@@ -59,8 +59,17 @@ local _orig_get_queue_params
 local function _patched_get_queue_params(npc, st, override)
     local state = npc and _npc_states[npc:id()]
     if state and state.maneuver then
+        local tmr = xprofiler.new_if(_dbg):start()
         local kind = xcombat.get_weapon_kind(npc)
-        override = (kind and _queue_by_kind[kind]) or override
+        local triple = kind and _queue_by_kind[kind]
+        tmr:stop()
+        if triple then override = triple end
+        if _dbg then
+            log.debug("[QUE] id=%d kind=%s size=%s interval=%s [%.3fms]",
+                npc:id(), tostring(kind),
+                triple and tostring(triple[1]) or "vanilla",
+                triple and tostring(triple[2]) or "vanilla", tmr:get_ms())
+        end
     end
     return _orig_get_queue_params(npc, st, override)
 end
@@ -544,8 +553,9 @@ local function _on_first_update()
     _refresh_log()
     -- Time events do not survive a save load (_g.script header), so the monitor arms here, per session.
     _apply_enabled()
-    log.info("Combat monitor initialized (enabled=%s dbg=%s cap=%d)",
-        tostring(cfg.combat_enabled), tostring(_dbg), MAX_CONCURRENT)
+    log.info("Combat monitor initialized (enabled=%s dbg=%s cap=%d queue_patch=%s)",
+        tostring(cfg.combat_enabled), tostring(_dbg), MAX_CONCURRENT,
+        _orig_get_queue_params and "installed" or "missing")
 end
 
 function on_game_start()
