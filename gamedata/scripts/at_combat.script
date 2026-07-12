@@ -54,6 +54,8 @@ local _queue_by_kind = {
 }
 
 local _orig_get_queue_params
+-- The kind read adds no crash surface over the original: vanilla get_queue_params makes the
+-- same class of member calls (best_weapon, aim_time) on the same NPC at this seam.
 local function _patched_get_queue_params(npc, st, override)
     local state = npc and _npc_states[npc:id()]
     if state and state.maneuver then
