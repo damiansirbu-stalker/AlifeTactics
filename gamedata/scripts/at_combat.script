@@ -85,13 +85,26 @@ local function _drop_gate(state)
     end
 end
 
+-- Debug-only lethality evidence per maneuver window: shots fired (npc_shot_dispersion, once per
+-- bullet, ai_stalker_fire.cpp:135-139) vs hits landed on the actor (actor_on_hit_callback carries
+-- the shooter). Both handlers bail on the _dbg boolean; the counts ride the end trace line.
+local _shots = {}
+local _hits = {}
+
 -- End the maneuver: lower the gate, clear the row, release any cover the feasibility check reserved, on
 -- EVERY exit (arrived, cap, never-begun) so a gate that raised but never ran a maneuver does not leak the
 -- reservation in db.used_level_vertex_ids (t136). Also resets the stall tracker: a transaction consumes
 -- the situation's accumulated measurement, so `stalled` means "standoff SINCE the last maneuver" and a
 -- completed hold negates its own need (a fresh stall must accumulate before the next one).
 local function _end_maneuver(state, tg, reason, check_us)
-    if _dbg then trace.end_maneuver(state.id, state.maneuver and state.maneuver.name, reason, math_floor(tg - (state.begin_at or tg)), check_us) end
+    if _dbg then
+        trace.end_maneuver(state.id, state.maneuver and state.maneuver.name, reason,
+            math_floor(tg - (state.begin_at or tg)), check_us, _shots[state.id] or 0, _hits[state.id] or 0,
+            state.result)
+    end
+    _shots[state.id] = nil
+    _hits[state.id] = nil
+    state.result = nil
     _drop_gate(state)
     state.maneuver = nil
     state.dest = nil
@@ -122,10 +135,44 @@ local function _begin_maneuver(npc)
     local fire, gate = doctrine.apply_state(npc, maneuver, enemy)
     tmr_apply:stop()
     state.maneuver_at = tg
+    _shots[state.id] = nil
+    _hits[state.id] = nil
     if _dbg then
         trace.begin_maneuver(state.id, maneuver.name, state.trigger, state.dest, fire, maneuver.movement,
             maneuver.fire, gate, state.cover, math_floor(tmr_send:get_us()), math_floor(tmr_apply:get_us()))
     end
+end
+
+-- Shot counter (debug only): one increment per bullet a maneuvering NPC fires.
+local function _on_shot_fired(obj)
+    if not _dbg or not obj then return end
+    local id = obj:id()
+    local state = _npc_states[id]
+    if state and state.maneuver then
+        _shots[id] = (_shots[id] or 0) + 1
+    end
+end
+
+-- Actor-hit counter (debug only): one increment per damaging hit a maneuvering NPC lands on the actor.
+local function _on_actor_hit(_, amount, _, who)
+    if not _dbg or not who then return end
+    if not amount or amount <= 0 then return end
+    local id = who:id()
+    local state = _npc_states[id]
+    if state and state.maneuver then
+        _hits[id] = (_hits[id] or 0) + 1
+    end
+end
+
+-- Outcome stamp (debug only): a maneuvering NPC wounding or killing his COMMITTED target marks the
+-- maneuver's result, printed on the end trace line (npc_on_enemy_wounded_or_killed cannot fire for
+-- the actor as victim, so the player-facing outcome stays the hits_actor counter).
+local function _on_enemy_downed(npc, victim)
+    if not _dbg or not (npc and victim) then return end
+    local state = _npc_states[npc:id()]
+    if not (state and state.maneuver) then return end
+    if victim:id() ~= state.enemy_id then return end
+    state.result = victim:alive() and "wounded" or "killed"
 end
 
 -- One spec drives every AT NPC: gate = the per-NPC flag the grafted evaluator polls; on_begin = _begin_maneuver,
@@ -468,6 +515,9 @@ function on_game_start()
     doctrine.load_config()
     RegisterScriptCallback("npc_on_net_spawn",            _install)
     RegisterScriptCallback("npc_on_hit_callback",         _on_hit)
+    RegisterScriptCallback("npc_shot_dispersion",         _on_shot_fired)
+    RegisterScriptCallback("actor_on_hit_callback",       _on_actor_hit)
+    RegisterScriptCallback("npc_on_enemy_wounded_or_killed", _on_enemy_downed)
     RegisterScriptCallback("npc_on_net_destroy",          _on_net_destroy)
     RegisterScriptCallback("server_entity_on_unregister", _on_entity_unregister)
     RegisterScriptCallback("actor_on_first_update",       _on_first_update)

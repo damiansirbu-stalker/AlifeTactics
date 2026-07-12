@@ -69,10 +69,10 @@
     <text>Planned: new combat actions the vanilla planner lacks, melee first. Nothing to configure yet.</text>
   </string>
   <string id="ui_mcm_at_commitment_desc">
-    <text>Planned: stalkers evaluate the fight and hold a good combat action instead of dithering between cover as they catch and lose sight of you. The engine hook behind it is already merged in the demonized exes. Nothing to configure yet.</text>
+    <text>Stalkers stand their ground instead of jogging to new cover mid-exchange. A stalker who sees his target with a clear shot keeps fighting from where he stands; losing the target or the time limit below lets the cover move through again. Requires a recent engine build with the action-switch veto; on older builds the toggle has no effect and vanilla behavior applies.</text>
   </string>
   <string id="ui_mcm_at_reaction_desc">
-    <text>Planned: per-stalker aim speed and vision speed, scaled by rank. The engine hooks behind it are already merged in the demonized exes. Nothing to configure yet.</text>
+    <text>Stalker rank decides how tightly a stalker's gun tracks you while you move, how far it leads you, and how fast you are noticed at range (vision, neutral until raised). Tracking speed changes their gun handling on a moving target; it does not make the first shot come sooner. Requires a recent engine build with the per-stalker aim and vision binds; on older builds the page has no effect and vanilla behavior applies.</text>
   </string>
   <string id="ui_mcm_at_range_desc">
     <text>Planned: engagement distance. The game stops NPC fights at a hard range cap regardless of weapon, so a sniper never fires at the distances his rifle exists for, and a stalker sniped from beyond the cap can duck (the Danger hit response) but never answer. This page will let long-range NPCs answer and initiate at their weapon's real reach. Nothing to configure yet.</text>
@@ -249,6 +249,131 @@
   <string id="ui_mcm_at_accuracy_acc_disp_legend_desc">
     <text>Shot cone scale for legend-rank stalkers, the highest rank. Lower is tighter.</text>
   </string>
+  <!-- ==================== REACTION PAGE ==================== -->
+  <string id="ui_mcm_at_reaction_reaction_enabled">
+    <text>Enable Reaction</text>
+  </string>
+  <string id="ui_mcm_at_reaction_reaction_enabled_desc">
+    <text>When off, every stalker aims and spots at the engine's flat speed regardless of rank.</text>
+  </string>
+  <string id="ui_mcm_at_hdr_reaction_aim">
+    <text>Tracking Speed</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_aim_novice">
+    <text>Novice tracking speed</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_aim_novice_desc">
+    <text>How tightly a novice-rank barrel follows a moving target, radians per second. 0.24 matches the vanilla engine.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_aim_trainee">
+    <text>Trainee tracking speed</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_aim_trainee_desc">
+    <text>How tightly a trainee-rank barrel follows a moving target. Higher tracks closer.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_aim_experienced">
+    <text>Experienced tracking speed</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_aim_experienced_desc">
+    <text>How tightly a experienced-rank barrel follows a moving target. Higher tracks closer.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_aim_professional">
+    <text>Professional tracking speed</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_aim_professional_desc">
+    <text>How tightly a professional-rank barrel follows a moving target. Higher tracks closer.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_aim_veteran">
+    <text>Veteran tracking speed</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_aim_veteran_desc">
+    <text>How tightly a veteran-rank barrel follows a moving target. Higher tracks closer.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_aim_expert">
+    <text>Expert tracking speed</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_aim_expert_desc">
+    <text>How tightly a expert-rank barrel follows a moving target. Higher tracks closer.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_aim_master">
+    <text>Master tracking speed</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_aim_master_desc">
+    <text>How tightly a master-rank barrel follows a moving target. Higher tracks closer.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_aim_legend">
+    <text>Legend tracking speed</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_aim_legend_desc">
+    <text>How tightly a legend-rank barrel follows a moving target, the highest rank. 2.50 matches the game's hardcore AI aim option.</text>
+  </string>
+  <string id="ui_mcm_at_hdr_reaction_vision">
+    <text>Vision Speed Curve</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vision_novice">
+    <text>Novice vision speed</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vision_novice_desc">
+    <text>Detection speed factor for novice-rank stalkers. Higher notices targets faster at range; 1.00 leaves your setup's detection unchanged. Point-blank detection is unaffected.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vision_trainee">
+    <text>Trainee vision speed</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vision_trainee_desc">
+    <text>Detection speed factor for trainee-rank stalkers. Higher notices targets faster at range.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vision_experienced">
+    <text>Experienced vision speed</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vision_experienced_desc">
+    <text>Detection speed factor for experienced-rank stalkers. Higher notices targets faster at range.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vision_professional">
+    <text>Professional vision speed</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vision_professional_desc">
+    <text>Detection speed factor for professional-rank stalkers. Higher notices targets faster at range.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vision_veteran">
+    <text>Veteran vision speed</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vision_veteran_desc">
+    <text>Detection speed factor for veteran-rank stalkers. Higher notices targets faster at range.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vision_expert">
+    <text>Expert vision speed</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vision_expert_desc">
+    <text>Detection speed factor for expert-rank stalkers. Higher notices targets faster at range.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vision_master">
+    <text>Master vision speed</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vision_master_desc">
+    <text>Detection speed factor for master-rank stalkers. Higher notices targets faster at range.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vision_legend">
+    <text>Legend vision speed</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vision_legend_desc">
+    <text>Detection speed factor for legend-rank stalkers, the highest rank. Higher notices targets faster at range.</text>
+  </string>
+  <!-- ==================== COMMITMENT PAGE ==================== -->
+  <string id="ui_mcm_at_commitment_commitment_enabled">
+    <text>Enable Commitment</text>
+  </string>
+  <string id="ui_mcm_at_commitment_commitment_enabled_desc">
+    <text>When off, stalkers may abandon a live exchange for new cover the moment the engine re-scores its cover point.</text>
+  </string>
+  <string id="ui_mcm_at_hdr_commitment_hold">
+    <text>Hold Limit</text>
+  </string>
+  <string id="ui_mcm_at_commitment_commitment_hold_s">
+    <text>Maximum hold time</text>
+  </string>
+  <string id="ui_mcm_at_commitment_commitment_hold_s_desc">
+    <text>Seconds of refused cover moves before re-evaluation is allowed through again. Losing sight of the target or losing the clear shot lets the move through earlier.</text>
+  </string>
   <!-- ==================== MANEUVERS PAGE ==================== -->
   <string id="ui_mcm_at_combat_desc">
     <text>A maneuver is a complete takeover of one stalker for a few seconds. AlifeTactics drives him through one committed move and hands him back to the engine cleanly. Vanilla, or whatever AI overhaul you run, drives every fight the rest of the time. Maneuvers run only in fights you are part of; NPC-only fights stay fully vanilla. A maneuver fires when its problem is real and ends when it is solved, so pressing the same stalker keeps drawing the same answer. The decisions come out looking human. Nobody turns his back on a shooter, two men never take the same cover. The takeover overrides no combat scripts, so it layers over AI overhauls. Each maneuver below toggles on its own.</text>
@@ -337,13 +462,13 @@
     <text>Actor-source tuning</text>
   </string>
   <string id="ui_mcm_at_fixes_danger_danger_actor_tables_desc">
-    <text>Danger caused by you reads the separate actor tables where your setup's danger config differentiates them (GAMMA AI Rework does). With a config that ships identical tables this has no effect.</text>
+    <text>Danger caused by you reads the separate actor tables where your setup's danger config differentiates them (some AI overhauls do). With a config that ships identical tables this has no effect.</text>
   </string>
   <string id="ui_mcm_at_danger_hdr_fixes">
     <text>Always-on bug fixes (not toggleable)</text>
   </string>
   <string id="ui_mcm_at_danger_fixes_list">
-    <text>1. Three danger categories read the wrong config rows through a name collision. Each now reads its own. \n2. A mutant corpse crashed the danger time check. \n3. A torn-down NPC reference crashed the danger evaluator. \n4. A bad danger time value crashed the evaluator. \n5. The hit callback corrupted the danger memory with a missing shooter on every hit. \n6. Danger transitions left a stale lower-body animation playing. \n7. Leaving the danger state wiped every stalker's cover reservation instead of only its own. \n8. A corpse despawning mid-investigation crashed the investigator. \n9. The corpse investigation drove the wrong squad member through its stages. \n10. The investigator walked to a cleared spot instead of the cover it had found. \n11. The danger check re-parsed the same config strings on every evaluation. They parse once now (performance). \n12. A dead stalker's scripted danger no longer lingers on its id, so a respawn reusing the id starts clean.</text>
+    <text>1. Three danger categories read the wrong config rows through a name collision. Each now reads its own. \n2. A mutant corpse crashed the danger time check. \n3. A torn-down NPC reference crashed the danger evaluator. \n4. A bad danger time value crashed the evaluator. \n5. The hit callback corrupted the danger memory with a missing shooter on every hit. \n6. Danger transitions left a stale lower-body animation playing. \n7. Leaving the danger state wiped every stalker's cover reservation instead of only its own. \n8. A corpse despawning mid-investigation crashed the investigator. \n9. The corpse investigation drove the wrong squad member through its stages. \n10. The investigator walked to a cleared spot instead of the cover it had found. \n11. The danger check re-parsed the same config strings on every evaluation. They parse once now (performance). \n12. A dead stalker's scripted danger no longer lingers on its id, so a respawn reusing the id starts clean. \n13. The corpse reaction crashed the game when it fired before its investigation stage was set.</text>
   </string>
   <!-- ==================== JAMMING PAGE ==================== -->
   <string id="ui_mcm_at_jam_desc">

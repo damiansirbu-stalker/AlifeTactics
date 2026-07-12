@@ -1,0 +1,203 @@
+--- at_commitment: Hold a winning combat action - deny the break-contact shuffle via the action-switch veto
+
+local RegisterScriptCallback, time_global, string_format, tostring = RegisterScriptCallback, time_global, string.format, tostring
+
+local log = xlog.get_logger("AT.CMT", { outfile = "alifetactics.log" })
+local _dbg = false
+local cfg = at_mcm.cfg
+
+-- The veto seam (npc_on_combat_action_switch, PR #595): fires BEFORE the combat planner swaps actions;
+-- flags.allow = false keeps the current action executing, re-asked each brain update while denied. A
+-- blocked planner never proposes a switch, so the veto never fires for an AT-seized NPC - Maneuvers and
+-- Commitment are mutually exclusive per NPC by construction (architecture.md Commitment).
+--
+-- The deny rule covers the shuffle transitions: leaving an attack action (kill_enemy,
+-- kill_if_not_visible) for take_cover while the NPC is at an advantage. Advantage = he sees his
+-- enemy AND his barrel is on him with the path clear (can_kill_enemy) AND no non-enemy blocks the
+-- lane (a lane-blocked deny keeps a man the weapon handler already stops from shooting) AND the
+-- refusal window is under its cap (cover quality is allowed to matter again eventually). A
+-- recent-hit standdown was tried and removed 2026-07-12: any-hit-in-3s kept the veto disabled for
+-- the whole fight the player is in, the exact fight it exists for. Every other transition passes
+-- untouched: grenade dodges, the critically-wounded finisher, retreats, the get-distance chain, and
+-- the lost-sight rotation all propose destinations other than take_cover. Release needs no
+-- machinery - each condition falsifies itself and the next proposal passes.
+
+-- Attack actions worth holding; the one destination that constitutes the shuffle. stalker_ids is read
+-- lazily on the first veto call, never at file scope (the xcombat.get_blocked_planners pattern).
+local _attack_ops, _take_cover_op
+
+-- Reverse map op id -> short name for the debug traces, built with the ops.
+local _op_names
+
+local function _resolve_ops()
+    _attack_ops = {
+        [stalker_ids.action_kill_enemy]                = true,
+        [stalker_ids.action_kill_enemy_if_not_visible] = true,
+    }
+    _take_cover_op = stalker_ids.action_take_cover
+    _op_names = {
+        [stalker_ids.action_kill_enemy]                  = "kill_enemy",
+        [stalker_ids.action_kill_enemy_if_not_visible]   = "kill_if_not_visible",
+        [stalker_ids.action_take_cover]                  = "take_cover",
+        [stalker_ids.action_look_out]                    = "look_out",
+        [stalker_ids.action_hold_position]               = "hold_position",
+        [stalker_ids.action_detour_enemy]                = "detour",
+        [stalker_ids.action_search_enemy]                = "search",
+        [stalker_ids.action_get_ready_to_kill]           = "get_ready",
+        [stalker_ids.action_get_distance]                = "get_distance",
+        [stalker_ids.action_retreat_from_enemy]          = "retreat",
+        [stalker_ids.action_hide_from_grenade]           = "hide_from_grenade",
+        [stalker_ids.action_throw_grenade]               = "throw_grenade",
+        [stalker_ids.action_sudden_attack]               = "sudden_attack",
+        [stalker_ids.action_critically_wounded]          = "crit_wounded",
+        [stalker_ids.action_kill_if_enemy_critically_wounded] = "finisher",
+        [stalker_ids.action_aim_enemy]                   = "aim_enemy",
+    }
+end
+
+local function _op_name(op)
+    return (_op_names and _op_names[op]) or tostring(op)
+end
+
+-- MCM-tunable refusal-window cap (ms); refreshed in _refresh_config.
+local _hold_cap_ms = 6000
+
+-- npc id -> { op, since, denies }, the running refusal window
+local _hold = {}
+-- npc id -> time_global() of the last logged decline (the decline trace dedup, debug only)
+local _decline_at = {}
+local DECLINE_LOG_MS = 1000
+
+--- The open hold window for `id` ({ op, since, denies }) or nil - the debug HUD's headline read.
+function get_hold(id)
+    return _hold[id]
+end
+
+-- The decline trace (debug only): when the WATCHED transition is proposed but a condition fails, log
+-- WHICH one - the denominator the 2026-07-12 session analysis lacked (holds that opened were logged,
+-- proposals that slipped through were not, so under-vetoing was unmeasurable). Deduplicated per NPC
+-- per DECLINE_LOG_MS because a declined proposal re-fires every brain update.
+local function _log_decline(npc, id, reason)
+    if not _dbg then return end
+    local tg = time_global()
+    if _decline_at[id] and tg - _decline_at[id] < DECLINE_LOG_MS then return end
+    _decline_at[id] = tg
+    local name = npc:name()
+    log.debug("[CMT] decline id=%d name=%s reason=%s", id, name, reason)
+end
+
+local function _on_action_switch(npc, from_op, to_op, flags)
+    if not cfg.commitment_enabled then return end
+    if flags.allow == false then return end
+    if not _attack_ops then _resolve_ops() end
+    if not _attack_ops[from_op] or to_op ~= _take_cover_op then return end
+
+    local id = npc:id()
+    local enemy = npc:best_enemy()
+    if not enemy then _log_decline(npc, id, "no_enemy") return end
+    if not xcombat.sees(npc, enemy) then _log_decline(npc, id, "no_sight") return end
+    if not xcombat.can_kill_enemy(npc, enemy) then _log_decline(npc, id, "no_shot") return end
+    if xcombat.can_kill_member(npc, enemy:position()) then _log_decline(npc, id, "lane_blocked") return end
+
+    local tg = time_global()
+    local hold = _hold[id]
+    if not hold or hold.op ~= from_op then
+        hold = { op = from_op, since = tg, denies = 0 }
+        _hold[id] = hold
+        if _dbg then
+            local name = npc:name()
+            local enemy_id = enemy:id()
+            log.debug("[CMT] hold id=%d name=%s op=%s enemy=%d", id, name, _op_name(from_op), enemy_id)
+        end
+    end
+    if tg - hold.since > _hold_cap_ms then
+        if _dbg then
+            log.debug("[CMT] cap id=%d op=%s after=%dms denies=%d", id, _op_name(hold.op), tg - hold.since, hold.denies)
+        end
+        _hold[id] = nil
+        return
+    end
+
+    hold.denies = hold.denies + 1
+    flags.allow = false
+end
+
+-- An ALLOWED switch closes the refusal window, so the next one on the same action starts a fresh cap
+-- (without this, a stale window would instantly exceed the cap and the veto would never fire again).
+-- Doubles as the transition HISTOGRAM (debug only): every actual combat action change of an NPC whose
+-- enemy is the actor logs from->to by name, so the watched set can be chosen from what real shuffling
+-- consists of instead of a guess. Event-driven - switches, not updates.
+local function _on_action_changed(npc, prev_op, new_op)
+    if not npc then return end
+    local id = npc:id()
+    local hold = _hold[id]
+    if hold then
+        if _dbg then
+            log.debug("[CMT] release id=%d op=%s held=%dms denies=%d switched_to=%s",
+                id, _op_name(hold.op), time_global() - hold.since, hold.denies, _op_name(new_op))
+        end
+        _hold[id] = nil
+        return
+    end
+    if not _dbg then return end
+    local enemy = npc:best_enemy()
+    if not enemy or enemy:id() ~= 0 then return end
+    if not _op_names then _resolve_ops() end
+    log.debug("[CMT] switch id=%d %s->%s", id, _op_name(prev_op), _op_name(new_op))
+end
+
+local function _on_death(npc)
+    if not npc then return end
+    local id = npc:id()
+    _hold[id] = nil
+    _decline_at[id] = nil
+end
+
+-- Cover-churn evidence (debug only): the best-cover re-pick is the CAUSE of the shuffle this system
+-- fights, so each change is logged beside the holds it provokes. Watched set: an open hold, an open
+-- maneuver, or the actor as the NPC's enemy - the fight you are in, never the whole map. Event-driven
+-- (fires on cover re-evaluation), one boolean bail when debug is off.
+local function _on_best_cover_changed(npc, cover_pos, is_smart_cover, smart_cover_name)
+    if not _dbg or not npc then return end
+    local id = npc:id()
+    local maneuver = at_combat.get_maneuver(id)
+    local watched = _hold[id] ~= nil or maneuver ~= nil
+    if not watched then
+        local enemy = npc:best_enemy()
+        watched = enemy ~= nil and enemy:id() == 0
+    end
+    if not watched then return end
+    log.debug("[CMT] cover id=%d name=%s pos=%s smart=%s hold=%s maneuver=%s",
+        id, npc:name(),
+        cover_pos and string_format("%.0f,%.0f,%.0f", cover_pos.x, cover_pos.y, cover_pos.z) or "lost",
+        is_smart_cover and (smart_cover_name or "yes") or "no",
+        _hold[id] and "open" or "-", maneuver or "-")
+end
+
+local function _refresh_config()
+    log.set_level(at_mcm.get_config("log_level") or "WARN")
+    _dbg = log.get_level() >= 5
+    local hold_s = at_mcm.get_config("commitment_hold_s")
+    if hold_s then _hold_cap_ms = hold_s * 1000 end
+end
+
+local function _on_first_update()
+    _refresh_config()
+    log.info("Commitment initialized (enabled=%s, hold_cap=%dms)",
+        cfg.commitment_enabled and "true" or "false", _hold_cap_ms)
+end
+
+function on_game_start()
+    -- The churn trace registers regardless of the veto seam: the shuffle it evidences exists on
+    -- every exe, and the maneuver/actor-enemy filters work without Commitment.
+    RegisterScriptCallback("npc_on_best_cover_changed",      _on_best_cover_changed)
+    RegisterScriptCallback("actor_on_first_update",          _on_first_update)
+    RegisterScriptCallback("on_option_change",               _refresh_config)
+    RegisterScriptCallback("mcm_option_restore_default",     _refresh_config)
+    if not xcombat.on_action_switch(_on_action_switch) then
+        log.info("Commitment INACTIVE: exe lacks the action-switch veto (PR #595); toggle inert")
+        return
+    end
+    RegisterScriptCallback("npc_on_combat_action_changed",   _on_action_changed)
+    RegisterScriptCallback("npc_on_death_callback",          _on_death)
+end

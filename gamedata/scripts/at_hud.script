@@ -1,13 +1,15 @@
---- at_hud: live debug HUD listing nearby NPCs, TWO lines per NPC on ONE shared 2-column grid -
---- identical column positions on both lines, so everything aligns by construction (the old two-line
---- layout failed because each line had its own grid). Line A, bright: stalker (rank + name + hp) |
---- MANEUVER - the headline cell, the open maneuver's name in caps and green for the takeover's whole
---- life, "-" dim when vanilla drives. Line B, dim: target (name + distance + sees) | engine (scheme +
---- mental). The cover belief/ray forensics and the state_mgr target state live in the decision trace,
---- not here.
---- The cover belief/ray forensics live in the decision trace, not here.
+--- at_hud: live debug HUD listing nearby NPCs, two lines per NPC on one shared 2-column grid -
+--- identical column positions on both lines, so everything aligns by construction (a single line
+--- per NPC was tried and proved too wide). NO header rows of any kind (tried, read as noise): the
+--- grouping is pure ORDER - AT-driven first (green), then anyone fighting (blue while Commitment
+--- refuses his cover move), then idle (only with HUD_SHOW_IDLE) - and every row is self-describing. Line A, bright: full rank + name + hp | the
+--- HEADLINE - the open maneuver's name in caps, or HOLD + age while Commitment vetoes, "-" dim when
+--- vanilla drives untouched. Line B, dim: target (name + distance + sight word) | engine (scheme +
+--- mental). Sight words are plain English: "sees" / "aims-off" (sees but body pointed away) /
+--- "blind". The cover belief/ray forensics and the fire-gate verdicts live in the decision trace.
 
 local pairs, table_sort, math_floor, tostring = pairs, table.sort, math.floor, tostring
+local time_global = time_global
 local string_sub, string_format, string_upper = string.sub, string.format, string.upper
 local IsStalker, RegisterScriptCallback = IsStalker, RegisterScriptCallback
 
@@ -33,19 +35,19 @@ local CHAR_W   = 6
 local CELL_PAD = 2
 local MARGIN   = 15
 local MAX_ROWS = 16
-local SUBJECT_NAME_MAX = 20
+local SUBJECT_NAME_MAX = 15
 local TARGET_NAME_MAX  = 20
-local SCHEME_MAX       = 10
+local SCHEME_MAX       = 14
 -- body-to-enemy angle above this many degrees reads as "pointed away" (the weird-aim flag)
 local FACING_DEG = 60
 
 -- Colors built lazily; GetARGB is not present at module-load under the static validator.
-local CLR_TITLE, CLR_AT, CLR_NORMAL, CLR_DIM = nil, nil, nil, nil
+local CLR_AT, CLR_HOLD, CLR_NORMAL, CLR_DIM = nil, nil, nil, nil
 
 local function _init_colors()
-    if CLR_TITLE then return end
-    CLR_TITLE  = GetARGB(220, 200, 180, 130)
+    if CLR_AT then return end
     CLR_AT     = GetARGB(240, 170, 220, 170)
+    CLR_HOLD   = GetARGB(240, 150, 190, 235)
     CLR_NORMAL = GetARGB(220, 200, 200, 200)
     CLR_DIM    = GetARGB(160, 160, 160, 160)
 end
@@ -81,12 +83,12 @@ local function _truncate(s, limit)
     return s
 end
 
--- Sight to the enemy in words: "no" (the engine's visible_now is false - he does not see the enemy right
--- now), "away" (sees it but body pointed >= FACING_DEG off it), "yes" (looking at it).
+-- Sight to the enemy in plain words: "blind" (the engine's visible_now is false - he does not see the
+-- enemy right now), "aims-off" (sees it but body pointed >= FACING_DEG off it), "sees" (looking at it).
 local function _sight_flag(npc, enemy)
-    if not xcombat.sees(npc, enemy) then return "no" end
-    if xcombat.get_facing_offset(npc, enemy:position()) >= FACING_DEG then return "away" end
-    return "yes"
+    if not xcombat.sees(npc, enemy) then return "blind" end
+    if xcombat.get_facing_offset(npc, enemy:position()) >= FACING_DEG then return "aims-off" end
+    return "sees"
 end
 
 -- The target cell: enemy name + distance + sight word, "-" when no selected enemy.
@@ -98,12 +100,6 @@ local function _target_cell(npc, enemy)
         _sight_flag(npc, enemy))
 end
 
--- Rank names abbreviated to 3 chars so the rank column never widens the panel.
-local RANK_SHORT = {
-    novice = "nov", trainee = "trn", experienced = "exp", professional = "pro",
-    veteran = "vet", expert = "xpt", master = "mst", legend = "leg",
-}
-
 -- Reverse map anim enum -> label, built lazily (anim is a global enum, absent at file body).
 local _MENTAL
 local function _mental_name(npc)
@@ -114,16 +110,28 @@ end
 
 -- Per-NPC readout, one table, one HUD line of 4 composite cells. tag=AT drives the COLOUR (green, only
 -- while a maneuver is actually open); the maneuver cell is the HEADLINE - the open maneuver's name in
--- caps, "-" when vanilla drives. engine is the xr_logic scheme plus the mental word; the state_mgr
--- target state moved to the decision trace (it enumerated without informing at a glance).
+-- caps, HOLD + age while Commitment vetoes for this NPC, "-" when vanilla drives untouched. engine is
+-- the xr_logic scheme plus the mental word; the state_mgr target state moved to the decision trace.
+local function _headline(id, maneuver)
+    if maneuver then return string_upper(maneuver), true, false end
+    local hold = at_commitment.get_hold(id)
+    if hold then
+        return string_format("HOLD %ds", math_floor((time_global() - hold.since) / 1000)), true, true
+    end
+    return "-", false, false
+end
+
 local function _derive(npc, st)
-    local maneuver = at_combat.get_maneuver(npc:id())
+    local id = npc:id()
+    local maneuver = at_combat.get_maneuver(id)
     local enemy = npc:best_enemy()
     local rank = ranks.get_obj_rank_name(npc)
+    local headline, live, held = _headline(id, maneuver)
     return {
         tag     = maneuver and "AT" or nil,
-        stalker = string_format("(%s)%s %d%%",
-            rank and (RANK_SHORT[rank] or rank) or "-",
+        held    = held,
+        stalker = string_format("(%s) %s %d%%",
+            rank or "-",
             _truncate(npc:character_name() or npc:name(), SUBJECT_NAME_MAX),
             math_floor((npc.health or 0) * 100)),
         target  = _target_cell(npc, enemy),
@@ -131,7 +139,8 @@ local function _derive(npc, st)
         -- minus); mental is always present, so the cell is never empty.
         engine  = (st.active_scheme and (_truncate(st.active_scheme, SCHEME_MAX) .. " ") or "")
             .. _mental_name(npc),
-        maneuver = maneuver and string_upper(maneuver) or "-",
+        maneuver = headline,
+        headline_live = live,
         is_combat = enemy ~= nil,
     }
 end
@@ -165,27 +174,37 @@ local function _build_rows()
     local r2 = HUD_RADIUS_M * HUD_RADIUS_M
     local actor_id = actor:id()
 
-    local cands = {}
+    -- Partition into sections instead of interleaved sorting: AT-driven, then anyone fighting,
+    -- then idle (only with HUD_SHOW_IDLE); nearest first within each.
+    local at_list, fight_list, idle_list = {}, {}, {}
     for id, st in pairs(db.storage) do
         local cand = _candidate(id, st, ax, r2, actor_id, HUD_SHOW_IDLE)
-        if cand then cands[#cands + 1] = cand end
+        if cand then
+            local list = (cand.at and at_list) or (cand.is_combat and fight_list) or idle_list
+            list[#list + 1] = cand
+        end
     end
+    local by_dist = function(a, b) return a.dist_sqr < b.dist_sqr end
+    table_sort(at_list, by_dist)
+    table_sort(fight_list, by_dist)
+    table_sort(idle_list, by_dist)
 
-    -- AT-driven first, then anyone fighting, then nearest first.
-    table_sort(cands, function(a, b)
-        if a.at ~= b.at then return a.at end
-        if a.is_combat ~= b.is_combat then return a.is_combat end
-        return a.dist_sqr < b.dist_sqr
-    end)
-
-    local count = #cands
-    local visible = count > MAX_ROWS and MAX_ROWS or count
-    local rows = {}
-    for i = 1, visible do
-        rows[i] = _derive(cands[i].npc, cands[i].st)
+    -- No header rows of any kind: the grouping is pure ORDER (maneuvers first - and green - then
+    -- fighters, then idle), every row self-describing. Skipped entries land in the overflow line.
+    local rows, shown, total = {}, 0, #at_list + #fight_list + #idle_list
+    local function emit(list)
+        for i = 1, #list do
+            if #rows >= MAX_ROWS then return end
+            rows[#rows + 1] = _derive(list[i].npc, list[i].st)
+            shown = shown + 1
+        end
     end
-    if count > MAX_ROWS then
-        rows[visible + 1] = { stalker = string_format("+%d more", count - MAX_ROWS), is_overflow = true }
+    emit(at_list)
+    emit(fight_list)
+    emit(idle_list)
+
+    if shown < total then
+        rows[#rows + 1] = { stalker = string_format("+%d more", total - shown), is_overflow = true }
     end
 
     return rows
@@ -199,7 +218,7 @@ end
 
 -- The shared grid (chars per column) and what each line puts in it. The maneuver sits top-right on the
 -- bright line - the headline; the target reads under its owner, the engine words dim beside it.
-local GRID  = { 30, 20 }
+local GRID  = { 34, 20 }
 local ROW_A = { "stalker", "maneuver" }
 local ROW_B = { "target", "engine" }
 
@@ -221,8 +240,8 @@ function UIDebugHUD:__init() super()
 
     local widths, total_w = _lay_widths(GRID)
     total_w = total_w + PAD * 2
-    -- 2 header lines + spacer + MAX_ROWS entries (2 lines each) + 1 overflow line
-    local panel_h = (MAX_ROWS * 2 + 4) * ROW_H + PAD * 2
+    -- No header lines: MAX_ROWS entries (2 lines each) + 1 overflow line, rows self-describing.
+    local panel_h = ((MAX_ROWS + 1) * 2) * ROW_H + PAD * 2
     local pos = _calc_position(panel_h, total_w)
     self:SetWndPos(vector2():set(pos[1], pos[2]))
     self:SetWndSize(vector2():set(total_w, panel_h))
@@ -230,13 +249,10 @@ function UIDebugHUD:__init() super()
     local xml = CScriptXmlInit()
     xml:ParseFile("ui_at_stats.xml")
 
-    -- Header rows 0-1 (A labels bright, B labels dim, SAME grid), spacer row 2, entry i on rows
-    -- (1+i*2) and (2+i*2). Entry MAX_ROWS+1 is the single-line "+N more" overflow.
-    self:_header(xml, self:_line(xml, PAD, widths, PAD), ROW_A, CLR_TITLE)
-    self:_header(xml, self:_line(xml, PAD + ROW_H, widths, PAD), ROW_B, CLR_DIM)
+    -- Entry i on rows ((i-1)*2) and ((i-1)*2 + 1). Entry MAX_ROWS+1 is the single-line "+N more" overflow.
     self.a, self.b = {}, {}
     for i = 1, MAX_ROWS + 1 do
-        local row_y = PAD + (1 + i * 2) * ROW_H
+        local row_y = PAD + (i - 1) * 2 * ROW_H
         self.a[i] = self:_line(xml, row_y, widths, PAD)
         self.b[i] = self:_line(xml, row_y + ROW_H, widths, PAD)
     end
@@ -253,12 +269,6 @@ function UIDebugHUD:_line(xml, y, widths, x0)
     return cells
 end
 
-function UIDebugHUD:_header(_xml, cells, labels, color)
-    for i = 1, #labels do
-        cells[i]:SetText(labels[i])
-        cells[i]:SetTextColor(color)
-    end
-end
 
 function UIDebugHUD:_cell(xml, x, y, w)
     local st = xml:InitStatic("line", self)
@@ -268,25 +278,37 @@ function UIDebugHUD:_cell(xml, x, y, w)
 end
 
 -- Rewrite both lines per entry from freshly built rows; blank only what the previous refresh used.
--- No allocation, no widget construction. Line A takes the row color (green while a maneuver drives),
--- and the maneuver cell reads green only while one is open, dim "-" otherwise - the headline never
--- lies. Line B stays dim, the pairing cue. The overflow entry fills only its first A cell.
+-- No allocation, no widget construction. A section row writes its title across the first A cell in
+-- the header color and blanks the rest. Line A takes the row color (green while a maneuver drives);
+-- the headline cell reads bright only while a maneuver or hold is live, dim "-" otherwise - the
+-- headline never lies. Line B stays dim, the pairing cue. The overflow entry fills only its first A cell.
+-- Row color: green = a maneuver drives him, blue = Commitment is refusing his cover move (he stands
+-- his ground shooting), plain = vanilla drives untouched.
+local function _row_color(row)
+    if row.is_overflow then return CLR_DIM end
+    if row.tag == "AT" then return CLR_AT end
+    if row.held then return CLR_HOLD end
+    return CLR_NORMAL
+end
+
+local function _paint_entry(a, b, row)
+    local color = _row_color(row)
+    for c = 1, #ROW_A do
+        local key = ROW_A[c]
+        a[c]:SetText(row[key] or "")
+        a[c]:SetTextColor((key == "maneuver" and not row.headline_live) and CLR_DIM or color)
+    end
+    for c = 1, #ROW_B do
+        b[c]:SetText(row.is_overflow and "" or (row[ROW_B[c]] or ""))
+        b[c]:SetTextColor(CLR_DIM)
+    end
+end
+
 function UIDebugHUD:set_rows(rows)
     local count = #rows
     if count > MAX_ROWS + 1 then count = MAX_ROWS + 1 end
     for i = 1, count do
-        local row = rows[i]
-        local color = (row.is_overflow and CLR_DIM) or (row.tag == "AT" and CLR_AT) or CLR_NORMAL
-        local a, b = self.a[i], self.b[i]
-        for c = 1, #ROW_A do
-            local key = ROW_A[c]
-            a[c]:SetText(row[key] or "")
-            a[c]:SetTextColor((key == "maneuver" and row.tag ~= "AT") and CLR_DIM or color)
-        end
-        for c = 1, #ROW_B do
-            b[c]:SetText(row.is_overflow and "" or (row[ROW_B[c]] or ""))
-            b[c]:SetTextColor(CLR_DIM)
-        end
+        _paint_entry(self.a[i], self.b[i], rows[i])
     end
     for i = count + 1, self.used do
         local a, b = self.a[i], self.b[i]

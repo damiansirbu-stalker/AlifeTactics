@@ -80,7 +80,7 @@ Stalkers read danger the way the engine always meant them to.
 AlifeTactics reworks Anomaly's danger scheme as a runtime patch, laid onto whichever danger script a modpack ships instead of replacing the file.
 A set of always-on fixes clears long-standing crashes and misreads across the danger check and the corpse investigation.
 Detection distances stay owned by your setup's danger config. AlifeTactics adds the reactions, never the tuning.
-Three of the improvements are optional: a direct hit answers at any range, ENEMY gunfire draws a cover-and-threat response with no line of sight needed, and actor-sourced danger reads the separate tables where your config provides them.
+Three of the improvements are optional: a direct hit answers at any range, ENEMY gunfire draws a cover-and-threat response with no line of sight needed and no aim at them required, and actor-sourced danger reads the separate tables where your config provides them.
 Gunfire from neutral or friendly stalkers, including your own weapon, is not a danger to them - reactions follow the engine's relation rule, same as vanilla.
 
 Crossfire:
@@ -175,6 +175,13 @@ Coexists:
 - No More Companion Friendly Fire: a different axis (actor-companion damage). AlifeTactics never touches your shots.
 - Tougher Important NPCs and Companions: damage reduction through npc_on_before_hit, composes.
 - Dynamic AI Aim Settings, Worse NPC Vision and Accuracy: perception tweaks that compose with the dispersion fix.
+- Global aim tuners (the game's own Hardcore AI aim option, REDONE's aim system, any ai_aim console tuning):
+  Reaction writes per-stalker engine fields; a stalker it touched uses its own values and everything else keeps following the global tuning.
+  AlifeTactics never writes a value worse than that global baseline, so raising game difficulty is always respected.
+- Detection overhauls (GAMMA Stealth Overhaul and the GAMMA thresholds): Reaction's vision speed is a multiplier
+  on your setup's own detection result, shipped at 1.00 = unchanged. Raising it in MCM stacks ON TOP of such overhauls.
+- GAMMA's "No logs" and "Log spam remover" (disabled by default): their outdated _g.script removes the engine's
+  dispersion forwarder and silently disables the Accuracy system. Keep them disabled.
 - g_ai_unlimited_ammo set to 0 (a console cvar on newer engine builds makes NPCs consume real inventory rounds):
   the Ammo system detects the setting and goes inert, so carried AP is not drained twice. At 1 (the default) Ammo runs normally.
 

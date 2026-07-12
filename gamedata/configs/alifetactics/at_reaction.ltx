@@ -1,0 +1,66 @@
+; AlifeTactics Reaction tuning. Paired with gamedata/scripts/at_reaction.script.
+; All keys have script-side fallback defaults, so a missing key or file won't crash.
+; The MCM Reaction sliders read their defaults from this file; a slider the player moved
+; overrides that key, and MCM "reset to defaults" returns to these values.
+;
+; DERIVATION - every number is a formula over sourced constants, nothing hand-picked:
+;
+;   value(tier) = vanilla + t(tier) * (hardcore - vanilla),  t(tier) = tier_floor / 27000
+;
+; src (endpoints, aim): xray-monolith sight_manager.cpp:75 "float g_ai_aim_min_speed = 0.24f"
+;   (the vanilla default, confirmed live: user.ltx "ai_aim_min_speed 0.24" on both installs);
+;   anomaly ui_options.script:1001 exec_console_cmd("ai_aim_min_speed 2.5") - the game's own
+;   hardcore-AI-aim preset.
+; src (endpoints, lead): xray-monolith console_commands.cpp:118 "float g_aim_predict_time = 0.40f"
+;   (live: user.ltx "ai_aim_predict_time 0.4"); anomaly ui_options.script:1002
+;   exec_console_cmd("ai_aim_predict_time 0.28") - the same hardcore preset.
+; src (linear form): xray-monolith ai_stalker.cpp:756-766 - the engine's only rank scaling
+;   (m_fRankDisperison) lerps LINEARLY in rank value between two endpoints; same form here.
+; src (tier positions): anomaly game_relations.ltx:8 rating = novice 0, trainee 3500,
+;   experienced 6500, professional 9000, veteran 12000, expert 14500, master 17500, legend 27000.
+;
+; aim_* is rad/s, the sight's fine-tracking speed cap (select_speed, sight_manager.cpp:80-101) -
+; TRACKING TIGHTNESS on a moving target, nothing else. Tested (forced A/B, 10x spread): no effect
+; on first-shot latency (the fine band, min_angle 0.196 rad, sits inside the trigger cone,
+; fire_angle 0.3927 rad - the first shot never waits for it) and none on strafing hit%; the effect
+; is how tightly the barrel visibly follows a mover during fire.
+; Novice = exactly vanilla: no rank ever tracks worse than the base game. Legend = exactly the
+; game's own hardcore preset.
+
+[at_reaction]
+aim_novice       = 0.24
+aim_trainee      = 0.53
+aim_experienced  = 0.78
+aim_professional = 0.99
+aim_veteran      = 1.24
+aim_expert       = 1.45
+aim_master       = 1.70
+aim_legend       = 2.50
+
+; predict_* is seconds of target lead (predict_object_position, sight_action.cpp:380). Same
+; derivation, endpoints 0.40 (vanilla) -> 0.28 (hardcore preset). Not MCM-exposed.
+predict_novice       = 0.40
+predict_trainee      = 0.38
+predict_experienced  = 0.37
+predict_professional = 0.36
+predict_veteran      = 0.35
+predict_expert       = 0.34
+predict_master       = 0.32
+predict_legend       = 0.28
+
+; vision_* multiplies detection-speed accumulation (get_visible_value, visual_memory_manager.cpp:365-379)
+; ON TOP of the installed detection stack - LTX thresholds, script detection formulas, everything.
+; Vanilla ties detection speed to NO rank (every stalker reads the same [stalker_vision_*] params,
+; m_stalker.ltx:76-99), and NO source establishes a per-rank spread - so the shipped default is 1.00
+; flat: the installed detection, unchanged, for every rank. Raise deliberately, knowing it stacks:
+; widely played modpacks already cut visibility_threshold 150->80 (free) / 75->35 (danger) = ~2x
+; faster detection for EVERY NPC, so a 2.00 here on plain Anomaly gives one rank that same grade,
+; while on such a modpack the same value STACKS to ~4x vanilla - keep it at or near 1.00 there.
+vision_novice       = 1.00
+vision_trainee      = 1.00
+vision_experienced  = 1.00
+vision_professional = 1.00
+vision_veteran      = 1.00
+vision_expert       = 1.00
+vision_master       = 1.00
+vision_legend       = 1.00

@@ -24,6 +24,25 @@ local defaults = {
     acc_disp_expert        = 0.52,
     acc_disp_master        = 0.45,
     acc_disp_legend        = 0.38,
+    reaction_enabled       = true,
+    rct_aim_novice         = 0.24,
+    rct_aim_trainee        = 0.53,
+    rct_aim_experienced    = 0.78,
+    rct_aim_professional   = 0.99,
+    rct_aim_veteran        = 1.24,
+    rct_aim_expert         = 1.45,
+    rct_aim_master         = 1.70,
+    rct_aim_legend         = 2.50,
+    rct_vision_novice       = 1.00,
+    rct_vision_trainee      = 1.00,
+    rct_vision_experienced  = 1.00,
+    rct_vision_professional = 1.00,
+    rct_vision_veteran      = 1.00,
+    rct_vision_expert       = 1.00,
+    rct_vision_master       = 1.00,
+    rct_vision_legend       = 1.00,
+    commitment_enabled = true,
+    commitment_hold_s  = 6,
     combat_enabled = true,
     combat_ignore_companions = true,
     maneuver_counterflank    = true,
@@ -70,6 +89,25 @@ local _key_to_tab = {
     acc_disp_expert        = "effectiveness/accuracy",
     acc_disp_master        = "effectiveness/accuracy",
     acc_disp_legend        = "effectiveness/accuracy",
+    reaction_enabled       = "effectiveness/reaction",
+    rct_aim_novice         = "effectiveness/reaction",
+    rct_aim_trainee        = "effectiveness/reaction",
+    rct_aim_experienced    = "effectiveness/reaction",
+    rct_aim_professional   = "effectiveness/reaction",
+    rct_aim_veteran        = "effectiveness/reaction",
+    rct_aim_expert         = "effectiveness/reaction",
+    rct_aim_master         = "effectiveness/reaction",
+    rct_aim_legend         = "effectiveness/reaction",
+    rct_vision_novice       = "effectiveness/reaction",
+    rct_vision_trainee      = "effectiveness/reaction",
+    rct_vision_experienced  = "effectiveness/reaction",
+    rct_vision_professional = "effectiveness/reaction",
+    rct_vision_veteran      = "effectiveness/reaction",
+    rct_vision_expert       = "effectiveness/reaction",
+    rct_vision_master       = "effectiveness/reaction",
+    rct_vision_legend       = "effectiveness/reaction",
+    commitment_enabled = "effectiveness/commitment",
+    commitment_hold_s  = "effectiveness/commitment",
     combat_enabled = "combat/maneuvers",
     combat_ignore_companions = "combat/maneuvers",
     maneuver_counterflank    = "combat/maneuvers",
@@ -143,6 +181,21 @@ end
 -- strings to the new tree path. desc/hdr/title nodes keep explicit text. Only the ui_mcm_menu_<id> page
 -- labels move (handled in ui_st_mcm_at.xml). WIP sub-pages carry a single "wip" desc until their feature exists.
 function on_mcm_load()
+    -- The Reaction sliders default from configs/alifetactics/at_reaction.ltx - the file owns the
+    -- shipped numbers; a moved slider overrides its key, and MCM reset returns to the LTX values.
+    -- rct_fb holds the code fallbacks for a missing key/file (repo LTX convention).
+    local rct_fb = {
+        aim_novice = 0.24, aim_trainee = 0.53, aim_experienced = 0.78, aim_professional = 0.99,
+        aim_veteran = 1.24, aim_expert = 1.45, aim_master = 1.70, aim_legend = 2.50,
+        vision_novice = 1.00, vision_trainee = 1.00, vision_experienced = 1.00, vision_professional = 1.00,
+        vision_veteran = 1.00, vision_expert = 1.00, vision_master = 1.00, vision_legend = 1.00,
+    }
+    local RCT_CONFIG_PATH    = "alifetactics\\at_reaction.ltx"
+    local RCT_CONFIG_SECTION = "at_reaction"
+    local rct_ini = ini_file(RCT_CONFIG_PATH)
+    local function rct_def(key)
+        return rct_ini:r_float_ex(RCT_CONFIG_SECTION, key) or rct_fb[key]
+    end
     local function wip_page(id)
         return {
             id = id,
@@ -257,8 +310,54 @@ function on_mcm_load()
                             { id = "crossfire_factor", type = "track", val = 2, min = 0.0, max = 1.0, step = 0.05, def = 0.0, hint = "at_crossfire_crossfire_factor" },
                         },
                     },
-                    wip_page("commitment"),
-                    wip_page("reaction"),
+                    {
+                        id = "commitment",
+                        sh = true,
+                        gr = {
+                            { id = "title", type = "slide", link = "at_mcm_banner",
+                                text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
+                            { id = "desc", type = "desc", text = "ui_mcm_at_commitment_desc" },
+                            { id = "commitment_enabled", type = "check", val = 1, def = true, hint = "at_commitment_commitment_enabled" },
+
+                            { id = "div_hold", type = "line" },
+                            { id = "hdr_hold", type = "desc", text = "ui_mcm_at_hdr_commitment_hold", clr = {255, 200, 200, 200} },
+                            { id = "commitment_hold_s", type = "track", val = 2, min = 2, max = 15, step = 1, def = 6, hint = "at_commitment_commitment_hold_s" },
+                        },
+                    },
+                    {
+                        id = "reaction",
+                        sh = true,
+                        gr = {
+                            { id = "title", type = "slide", link = "at_mcm_banner",
+                                text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
+                            { id = "desc", type = "desc", text = "ui_mcm_at_reaction_desc" },
+                            { id = "reaction_enabled", type = "check", val = 1, def = true, hint = "at_reaction_reaction_enabled" },
+
+                            { id = "div_reaction_aim", type = "line" },
+                            { id = "hdr_reaction_aim", type = "desc", text = "ui_mcm_at_hdr_reaction_aim", clr = {255, 200, 200, 200} },
+                            { id = "rct_aim_novice",       type = "track", val = 2, min = 0.24, max = 2.50, step = 0.02, def = rct_def("aim_novice"), hint = "at_reaction_rct_aim_novice" },
+                            { id = "rct_aim_trainee",      type = "track", val = 2, min = 0.24, max = 2.50, step = 0.02, def = rct_def("aim_trainee"), hint = "at_reaction_rct_aim_trainee" },
+                            { id = "rct_aim_experienced",  type = "track", val = 2, min = 0.24, max = 2.50, step = 0.02, def = rct_def("aim_experienced"), hint = "at_reaction_rct_aim_experienced" },
+                            { id = "rct_aim_professional", type = "track", val = 2, min = 0.24, max = 2.50, step = 0.02, def = rct_def("aim_professional"), hint = "at_reaction_rct_aim_professional" },
+                            { id = "rct_aim_veteran",      type = "track", val = 2, min = 0.24, max = 2.50, step = 0.02, def = rct_def("aim_veteran"), hint = "at_reaction_rct_aim_veteran" },
+                            { id = "rct_aim_expert",       type = "track", val = 2, min = 0.24, max = 2.50, step = 0.02, def = rct_def("aim_expert"), hint = "at_reaction_rct_aim_expert" },
+                            { id = "rct_aim_master",       type = "track", val = 2, min = 0.24, max = 2.50, step = 0.02, def = rct_def("aim_master"), hint = "at_reaction_rct_aim_master" },
+                            { id = "rct_aim_legend",       type = "track", val = 2, min = 0.24, max = 2.50, step = 0.02, def = rct_def("aim_legend"), hint = "at_reaction_rct_aim_legend" },
+
+                            { id = "div_reaction_vision", type = "line" },
+                            { id = "hdr_reaction_vision", type = "desc", text = "ui_mcm_at_hdr_reaction_vision", clr = {255, 200, 200, 200} },
+                            { id = "rct_vision_novice",       type = "track", val = 2, min = 1.00, max = 2.00, step = 0.05, def = rct_def("vision_novice"), hint = "at_reaction_rct_vision_novice" },
+                            { id = "rct_vision_trainee",      type = "track", val = 2, min = 1.00, max = 2.00, step = 0.05, def = rct_def("vision_trainee"), hint = "at_reaction_rct_vision_trainee" },
+                            { id = "rct_vision_experienced", type = "track", val = 2, min = 1.00, max = 2.00, step = 0.05,
+                                def = rct_def("vision_experienced"), hint = "at_reaction_rct_vision_experienced" },
+                            { id = "rct_vision_professional", type = "track", val = 2, min = 1.00, max = 2.00, step = 0.05,
+                                def = rct_def("vision_professional"), hint = "at_reaction_rct_vision_professional" },
+                            { id = "rct_vision_veteran",      type = "track", val = 2, min = 1.00, max = 2.00, step = 0.05, def = rct_def("vision_veteran"), hint = "at_reaction_rct_vision_veteran" },
+                            { id = "rct_vision_expert",       type = "track", val = 2, min = 1.00, max = 2.00, step = 0.05, def = rct_def("vision_expert"), hint = "at_reaction_rct_vision_expert" },
+                            { id = "rct_vision_master",       type = "track", val = 2, min = 1.00, max = 2.00, step = 0.05, def = rct_def("vision_master"), hint = "at_reaction_rct_vision_master" },
+                            { id = "rct_vision_legend",       type = "track", val = 2, min = 1.00, max = 2.00, step = 0.05, def = rct_def("vision_legend"), hint = "at_reaction_rct_vision_legend" },
+                        },
+                    },
                     wip_page("range"),
                     wip_page("resistance"),
                 },

@@ -1,0 +1,53 @@
+--- at_perception_trace: Debug trace of NPC target acquisition on the actor - memory vs fresh detection
+
+local RegisterScriptCallback, time_global = RegisterScriptCallback, time_global
+
+local log = xlog.get_logger("AT.VIS", { outfile = "alifetactics.log" })
+local _dbg = false
+
+-- Event-driven, never sampled: one line per engine enemy-selection TRANSITION involving the actor
+-- (npc_on_enemy_selected, the engine fires it when CEnemyManager changes its pick). No per-frame
+-- work, no per-NPC tracking - a fight emits dozens of lines, not thousands. Costs one boolean per
+-- event when debug is off.
+--
+-- Reading a select line: unseen_ms is the time since the NPC last perceived the actor by ANY sense.
+-- Small unseen_ms + seen=no = a MEMORY re-engagement (he already knew you - repositioning cannot
+-- reset it, and a Disclosure within its retention keeps the whole squad in this state). Large
+-- unseen_ms + seen=yes = a FRESH visual detection (the case Reaction's vision factor shapes).
+
+local AC_ID = 0
+
+local function _on_enemy_selected(npc, new_enemy)
+    if not _dbg or not npc then return end
+
+    local id = npc:id()
+    local name = npc:name()
+    if not new_enemy then
+        log.debug("[VIS] drop id=%d name=%s", id, name)
+        return
+    end
+    if new_enemy:id() ~= AC_ID then return end
+
+    local tier = ranks.get_obj_rank_name(npc) or "?"
+    local dist = npc:position():distance_to(new_enemy:position())
+    local seen = xcombat.sees(npc, new_enemy)
+    local unseen_ms = xcombat.get_unseen_ms(npc, new_enemy, time_global())
+    log.debug("[VIS] select id=%d name=%s tier=%s dist=%.0fm seen=%s unseen_ms=%d",
+        id, name, tier, dist, seen and "yes" or "no", unseen_ms)
+end
+
+local function _refresh_config()
+    log.set_level(at_mcm.get_config("log_level") or "WARN")
+    _dbg = log.get_level() >= 5
+end
+
+local function _on_first_update()
+    _refresh_config()
+end
+
+function on_game_start()
+    RegisterScriptCallback("npc_on_enemy_selected",      _on_enemy_selected)
+    RegisterScriptCallback("actor_on_first_update",      _on_first_update)
+    RegisterScriptCallback("on_option_change",           _refresh_config)
+    RegisterScriptCallback("mcm_option_restore_default", _refresh_config)
+end

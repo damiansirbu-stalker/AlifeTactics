@@ -1,20 +1,30 @@
 1.2.0
-  Summary: counterflank maneuver, player-only maneuvers, no dead windows, danger from your setup, performance, fixes
+  Summary: counterflank maneuver, Reaction, Commitment, player-only maneuvers, no dead windows, danger from your setup, performance, fixes
 
   Combat
-    - Added Counterflank: a stalker shooting a distant target wheels around when you close to
-      contact range, taking you on instead of giving you his back.
-    - Maneuvers now weigh range, angle, line of sight, and cover, and only run in fights you
-      are in. One that would change nothing is dropped. Cowards flee before they fight.
-    - Retreats now reach real cover behind the stalker, and a cornered stalker holds his ground
-      instead of shuffling in place indoors.
+    - Added Counterflank: stalkers firing on a distant target wheel around when you close to
+      contact range instead of giving you their backs.
+    - Maneuvers now weigh range, angle, line of sight, and cover. They run only in fights you
+      are in. Maneuvers that would change nothing are dropped. Cowardly factions flee before
+      they fight.
+    - Retreats now reach real cover behind the retreating stalker. Cornered stalkers hold
+      their ground instead of shuffling in place indoors.
 
   Effectiveness
+    - Added Reaction: stalker rank now shapes gun handling per stalker, through new engine binds.
+      Higher ranks track a moving target visibly tighter and lead it closer; rookies stay at vanilla.
+      Vision speed ships neutral, tunable per rank. Needs a recent engine build, silent on older ones.
+    - Added Commitment: stalkers stand their ground instead of jogging to new cover mid-exchange.
+      A stalker seeing his target with a clear shot keeps fighting from where he stands.
+      Losing the target or the hold limit lets the cover move through. Needs a recent engine build.
     - Danger detection now comes from your installed danger config. AlifeTactics adds reactions
       and fixes on top instead of overriding its tuning.
-    - A stalker hit or hearing enemy gunfire reacts at any range, no line of sight needed, and
-      seeks cover in a threat pose. Your own fire alerts enemies the same way.
-    - A respawned stalker no longer inherits scripted danger from the dead stalker whose id it reuses.
+    - Stalkers hit or hearing enemy gunfire react at any range, even to fire not aimed at them.
+      They seek cover in a threat pose with no line of sight needed.
+      Your own fire alerts enemies the same way.
+    - Respawned stalkers no longer inherit scripted danger left on the id they reuse.
+    - The corpse investigation no longer crashes the game when its reaction fires before the
+      investigation stage is set (an inherited vanilla bug).
 
   Mechanics
     - Fixed the Stalker Healing master toggle only applying after a game restart.
@@ -23,7 +33,7 @@
   Performance
     - All combat, healing, and ammo monitoring moved off per-frame callbacks onto scheduled passes.
       The whole mod now costs 3 timer compares per frame, whatever the NPC count.
-    - Fixed a rare freeze of every timed system when a stalker died mid-maneuver.
+    - Fixed a rare freeze of every timed system triggered by mid-maneuver deaths.
 
   Development
     - The debug HUD headlines the maneuver name in green for the takeover's whole life, with wider
@@ -42,12 +52,12 @@
   Combat
     - Maneuvers: an intermittent combat takeover that borrows a stalker for a committed maneuver.
       Stalkers kite when crowded, hold sniper aim when stalled, take cover then flee when badly hurt.
-      A borrowed stalker holds fire when it has no clear shot instead of firing into cover.
+      Borrowed stalkers hold fire when they have no clear shot instead of firing into cover.
       Companions are excluded by default. Replaces the old Stance Switch system.
 
   Effectiveness
     - Crossfire: a same-faction friendly-fire damage block, default on.
-      A stalker that hits a same-faction fighter deals no damage, tunable back up to full vanilla.
+      Same-faction hits deal no damage, tunable back up to full vanilla.
     - Danger: an xr_danger rework, always-on bug fixes plus 3 toggleable improvements.
       Hits, ricochets, and gunshots read separate config rows, with weather-scaled detection range.
       Sniped or shot-at NPCs react at any range, even to gunfire vanilla left unanswered.

@@ -65,7 +65,7 @@ local KITE_BACK = {
 -- same fan at half distance, then the longest straight stub; nil only when fully boxed in. The lane
 -- must be long enough that ARRIVING negates the need (lane > weapon_min - dist): the stub fallback
 -- indoors can return a sub-metre lane, and accepting it produced the 50-kite ping-pong between two
--- adjacent vertices (2026-07-11 GAMMA session) - arrived, nothing moved, too_close still true, again.
+-- adjacent vertices (2026-07-11 playtest) - arrived, nothing moved, too_close still true, again.
 -- A short lane declines instead; with every other row declining too, AT leaves the cornered NPC to
 -- vanilla, which stands and fights. memo.kind is set by _should_too_close, the only need that opens
 -- this row.
@@ -237,7 +237,7 @@ end
 -- fire discipline lives inside xcombat.set_combat (mechanism, not policy): a FIRE/SNIPE intent degrades to
 -- READY when no shot makes sense - AT holds zero fire logic. The shell calls it once at begin
 -- (at_combat._begin_maneuver); the rows reference it as their update, so it re-runs on the update_maneuver
--- check. Returns (applied fire, gate word: seen/true/false/na) straight from the primitive, for the trace.
+-- check. Returns (applied fire, fire-gate verdict: seen/blocked/memory/hold/na) straight from the primitive, for the trace.
 local function _apply_state(npc, maneuver, enemy)
     return xcombat.set_combat(npc, {
         fire = maneuver.fire, posture = maneuver.posture, movement = maneuver.movement, enemy = enemy,

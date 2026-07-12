@@ -27,7 +27,7 @@ local HEAL_TICK_FIRST           = 15
 -- Posture-slot tables for the dmg_norm hurt pose (the clutch-the-torso overlay), one variant per
 -- commanded gait. Engine indexes torso anims by weapon posture slot, not inventory slot. Missing
 -- entries fall through to slot 0 (fist). Slots 5, 7 not present in the OMF; slot 6 exists only as
--- the run variant (verified 2026-07-08 by binary grep across the GAMMA-installed and xrMPE
+-- the run variant (verified 2026-07-08 by binary grep across both installed variants of
 -- stalker_animation.omf - a queued name the OMF lacks error-logs and plays nothing).
 local LIMP_IDLE_BY_SLOT = {
     [0] = "dmg_norm_torso_0_idle_0", [1] = "dmg_norm_torso_1_idle_0",
