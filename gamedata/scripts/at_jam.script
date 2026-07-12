@@ -68,11 +68,17 @@ local function _on_entity_unregister(se_obj)
 end
 
 local function _install()
-    if not xr_weapon_jam then
-        log.warn("xr_weapon_jam module not loaded; nothing to patch")
+    -- Capture the original functor first and install the wrapper only if it is a real function
+    -- (ap_core_anomaly_fixes.script:32 pattern). GetConditionMisfireProbability is a demonized
+    -- modded-exes addition (gamedata/scripts/xr_weapon_jam.script:19); vanilla Anomaly's
+    -- xr_weapon_jam has the module but not the functor. Guarding only `xr_weapon_jam` would install
+    -- a wrapper closing over a nil _original: harmless while jam is enabled (returns 0 without
+    -- calling it), a nil-call crash the moment jam is disabled (the disabled path calls _original).
+    _original = xr_weapon_jam and xr_weapon_jam.GetConditionMisfireProbability
+    if type(_original) ~= "function" then
+        log.warn("xr_weapon_jam.GetConditionMisfireProbability not present; NPC misfire suppression inert")
         return
     end
-    _original = xr_weapon_jam.GetConditionMisfireProbability
     xr_weapon_jam.GetConditionMisfireProbability = function(weapon, npc, base_value)
         if not _jam_enabled then
             return _original(weapon, npc, base_value)

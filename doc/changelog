@@ -39,6 +39,7 @@
   Mechanics
     - Fixed the Stalker Healing master toggle only applying after a game restart.
     - Fixed NPC armor-piercing ammo reverting on the wrong weapon after a mid-fight weapon switch.
+    - NPC jamming now stays inert on engines without the misfire hook instead of failing when disabled.
 
   Performance
     - All combat, healing, and ammo monitoring moved off per-frame callbacks onto scheduled passes.
