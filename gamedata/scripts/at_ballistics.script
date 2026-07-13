@@ -1,0 +1,279 @@
+--- at_ballistics: outcome measurement over the engine's shot and impact feeds, toggled from
+--- MCM Development. OFF = zero cost (no callbacks registered). ON = in-memory counters per rank
+--- tier, weapon kind, shooter motion, and driver context (maneuver-held / Commitment-held /
+--- vanilla), written as tables to their own log once a minute and readable live by the HUD panel.
+--- Capture, log output, and the panel are independently gated: counters always accumulate while
+--- the recorder is on; per-bullet lines and the minute tables need log level DEBUG/INFO; the
+--- panel needs its own position option. Nothing here influences gameplay - reads only.
+
+local pairs, math_floor, tostring = pairs, math.floor, tostring
+local string_format, table_concat = string.format, table.concat
+local time_global = time_global
+local RegisterScriptCallback, UnregisterScriptCallback = RegisterScriptCallback, UnregisterScriptCallback
+local IsStalker = IsStalker
+
+local log     = xlog.get_logger("AT.BAL", { outfile = "alifetactics_ballistics.log" })
+local mainlog = xlog.get_logger("AT.BAL", { outfile = "alifetactics.log" })
+local _dbg = false
+local cfg = at_mcm.cfg
+
+local AC_ID = 0
+local SHOOTER_RADIUS_SQR = 120 * 120
+local NEAR_RADIUS_SQR = 100
+local GAP_MS = 180
+local REPORT_SEC = 60
+local MT_RUN = 1
+
+local TIERS = { "novice", "trainee", "experienced", "professional", "veteran", "expert", "master", "legend" }
+
+local _enabled = false
+local _t0 = 0
+local _tiers = {}
+local _drive = {}
+local _bursts = {}
+local _open = {}
+local _ctx = {}
+
+local function _reset()
+    _t0 = time_global()
+    _tiers, _drive, _bursts, _open, _ctx = {}, {}, {}, {}, {}
+end
+
+local function _tier_row(tier)
+    local row = _tiers[tier]
+    if not row then
+        row = { shots = 0, hits = 0, dmg = 0, near = 0, conv = 0,
+                mv_shots = 0, mv_hits = 0, st_shots = 0, st_hits = 0 }
+        _tiers[tier] = row
+    end
+    return row
+end
+
+local function _drive_row(name)
+    local row = _drive[name]
+    if not row then
+        row = { shots = 0, hits = 0 }
+        _drive[name] = row
+    end
+    return row
+end
+
+local function _close_burst(id, entry)
+    if entry.count > 0 and entry.kind then
+        local hist = _bursts[entry.kind]
+        if not hist then
+            hist = {}
+            _bursts[entry.kind] = hist
+        end
+        local bucket = entry.count > 9 and 10 or entry.count
+        hist[bucket] = (hist[bucket] or 0) + 1
+    end
+    _open[id] = nil
+end
+
+-- One record per bullet FIRED: tier, kind, motion, and who drives the shooter right now - the
+-- context join happens here, at capture time, so no log correlation is ever needed.
+local function _on_shot(obj, wpn, body_state, move_type, temp_disp)
+    if not (obj and db and db.actor) then return end
+    if obj:position():distance_to_sqr(db.actor:position()) > SHOOTER_RADIUS_SQR then return end
+
+    local id = obj:id()
+    local tier = ranks.get_obj_rank_name(obj)
+    if not tier or tier == "" then return end
+
+    local tmr = xprofiler.new_if(_dbg):start()
+    local moving = move_type ~= nil and move_type <= MT_RUN
+    local drive = "vanilla"
+    if at_combat.get_maneuver(id) then
+        drive = "maneuver"
+    elseif at_commitment.get_hold(id) then
+        drive = "hold"
+    end
+    local kind = xcombat.get_weapon_kind(obj)
+
+    local row = _tier_row(tier)
+    row.shots = row.shots + 1
+    if moving then row.mv_shots = row.mv_shots + 1 else row.st_shots = row.st_shots + 1 end
+    _drive_row(drive).shots = _drive_row(drive).shots + 1
+
+    local tg = time_global()
+    local entry = _open[id]
+    if entry and (tg - entry.last_ms) > GAP_MS then
+        _close_burst(id, entry)
+        entry = nil
+    end
+    if not entry then
+        entry = { last_ms = tg, count = 0, kind = kind }
+        _open[id] = entry
+    end
+    entry.count = entry.count + 1
+    entry.last_ms = tg
+
+    _ctx[id] = { tier = tier, moving = moving, drive = drive }
+    tmr:stop()
+    if _dbg then
+        log.debug("[BAL] shot id=%d tier=%s kind=%s moving=%s drive=%s [%.3fms]",
+            id, tier, tostring(kind), tostring(moving), drive, tmr:get_ms())
+    end
+end
+
+-- One record per bullet LANDED: hit on the actor, or a near miss inside 10m.
+local function _on_impact(bullet)
+    if not (db and db.actor) then return end
+    local parent_id = bullet.parent_id
+    if not parent_id or parent_id == AC_ID then return end
+    local ctx = _ctx[parent_id]
+    if not ctx then return end
+
+    local hit = bullet.target_id == AC_ID
+    local near = false
+    if not hit then
+        local apos = db.actor:position()
+        local pos = bullet.position
+        local dx, dy, dz = pos.x - apos.x, pos.y - apos.y, pos.z - apos.z
+        near = (dx * dx + dy * dy + dz * dz) <= NEAR_RADIUS_SQR
+    end
+    if not (hit or near) then return end
+
+    local row = _tier_row(ctx.tier)
+    row.near = row.near + 1
+    if hit then
+        row.hits = row.hits + 1
+        row.conv = row.conv + 1
+        if ctx.moving then row.mv_hits = row.mv_hits + 1 else row.st_hits = row.st_hits + 1 end
+        _drive_row(ctx.drive).hits = _drive_row(ctx.drive).hits + 1
+    end
+    if _dbg then
+        log.debug("[BAL] impact id=%d tier=%s hit=%s drive=%s", parent_id, ctx.tier, tostring(hit), ctx.drive)
+    end
+end
+
+-- Damage the actor actually takes, attributed to the shooter's tier - hits weighted by what
+-- they cost, the third independent lethality axis beside hit rate and volume.
+local function _on_actor_hit(obj, amount, local_direction, who, bone_index)
+    if not (who and amount and amount > 0) then return end
+    if not IsStalker(who) then return end
+    local tier = ranks.get_obj_rank_name(who)
+    if not tier or tier == "" then return end
+    _tier_row(tier).dmg = _tier_row(tier).dmg + amount
+end
+
+local function _pct(hits, shots)
+    return shots > 0 and (100 * hits / shots) or 0
+end
+
+local function _hist_line(hist)
+    local parts = {}
+    for len = 1, 10 do
+        if hist[len] then
+            parts[#parts + 1] = string_format("%s=%d", len == 10 and "10+" or tostring(len), hist[len])
+        end
+    end
+    return table_concat(parts, " ")
+end
+
+function report()
+    local minutes = (time_global() - _t0) / 60000
+    if minutes <= 0 then return end
+    log.info("=== ballistics %dm%02ds ===", math_floor(minutes), math_floor((minutes % 1) * 60))
+    local total_shots, total_hits = 0, 0
+    for i = 1, #TIERS do
+        local tier = TIERS[i]
+        local row = _tiers[tier]
+        if row and row.shots > 0 then
+            total_shots = total_shots + row.shots
+            total_hits = total_hits + row.hits
+            log.info("tier=%-12s shots=%-5d hits=%-4d hit=%.1f%% still=%.1f%% moving=%.1f%% conv=%.0f%% dmg=%.2f hpm=%.1f",
+                tier, row.shots, row.hits, _pct(row.hits, row.shots), _pct(row.st_hits, row.st_shots),
+                _pct(row.mv_hits, row.mv_shots), _pct(row.conv, row.near), row.dmg, row.hits / minutes)
+        end
+    end
+    for name, row in pairs(_drive) do
+        log.info("drive=%-8s shots=%-5d hits=%-4d hit=%.1f%%", name, row.shots, row.hits, _pct(row.hits, row.shots))
+    end
+    for kind, hist in pairs(_bursts) do
+        log.info("bursts kind=%-10s %s", tostring(kind), _hist_line(hist))
+    end
+    mainlog.info("Ballistics: %d shots, %d hits (%.1f%%) over %.1f min - tables in alifetactics_ballistics.log",
+        total_shots, total_hits, _pct(total_hits, total_shots), minutes)
+end
+
+-- HUD surface: fixed tier order, only tiers that fired; the panel reads memory, never the log.
+function get_rows()
+    local rows = {}
+    for i = 1, #TIERS do
+        local tier = TIERS[i]
+        local row = _tiers[tier]
+        if row and row.shots > 0 then
+            rows[#rows + 1] = {
+                tier = tier, shots = row.shots,
+                still_pct = _pct(row.st_hits, row.st_shots),
+                moving_pct = _pct(row.mv_hits, row.mv_shots),
+                dmg = row.dmg,
+            }
+        end
+    end
+    return rows
+end
+
+function get_session()
+    local total = 0
+    for _, r in pairs(_tiers) do total = total + r.shots end
+    return (time_global() - _t0) / 1000, total
+end
+
+local function _report_tick()
+    if not _enabled then return true end
+    report()
+    ResetTimeEvent("at_ballistics", "report", REPORT_SEC)
+    return false
+end
+
+local function _apply_enabled()
+    local want = cfg.ballistics_enabled and true or false
+    if want == _enabled then return end
+    _enabled = want
+    if _enabled then
+        _reset()
+        RegisterScriptCallback("npc_shot_dispersion",   _on_shot)
+        RegisterScriptCallback("bullet_on_impact",      _on_impact)
+        RegisterScriptCallback("actor_on_hit_callback", _on_actor_hit)
+        RemoveTimeEvent("at_ballistics", "report")
+        CreateTimeEvent("at_ballistics", "report", REPORT_SEC, _report_tick)
+        log.info("Ballistics recorder enabled")
+        mainlog.info("Ballistics recorder enabled")
+    else
+        UnregisterScriptCallback("npc_shot_dispersion",   _on_shot)
+        UnregisterScriptCallback("bullet_on_impact",      _on_impact)
+        UnregisterScriptCallback("actor_on_hit_callback", _on_actor_hit)
+        RemoveTimeEvent("at_ballistics", "report")
+        report()
+        log.flush()
+        mainlog.info("Ballistics recorder disabled")
+    end
+end
+
+local function _refresh_config()
+    log.set_level(at_mcm.get_config("log_level") or "WARN")
+    mainlog.set_level(at_mcm.get_config("log_level") or "WARN")
+    _dbg = log.get_level() >= 5
+    _apply_enabled()
+end
+
+local function _on_first_update()
+    _refresh_config()
+end
+
+local function _on_actor_net_destroy()
+    if _enabled then
+        report()
+        log.flush()
+    end
+end
+
+function on_game_start()
+    RegisterScriptCallback("actor_on_first_update",      _on_first_update)
+    RegisterScriptCallback("actor_on_net_destroy",       _on_actor_net_destroy)
+    RegisterScriptCallback("on_option_change",           _refresh_config)
+    RegisterScriptCallback("mcm_option_restore_default", _refresh_config)
+end

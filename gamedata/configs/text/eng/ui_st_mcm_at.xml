@@ -412,6 +412,12 @@
   <string id="ui_mcm_at_hdr_reaction_vision">
     <text>Vision Speed Curve</text>
   </string>
+  <string id="ui_mcm_at_hdr_reaction_trigger">
+    <text>Trigger Curve (planned)</text>
+  </string>
+  <string id="ui_mcm_at_reaction_trigger_wip">
+    <text>Planned: how each rank works the trigger, through a new engine hook. Rookies clamp it and spray long climbing bursts, top ranks squeeze short settled groups and let the weapon come back down. Nothing to configure yet.</text>
+  </string>
   <string id="ui_mcm_at_reaction_rct_vision_novice">
     <text>Novice vision speed</text>
   </string>
@@ -647,6 +653,43 @@
     <text>Bottom Left</text>
   </string>
   <string id="at_development_hud_position_lst_bottomright">
+    <text>Bottom Right</text>
+  </string>
+  <!-- Development - Ballistics -->
+  <string id="ui_mcm_at_hdr_ballistics">
+    <text>Ballistics</text>
+  </string>
+  <string id="ui_mcm_at_development_ballistics_enabled">
+    <text>Ballistics recorder</text>
+  </string>
+  <string id="ui_mcm_at_development_ballistics_enabled_desc">
+    <text>Records shot outcomes near you: per-rank hit rates split by shooter motion, damage dealt, near misses, and burst lengths per weapon kind, with the driver context (maneuver, Commitment hold, or vanilla) on every record. Tables go to alifetactics_ballistics.log once a minute. Off costs nothing.</text>
+  </string>
+  <string id="ui_mcm_at_development_ballistics_position">
+    <text>Ballistics panel</text>
+  </string>
+  <string id="ui_mcm_at_development_ballistics_position_desc">
+    <text>Live on-screen readout of the recorder: session length, shots, and per-rank hit rates standing and moving, with damage dealt. Needs the recorder on. Pick a corner to show it.</text>
+  </string>
+  <string id="at_development_ballistics_position_lst_off">
+    <text>Off</text>
+  </string>
+  <string id="at_development_ballistics_position_lst_topleft">
+    <text>Top Left</text>
+  </string>
+  <string id="at_development_ballistics_position_lst_topright">
+    <text>Top Right</text>
+  </string>
+  <string id="at_development_ballistics_position_lst_centerleft">
+    <text>Center Left</text>
+  </string>
+  <string id="at_development_ballistics_position_lst_centerright">
+    <text>Center Right</text>
+  </string>
+  <string id="at_development_ballistics_position_lst_bottomleft">
+    <text>Bottom Left</text>
+  </string>
+  <string id="at_development_ballistics_position_lst_bottomright">
     <text>Bottom Right</text>
   </string>
   <!-- Development - Reset -->

@@ -1,5 +1,5 @@
-1.2.0
-  Summary: counterflank maneuver, Reaction, Commitment, player-only maneuvers, no dead windows, danger from your setup, performance, fixes
+next
+  Summary: Counterflank, Reaction, Commitment, player-only maneuvers, no dead windows, danger from your setup, performance, fixes
 
   Combat
     - Added Counterflank: stalkers firing on a distant target wheel around when you close to
@@ -47,6 +47,9 @@
     - Fixed a rare freeze of every timed system triggered by mid-maneuver deaths.
 
   Development
+    - Added Ballistics: a toggleable recorder of shot outcomes near you. Per-rank hit rates split
+      by shooter motion, damage dealt, and burst lengths per weapon, written to their own log with
+      an optional on-screen panel. Off by default, costs nothing while off.
     - The debug HUD headlines the maneuver name in green for the takeover's whole life, with wider
       name columns and a twice-per-second refresh.
 
