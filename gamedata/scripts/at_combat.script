@@ -41,17 +41,10 @@ local _open_count = 0
 -- sniper rifle (state_mgr.script:322). For maneuver-held NPCs we swap that fallback override for a
 -- per-weapon-kind triple {queue size, interval ms, aim time}; the animation-tuned entries
 -- (state_mgr_weapon state_queue_params) keep their priority, the original's aim_time machinery
--- stays intact, and NPCs we are not driving pass through byte-identical. Triples default to the
--- engine planner's own [fire_queue_params] medium-band midpoints (m_stalker.ltx:826-909).
--- Band sources: pstl medium size 1-4 interval 400-500; shtg medium 1-4 / 600-750; auto medium
--- 1-6 / 350-600; mchg medium 2-12 / 300-500 (ef types 6-8, 10); snp medium 1 / 1500-2000.
-local _queue_by_kind = {
-    w_pistol  = { 2, 450, 0 },
-    w_shotgun = { 2, 675, 0 },
-    w_rifle   = { 3, 475, 0 },
-    w_smg     = { 7, 400, 0 },
-    w_sniper  = { 1, 1750, 0 },
-}
+-- stays intact, and NPCs we are not driving pass through byte-identical. Triples fill at
+-- _load_config from xcombat.get_fire_queue medium-band midpoints; queue_w_* LTX keys override.
+local QUEUE_KINDS = { "w_pistol", "w_shotgun", "w_rifle", "w_smg", "w_sniper" }
+local _queue_by_kind = {}
 
 local _orig_get_queue_params
 -- The kind read adds no crash surface over the original: vanilla get_queue_params makes the
@@ -511,12 +504,16 @@ local function _load_config()
     END_PERIOD_MS       = read_int("end_period_ms",       200)
     HIT_FIGHT_MS        = read_int("hit_fight_ms",        5000)
     MAX_CONCURRENT      = read_int("max_concurrent_maneuvers", 20)
-    for kind, triple in pairs(_queue_by_kind) do
+    for i = 1, #QUEUE_KINDS do
+        local kind = QUEUE_KINDS[i]
+        local min_s, max_s, min_i, max_i = xcombat.get_fire_queue(kind, "medium")
+        local size, interval = math_floor((min_s + max_s) / 2), math_floor((min_i + max_i) / 2)
         local raw = ini:r_string_ex(LTX_SECTION, "queue_" .. kind)
-        local size, interval = string_match(raw or "", "^%s*(%d+)%s*,%s*(%d+)")
-        if size then
-            triple[1], triple[2] = tonumber(size), tonumber(interval)
+        local o_size, o_interval = string_match(raw or "", "^%s*(%d+)%s*,%s*(%d+)")
+        if o_size then
+            size, interval = tonumber(o_size), tonumber(o_interval)
         end
+        _queue_by_kind[kind] = { size, interval, 0 }
     end
     _build_checks()
 end
