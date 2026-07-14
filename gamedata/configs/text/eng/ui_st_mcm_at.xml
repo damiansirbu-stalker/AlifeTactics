@@ -474,13 +474,13 @@
     <text>When off, stalkers may abandon a live exchange for new cover the moment the engine re-scores its cover point.</text>
   </string>
   <string id="ui_mcm_at_hdr_commitment_hold">
-    <text>Hold Limit</text>
+    <text>Commitment limit</text>
   </string>
   <string id="ui_mcm_at_commitment_commitment_hold_s">
-    <text>Maximum hold time</text>
+    <text>Max time committed</text>
   </string>
   <string id="ui_mcm_at_commitment_commitment_hold_s_desc">
-    <text>Seconds of refused cover moves before re-evaluation is allowed through again. Losing sight of the target or losing the clear shot lets the move through earlier.</text>
+    <text>The ceiling on how long a stalker stays committed to firing before the engine may pull him to cover again. NOT a fixed duration: while he keeps a clear shot he stays committed, and this only caps one continuous stretch before cover quality is allowed to matter once more. He breaks off earlier on his own the moment he loses sight or the clear shot. Higher means he commits to his firing spot for longer.</text>
   </string>
   <!-- ==================== MANEUVERS PAGE ==================== -->
   <string id="ui_mcm_at_combat_desc">

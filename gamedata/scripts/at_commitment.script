@@ -1,6 +1,7 @@
 --- at_commitment: Hold a winning combat action - deny the break-contact shuffle via the action-switch veto
 
 local RegisterScriptCallback, time_global, string_format, tostring = RegisterScriptCallback, time_global, string.format, tostring
+local pairs, table_concat = pairs, table.concat
 
 local log = xlog.get_logger("AT.CMT", { outfile = "alifetactics.log" })
 local _dbg = false
@@ -11,20 +12,30 @@ local cfg = at_mcm.cfg
 -- blocked planner never proposes a switch, so the veto never fires for an AT-seized NPC - Maneuvers and
 -- Commitment are mutually exclusive per NPC by construction (architecture.md Commitment).
 --
--- The deny rule covers the shuffle transitions: leaving an attack action (kill_enemy,
--- kill_if_not_visible) for take_cover while the NPC is at an advantage. Advantage = he sees his
--- enemy AND his barrel is on him with the path clear (can_kill_enemy) AND no non-enemy blocks the
--- lane (a lane-blocked deny keeps a man the weapon handler already stops from shooting) AND the
--- refusal window is under its cap (cover quality is allowed to matter again eventually). A
--- recent-hit standdown was tried and removed 2026-07-12: any-hit-in-3s kept the veto disabled for
--- the whole fight the player is in, the exact fight it exists for. Every other transition passes
--- untouched: grenade dodges, the critically-wounded finisher, retreats, the get-distance chain, and
--- the lost-sight rotation all propose destinations other than take_cover. Release needs no
--- machinery - each condition falsifies itself and the next proposal passes.
+-- The deny rule covers the shuffle transitions: leaving a FIRE action (kill_enemy, kill_if_not_visible)
+-- for a cover-seeking destination (take_cover, get_ready_to_kill) while the NPC is at an advantage. The
+-- watched EXIT set is deliberately the fire actions, not the whole cover cycle: a held fire action keeps
+-- firing (its execute fires on visible_now regardless of InCover, proven in stalker-combat.md "Holding
+-- an action"), and the dominant shuffle route is kill_enemy -> get_ready -> take_cover, so vetoing the
+-- kill_enemy -> get_ready first hop keeps the NPC firing and it never reaches get_ready - the
+-- get_ready -> take_cover edge (a DEADLOCK if vetoed: get_ready set InCover=false, take_cover is the
+-- only way back, so blocking it strands a non-firing NPC) is never taken. Advantage = he sees his enemy (visible_now, the exact read the engine fires
+-- kill_enemy on) AND no non-enemy blocks the lane (can_kill_member, the friendly-fire guard) AND the
+-- refusal window is under its cap (cover quality is allowed to matter again eventually). The
+-- clear-shot raycast (can_kill_enemy) is NOT a gate as of 2026-07-14: it is stricter than the engine's
+-- own fire test, so it declined ~half the would-be holds; the veto now holds whenever the NPC would
+-- fire, and can_kill_enemy survives only as a debug read on the hold line. A recent-hit standdown was tried and removed 2026-07-12: any-hit-in-3s kept
+-- the veto disabled for the whole fight the player is in, the exact fight it exists for. Every other
+-- transition passes untouched: grenade dodges, the critically-wounded finisher, retreats, the
+-- get-distance chain, and the lost-sight rotation (SeeEnemy=false, so the sight/shot gate self-declines)
+-- all fall outside the fire-action exit set or fail the advantage gate. Release needs no machinery -
+-- each condition falsifies itself and the next proposal passes. Full per-transition rationale +
+-- histogram: architecture.md Commitment.
 
--- Attack actions worth holding; the one destination that constitutes the shuffle. stalker_ids is read
--- lazily on the first veto call, never at file scope (the xcombat.get_blocked_planners pattern).
-local _attack_ops, _take_cover_op
+-- Fire actions worth holding, and the cover-seeking destinations that constitute the shuffle's exit
+-- from them. stalker_ids is read lazily on the first veto call, never at file scope (the
+-- xcombat.get_blocked_planners pattern).
+local _attack_ops, _cover_ops
 
 -- Reverse map op id -> short name for the debug traces, built with the ops.
 local _op_names
@@ -34,7 +45,18 @@ local function _resolve_ops()
         [stalker_ids.action_kill_enemy]                = true,
         [stalker_ids.action_kill_enemy_if_not_visible] = true,
     }
-    _take_cover_op = stalker_ids.action_take_cover
+    -- The two ways kill_enemy exits toward the cover cycle while the enemy is still visible, derived
+    -- from its preconditions: InCover drops (cover-manager churn) -> take_cover; ReadyToKill drops
+    -- (reload/empty/misfire) -> get_ready_to_kill. Holding either keeps the NPC on kill_enemy, which
+    -- fires on visible_now (take_cover case) or reloads in place at the object handler then resumes
+    -- (get_ready case). look_out is NOT here: it requires SeeEnemy=false and the sees gate always
+    -- declines that, so it could never hold. NEVER add get_ready or take_cover as a FROM: get_ready
+    -- does not fire, and vetoing get_ready -> take_cover strands the NPC (InCover=false, take_cover the
+    -- only way back). Full exit map: architecture.md Commitment.
+    _cover_ops = {
+        [stalker_ids.action_take_cover]        = true,
+        [stalker_ids.action_get_ready_to_kill] = true,
+    }
     _op_names = {
         [stalker_ids.action_kill_enemy]                  = "kill_enemy",
         [stalker_ids.action_kill_enemy_if_not_visible]   = "kill_if_not_visible",
@@ -59,7 +81,30 @@ local function _op_name(op)
     return (_op_names and _op_names[op]) or tostring(op)
 end
 
--- MCM-tunable refusal-window cap (ms); refreshed in _refresh_config.
+-- Per-edge refusal breakdown of a closed hold, for the debug traces only: "get_ready=4 take_cover=1".
+-- Populated only under _dbg (see the deny path), so this formats nothing when tracing is off.
+local function _refused_str(refused)
+    if not refused then return "-" end
+    local parts = {}
+    for op, count in pairs(refused) do parts[#parts + 1] = string_format("%s=%d", _op_name(op), count) end
+    return table_concat(parts, " ")
+end
+
+-- Per-edge refusal tally, debug only: which cover-seeking destinations a hold turned away and how
+-- often (get_ready vs take_cover vs look_out), the transition-level view of the veto at work. Its
+-- own function so the deny path stays a straight line and this whole branch vanishes when tracing is
+-- off; the hold record keeps its 3 live fields.
+local function _track_refused(hold, to_op)
+    if not _dbg then return end
+    hold.refused = hold.refused or {}
+    hold.refused[to_op] = (hold.refused[to_op] or 0) + 1
+end
+
+-- Refusal TIME-TO-LIVE (ms), MCM-tunable, refreshed in _refresh_config. NOT a commanded hold
+-- length: the veto returns allow=false for every proposed -> take_cover while the advantage holds;
+-- this cap is only the ceiling on how long ONE continuous refusal may last before it relents and
+-- lets a cover move through. A hold ends earlier the moment any advantage condition falsifies. Block
+-- unconditionally (never relent) and the NPC holds his firing spot indefinitely.
 local _hold_cap_ms = 6000
 
 -- npc id -> { op, since, denies }, the running refusal window
@@ -112,13 +157,16 @@ local function _on_action_switch(npc, from_op, to_op, flags)
     if not cfg.commitment_enabled then return end
     if flags.allow == false then return end
     if not _attack_ops then _resolve_ops() end
-    if not _attack_ops[from_op] or to_op ~= _take_cover_op then return end
+    if not _attack_ops[from_op] or not _cover_ops[to_op] then return end
 
     local id = npc:id()
     local enemy = npc:best_enemy()
     if not enemy then _log_decline(npc, id, "no_enemy") return end
     if not xcombat.sees(npc, enemy) then _log_decline(npc, id, "no_sight") return end
-    if not xcombat.can_kill_enemy(npc, enemy) then _log_decline(npc, id, "no_shot") return end
+    -- Gate on the enemy being visible now: CStalkerActionKillEnemy::execute fires iff visible_now
+    -- (stalker_combat_actions.cpp:483), so a held kill_enemy fires exactly when the NPC sees the enemy.
+    -- can_kill_enemy (clear-lane raycast) is not gated here: it is stricter than the engine fire test.
+    -- can_kill_member stays: friendly-fire guard, not a shot-quality test.
     if xcombat.can_kill_member(npc, enemy:position()) then _log_decline(npc, id, "lane_blocked") return end
 
     local tg = time_global()
@@ -127,20 +175,22 @@ local function _on_action_switch(npc, from_op, to_op, flags)
         hold = { op = from_op, since = tg, denies = 0 }
         _hold[id] = hold
         if _dbg then
-            local name = npc:name()
-            local enemy_id = enemy:id()
-            log.debug("[CMT] hold id=%d name=%s op=%s enemy=%d", id, name, _op_name(from_op), enemy_id)
+            log.debug("[CMT] hold id=%d name=%s op=%s refused=%s enemy=%d clear_shot=%s",
+                id, npc:name(), _op_name(from_op), _op_name(to_op), enemy:id(),
+                xcombat.can_kill_enemy(npc, enemy) and "yes" or "no")
         end
     end
     if tg - hold.since > _hold_cap_ms then
         if _dbg then
-            log.debug("[CMT] cap id=%d op=%s after=%dms denies=%d", id, _op_name(hold.op), tg - hold.since, hold.denies)
+            log.debug("[CMT] cap id=%d op=%s after=%dms denies=%d refused=%s",
+                id, _op_name(hold.op), tg - hold.since, hold.denies, _refused_str(hold.refused))
         end
         _close_hold(id, hold, tg)
         return
     end
 
     hold.denies = hold.denies + 1
+    _track_refused(hold, to_op)
     flags.allow = false
 end
 
@@ -156,8 +206,8 @@ local function _on_action_changed(npc, prev_op, new_op)
     if hold then
         local tg = time_global()
         if _dbg then
-            log.debug("[CMT] release id=%d op=%s held=%dms denies=%d switched_to=%s",
-                id, _op_name(hold.op), tg - hold.since, hold.denies, _op_name(new_op))
+            log.debug("[CMT] release id=%d op=%s held=%dms denies=%d refused=%s switched_to=%s",
+                id, _op_name(hold.op), tg - hold.since, hold.denies, _refused_str(hold.refused), _op_name(new_op))
         end
         _close_hold(id, hold, tg)
         return
@@ -166,7 +216,9 @@ local function _on_action_changed(npc, prev_op, new_op)
     local enemy = npc:best_enemy()
     if not enemy or enemy:id() ~= 0 then return end
     if not _op_names then _resolve_ops() end
-    log.debug("[CMT] switch id=%d %s->%s", id, _op_name(prev_op), _op_name(new_op))
+    -- sees + dist per switch: whether the enemy was visible when the action changed.
+    log.debug("[CMT] switch id=%d %s->%s sees=%s dist=%.0f", id, _op_name(prev_op), _op_name(new_op),
+        xcombat.sees(npc, enemy) and "yes" or "no", npc:position():distance_to(enemy:position()))
 end
 
 local function _on_death(npc)

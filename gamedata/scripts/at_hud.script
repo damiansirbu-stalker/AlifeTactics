@@ -3,7 +3,7 @@
 --- per NPC was tried and proved too wide). NO header rows of any kind (tried, read as noise): the
 --- grouping is pure ORDER - AT-driven first (green), then anyone fighting (blue while Commitment
 --- refuses his cover move), then idle (only with HUD_SHOW_IDLE) - and every row is self-describing. Line A, bright: full rank + name + hp | the
---- HEADLINE - the open maneuver's name in caps, or HOLD + age while Commitment vetoes, "-" dim when
+--- HEADLINE - the open maneuver's name in caps, or COMMIT + age while Commitment vetoes, "-" dim when
 --- vanilla drives untouched. Line B, dim: target (name + distance + sight word) | engine (scheme +
 --- mental). Sight words are plain English: "sees" / "aims-off" (sees but body pointed away) /
 --- "blind". The cover belief/ray forensics and the fire-gate verdicts live in the decision trace.
@@ -110,19 +110,19 @@ end
 
 -- Per-NPC readout, one table, one HUD line of 4 composite cells. tag=AT drives the COLOUR (green, only
 -- while a maneuver is actually open); the maneuver cell is the HEADLINE - the open maneuver's name in
--- caps, HOLD + age while Commitment vetoes for this NPC, "-" when vanilla drives untouched. engine is
+-- caps, COMMIT + age while Commitment vetoes for this NPC, "-" when vanilla drives untouched. engine is
 -- the xr_logic scheme plus the mental word; the state_mgr target state moved to the decision trace.
 local function _headline(id, maneuver)
     if maneuver then return string_upper(maneuver), true, false end
     local hold = at_commitment.get_hold(id)
     if hold then
-        return string_format("HOLD %ds", math_floor((time_global() - hold.since) / 1000)), true, true
+        return string_format("COMMIT %ds", math_floor((time_global() - hold.since) / 1000)), true, true
     end
-    -- Afterglow: holds run sub-second (deny-only, no imposed delay), invisible at the refresh
-    -- cadence - the row stays blue for a few seconds showing what was just held.
+    -- Afterglow: commitments run sub-second (deny-only, no imposed delay), invisible at the refresh
+    -- cadence - the row stays blue for a few seconds showing what was just committed.
     local recent = at_commitment.get_recent_hold(id)
     if recent then
-        return string_format("HELD %.1fs x%d", recent.held_ms / 1000, recent.denies), true, true
+        return string_format("COMMITTED %.1fs x%d", recent.held_ms / 1000, recent.denies), true, true
     end
     return "-", false, false
 end
@@ -328,107 +328,15 @@ function UIDebugHUD:__finalize() end
 
 
 -- =========================================================================
--- UIBallisticsHUD: one narrow column - a header line plus one line per rank
--- tier that fired. Reads at_ballistics counters from memory, never the log.
--- =========================================================================
-
--- Column grid in chars: rank, shots, hit%% standing, hit%% moving, damage dealt. Cells are
--- POSITIONED statics like the debug HUD grid - string padding cannot align a proportional font.
-local BAL_GRID = { 12, 6, 7, 7, 7 }
-local BAL_ROWS = 10
-local BAL_HEADER = { "rank", "shots", "still", "moving", "damage" }
-
-class "UIBallisticsHUD" (CUIScriptWnd)
-
-function UIBallisticsHUD:__init() super()
-    _init_colors()
-    self:SetAutoDelete(true)
-    self:Enable(true)
-
-    local widths, total_w = _lay_widths(BAL_GRID)
-    total_w = total_w + PAD * 2
-    local panel_h = BAL_ROWS * ROW_H + PAD * 2
-    local pos = _calc_position(panel_h, total_w, cfg.ballistics_position)
-    self:SetWndPos(vector2():set(pos[1], pos[2]))
-    self:SetWndSize(vector2():set(total_w, panel_h))
-
-    local xml = CScriptXmlInit()
-    xml:ParseFile("ui_at_stats.xml")
-    self.lines = {}
-    for i = 1, BAL_ROWS do
-        local cells, col_x = {}, PAD
-        local row_y = PAD + (i - 1) * ROW_H
-        for c = 1, #widths do
-            local st = xml:InitStatic("line", self)
-            st:SetWndPos(vector2():set(col_x, row_y))
-            st:SetWndSize(vector2():set(widths[c], ROW_H - 2))
-            cells[c] = st:TextControl()
-            col_x = col_x + widths[c] + COL_GAP
-        end
-        self.lines[i] = cells
-    end
-    self.used = 0
-end
-
--- rows[1] is the title, rows[2] the header words, the rest data cells.
-function UIBallisticsHUD:set_rows(rows)
-    local count = #rows
-    if count > BAL_ROWS then count = BAL_ROWS end
-    for i = 1, count do
-        local cells, data = self.lines[i], rows[i]
-        for c = 1, #BAL_GRID do
-            cells[c]:SetText(data[c] or "")
-            cells[c]:SetTextColor(i <= 2 and CLR_NORMAL or CLR_DIM)
-        end
-    end
-    for i = count + 1, self.used do
-        for c = 1, #BAL_GRID do self.lines[i][c]:SetText("") end
-    end
-    self.used = count
-end
-
-function UIBallisticsHUD:__finalize() end
-
-local function _ballistics_rows()
-    local sec, shots = at_ballistics.get_session()
-    local rows = {
-        { "BALLISTICS", string_format("%dm%02d", math_floor(sec / 60), math_floor(sec % 60)),
-          "", "shots", tostring(shots) },
-        BAL_HEADER,
-    }
-    local tiers = at_ballistics.get_rows()
-    for i = 1, #tiers do
-        local row = tiers[i]
-        rows[#rows + 1] = {
-            row.tier,
-            tostring(row.shots),
-            string_format("%.0f%%", row.still_pct),
-            string_format("%.0f%%", row.moving_pct),
-            string_format("%.1f", row.dmg),
-        }
-    end
-    return rows
-end
-
-
--- =========================================================================
 -- Lifecycle: visibility-gated refresh (REFRESH_INTERVAL_SEC) via ResetTimeEvent
 -- =========================================================================
 
 local _hud = nil
 local _shown = false
-local _bhud = nil
-local _bshown = false
 local _tick_active = false
 
--- The two panels are independent: the debug HUD keys on hud_position, the ballistics panel on
--- ballistics_enabled + ballistics_position. Either, both, or neither may be up.
 local function _debug_wanted()
     return cfg.hud_position ~= "off"
-end
-
-local function _ballistics_wanted()
-    return cfg.ballistics_enabled and cfg.ballistics_position ~= "off"
 end
 
 local function _hide()
@@ -436,18 +344,12 @@ local function _hide()
         get_hud():RemoveDialogToRender(_hud)
         _shown = false
     end
-    if _bhud and _bshown then
-        get_hud():RemoveDialogToRender(_bhud)
-        _bshown = false
-    end
 end
 
--- Drop the windows entirely (position change, actor teardown); the next
--- refresh rebuilds them at the current presets.
+-- Drop the window entirely (position change, actor teardown); the next refresh rebuilds it.
 local function _drop_hud()
     _hide()
     _hud = nil
-    _bhud = nil
 end
 
 local function _refresh()
@@ -460,14 +362,6 @@ local function _refresh()
             _shown = true
         end
         _hud:set_rows(rows)
-    end
-    if _ballistics_wanted() then
-        if not _bhud then _bhud = UIBallisticsHUD() end
-        if not _bshown then
-            get_hud():AddDialogToRender(_bhud)
-            _bshown = true
-        end
-        _bhud:set_rows(_ballistics_rows())
     end
     tmr:stop()
     if _dbg then log.debug("[HUD] refresh [%.2fms]", tmr:get_ms()) end
@@ -515,12 +409,12 @@ end
 local function _on_option_change()
     _refresh_log()
     _drop_hud()
-    if _debug_wanted() or _ballistics_wanted() then _start() else _stop() end
+    if _debug_wanted() then _start() else _stop() end
 end
 
 local function _on_first_update()
     _refresh_log()
-    if _debug_wanted() or _ballistics_wanted() then _start() end
+    if _debug_wanted() then _start() end
 end
 
 local function _on_actor_net_destroy()

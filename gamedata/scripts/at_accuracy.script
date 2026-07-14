@@ -8,37 +8,20 @@ local cfg = at_mcm.cfg
 
 -- Engine flow (ai_stalker_fire.cpp:75-142): base = PI/180; base *= m_fRankDisperison (=0.8
 -- for clamped Anomaly ranks); base *= per-state factor (walk/zoom/crouch); callback fires.
--- We stack two factors on top: out = base * disp * move. disp is the flat rank curve
--- (1.0 preserves engine baseline; lower = tighter). move applies ONLY while the shooter is
--- moving (move_type walk/run - the same movement_type() the engine keys its walk/run
--- multipliers on, ai_stalker_fire.cpp:81-104): it cancels part of the movement penalty per
--- rank. The penalty is ~2x cone (walk 5.1+1 vs still 2.0+1, m_stalker.ltx:478-482), so factor
--- 0.50 erases it entirely and 0.75 forgives half. Legend 0.75 = the Fair grade of the
--- reference tunings (a community combat overhaul's middle variant lands the same ratio);
--- novice 1.00 = full vanilla penalty. Same tier-floor lerp as every curve
--- (game_relations.ltx:8 floors / 27000).
+-- We stack two factors on top: out = base * disp * move. disp is the flat rank curve, spread wide
+-- so rank reads over positional noise (novice 1.20 sprays, legend 0.20 is the proven 52-62%-hit
+-- cone; 1.0 preserves engine baseline, lower = tighter, above 1.0 loosens). move applies ONLY while
+-- the shooter is moving (move_type walk/run - the same movement_type() the engine keys its walk/run
+-- multipliers on, ai_stalker_fire.cpp:81-104): it cancels part of the movement penalty per rank. The
+-- penalty is ~2x cone (walk 5.1+1 vs still 2.0+1, m_stalker.ltx:478-482), so factor 0.50 erases it
+-- and 1.00 keeps the full vanilla penalty; legend 0.50 = full erase for the top rank, novice 1.00 =
+-- full penalty. Same tier-floor lerp as every curve (game_relations.ltx:8 floors / 27000).
 
-local _disp = {
-    novice       = 1.00,
-    trainee      = 0.90,
-    experienced  = 0.80,
-    professional = 0.70,
-    veteran      = 0.60,
-    expert       = 0.52,
-    master       = 0.45,
-    legend       = 0.38,
-}
-
-local _move = {
-    novice       = 1.00,
-    trainee      = 0.97,
-    experienced  = 0.94,
-    professional = 0.92,
-    veteran      = 0.89,
-    expert       = 0.87,
-    master       = 0.84,
-    legend       = 0.75,
-}
+-- Per-tier curves, filled from at_mcm at _refresh_config (single source of truth: the at_mcm defaults
+-- table + MCM sliders). Empty here on purpose - get_config never returns nil for these keys (the
+-- defaults table carries all 16), so a script-side copy would be dead. Curve shape is in the header.
+local _disp = {}
+local _move = {}
 
 -- move_type enum (ai_monster_space.h:31-33): walk = 0, run = 1, stand = 2.
 local MT_RUN = 1
@@ -86,8 +69,8 @@ local function _refresh_config()
 
     for i = 1, #TIERS do
         local tier = TIERS[i]
-        _disp[tier] = at_mcm.get_config("acc_disp_" .. tier) or _disp[tier]
-        _move[tier] = at_mcm.get_config("acc_move_" .. tier) or _move[tier]
+        _disp[tier] = at_mcm.get_config("acc_disp_" .. tier)
+        _move[tier] = at_mcm.get_config("acc_move_" .. tier)
     end
 end
 

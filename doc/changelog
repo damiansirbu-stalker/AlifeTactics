@@ -12,8 +12,8 @@ next
     - Maneuver fire now bursts per weapon kind: pistol and rifle bursts, single sniper shots.
       Replaces the uniform 5-round burst the game's script machinery fires for every weapon.
     - Added Commitment: stalkers stand their ground instead of jogging to new cover mid-exchange.
-      A stalker seeing his target with a clear shot keeps fighting from where he stands.
-      Losing the target or the hold limit lets the cover move through. Needs a recent engine build.
+      A stalker who sees his target keeps fighting from where he stands.
+      Losing sight of the target or the hold limit lets the cover move through. Needs a recent engine build.
 
   Effectiveness
     - Added Reaction: rank-tiered gun handling through new engine binds, set per stalker at
@@ -48,8 +48,9 @@ next
 
   Development
     - Added Ballistics: a toggleable recorder of shot outcomes near you. Per-rank hit rates split
-      by shooter motion, damage dealt, and burst lengths per weapon, written to their own log with
-      an optional on-screen panel. Off by default, costs nothing while off.
+      by shooter motion, damage dealt, burst lengths per weapon, and the per-bullet aim error
+      (including lead over/undershoot against a moving target), written to their own log. Off by
+      default, costs nothing while off.
     - The debug HUD headlines the maneuver name in green for the takeover's whole life, with wider
       name columns and a twice-per-second refresh.
 

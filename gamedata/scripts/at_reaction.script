@@ -64,7 +64,12 @@ local _get_obj_rank_name = ranks.get_obj_rank_name
 -- a build date).
 local _bind_logged = false
 
-local function _on_net_spawn(npc)
+--- Apply the rank curves to one NPC. The npc_on_net_spawn body, public because the engine fields
+--- are set once per spawn and never re-read: a runtime rank change (npc:set_character_rank) leaves
+--- the old tier's aim/lead/vision applied until this re-keys them. No-op when Reaction is disabled;
+--- INACTIVE exes no-op inside the xcombat wrappers.
+--- @param npc game_object stalker to (re-)apply the curves to
+function apply(npc)
     if not cfg.reaction_enabled then return end
     if not (npc and npc:alive()) then return end
 
@@ -138,7 +143,7 @@ end
 
 function on_game_start()
     _load_config()
-    RegisterScriptCallback("npc_on_net_spawn",           _on_net_spawn)
+    RegisterScriptCallback("npc_on_net_spawn",           apply)
     RegisterScriptCallback("actor_on_first_update",      _on_first_update)
     RegisterScriptCallback("on_option_change",           _refresh_config)
     RegisterScriptCallback("mcm_option_restore_default", _refresh_config)

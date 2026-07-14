@@ -95,8 +95,8 @@ Your own shots are never affected.
 Commitment:
 Vanilla stalkers re-decide the fight every frame and end up dithering, ducking and popping as they catch and lose sight of you.
 An alternative many mods and modpacks took was activating a camper or camper-like scheme, muting 99% of Anomaly's combat variety.
-AlifeTactics instead holds the good decision: a stalker who sees his target and has a clear shot keeps fighting from where he stands instead of jogging to new cover mid-exchange.
-Losing the target, a blocked line, or the hold limit lets the cover move through again.
+AlifeTactics instead holds the good decision: a stalker who sees his target keeps fighting from where he stands instead of jogging to new cover mid-exchange.
+Losing sight of the target, a teammate crossing the line, or the hold limit lets the cover move through again.
 Based on an action-switch hook created in xray-monolith for this mod; on older builds the system stays inactive.
 
 Reaction:
