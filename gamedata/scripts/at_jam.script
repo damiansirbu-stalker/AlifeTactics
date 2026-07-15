@@ -15,6 +15,7 @@
 
 local RegisterScriptCallback, UnregisterScriptCallback = RegisterScriptCallback, UnregisterScriptCallback
 local IsWeapon, time_global = IsWeapon, time_global
+local type = type
 
 local log = xlog.get_logger("AT.JAM", { outfile = "alifetactics.log" })
 local _dbg = false
