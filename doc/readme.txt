@@ -109,10 +109,12 @@ The result is a stalker who sees a decision through - keeps up his fire, presses
 Based on an action-switch hook created in xray-monolith for this mod; on older builds the system stays inactive.
 
 Reaction:
-Stalker rank now shapes gun handling, applied per stalker at spawn.
+Stalker rank now shapes gun handling, applied per stalker.
 Tracking Speed sets how tightly a barrel follows a moving target, from vanilla at the bottom rank to the game's own hardcore AI aim at the top.
 Vision Speed sets how fast each rank notices a target at range, up to twice your setup's detection speed at the top.
-Both are MCM slider curves over the rank tiers. Target lead and a per-rank trigger curve are planned.
+Target Lead aims a stalker ahead of a moving target by the round's real flight time, computed from range and the weapon's bullet speed as it fires.
+Higher ranks lead true and hit movers, lower ranks over-lead and overshoot.
+Tracking and Vision are MCM slider curves over the rank tiers. A per-rank trigger curve is planned.
 Based on per-NPC aim and vision hooks created in xray-monolith for this mod; on older builds the page has no effect.
 
 Range (planned):

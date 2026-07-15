@@ -1,6 +1,6 @@
 --- at_reaction: Per-NPC rank-aware tracking tightness and vision speed via the engine binds
 
-local RegisterScriptCallback = RegisterScriptCallback
+local RegisterScriptCallback, time_global = RegisterScriptCallback, time_global
 
 local log = xlog.get_logger("AT.RCT", { outfile = "alifetactics.log" })
 local _dbg = false
@@ -20,7 +20,7 @@ local cfg = at_mcm.cfg
 -- the hardcore-aim option bound the aim/lead curves, the installed-baseline rule bounds vision).
 -- Resolution order per key: MCM slider (when the player moved it, defaults
 -- fed from the same LTX) -> LTX -> the script fallbacks below (missing key/file only, the repo-wide
--- LTX convention). _predict has no MCM row: LTX -> fallback.
+-- LTX convention). _lead has no MCM row: LTX -> fallback (the lead is physics, not a player dial).
 local CONFIG_PATH    = "alifetactics\\at_reaction.ltx"
 local CONFIG_SECTION = "at_reaction"
 
@@ -47,11 +47,127 @@ local _vision = {
     legend       = 2.00,
 }
 
+-- Per-rank lead ERROR (t156): the rank's multiplier on the physically-correct lead. The engine leads a
+-- moving target by aim_point += target_velocity * predict_time (sight_action.cpp:383-384); the correct
+-- predict_time is the bullet's flight time = range / bullet_speed. _on_shot_lead recomputes that live and
+-- scales it here - legend 1.00 leads true (hits movers), novice 2.00 over-leads (overshoots), linear
+-- between. Skill is judging the lead right, and the error compounds with the wide low-rank dispersion cone.
+-- Bounded and range-scaled, unlike the retired fixed 0.40 that over-led every rank at close range.
+local _lead = {
+    novice       = 2.00,
+    trainee      = 1.85,
+    experienced  = 1.70,
+    professional = 1.55,
+    veteran      = 1.40,
+    expert       = 1.25,
+    master       = 1.10,
+    legend       = 1.00,
+}
+
+-- Adaptive-lead recompute knobs. predict = clamp(range / bullet_speed, 0, PREDICT_MAX_S) * _lead[tier],
+-- re-derived on the fire seam, throttled per NPC (most shots cost one timestamp compare).
+local LEAD_THROTTLE_MS = 1000
+local PREDICT_MAX_S    = 0.5
+-- _next_lead: npc id -> next time_global() ms the recompute is allowed to run.
+-- _bspeed: weapon section -> bullet_speed m/s, or false when the section carries no bullet_speed key.
+-- _wpn_ammo: weapon section -> its ammo_class list (split once). _ammok: ammo section -> k_bullet_speed.
+local _next_lead = {}
+local _bspeed    = {}
+local _wpn_ammo  = {}
+local _ammok     = {}
+
+-- Fallback bullet speed (m/s) per weapon kind for a section with no bullet_speed key (exotic/melee skip).
+local KIND_BSPEED = {
+    w_pistol = 350, w_shotgun = 380, w_smg = 400, w_rifle = 850, w_sniper = 850,
+}
+
 local _get_obj_rank_name = ranks.get_obj_rank_name
 
 -- One-time capability log, driven by the wrapper booleans (t149 standard: log the capability, never
 -- a build date).
 local _bind_logged = false
+
+-- Log the reaction-bind capability exactly once, from the first apply that reaches the writes.
+local function _log_binds_once(ok_aim, ok_vision)
+    if _bind_logged then return end
+    _bind_logged = true
+    if ok_aim or ok_vision then
+        log.info("Reaction engine binds active (aim=%s vision=%s)",
+            ok_aim and "on" or "off", ok_vision and "on" or "off")
+    else
+        log.info("Reaction INACTIVE: exe lacks the per-NPC aim/vision binds (PR #594); vanilla behavior applies")
+    end
+end
+
+-- Confirm the adaptive-lead path exactly once (t149 standard): the first recompute that reaches the write
+-- logs whether set_aim_params applied, the resolved bullet speed, and its source - so a log shows at a
+-- glance that lead is live on this exe and which speed the physics used. INFO-level, one line, never a build
+-- compare. _dbg adds the per-recompute detail below.
+local _lead_logged = false
+local function _log_lead_once(ok, bs, src, predict)
+    if _lead_logged then return end
+    _lead_logged = true
+    if ok then
+        log.info("Target lead active: first write bs=%.0f (%s) predict=%.3fs", bs, src, predict)
+    else
+        log.info("Target lead INACTIVE: set_aim_params is a no-op (exe lacks the bind); global lead applies")
+    end
+end
+
+-- Resolve the tracking min_speed for a tier, floored up to the live global so a per-NPC value never
+-- downgrades the NPC below the game's hardcore-aim option. Shared by the spawn apply and the lead
+-- recompute (the recompute must re-pass this, else set_aim_params reverts min_speed to the global).
+local function _resolve_aim(tier)
+    local aim = _aim[tier]
+    if not aim then return nil end
+    local live_aim = get_console():get_float("ai_aim_min_speed")
+    if live_aim and live_aim > aim then aim = live_aim end
+    return aim
+end
+
+-- Loaded-round k_bullet_speed for the NPC's weapon: the engine multiplies the launch speed by it
+-- (Level_Bullet_Manager.cpp:66). The current ammo type (get_ammo_type) indexes the weapon's ammo_class
+-- list; that ammo section's k_bullet_speed (default 1.0) is the multiplier - so subsonic/AP rounds scale
+-- the lead correctly. The class list caches per weapon section, the k per ammo section. 1.0 on any miss,
+-- so the caller keeps the plain weapon base speed.
+local function _ammo_speed_k(wpn, sect)
+    local idx = wpn:get_ammo_type()
+    if not idx then return 1.0 end
+    local list = _wpn_ammo[sect]
+    if list == nil then
+        list = {}
+        local classes = ini_sys:r_string_ex(sect, "ammo_class")
+        if classes then
+            for a in classes:gmatch("[^%s,]+") do list[#list + 1] = a end
+        end
+        _wpn_ammo[sect] = list
+    end
+    local ammo_sect = list[idx + 1]
+    if not ammo_sect then return 1.0 end
+    local k = _ammok[ammo_sect]
+    if k == nil then
+        k = ini_sys:r_float_ex(ammo_sect, "k_bullet_speed") or 1.0
+        _ammok[ammo_sect] = k
+    end
+    return k
+end
+
+-- Bullet speed (m/s) for the NPC's current weapon: the weapon section's own bullet_speed
+-- (ShootingObject.cpp:168) times the loaded round's k_bullet_speed, cached per section; a per-kind
+-- fallback (no ammo scaling) covers a section without the key. Returns (speed, source) where source is
+-- "section" or "fallback" for tracing; speed is nil when neither resolves (melee/exotic), caller skips.
+local function _bullet_speed(obj, wpn)
+    local sect = wpn and wpn:section()
+    if sect then
+        local bs = _bspeed[sect]
+        if bs == nil then
+            bs = ini_sys:r_float_ex(sect, "bullet_speed") or false
+            _bspeed[sect] = bs
+        end
+        if bs then return bs * _ammo_speed_k(wpn, sect), "section" end
+    end
+    return KIND_BSPEED[xcombat.get_weapon_kind(obj)], "fallback"
+end
 
 --- Apply the rank curves to one NPC. The npc_on_net_spawn body, public because the engine fields
 --- are set once per spawn and never re-read: a runtime rank change (npc:set_character_rank) leaves
@@ -65,40 +181,64 @@ function apply(npc)
     local tier = _get_obj_rank_name(npc)
     if not tier or tier == "" then return end
 
-    local aim = _aim[tier]
+    local aim = _resolve_aim(tier)
     local vision = _vision[tier]
     if not (aim and vision) then return end
 
-    -- Never write a value worse than the live global: the game's hardcore-AI-aim option (or any
-    -- global tuner) may have raised the baseline the unset NPCs follow, and a per-NPC absolute
-    -- below it would DOWNGRADE the NPC against the player's own setting. Aim floors up (higher =
-    -- faster tracking), lead floors down (lower = tighter lead).
-    local console = get_console()
-    local live_aim = console:get_float("ai_aim_min_speed")
-    if live_aim and live_aim > aim then aim = live_aim end
-    -- Target Lead disabled for this release: the fixed per-rank lead overshoots moving targets (bullets
-    -- pass in front, todo-alifetactics-next.md t156). Pass -1 so the sight follows the global
-    -- ai_aim_predict_time / vanilla lead. t156 computes the lead from physics (range/bullet_speed), so
-    -- the per-rank predict table retires with it and is removed here.
-    local predict = -1
-
-    local ok_aim = xcombat.set_aim_params(npc, -1, -1, aim, predict)
+    -- Target lead is not set at spawn: no enemy or range exists yet. predict passes -1 (follow the global
+    -- ai_aim_predict_time) until the first throttled fire-seam recompute derives it from live geometry
+    -- (_on_shot_lead, t156). aim is floored up to the live global by _resolve_aim so a per-NPC value never
+    -- downgrades the NPC below the game's hardcore-aim option.
+    local ok_aim = xcombat.set_aim_params(npc, -1, -1, aim, -1)
     local ok_vision = xcombat.set_vision_speed(npc, vision)
 
     if _dbg then
-        log.debug("[RCT] id=%d name=%s tier=%s aim=%.2f predict=%.2f vision=%.2f applied_aim=%s applied_vision=%s",
-            npc:id(), npc:name(), tier, aim, predict, vision,
+        log.debug("[RCT] id=%d name=%s tier=%s aim=%.2f vision=%.2f applied_aim=%s applied_vision=%s",
+            npc:id(), npc:name(), tier, aim, vision,
             ok_aim and "yes" or "no", ok_vision and "yes" or "no")
     end
 
-    if not _bind_logged then
-        _bind_logged = true
-        if ok_aim or ok_vision then
-            log.info("Reaction engine binds active (aim=%s vision=%s)",
-                ok_aim and "on" or "off", ok_vision and "on" or "off")
-        else
-            log.info("Reaction INACTIVE: exe lacks the per-NPC aim/vision binds (PR #594); vanilla behavior applies")
-        end
+    _log_binds_once(ok_aim, ok_vision)
+end
+
+--- Adaptive target lead on the fire seam (t156). Throttled per NPC: most shots cost one timestamp
+--- compare. On recompute it reads the best_enemy range and the weapon's bullet speed, derives the
+--- physically-correct lead time (flight time = range / bullet_speed), scales it by rank skill, clamps
+--- it, and re-writes predict_time. It re-passes the rank aim (min_speed) so the adaptive call does not
+--- revert min_speed to the global. Keeps the last predict when there is no enemy or no usable bullet
+--- speed. INACTIVE exes no-op inside set_aim_params.
+--- Callback signature (obj, wpn, body_state, move_type, temp_disp), same seam as at_accuracy.
+--- @param obj game_object firing stalker
+--- @param wpn game_object|nil the weapon that fired
+local function _on_shot_lead(obj, wpn, body_state, move_type, temp_disp)
+    if not cfg.reaction_enabled then return end
+    if not obj then return end
+
+    local id = obj:id()
+    local tg = time_global()
+    local nxt = _next_lead[id]
+    if nxt and tg < nxt then return end
+    _next_lead[id] = tg + LEAD_THROTTLE_MS
+
+    local enemy = obj:best_enemy()
+    if not enemy then return end
+    local tier = _get_obj_rank_name(obj)
+    if not tier or tier == "" then return end
+    local err = _lead[tier]
+    if not err then return end
+    local bs, src = _bullet_speed(obj, wpn)
+    if not bs or bs <= 0 then return end
+
+    local range = obj:position():distance_to(enemy:position())
+    local predict = range / bs * err
+    if predict < 0 then predict = 0 elseif predict > PREDICT_MAX_S then predict = PREDICT_MAX_S end
+
+    local ok = xcombat.set_aim_params(obj, -1, -1, _resolve_aim(tier) or -1, predict)
+    _log_lead_once(ok, bs, src, predict)
+
+    if _dbg then
+        log.debug("[RCT] lead id=%d tier=%s range=%.1f bs=%.0f src=%s err=%.2f predict=%.3f applied=%s",
+            id, tier, range, bs, src, err, predict, ok and "yes" or "no")
     end
 end
 
@@ -111,6 +251,7 @@ local function _load_config()
     for i = 1, #TIERS do
         local tier = TIERS[i]
         _aim[tier]     = ini:r_float_ex(CONFIG_SECTION, "aim_" .. tier)     or _aim[tier]
+        _lead[tier]    = ini:r_float_ex(CONFIG_SECTION, "lead_" .. tier)    or _lead[tier]
         _vision[tier]  = ini:r_float_ex(CONFIG_SECTION, "vision_" .. tier)  or _vision[tier]
     end
 end
@@ -133,6 +274,7 @@ end
 function on_game_start()
     _load_config()
     RegisterScriptCallback("npc_on_net_spawn",           apply)
+    RegisterScriptCallback("npc_shot_dispersion",        _on_shot_lead)
     RegisterScriptCallback("actor_on_first_update",      _on_first_update)
     RegisterScriptCallback("on_option_change",           _refresh_config)
     RegisterScriptCallback("mcm_option_restore_default", _refresh_config)

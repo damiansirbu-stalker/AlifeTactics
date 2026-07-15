@@ -37,16 +37,24 @@ aim_expert       = 1.45
 aim_master       = 1.70
 aim_legend       = 2.50
 
-; predict_* is seconds of target lead (predict_object_position, sight_action.cpp:380). Same
-; derivation, endpoints 0.40 (vanilla) -> 0.28 (hardcore preset).
-predict_novice       = 0.40
-predict_trainee      = 0.38
-predict_experienced  = 0.37
-predict_professional = 0.36
-predict_veteran      = 0.35
-predict_expert       = 0.34
-predict_master       = 0.32
-predict_legend       = 0.28
+; lead_* is the per-rank lead ERROR (t156): the rank's multiplier on the physically-correct lead. The
+; engine leads a moving target by aim_point += target_velocity * predict_time (sight_action.cpp:383-384);
+; the correct predict_time is the bullet's flight time = range / bullet_speed (the weapon section's
+; bullet_speed times the loaded round's k_bullet_speed, ShootingObject.cpp:168 and Level_Bullet_Manager.cpp:66,
+; so subsonic/AP ammo scales the lead). at_reaction recomputes predict_time per firing NPC on the fire seam
+; (throttled 1s) as clamp(range / bullet_speed, 0, 0.5) * lead_<tier>. So the lead ADAPTS to range and
+; round speed on its own; lead_* is the only rank lever. Legend 1.00 = leads true and hits movers; novice
+; 2.00 over-leads (overshoots), linear between. Skill is judging the lead right, and the error compounds
+; with the wide low-rank dispersion cone. Bounded and range-scaled, unlike the retired fixed 0.40->0.28
+; table that over-led every rank at close range.
+lead_novice       = 2.00
+lead_trainee      = 1.85
+lead_experienced  = 1.70
+lead_professional = 1.55
+lead_veteran      = 1.40
+lead_expert       = 1.25
+lead_master       = 1.10
+lead_legend       = 1.00
 
 ; vision_* multiplies detection-speed accumulation (get_visible_value, visual_memory_manager.cpp:365-379)
 ; AFTER whichever detection stack the install runs (engine formula or a Lua get_visible_value
