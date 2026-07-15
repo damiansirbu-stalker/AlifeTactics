@@ -1,4 +1,4 @@
---- at_reaction: Per-NPC rank-aware tracking tightness, target lead, and vision speed via the engine binds
+--- at_reaction: Per-NPC rank-aware tracking tightness and vision speed via the engine binds
 
 local RegisterScriptCallback = RegisterScriptCallback
 
@@ -24,7 +24,7 @@ local cfg = at_mcm.cfg
 local CONFIG_PATH    = "alifetactics\\at_reaction.ltx"
 local CONFIG_SECTION = "at_reaction"
 
--- Script-side fallbacks, mirroring the shipped LTX values (derivation + src proofs live there).
+-- Script-side fallbacks, mirroring the LTX values (derivation + src proofs live there).
 local _aim = {
     novice       = 0.24,
     trainee      = 0.53,
@@ -34,17 +34,6 @@ local _aim = {
     expert       = 1.45,
     master       = 1.70,
     legend       = 2.50,
-}
-
-local _predict = {
-    novice       = 0.40,
-    trainee      = 0.38,
-    experienced  = 0.37,
-    professional = 0.36,
-    veteran      = 0.35,
-    expert       = 0.34,
-    master       = 0.32,
-    legend       = 0.28,
 }
 
 local _vision = {
@@ -87,9 +76,11 @@ function apply(npc)
     local console = get_console()
     local live_aim = console:get_float("ai_aim_min_speed")
     if live_aim and live_aim > aim then aim = live_aim end
-    local predict = _predict[tier] or -1
-    local live_predict = console:get_float("ai_aim_predict_time")
-    if live_predict and live_predict > 0 and predict > 0 and live_predict < predict then predict = live_predict end
+    -- Target Lead disabled for this release: the fixed per-rank lead overshoots moving targets (bullets
+    -- pass in front, todo-alifetactics-next.md t156). Pass -1 so the sight follows the global
+    -- ai_aim_predict_time / vanilla lead. t156 computes the lead from physics (range/bullet_speed), so
+    -- the per-rank predict table retires with it and is removed here.
+    local predict = -1
 
     local ok_aim = xcombat.set_aim_params(npc, -1, -1, aim, predict)
     local ok_vision = xcombat.set_vision_speed(npc, vision)
@@ -120,7 +111,6 @@ local function _load_config()
     for i = 1, #TIERS do
         local tier = TIERS[i]
         _aim[tier]     = ini:r_float_ex(CONFIG_SECTION, "aim_" .. tier)     or _aim[tier]
-        _predict[tier] = ini:r_float_ex(CONFIG_SECTION, "predict_" .. tier) or _predict[tier]
         _vision[tier]  = ini:r_float_ex(CONFIG_SECTION, "vision_" .. tier)  or _vision[tier]
     end
 end
@@ -131,7 +121,6 @@ local function _refresh_config()
     for i = 1, #TIERS do
         local tier = TIERS[i]
         _aim[tier]     = at_mcm.get_config("rct_aim_" .. tier)     or _aim[tier]
-        _predict[tier] = at_mcm.get_config("rct_predict_" .. tier) or _predict[tier]
         _vision[tier]  = at_mcm.get_config("rct_vision_" .. tier)  or _vision[tier]
     end
 end

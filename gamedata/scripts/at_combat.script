@@ -31,7 +31,7 @@ local MAX_CONCURRENT
 
 local _npc_states = {}
 -- ONLINE NPCs currently holding a maneuver. MAX_CONCURRENT caps how many run at once (a runaway
--- failsafe). _drop_gate keeps it honest on every gate-clearing path (end AND despawn), so a dead NPC
+-- failsafe). _drop_gate keeps it accurate on every gate-clearing path (end AND despawn), so a dead NPC
 -- can never leak a slot.
 local _open_count = 0
 
@@ -108,7 +108,7 @@ local function _release_cover(state)
     end
 end
 
--- Lower the gate and keep the concurrent count honest. EVERY path that clears an open gate routes here
+-- Lower the gate and keep the concurrent count accurate. EVERY path that clears an open gate routes here
 -- (_end_maneuver AND the death/despawn handlers), so _open_count can never leak a slot to a dead NPC.
 local function _drop_gate(state)
     if state and state.gate then
@@ -525,7 +525,7 @@ local function _refresh_log()
 end
 
 -- The monitor runs only while the feature is on. Turning it off mid-game first ends every open maneuver
--- through the normal path (gate down, cover released, count honest) - SPEC.gate already handed those NPCs
+-- through the normal path (gate down, cover released, count accurate) - SPEC.gate already handed those NPCs
 -- back to vanilla at the next plan solve - then stops the pass, so a disabled feature costs zero.
 local function _apply_enabled()
     if cfg.combat_enabled then

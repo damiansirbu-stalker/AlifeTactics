@@ -41,14 +41,6 @@ local defaults = {
     rct_aim_expert         = 1.45,
     rct_aim_master         = 1.70,
     rct_aim_legend         = 2.50,
-    rct_predict_novice       = 0.40,
-    rct_predict_trainee      = 0.38,
-    rct_predict_experienced  = 0.37,
-    rct_predict_professional = 0.36,
-    rct_predict_veteran      = 0.35,
-    rct_predict_expert       = 0.34,
-    rct_predict_master       = 0.32,
-    rct_predict_legend       = 0.28,
     rct_vision_novice       = 1.00,
     rct_vision_trainee      = 1.13,
     rct_vision_experienced  = 1.24,
@@ -123,14 +115,6 @@ local _key_to_tab = {
     rct_aim_expert         = "effectiveness/reaction",
     rct_aim_master         = "effectiveness/reaction",
     rct_aim_legend         = "effectiveness/reaction",
-    rct_predict_novice       = "effectiveness/reaction",
-    rct_predict_trainee      = "effectiveness/reaction",
-    rct_predict_experienced  = "effectiveness/reaction",
-    rct_predict_professional = "effectiveness/reaction",
-    rct_predict_veteran      = "effectiveness/reaction",
-    rct_predict_expert       = "effectiveness/reaction",
-    rct_predict_master       = "effectiveness/reaction",
-    rct_predict_legend       = "effectiveness/reaction",
     rct_vision_novice       = "effectiveness/reaction",
     rct_vision_trainee      = "effectiveness/reaction",
     rct_vision_experienced  = "effectiveness/reaction",
@@ -216,7 +200,7 @@ end
 -- labels move (handled in ui_st_mcm_at.xml). WIP sub-pages carry a single "wip" desc until their feature exists.
 function on_mcm_load()
     -- The Reaction sliders default from configs/alifetactics/at_reaction.ltx - the file owns the
-    -- shipped numbers; a moved slider overrides its key, and MCM reset returns to the LTX values.
+    -- default numbers; a moved slider overrides its key, and MCM reset returns to the LTX values.
     -- rct_fb holds the code fallbacks for a missing key/file (repo LTX convention).
     local rct_fb = {
         aim_novice = 0.24, aim_trainee = 0.53, aim_experienced = 0.78, aim_professional = 0.99,
@@ -259,8 +243,8 @@ function on_mcm_load()
                             { id = "div_maneuvers", type = "line" },
                             { id = "hdr_maneuvers", type = "desc", text = "ui_mcm_at_combat_hdr_maneuvers", clr = {255, 200, 200, 200} },
                             { id = "maneuver_counterflank",    type = "check", val = 1, def = true, hint = "at_combat_maneuver_counterflank" },
-                            { id = "maneuver_retreat", type = "check", val = 1, def = true, hint = "at_combat_maneuver_retreat" },
                             { id = "maneuver_flee",    type = "check", val = 1, def = true, hint = "at_combat_maneuver_flee" },
+                            { id = "maneuver_retreat", type = "check", val = 1, def = true, hint = "at_combat_maneuver_retreat" },
                             { id = "maneuver_kite",    type = "check", val = 1, def = true, hint = "at_combat_maneuver_kite" },
                             { id = "maneuver_snipe",   type = "check", val = 1, def = true, hint = "at_combat_maneuver_snipe" },
 
@@ -389,20 +373,9 @@ function on_mcm_load()
                             { id = "rct_aim_master",       type = "track", val = 2, min = 0.24, max = 2.50, step = 0.02, def = rct_def("aim_master"), hint = "at_reaction_rct_aim_master" },
                             { id = "rct_aim_legend",       type = "track", val = 2, min = 0.24, max = 2.50, step = 0.02, def = rct_def("aim_legend"), hint = "at_reaction_rct_aim_legend" },
 
-                            { id = "div_reaction_predict", type = "line" },
-                            { id = "hdr_reaction_predict", type = "desc", text = "ui_mcm_at_hdr_reaction_predict", clr = {255, 200, 200, 200} },
-                            { id = "rct_predict_novice",       type = "track", val = 2, min = 0.28, max = 0.40, step = 0.01, def = rct_def("predict_novice"), hint = "at_reaction_rct_predict_novice" },
-                            { id = "rct_predict_trainee",      type = "track", val = 2, min = 0.28, max = 0.40, step = 0.01,
-                                def = rct_def("predict_trainee"), hint = "at_reaction_rct_predict_trainee" },
-                            { id = "rct_predict_experienced", type = "track", val = 2, min = 0.28, max = 0.40, step = 0.01,
-                                def = rct_def("predict_experienced"), hint = "at_reaction_rct_predict_experienced" },
-                            { id = "rct_predict_professional", type = "track", val = 2, min = 0.28, max = 0.40, step = 0.01,
-                                def = rct_def("predict_professional"), hint = "at_reaction_rct_predict_professional" },
-                            { id = "rct_predict_veteran",      type = "track", val = 2, min = 0.28, max = 0.40, step = 0.01,
-                                def = rct_def("predict_veteran"), hint = "at_reaction_rct_predict_veteran" },
-                            { id = "rct_predict_expert",       type = "track", val = 2, min = 0.28, max = 0.40, step = 0.01, def = rct_def("predict_expert"), hint = "at_reaction_rct_predict_expert" },
-                            { id = "rct_predict_master",       type = "track", val = 2, min = 0.28, max = 0.40, step = 0.01, def = rct_def("predict_master"), hint = "at_reaction_rct_predict_master" },
-                            { id = "rct_predict_legend",       type = "track", val = 2, min = 0.28, max = 0.40, step = 0.01, def = rct_def("predict_legend"), hint = "at_reaction_rct_predict_legend" },
+                            -- Target Lead (predict) sliders pulled for this release: the fixed per-rank lead
+                            -- overshoots moving targets. The physics-based adaptive lead is todo t156; the
+                            -- rct_predict_* strings/defaults stay for when it is built.
 
                             { id = "div_reaction_vision", type = "line" },
                             { id = "hdr_reaction_vision", type = "desc", text = "ui_mcm_at_hdr_reaction_vision", clr = {255, 200, 200, 200} },
