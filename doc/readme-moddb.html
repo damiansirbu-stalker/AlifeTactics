@@ -11,6 +11,7 @@
 <p><b>! Reset MCM settings to defaults after updating !</b></p>
 <p>https://www.youtube.com/watch?v=eKpzbmFOFC8</p>
 <p>AlifeTactics is a platform of systems that take how creatures behave and fight in STALKER to another level.<br />(Note that the readme covers the final shape of the mod, currently it is less than half finalized)</p>
+<p>Every AlifeTactics system works the same way: read the real state of the game, then decide intelligently in the combatant's favor, not by script or die roll.<br />It weighs combat events, NPC and player stats, the world, squad, faction, weapons, range, angle, and cover.<br />Maneuvers take a stalker over for an action the vanilla engine has no mechanism for.<br />Commitment keeps a stalker on a decision that still makes sense instead of the engine's constant re-planning.<br />Threat, accuracy, and the rest read state and decide the same way, and the direction is that every layer will.</p>
 <p>The actual effects are</p>
 <ul>
 <li>All creatures will fight and behave much more intelligently, making emergent decisions based on environment, own state, enemy state, squad state, weapons, faction doctrine etc</li>
@@ -20,41 +21,43 @@
 <li>Features that never worked or were hijacked, now work for real (eg AP ammo is used by whoever owns it and is consumed, vanilla has NPCs using infinite cheapest ammo, modpacks have infinite AP ammo per rank and map)</li>
 <li>Bugs disguised as features, like fake weapon jamming or random tactical reloading are eliminated</li>
 </ul>
-<p>It is built in an engineered, architecture- and performance-first manner:</p>
+<p>Everything is 100% canon, engine-pure, safe and fast:</p>
 <ul>
-<li>it works on multiple levels, from most intrusive (complete takeover), to moderate (controlling xray and anomaly) to light (like improving threat, vision, etc)</li>
-<li>it respects XRAY and Anomaly engine fundamentals: the GOAP action planner, the xr_logic scheme and subscheme system, state_mgr, smart terrains and the gulag job system, condlists, and DLTX/DXML for data</li>
-<li>where it was not possible, it relies on multiple xray-monolith hooks created specifically for this mod</li>
-<li>it uses best practices in lua, xlibs and s-tier mods to ensure the performance impact is almost inexistent</li>
-<li>it also fixes dozens of vanilla Anomaly bugs, from dead branches, wrong calculations or plain crashes in original code</li>
+<li>Every behavior is built from pure X-Ray and Anomaly primitives: the GOAP action planner, the xr_logic scheme system, state_mgr, smart terrains and the gulag job system, condlists, DLTX/DXML for data. Nothing is faked, nothing is simulated beside the engine.</li>
+<li>Where the engine had no seam, the seam was added upstream first: per-NPC hooks created in xray-monolith specifically for this mod, merged into the official modded exes.</li>
+<li>It never replaces a vanilla script file. Takeovers block the planner only for their seconds and hand back; patches lay onto whichever script your setup ships.</li>
+<li>Every value ships as a formula over the engine's own constants, never an invented number.</li>
+<li>Zero per-frame Lua. Everything runs on engine callbacks and scheduled passes; the whole mod costs 3 timer compares per frame, whatever the NPC count.</li>
+<li>Dozens of vanilla Anomaly bugs fixed along the way: dead branches, wrong calculations, plain crashes in original code.</li>
 </ul>
 <p>Every system below has its own page in MCM, laid out in this exact order, where it is toggled and tuned.</p>
 <h2>Combat</h2>
 <h3>Maneuvers</h3>
-<p>A maneuver is a complete takeover of a NPC for a short period of time, then hands it back to the engine in a harmonized way.<br />Some are evolved vanilla versions, some are reimplementations of vanilla maneuvers (subschemes and actions) that never triggered, while others are completely new behaviors.<br />A maneuver fires only when the environment, situation, his own and his enemies state lead to him gaining an upper hand.</p>
+<p>A maneuver is a complete, authoritative takeover of one stalker to perform what the vanilla engine cannot, whether as a mechanic it lacks or a decision it never makes.<br />The system reads combat events, NPC and player stats, and the world, then makes an intelligent decision in the combatant's favor.<br />It weighs squad and faction, squad and enemy state, range, angle, cover, and weapons.<br />The design goes further than the single stalker: whole squads coordinating their movement and fire, each faction fighting in its own flavor and favoring the maneuvers that suit it.</p>
 <p>These maneuvers cover the moments vanilla fumbles (wip, many will come):</p>
 <ul>
+<li><b>Counterflank</b> snaps a stalker around when a hostile player stands at contact range while he shoots someone far away.</li>
+<li><b>Flee</b> routs a cautious faction to a distant friendly base - a coward runs before he fights.</li>
+<li><b>Retreat</b> pulls a steady one to cover under pressure; a coward whose escape is cut off does the same.</li>
 <li><b>Kite</b> backs a stalker out of an enemy that closed too near, still firing.</li>
-<li><b>Retreat</b> pulls a steady faction to cover under pressure.</li>
-<li><b>Flee</b> routs a cautious one to a distant friendly base.</li>
 <li><b>Snipe</b> holds a stalled marksman on precision aim.</li>
 </ul>
-<p>The decisions come out looking human. Nobody turns his back on a shooter, two men never take the same cover, no one goes to cover when the enemy is in sight and weak.<br />The takeover overrides no combat scripts, so it fights side by side with vanilla and layers cleanly over AI overhauls. Companions are excluded by default.</p>
+<p>Maneuvers run only in fights the player is part of; NPC-only fights stay fully vanilla.<br />A maneuver fires when its problem is real and ends when it is solved; if you keep creating the problem (keep pressing a shotgunner's minimum range), the answer keeps coming.<br />The decisions come out looking human. Nobody turns his back on a shooter, two men never take the same cover, a sniper never plants under your crosshair.<br />Maneuver fire bursts by weapon: pistols and rifles fire real bursts, sniper rifles single shots, in place of the uniform burst the game's script machinery uses for every weapon it drives.<br />The takeover overrides no combat scripts, so it fights side by side with vanilla and works with other combat AI instead of replacing it. Companions are excluded by default.</p>
 <h3>Behaviors (planned)</h3>
 <p>New actions the vanilla planner lacks, like melee, hopefully peek etc.</p>
 <h2>Effectiveness</h2>
 <h3>Accuracy</h3>
-<p>Anomaly's rank curve clamps every NPC to the same dispersion, accuracy never scaled per rank, even though the engine code exists.<br />AlifeTactics restores a real per-rank curve through the engine's own dispersion callback, tunable per tier.<br />Note that the engine has many dispersion variables (eg barrel, weapon, npc), this is the NPC skill-based dispersion.</p>
+<p>Anomaly's rank curve clamps every NPC to the same dispersion, accuracy never scaled per rank, even though the engine code exists.<br />AlifeTactics restores a real per-rank curve through the engine's own dispersion callback, tunable per tier.<br />A second curve covers fire on the move: each rank keeps a share of the movement spread penalty, so rookies spray while repositioning and top ranks lose about half the penalty.<br />Note that the engine has many dispersion variables (eg barrel, weapon, npc), this is the NPC skill-based dispersion.</p>
 <h3>Disclosure</h3>
 <p>When a faction enemy wounds any squad member, the whole squad learns the shooter at once, even patrol members out of earshot and even against a silenced weapon.<br />Vanilla only shares a shooter the squadmates actually heard, so distant or suppressed attackers stay unknown.<br />It works through the engine's own memory, not by faking relations: the shooter is enabled in each member's memory and registered into the squad's combat, and the engine's normal propagation carries it from there.<br />A stalker with no squad discloses the shooter to himself.<br />New members inherit the fight when they spawn, and a shooter who went offline and returns is flagged again.<br />A survivor gate (default on) skips disclosure when the hit kills the victim outright, so a clean kill stays quiet.<br />The squad can still find you by sound, by sight, or by the body.</p>
 <h3>Danger</h3>
-<p>Stalkers read danger the way the engine always meant them to.<br />AlifeTactics reworks Anomaly's danger scheme as a runtime patch, laid onto whichever danger script a modpack ships instead of replacing the file.<br />A set of always-on fixes clears long-standing crashes and misreads across the danger check and the corpse investigation.<br />Detection distances stay owned by your setup's danger config. AlifeTactics adds the reactions, never the tuning.<br />Three of the improvements are optional: a direct hit answers at any range, nearby gunfire draws a cover-and-threat response, and actor-sourced danger reads the separate tables where your config provides them.</p>
+<p>Stalkers read danger the way the engine always meant them to.<br />AlifeTactics reworks Anomaly's danger scheme as a runtime patch, laid onto whichever danger script a modpack ships instead of replacing the file.<br />A set of always-on fixes clears long-standing crashes and misreads across the danger check and the corpse investigation.<br />Detection distances stay owned by your setup's danger config. AlifeTactics adds the reactions, never the tuning.<br />Three of the improvements are optional: a direct hit answers at any range, ENEMY gunfire draws a cover-and-threat response with no line of sight needed and no aim at them required, and actor-sourced danger reads the separate tables where your config provides them.<br />Gunfire from neutral or friendly stalkers, including your own weapon, is not a danger to them - reactions follow the engine's relation rule, same as vanilla.</p>
 <h3>Crossfire</h3>
 <p>Same-faction fighters no longer cut each other down in a crossfire.<br />A hit between two NPCs of the same faction deals reduced damage, set by a slider (no damage by default, up to full vanilla).<br />It keys on their actual relation, so genuinely hostile factions still trade fire while allies stay safe.<br />Your own shots are never affected.</p>
-<h3>Commitment (planned)</h3>
-<p>Vanilla stalkers re-decide the fight every frame and end up dithering, ducking and popping as they catch and lose sight of you.<br />An alternative many mods and modpacks took was activating a camper or camper-like scheme, muting 99% of Anomaly's combat variety.<br />NPCs evaluate the battle scenario and hold a good action instead of shuffling between cover, based on new hooks in xray-monolith.</p>
-<h3>Reaction (planned)</h3>
-<p>Again based on hooks created specifically in xray-monolith, per-NPC rank-based aim speed and vision.</p>
+<h3>Commitment</h3>
+<p>Vanilla stalkers re-plan the fight every moment, so any small change makes a stalker drop what he is doing and choose again.<br />Better cover, a flicker of lost sight, a teammate crossing the line - and off he goes, the twitchy strafing and cover-hopping you see in a firefight.<br />Many mods answer this by switching the stalker to a camper scheme that pins him in place, muting most of Anomaly's combat variety.<br />AlifeTactics keeps the engine's full combat AI and instead stops a stalker throwing away a decision that still makes sense.<br />While what he is doing still works he stays with it, and he switches the instant it stops: he loses sight, the shot is blocked, or the enemy is gone.<br />The result is a stalker who sees a decision through - keeps up his fire, presses a flank, finishes a reload - instead of second-guessing himself every frame.<br />Based on an action-switch hook created in xray-monolith for this mod; on older builds the system stays inactive.</p>
+<h3>Reaction</h3>
+<p>Stalker rank now shapes gun handling, applied per stalker at spawn.<br />Tracking Speed sets how tightly a barrel follows a moving target, from vanilla at the bottom rank to the game's own hardcore AI aim at the top.<br />Vision Speed sets how fast each rank notices a target at range, up to twice your setup's detection speed at the top.<br />Both are MCM slider curves over the rank tiers. Target lead and a per-rank trigger curve are planned.<br />Based on per-NPC aim and vision hooks created in xray-monolith for this mod; on older builds the page has no effect.</p>
 <h3>Range (planned)</h3>
 <p>Engagement distance. The game stops NPC fights at a hard range cap regardless of weapon, so a sniper never fires at the distances his rifle exists for, and a stalker sniped from beyond the cap can duck (the Danger hit response) but never answer. This page will let long-range NPCs answer and initiate at their weapon's real reach.</p>
 <h3>Resistance (planned)</h3>
@@ -71,7 +74,7 @@
 <h3>Mutants (planned)</h3>
 <p>Mutant combat behavior.</p>
 <h2>Intended setup</h2>
-<p>AlifeTactics is designed against vanilla Anomaly on the latest demonized build, and that is what it is tuned for.<br />It runs on AOEngine and older demonized builds with fallbacks, where a feature that needs a newer hook stays inactive or reduced.<br />It coexists with AI-overhaul combat mods, but vanilla plus AlifeTactics is the intended experience.</p>
+<p>AlifeTactics is designed against vanilla Anomaly on the latest demonized build, and that is what it is tuned for.<br />It runs on AOEngine and older demonized builds with fallbacks, where a feature that needs a newer hook stays inactive or reduced.<br />It coexists with other combat AI mods, but vanilla plus AlifeTactics is the intended experience.</p>
 <h2>Requirements</h2>
 <p>Anomaly 1.5.3<br />Modded exes (themrdemonized 20250908 or newer, or AOEngine v0.55 or newer)<br /><a href="https://www.moddb.com/mods/stalker-anomaly/addons/xlibs-1001">xlibs</a><br />MCM</p>
 <h2>Install (MO2)</h2>
@@ -88,12 +91,15 @@
 <h3>Coexists</h3>
 <ul>
 <li><b>xrMPE Animations (ANOMALY-GAMMA):</b> replaces the stalker animation files AlifeTactics's hurt and heal poses play from.<br />Every animation AlifeTactics uses exists in its files (verified), so the poses keep working and take on xrMPE's look.</li>
-<li><b>AI-overhaul combat (G.A.M.M.A. AI Rework, ReDone Combat AI, RE:VISION, AI More Cover):</b><br />The takeover blocks the combat planner only while it runs a maneuver, then hands back to their combat AI.<br />The danger rework patches their xr_danger at load, so their danger layer keeps running too.</li>
+<li><b>Other combat AI (G.A.M.M.A. AI Rework, ReDone Combat AI, RE:VISION, AI More Cover):</b><br />The takeover blocks the combat planner only while it runs a maneuver, then hands back to their combat AI.<br />The danger rework patches their xr_danger at load, so their danger layer keeps running too.</li>
 <li><b>Wuut AI Extension, NPC_Fleeing, Mora's AI More Covered:</b> add planner actions.<br />While AlifeTactics runs a maneuver its own action is suppressed for those seconds, then resumes.<br />Disable Combat in MCM to leave them fully in charge.</li>
 <li><b>Mods that replace NPC healing with their own path (Animated NPC Healing and similar):</b><br />Their healer runs, so AlifeTactics's heal rate and per-rank charge do nothing where they overlap.<br />Disable one side. A DLTX mod that rewrites the vanilla medkit list can also empty AlifeTactics's list, by load order.</li>
 <li><b>No More Companion Friendly Fire:</b> a different axis (actor-companion damage). AlifeTactics never touches your shots.</li>
 <li><b>Tougher Important NPCs and Companions:</b> damage reduction through npc_on_before_hit, composes.</li>
 <li><b>Dynamic AI Aim Settings, Worse NPC Vision and Accuracy:</b> perception tweaks that compose with the dispersion fix.</li>
+<li><b>Global aim tuners (the game's own Hardcore AI aim option, REDONE's aim system, any ai_aim console tuning):</b><br />Reaction writes per-stalker engine fields; a stalker it touched uses its own values and everything else keeps following the global tuning.<br />AlifeTactics never writes a value worse than that global baseline, so raising game difficulty is always respected.</li>
+<li><b>Detection mods (GAMMA Stealth Overhaul and the GAMMA thresholds):</b> Reaction's vision speed is a multiplier on your setup's own detection result, shipped at 1.00 = unchanged. Raising it in MCM stacks ON TOP of such overhauls.</li>
+<li><b>GAMMA's "No logs" and "Log spam remover" (disabled by default):</b> their outdated _g.script removes the engine's dispersion forwarder and silently disables the Accuracy system. Keep them disabled.</li>
 <li><b>g_ai_unlimited_ammo set to 0</b> (a console cvar on newer engine builds makes NPCs consume real inventory rounds):<br />the Ammo system detects the setting and goes inert, so carried AP is not drained twice. At 1 (the default) Ammo runs normally.</li>
 </ul>
 <h2>FAQ</h2>

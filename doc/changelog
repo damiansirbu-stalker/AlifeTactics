@@ -2,57 +2,47 @@ next
   Summary: Counterflank, Reaction, Commitment, player-only maneuvers, no dead windows, danger from your setup, performance, fixes
 
   Combat
-    - Added Counterflank: stalkers firing on a distant target wheel around when you close to
-      contact range instead of giving you their backs.
-    - Maneuvers now weigh range, angle, line of sight, and cover. They run only in fights you
-      are in. Maneuvers that would change nothing are dropped. Cowardly factions flee before
-      they fight.
-    - Retreats now reach real cover behind the retreating stalker. Cornered stalkers hold
-      their ground instead of shuffling in place indoors.
-    - Maneuver fire now bursts per weapon kind: pistol and rifle bursts, single sniper shots.
-      Replaces the uniform 5-round burst the game's script machinery fires for every weapon.
-    - Added Commitment: stalkers stand their ground instead of jogging to new cover mid-exchange.
-      A stalker who sees his target keeps fighting from where he stands.
-      Losing sight of the target or the hold limit lets the cover move through. Needs a recent engine build.
+    Maneuvers
+      - Added Counterflank: a stalker firing at a distant target wheels around when you close to contact range instead of giving you his back.
+      - Added per-weapon-kind fire: pistol and rifle bursts, single sniper shots, in place of the uniform 5-round burst.
+      - Changed targeting: maneuvers now weigh range, angle, line of sight, and cover, run only in fights you are in, and drop those that would change nothing.
+      - Changed retreat and flee: retreats reach real cover behind the stalker, cornered stalkers hold their ground, and cowardly factions flee before they fight.
+    Commitment
+      - Added Commitment: stalkers see a fight through instead of twitchy strafing and cover-hopping.
+        A stalker keeps his fire, presses a flank, or finishes a reload rather than dropping a good action for a marginally better one, breaking off only when it stops making sense.
+        Needs a recent engine build.
 
   Effectiveness
-    - Added Reaction: rank-tiered gun handling through new engine binds, set per stalker at
-      spawn. Carries the 3 curves below, each an 8-slider MCM block over the rank tiers.
-      Requires a recent engine build, inert on older ones.
-    - Added the Tracking Speed curve: how tightly the barrel follows a moving target per rank
-      tier, from the vanilla speed up to the hardcore AI aim option's speed at the top tier.
-    - Added the Target Lead curve: the aim-ahead time on a moving target per rank tier.
-      Lower tiers aim further ahead and miss wider when the target changes direction.
-    - Added the Vision Speed curve: detection speed per rank tier, up to 2x the installed
-      detection speed at the top tier.
-    - Added the Moving Fire curve to Accuracy: each rank tier cancels a set share of the movement
-      dispersion penalty, keeping higher tiers accurate while repositioning.
-    - Danger detection now comes from your installed danger config. AlifeTactics adds reactions
-      and fixes on top instead of overriding its tuning.
-    - Stalkers hit or hearing enemy gunfire react at any range, even to fire not aimed at them.
-      They seek cover in a threat pose with no line of sight needed.
-      Your own fire alerts enemies the same way.
-    - Respawned stalkers no longer inherit scripted danger left on the id they reuse.
-    - The corpse investigation no longer crashes the game when its reaction fires before the
-      investigation stage is set (an inherited vanilla bug).
+    Accuracy
+      - Added Moving Fire, a per-rank curve: fire on the move scales by rank, so low ranks spray while repositioning and top ranks stay steady.
+    Danger
+      - Changed detection to read from your installed config instead of overriding its tuning.
+      - Fixed enemy gunfire to alert stalkers even when not aimed at them.
+      - Fixed scripted danger carrying over to a reused id on respawn.
+      - Fixed a corpse-investigation crash when its reaction fired before its stage was set.
+    Reaction
+      - Added Tracking Speed, a per-rank curve for how tightly the barrel follows a moving target.
+      - Added Vision Speed, a per-rank curve for detection speed at range.
+      Both are set per stalker at spawn and need a recent engine build.
 
   Mechanics
-    - Fixed the Stalker Healing master toggle only applying after a game restart.
-    - Fixed NPC armor-piercing ammo reverting on the wrong weapon after a mid-fight weapon switch.
-    - NPC jamming now stays inert on engines without the misfire hook instead of failing when disabled.
+    Healing
+      - Fixed the master toggle only applying after a game restart.
+    Jamming
+      - Fixed it to stay inert on engines without the misfire hook instead of failing when disabled.
+    Ammo
+      - Fixed armor-piercing rounds reverting on the wrong weapon after a mid-fight switch.
 
   Performance
-    - All combat, healing, and ammo monitoring moved off per-frame callbacks onto scheduled passes.
-      The whole mod now costs 3 timer compares per frame, whatever the NPC count.
-    - Fixed a rare freeze of every timed system triggered by mid-maneuver deaths.
+    - Changed all combat, healing, and ammo monitoring to run on scheduled passes instead of per-frame callbacks. The whole mod now costs 3 timer compares per frame, whatever the NPC count.
+    - Fixed a rare freeze of every timed system on mid-maneuver deaths.
 
   Development
-    - Added Ballistics: a toggleable recorder of shot outcomes near you. Per-rank hit rates split
-      by shooter motion, damage dealt, burst lengths per weapon, and the per-bullet aim error
-      (including lead over/undershoot against a moving target), written to their own log. Off by
-      default, costs nothing while off.
-    - The debug HUD headlines the maneuver name in green for the takeover's whole life, with wider
-      name columns and a twice-per-second refresh.
+    Ballistics
+      - Added a toggleable recorder of shot outcomes near you, off by default and free while off.
+        It logs per-rank hit rates split by shooter motion, damage dealt, burst lengths per weapon, and per-bullet aim error including lead over/undershoot against a moving target.
+    Debug HUD
+      - Changed the HUD to headline the active maneuver in green for the takeover's whole life, with wider name columns and a twice-per-second refresh.
 
 1.1.1
   Summary: startup fix

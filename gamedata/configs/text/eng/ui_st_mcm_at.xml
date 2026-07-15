@@ -69,10 +69,10 @@
     <text>Planned: new combat actions the vanilla planner lacks, melee first. Nothing to configure yet.</text>
   </string>
   <string id="ui_mcm_at_commitment_desc">
-    <text>Stalkers stand their ground instead of jogging to new cover mid-exchange. A stalker who sees his target with a clear shot keeps fighting from where he stands; losing the target or the time limit below lets the cover move through again. Requires a recent engine build with the action-switch veto; on older builds the toggle has no effect and vanilla behavior applies.</text>
+    <text>Vanilla stalkers re-plan their fight every moment, so any small change - a cover spot that scores a little better, sight dropping for an instant, a teammate crossing the firing line - makes a stalker abandon what he was doing and choose again. That constant re-deciding is the twitchy strafing and cover-hopping you see in a firefight. Commitment stops it without taking the stalker over: while what he is doing still makes sense, he stays with it instead of trading it away for a marginally better move, and he switches the instant it stops making sense (he loses sight, the shot is blocked, the enemy is gone). The result is a stalker who sees a decision through - keeps up his fire, presses a flank, finishes a reload where he stands - instead of second-guessing himself every frame. Requires a recent engine build with the action-switch veto; on older builds the toggle has no effect and vanilla behavior applies.</text>
   </string>
   <string id="ui_mcm_at_reaction_desc">
-    <text>Stalker rank decides how tightly a stalker's gun tracks you while you move, how far it leads you, and how fast you are noticed at range. Tracking speed changes their gun handling on a moving target; it does not make the first shot come sooner. Requires a recent engine build with the per-stalker aim and vision binds; on older builds the page has no effect and vanilla behavior applies.</text>
+    <text>Stalker rank decides how tightly a stalker's gun tracks a moving target and how fast it spots a target at range. Tracking speed changes gun handling on a moving target; it does not make the first shot come sooner. Target lead and a per-rank trigger curve are planned. Requires a recent engine build with the per-stalker aim and vision binds; on older builds the page has no effect and vanilla behavior applies.</text>
   </string>
   <string id="ui_mcm_at_range_desc">
     <text>Planned: engagement distance. The game stops NPC fights at a hard range cap regardless of weapon, so a sniper never fires at the distances his rifle exists for, and a stalker sniped from beyond the cap can duck (the Danger hit response) but never answer. This page will let long-range NPCs answer and initiate at their weapon's real reach. Nothing to configure yet.</text>
@@ -107,7 +107,7 @@
     <text>Suppress disclosure on kill</text>
   </string>
   <string id="ui_mcm_at_disclosure_disclosure_survivor_gate_desc">
-    <text>When the hit kills the victim outright, the shooter is not disclosed. The dying man never gets to radio it in, so silenced shots and backstabs stay quiet. The squad can still find you the honest way: by sound, by sight, or by the body. A hit that only wounds discloses as usual.</text>
+    <text>When the hit kills the victim outright, the shooter is not disclosed. The dying man never gets to radio it in, so silenced shots and backstabs stay quiet. The squad can still find you the hard way: by sound, by sight, or by the body. A hit that only wounds discloses as usual.</text>
   </string>
   <string id="ui_mcm_at_hdr_retention">
     <text>Retention</text>
@@ -326,7 +326,7 @@
     <text>Experienced tracking speed</text>
   </string>
   <string id="ui_mcm_at_reaction_rct_aim_experienced_desc">
-    <text>How tightly a experienced-rank barrel follows a moving target. Higher tracks closer.</text>
+    <text>How tightly an experienced-rank barrel follows a moving target. Higher tracks closer.</text>
   </string>
   <string id="ui_mcm_at_reaction_rct_aim_professional">
     <text>Professional tracking speed</text>
@@ -344,7 +344,7 @@
     <text>Expert tracking speed</text>
   </string>
   <string id="ui_mcm_at_reaction_rct_aim_expert_desc">
-    <text>How tightly a expert-rank barrel follows a moving target. Higher tracks closer.</text>
+    <text>How tightly an expert-rank barrel follows a moving target. Higher tracks closer.</text>
   </string>
   <string id="ui_mcm_at_reaction_rct_aim_master">
     <text>Master tracking speed</text>
@@ -471,7 +471,7 @@
     <text>Enable Commitment</text>
   </string>
   <string id="ui_mcm_at_commitment_commitment_enabled_desc">
-    <text>When off, stalkers may abandon a live exchange for new cover the moment the engine re-scores its cover point.</text>
+    <text>When off, stalkers behave as vanilla: a stalker gives up whatever action he is committed to the moment the engine re-scores and finds a slightly better move, which is the mid-fight cover shuffle.</text>
   </string>
   <string id="ui_mcm_at_hdr_commitment_hold">
     <text>Commitment limit</text>
@@ -480,11 +480,11 @@
     <text>Max time committed</text>
   </string>
   <string id="ui_mcm_at_commitment_commitment_hold_s_desc">
-    <text>The ceiling on how long a stalker stays committed to firing before the engine may pull him to cover again. NOT a fixed duration: while he keeps a clear shot he stays committed, and this only caps one continuous stretch before cover quality is allowed to matter once more. He breaks off earlier on his own the moment he loses sight or the clear shot. Higher means he commits to his firing spot for longer.</text>
+    <text>How long a stalker may stay committed to a single action before the engine is allowed to move him again. This is a ceiling, not a set duration: as long as the engine's reason to hold still stands he stays committed, and this only caps one continuous stretch so cover quality can matter again eventually. He breaks off on his own the instant that reason ends (he loses sight, the shot is no longer clear). Higher keeps him committed longer.</text>
   </string>
   <!-- ==================== MANEUVERS PAGE ==================== -->
   <string id="ui_mcm_at_combat_desc">
-    <text>A maneuver is a complete takeover of one stalker for a few seconds. AlifeTactics drives him through one committed move and hands him back to the engine cleanly. Vanilla, or whatever AI overhaul you run, drives every fight the rest of the time. Maneuvers run only in fights you are part of; NPC-only fights stay fully vanilla. A maneuver fires when its problem is real and ends when it is solved, so pressing the same stalker keeps drawing the same answer. The decisions come out looking human. Nobody turns his back on a shooter, two men never take the same cover. The takeover overrides no combat scripts, so it layers over AI overhauls. Each maneuver below toggles on its own.</text>
+    <text>A maneuver is a complete, authoritative takeover of one stalker to perform what the vanilla engine cannot, whether as a mechanic it lacks or a decision it never makes. The system reads combat events, NPC and player stats, and the world, then makes an intelligent decision in the combatant's favor, weighing squad and faction, squad and enemy state, range, angle, cover, and weapons. The design goes further than the single stalker: whole squads coordinating their movement and fire, each faction fighting in its own flavor and favoring the maneuvers that suit it. It overrides no combat scripts, so it works with other combat AI. Each maneuver below toggles on its own.</text>
   </string>
   <string id="ui_mcm_at_combat_combat_enabled">
     <text>Enable combat takeover</text>
@@ -549,7 +549,7 @@
   </string>
   <!-- ==================== DANGER PAGE ==================== -->
   <string id="ui_mcm_at_danger_desc">
-    <text>Stalkers read danger and investigate the way the engine always meant them to. A set of always-on fixes clears crashes and misreads across the danger check and the corpse investigation. Detection distances come from your setup's danger config, AlifeTactics adds the reactions. It installs as a runtime patch onto whichever danger script your modpack ships, so it layers over AI overhauls instead of replacing the file. Three improvements toggle below.</text>
+    <text>Stalkers read danger and investigate the way the engine always meant them to. A set of always-on fixes clears crashes and misreads across the danger check and the corpse investigation. Detection distances come from your setup's danger config, AlifeTactics adds the reactions. It installs as a runtime patch onto whichever danger script your modpack ships, so it works with other combat AI instead of replacing the file. Three improvements toggle below.</text>
   </string>
   <string id="ui_mcm_at_danger_hdr_improvements">
     <text>Improvements</text>
@@ -570,7 +570,7 @@
     <text>Actor-source tuning</text>
   </string>
   <string id="ui_mcm_at_fixes_danger_danger_actor_tables_desc">
-    <text>Danger caused by you reads the separate actor tables where your setup's danger config differentiates them (some AI overhauls do). With a config that ships identical tables this has no effect.</text>
+    <text>Danger caused by you reads the separate actor tables where your setup's danger config differentiates them (some combat AI mods do). With a config that ships identical tables this has no effect.</text>
   </string>
   <string id="ui_mcm_at_danger_hdr_fixes">
     <text>Always-on bug fixes (not toggleable)</text>
@@ -656,41 +656,11 @@
     <text>Bottom Right</text>
   </string>
   <!-- Development - Ballistics -->
-  <string id="ui_mcm_at_hdr_ballistics">
-    <text>Ballistics</text>
-  </string>
   <string id="ui_mcm_at_development_ballistics_enabled">
     <text>Ballistics recorder</text>
   </string>
   <string id="ui_mcm_at_development_ballistics_enabled_desc">
     <text>Records shot outcomes near you: per-rank hit rates split by shooter motion, damage dealt, near misses, and burst lengths per weapon kind, with the driver context (maneuver, Commitment hold, or vanilla) on every record. Tables go to alifetactics_ballistics.log once a minute. Off costs nothing.</text>
-  </string>
-  <string id="ui_mcm_at_development_ballistics_position">
-    <text>Ballistics panel</text>
-  </string>
-  <string id="ui_mcm_at_development_ballistics_position_desc">
-    <text>Live on-screen readout of the recorder: session length, shots, and per-rank hit rates standing and moving, with damage dealt. Needs the recorder on. Pick a corner to show it.</text>
-  </string>
-  <string id="at_development_ballistics_position_lst_off">
-    <text>Off</text>
-  </string>
-  <string id="at_development_ballistics_position_lst_topleft">
-    <text>Top Left</text>
-  </string>
-  <string id="at_development_ballistics_position_lst_topright">
-    <text>Top Right</text>
-  </string>
-  <string id="at_development_ballistics_position_lst_centerleft">
-    <text>Center Left</text>
-  </string>
-  <string id="at_development_ballistics_position_lst_centerright">
-    <text>Center Right</text>
-  </string>
-  <string id="at_development_ballistics_position_lst_bottomleft">
-    <text>Bottom Left</text>
-  </string>
-  <string id="at_development_ballistics_position_lst_bottomright">
-    <text>Bottom Right</text>
   </string>
   <!-- Development - Reset -->
   <string id="ui_mcm_at_development_btn_reset_all">
