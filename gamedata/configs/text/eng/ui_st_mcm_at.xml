@@ -192,11 +192,17 @@
   <string id="ui_mcm_at_accuracy_desc">
     <text>Stalker accuracy scales with rank. A master shoots tighter than a novice, each tier tunable below. The engine has a per-rank dispersion curve, but Anomaly's rank values leave it flat, so every stalker fires with the same spread. AlifeTactics drives the curve through the engine's own dispersion callback. Weapon and barrel dispersion stay untouched. This scales the stalker's skill.</text>
   </string>
-  <string id="ui_mcm_at_accuracy_accuracy_enabled">
-    <text>Enable Accuracy</text>
+  <string id="ui_mcm_at_accuracy_disp_enabled">
+    <text>Enable Dispersion Curve</text>
   </string>
-  <string id="ui_mcm_at_accuracy_accuracy_enabled_desc">
-    <text>When off, the engine's flat dispersion applies to every stalker regardless of rank.</text>
+  <string id="ui_mcm_at_accuracy_disp_enabled_desc">
+    <text>How tight each rank's aim cone is. Low ranks spray wide, top ranks group tight. Off leaves the engine's flat cone.</text>
+  </string>
+  <string id="ui_mcm_at_accuracy_move_enabled">
+    <text>Enable Moving Fire</text>
+  </string>
+  <string id="ui_mcm_at_accuracy_move_enabled_desc">
+    <text>How much each rank cancels the accuracy penalty for firing on the move. Top ranks stay accurate while moving. Off keeps the full penalty.</text>
   </string>
   <string id="ui_mcm_at_hdr_accuracy_curve">
     <text>Rank Curve</text>
@@ -301,11 +307,11 @@
     <text>How much of the movement spread penalty a legend-rank stalker keeps while shooting on the move, the highest rank. 0.50 makes his moving fire as steady as his standing fire.</text>
   </string>
   <!-- ==================== REACTION PAGE ==================== -->
-  <string id="ui_mcm_at_reaction_reaction_enabled">
-    <text>Enable Reaction</text>
+  <string id="ui_mcm_at_reaction_aim_enabled">
+    <text>Enable Tracking Speed</text>
   </string>
-  <string id="ui_mcm_at_reaction_reaction_enabled_desc">
-    <text>When off, every stalker aims and spots at the engine's flat speed regardless of rank.</text>
+  <string id="ui_mcm_at_reaction_aim_enabled_desc">
+    <text>How tightly a stalker's barrel follows a moving target, per rank. Low ranks lag a strafing target, top ranks stay locked on. Off leaves the engine's flat speed.</text>
   </string>
   <string id="ui_mcm_at_hdr_reaction_aim">
     <text>Tracking Speed</text>
@@ -358,59 +364,71 @@
   <string id="ui_mcm_at_reaction_rct_aim_legend_desc">
     <text>How tightly a legend-rank barrel follows a moving target, the highest rank. 2.50 matches the game's hardcore AI aim option.</text>
   </string>
-  <string id="ui_mcm_at_hdr_reaction_predict">
-    <text>Target Lead Curve</text>
+  <string id="ui_mcm_at_hdr_reaction_lead">
+    <text>Target Lead</text>
   </string>
-  <string id="ui_mcm_at_reaction_rct_predict_novice">
+  <string id="ui_mcm_at_reaction_lead_enabled">
+    <text>Enable Target Lead</text>
+  </string>
+  <string id="ui_mcm_at_reaction_lead_enabled_desc">
+    <text>How far ahead of a moving target a stalker aims, from the round's real flight time. Top ranks lead true and hit movers, low ranks over-lead. Off leaves the engine's fixed lead.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_lead_novice">
     <text>Novice target lead</text>
   </string>
-  <string id="ui_mcm_at_reaction_rct_predict_novice_desc">
-    <text>Seconds a novice-rank stalker aims ahead of a moving target. Lower lands closer when the target changes direction. 0.40 is the vanilla lead.</text>
+  <string id="ui_mcm_at_reaction_rct_lead_novice_desc">
+    <text>Lead error for novice rank, multiplied onto the physically-correct lead. 2.00 over-leads a mover, 1.00 leads true.</text>
   </string>
-  <string id="ui_mcm_at_reaction_rct_predict_trainee">
+  <string id="ui_mcm_at_reaction_rct_lead_trainee">
     <text>Trainee target lead</text>
   </string>
-  <string id="ui_mcm_at_reaction_rct_predict_trainee_desc">
-    <text>Seconds a trainee-rank stalker aims ahead of a moving target. Lower lands closer when the target changes direction.</text>
+  <string id="ui_mcm_at_reaction_rct_lead_trainee_desc">
+    <text>Lead error for trainee rank. Above 1.00 over-leads a moving target, 1.00 leads true.</text>
   </string>
-  <string id="ui_mcm_at_reaction_rct_predict_experienced">
+  <string id="ui_mcm_at_reaction_rct_lead_experienced">
     <text>Experienced target lead</text>
   </string>
-  <string id="ui_mcm_at_reaction_rct_predict_experienced_desc">
-    <text>Seconds an experienced-rank stalker aims ahead of a moving target. Lower lands closer when the target changes direction.</text>
+  <string id="ui_mcm_at_reaction_rct_lead_experienced_desc">
+    <text>Lead error for experienced rank. Above 1.00 over-leads a moving target, 1.00 leads true.</text>
   </string>
-  <string id="ui_mcm_at_reaction_rct_predict_professional">
+  <string id="ui_mcm_at_reaction_rct_lead_professional">
     <text>Professional target lead</text>
   </string>
-  <string id="ui_mcm_at_reaction_rct_predict_professional_desc">
-    <text>Seconds a professional-rank stalker aims ahead of a moving target. Lower lands closer when the target changes direction.</text>
+  <string id="ui_mcm_at_reaction_rct_lead_professional_desc">
+    <text>Lead error for professional rank. Above 1.00 over-leads a moving target, 1.00 leads true.</text>
   </string>
-  <string id="ui_mcm_at_reaction_rct_predict_veteran">
+  <string id="ui_mcm_at_reaction_rct_lead_veteran">
     <text>Veteran target lead</text>
   </string>
-  <string id="ui_mcm_at_reaction_rct_predict_veteran_desc">
-    <text>Seconds a veteran-rank stalker aims ahead of a moving target. Lower lands closer when the target changes direction.</text>
+  <string id="ui_mcm_at_reaction_rct_lead_veteran_desc">
+    <text>Lead error for veteran rank. Above 1.00 over-leads a moving target, 1.00 leads true.</text>
   </string>
-  <string id="ui_mcm_at_reaction_rct_predict_expert">
+  <string id="ui_mcm_at_reaction_rct_lead_expert">
     <text>Expert target lead</text>
   </string>
-  <string id="ui_mcm_at_reaction_rct_predict_expert_desc">
-    <text>Seconds an expert-rank stalker aims ahead of a moving target. Lower lands closer when the target changes direction.</text>
+  <string id="ui_mcm_at_reaction_rct_lead_expert_desc">
+    <text>Lead error for expert rank. Above 1.00 over-leads a moving target, 1.00 leads true.</text>
   </string>
-  <string id="ui_mcm_at_reaction_rct_predict_master">
+  <string id="ui_mcm_at_reaction_rct_lead_master">
     <text>Master target lead</text>
   </string>
-  <string id="ui_mcm_at_reaction_rct_predict_master_desc">
-    <text>Seconds a master-rank stalker aims ahead of a moving target. Lower lands closer when the target changes direction.</text>
+  <string id="ui_mcm_at_reaction_rct_lead_master_desc">
+    <text>Lead error for master rank. Above 1.00 over-leads a moving target, 1.00 leads true.</text>
   </string>
-  <string id="ui_mcm_at_reaction_rct_predict_legend">
+  <string id="ui_mcm_at_reaction_rct_lead_legend">
     <text>Legend target lead</text>
   </string>
-  <string id="ui_mcm_at_reaction_rct_predict_legend_desc">
-    <text>Seconds a legend-rank stalker aims ahead of a moving target, the highest rank. Lower lands closer when the target changes direction. 0.28 matches the game's hardcore AI aim option.</text>
+  <string id="ui_mcm_at_reaction_rct_lead_legend_desc">
+    <text>Lead error for legend rank, the highest. 1.00 leads true and hits movers.</text>
   </string>
   <string id="ui_mcm_at_hdr_reaction_vision">
     <text>Vision Speed Curve</text>
+  </string>
+  <string id="ui_mcm_at_reaction_vision_enabled">
+    <text>Enable Vision Speed</text>
+  </string>
+  <string id="ui_mcm_at_reaction_vision_enabled_desc">
+    <text>How fast a stalker notices a target at range, per rank, on top of your detection setup. Top ranks spot you sooner. Off leaves the flat detection speed.</text>
   </string>
   <string id="ui_mcm_at_hdr_reaction_trigger">
     <text>Trigger Curve (planned)</text>

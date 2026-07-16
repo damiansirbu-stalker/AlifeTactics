@@ -113,12 +113,12 @@ The MCM menu is a five-category gameplay tree plus a Development tab, the canoni
 | System | File | MCM page | Master toggle | Scope | Composition |
 |---|---|---|---|---|---|
 | Maneuvers | `at_combat.script` | Combat > Maneuvers | `combat_enabled`; per-maneuver toggles | All NPCs | transaction-override |
-| Accuracy | `at_accuracy.script` | Effectiveness > Accuracy | `accuracy_enabled` | All NPCs | callback |
+| Accuracy | `at_accuracy.script` | Effectiveness > Accuracy | per-curve `disp_enabled` / `move_enabled`, no master | All NPCs | callback |
 | Disclosure | `at_disclosure.script` | Effectiveness > Disclosure | `disclosure_enabled` | All NPCs | callback |
 | Danger | `at_danger.script` | Effectiveness > Danger | bug fixes always-on; three toggleable improvements | All NPCs | scheme-patch |
 | Crossfire | `at_crossfire.script` | Effectiveness > Crossfire | `crossfire_enabled` | All NPCs (actor excluded as participant) | callback |
 | Commitment | `at_commitment.script` | Combat > Commitment | `commitment_enabled` | All NPCs | callback |
-| Reaction | `at_reaction.script` | Effectiveness > Reaction | `reaction_enabled` | All NPCs | callback |
+| Reaction | `at_reaction.script` | Effectiveness > Reaction | per-curve `aim_enabled` / `vision_enabled` / `lead_enabled`, no master | All NPCs | callback |
 | Healing | `at_healing.script` | Mechanics > Healing | `healing_enabled` | All NPCs | fn-patch |
 | Jamming | `at_jam.script` | Mechanics > Jamming | `jam_enabled` | All NPCs | save-wrap |
 | Ammo | `at_ammo.script` | Mechanics > Ammo | `ammo_enabled` | All NPCs | callback |
@@ -312,7 +312,7 @@ Math: `out = base * disp * move`. The engine already multiplied by `m_fRankDispe
 - `disp` — the flat rank curve, applied to every shot. `disp = 1.00` preserves the engine's vanilla cone, lower values tighten it, above 1.00 loosens. Defaults spread wide so rank reads over the ~10-point positional noise (proven 2026-07-14 by the 0.2-vs-1.3 controlled test): novice 1.20 (sprays) -> legend 0.20 range, shipped 1.20 / 1.05 / 0.90 / 0.75 / 0.60 / 0.47 / 0.34 / 0.22 across the eight tiers.
 - `move` — the moving-fire curve, applied only while the shooter's `move_type` is walk/run (`ai_stalker_fire.cpp:81-104`). Cancels part of the movement spread penalty per rank: novice 1.00 keeps the full vanilla ~2x penalty, legend 0.50 erases it. Shipped 1.00 / 0.93 / 0.86 / 0.79 / 0.72 / 0.65 / 0.57 / 0.50. NPCs fire while moving almost exclusively, so this is where rank shows. Error budget: `doc/library/modding/npc-combat-effectiveness.md` "The error budget per shot".
 
-Per-rank tiers (novice through legend): higher rank, tighter dispersion. Both curves are MCM tunables (Rank Curve and Moving Fire Curve blocks on the Accuracy page).
+Per-rank tiers (novice through legend): higher rank, tighter dispersion. Each curve has its own MCM toggle (`disp_enabled`, `move_enabled`) with no page master; `_on_npc_shot_dispersion` applies each factor only when its toggle is on, a disabled factor staying 1.0.
 
 Per-shot hot path: a rank-name lookup, a move_type compare, then pure-Lua scaling of the dispersion the callback hands us.
 
@@ -328,6 +328,8 @@ MCM page: Effectiveness > Reaction (`at_reaction.script`, built 2026-07-11). Per
 - **Trigger** (planned, 4th curve): per-rank scaling of the combat planner's burst roll — burst size and inter-burst interval — through `npc:set_fire_queue_scale` (upstream PR #603, `select_queue_params` application). Rookies clamp the trigger and spray, top ranks squeeze short settled groups. Values undecided: the per-bullet bench showed settled fire pays for LOW tiers only, so the endpoints derive from a hits-per-minute bench after the bind is in a release, not from the per-bullet data. MCM shows the planned block on the Reaction page.
 
 The rejected delivery, for the record: driving the global `ai_aim_*` cvars from per-NPC update callbacks (one NPC at a time owns 4 globals, actor-only, reset every actor update — a writer war), with values degenerate in the radians domain (min_angle above PI kills the blend band; min_speed above every animation speed disables damping identically for every rank), and perception through a per-frame `get_visible_value` functor — the pattern code-standards bans. Reaction takes the per-rank CONCEPT, per-NPC: aim and vision set-once at spawn, the target lead recomputed on the fire seam.
+
+Each of the three curves has its own MCM toggle (`aim_enabled`, `vision_enabled`, `lead_enabled`) and its own per-rank slider set (`rct_aim_*`, `rct_vision_*`, `rct_lead_*`); there is no page master. `apply()` sets tracking behind `aim_enabled` and vision behind `vision_enabled`, `_on_shot_lead` runs behind `lead_enabled`. Each subsystem's explanation is the hover hint on its toggle, not a separate row.
 
 On an exe without the binds both wrappers return false and Reaction logs INACTIVE once; vanilla behavior applies untouched.
 

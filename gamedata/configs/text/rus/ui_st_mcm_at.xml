@@ -193,12 +193,6 @@
   <string id="ui_mcm_at_accuracy_desc">
     <text>Точность сталкера масштабируется по рангу. Мастер стреляет точнее новичка, каждый тир настраивается ниже. У движка есть кривая разброса по рангу, но данные рангов Anomaly оставляют её плоской, поэтому каждый сталкер стреляет с одинаковым разбросом. AlifeTactics ведёт кривую через собственный коллбэк разброса движка. Разброс оружия и ствола не затрагивается. Здесь масштабируется навык сталкера.</text>
   </string>
-  <string id="ui_mcm_at_accuracy_accuracy_enabled">
-    <text>Включить точность</text>
-  </string>
-  <string id="ui_mcm_at_accuracy_accuracy_enabled_desc">
-    <text>Когда выключено, плоский разброс движка применяется к каждому сталкеру независимо от ранга.</text>
-  </string>
   <string id="ui_mcm_at_hdr_accuracy_curve">
     <text>Кривая по рангам</text>
   </string>
@@ -478,12 +472,6 @@
   <string id="ui_mcm_at_accuracy_acc_move_legend_desc">
     <text>Какую долю штрафа разброса за движение сталкер ранга легенда, высшего ранга, сохраняет при стрельбе на ходу. 0.50 делает его стрельбу в движении такой же ровной, как стоя.</text>
   </string>
-  <string id="ui_mcm_at_reaction_reaction_enabled">
-    <text>Включить Реакцию</text>
-  </string>
-  <string id="ui_mcm_at_reaction_reaction_enabled_desc">
-    <text>Когда выключено, все сталкеры целятся и замечают с одинаковой движковой скоростью независимо от ранга.</text>
-  </string>
   <string id="ui_mcm_at_hdr_reaction_aim">
     <text>Скорость сопровождения</text>
   </string>
@@ -534,57 +522,6 @@
   </string>
   <string id="ui_mcm_at_reaction_rct_aim_legend_desc">
     <text>Насколько плотно ствол сталкера ранга легенда, высшего ранга, следует за движущейся целью. 2.50 соответствует опции хардкорного прицеливания ИИ.</text>
-  </string>
-  <string id="ui_mcm_at_hdr_reaction_predict">
-    <text>Кривая упреждения</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_predict_novice">
-    <text>Упреждение у новичка</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_predict_novice_desc">
-    <text>На сколько секунд сталкер ранга новичок целится с упреждением по движущейся цели. Ниже - точнее при смене направления. 0.40 - ванильное упреждение.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_predict_trainee">
-    <text>Упреждение у ученика</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_predict_trainee_desc">
-    <text>На сколько секунд сталкер ранга ученик целится с упреждением по движущейся цели. Ниже - точнее при смене направления.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_predict_experienced">
-    <text>Упреждение у опытного</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_predict_experienced_desc">
-    <text>На сколько секунд сталкер ранга опытный целится с упреждением по движущейся цели. Ниже - точнее при смене направления.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_predict_professional">
-    <text>Упреждение у профессионала</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_predict_professional_desc">
-    <text>На сколько секунд сталкер ранга профессионал целится с упреждением по движущейся цели. Ниже - точнее при смене направления.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_predict_veteran">
-    <text>Упреждение у ветерана</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_predict_veteran_desc">
-    <text>На сколько секунд сталкер ранга ветеран целится с упреждением по движущейся цели. Ниже - точнее при смене направления.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_predict_expert">
-    <text>Упреждение у эксперта</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_predict_expert_desc">
-    <text>На сколько секунд сталкер ранга эксперт целится с упреждением по движущейся цели. Ниже - точнее при смене направления.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_predict_master">
-    <text>Упреждение у мастера</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_predict_master_desc">
-    <text>На сколько секунд сталкер ранга мастер целится с упреждением по движущейся цели. Ниже - точнее при смене направления.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_predict_legend">
-    <text>Упреждение у легенды</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_predict_legend_desc">
-    <text>На сколько секунд сталкер ранга легенда, высшего ранга, целится с упреждением по движущейся цели. Ниже - точнее при смене направления. 0.28 соответствует опции хардкорного прицеливания ИИ.</text>
   </string>
   <string id="ui_mcm_at_hdr_reaction_vision">
     <text>Кривая скорости зрения</text>
@@ -663,5 +600,86 @@
   </string>
   <string id="ui_mcm_at_development_ballistics_enabled_desc">
     <text>Записывает исходы выстрелов рядом с вами: точность по рангам с разбивкой по движению стрелка, нанесённый урон, промахи рядом и длины очередей по типу оружия, с контекстом управления (манёвр, удержание Приверженности или ваниль) в каждой записи. Таблицы пишутся в alifetactics_ballistics.log раз в минуту. В выключенном состоянии ничего не стоит.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_aim_enabled">
+    <text>Включить скорость слежения</text>
+  </string>
+  <string id="ui_mcm_at_reaction_aim_enabled_desc">
+    <text>Насколько плотно ствол сталкера ведет движущуюся цель, по рангам. Низкие ранги отстают от бегущей цели, высшие держат ее на прицеле. Если выключено, применяется плоская скорость движка.</text>
+  </string>
+  <string id="ui_mcm_at_hdr_reaction_lead">
+    <text>Упреждение</text>
+  </string>
+  <string id="ui_mcm_at_reaction_lead_enabled">
+    <text>Включить упреждение</text>
+  </string>
+  <string id="ui_mcm_at_reaction_lead_enabled_desc">
+    <text>Насколько сталкер целится впереди движущейся цели, исходя из реального времени полета пули. Высшие ранги берут точное упреждение и попадают по бегущим, низшие перебирают. Если выключено, применяется фиксированное упреждение движка.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_vision_enabled">
+    <text>Включить скорость обнаружения</text>
+  </string>
+  <string id="ui_mcm_at_reaction_vision_enabled_desc">
+    <text>Как быстро сталкер замечает цель на дистанции, по рангам, поверх вашей системы обнаружения. Высшие ранги замечают вас раньше. Если выключено, применяется плоская скорость обнаружения.</text>
+  </string>
+  <string id="ui_mcm_at_accuracy_disp_enabled">
+    <text>Включить кривую разброса</text>
+  </string>
+  <string id="ui_mcm_at_accuracy_disp_enabled_desc">
+    <text>Насколько узок конус прицеливания каждого ранга. Низкие ранги палят широко, высшие кучно. Если выключено, применяется плоский конус движка.</text>
+  </string>
+  <string id="ui_mcm_at_accuracy_move_enabled">
+    <text>Включить огонь в движении</text>
+  </string>
+  <string id="ui_mcm_at_accuracy_move_enabled_desc">
+    <text>Насколько каждый ранг компенсирует штраф к точности при стрельбе в движении. Высшие ранги точны на ходу. Если выключено, штраф остается полным.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_lead_novice">
+    <text>Упреждение новичка</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_lead_novice_desc">
+    <text>Ошибка упреждения для ранга новичок, множитель к физически верному упреждению. 2.00 перебирает по бегущей цели, 1.00 берет точно.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_lead_trainee">
+    <text>Упреждение стажера</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_lead_trainee_desc">
+    <text>Ошибка упреждения для ранга стажер. Выше 1.00 перебирает по движущейся цели, 1.00 берет точно.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_lead_experienced">
+    <text>Упреждение опытного</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_lead_experienced_desc">
+    <text>Ошибка упреждения для ранга опытный. Выше 1.00 перебирает по движущейся цели, 1.00 берет точно.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_lead_professional">
+    <text>Упреждение профессионала</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_lead_professional_desc">
+    <text>Ошибка упреждения для ранга профессионал. Выше 1.00 перебирает по движущейся цели, 1.00 берет точно.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_lead_veteran">
+    <text>Упреждение ветерана</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_lead_veteran_desc">
+    <text>Ошибка упреждения для ранга ветеран. Выше 1.00 перебирает по движущейся цели, 1.00 берет точно.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_lead_expert">
+    <text>Упреждение эксперта</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_lead_expert_desc">
+    <text>Ошибка упреждения для ранга эксперт. Выше 1.00 перебирает по движущейся цели, 1.00 берет точно.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_lead_master">
+    <text>Упреждение мастера</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_lead_master_desc">
+    <text>Ошибка упреждения для ранга мастер. Выше 1.00 перебирает по движущейся цели, 1.00 берет точно.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_lead_legend">
+    <text>Упреждение легенды</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_lead_legend_desc">
+    <text>Ошибка упреждения для ранга легенда, высший. 1.00 берет точно и попадает по бегущим.</text>
   </string>
 </string_table>

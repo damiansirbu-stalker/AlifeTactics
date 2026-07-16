@@ -18,9 +18,9 @@ local cfg = at_mcm.cfg
 
 -- The numbers live in configs/alifetactics/at_reaction.ltx (grounding documented there: vanilla and
 -- the hardcore-aim option bound the aim/lead curves, the installed-baseline rule bounds vision).
--- Resolution order per key: MCM slider (when the player moved it, defaults
--- fed from the same LTX) -> LTX -> the script fallbacks below (missing key/file only, the repo-wide
--- LTX convention). _lead has no MCM row: LTX -> fallback (the lead is physics, not a player dial).
+-- Resolution order per key (aim, lead, and vision alike): MCM slider (when the player moved it,
+-- defaults fed from the same LTX) -> LTX -> the script fallbacks below (missing key/file only, the
+-- repo-wide LTX convention). Each curve has its own rct_* slider set and its own enable toggle.
 local CONFIG_PATH    = "alifetactics\\at_reaction.ltx"
 local CONFIG_SECTION = "at_reaction"
 
@@ -171,34 +171,36 @@ end
 
 --- Apply the rank curves to one NPC. The npc_on_net_spawn body, public because the engine fields
 --- are set once per spawn and never re-read: a runtime rank change (npc:set_character_rank) leaves
---- the old tier's aim/lead/vision applied until this re-keys them. No-op when Reaction is disabled;
---- INACTIVE exes no-op inside the xcombat wrappers.
+--- the old tier's aim/lead/vision applied until this re-keys them. Sets tracking behind aim_enabled and
+--- vision behind vision_enabled; INACTIVE exes no-op inside the xcombat wrappers.
 --- @param npc game_object stalker to (re-)apply the curves to
 function apply(npc)
-    if not cfg.reaction_enabled then return end
     if not (npc and npc:alive()) then return end
+    if not (cfg.aim_enabled or cfg.vision_enabled) then return end
 
     local tier = _get_obj_rank_name(npc)
     if not tier or tier == "" then return end
 
-    local aim = _resolve_aim(tier)
-    local vision = _vision[tier]
-    if not (aim and vision) then return end
-
-    -- Target lead is not set at spawn: no enemy or range exists yet. predict passes -1 (follow the global
-    -- ai_aim_predict_time) until the first throttled fire-seam recompute derives it from live geometry
-    -- (_on_shot_lead, t156). aim is floored up to the live global by _resolve_aim so a per-NPC value never
-    -- downgrades the NPC below the game's hardcore-aim option.
-    local ok_aim = xcombat.set_aim_params(npc, -1, -1, aim, -1)
-    local ok_vision = xcombat.set_vision_speed(npc, vision)
-
-    if _dbg then
-        log.debug("[RCT] id=%d name=%s tier=%s aim=%.2f vision=%.2f applied_aim=%s applied_vision=%s",
-            npc:id(), npc:name(), tier, aim, vision,
-            ok_aim and "yes" or "no", ok_vision and "yes" or "no")
+    -- Tracking and vision are set once here, each behind its own toggle. Target lead is NOT set at spawn
+    -- (no enemy or range yet) - predict follows the global ai_aim_predict_time until the first throttled
+    -- fire-seam recompute (_on_shot_lead, t156). _resolve_aim floors aim up to the live global so a per-NPC
+    -- value never downgrades the NPC below the game's hardcore-aim option.
+    local ok_aim, ok_vision
+    if cfg.aim_enabled then
+        local aim = _resolve_aim(tier)
+        if aim then ok_aim = xcombat.set_aim_params(npc, -1, -1, aim, -1) end
+    end
+    if cfg.vision_enabled then
+        local vision = _vision[tier]
+        if vision then ok_vision = xcombat.set_vision_speed(npc, vision) end
     end
 
     _log_binds_once(ok_aim, ok_vision)
+
+    if _dbg then
+        log.debug("[RCT] id=%d tier=%s applied_aim=%s applied_vision=%s",
+            npc:id(), tier, ok_aim and "yes" or "no", ok_vision and "yes" or "no")
+    end
 end
 
 --- Adaptive target lead on the fire seam (t156). Throttled per NPC: most shots cost one timestamp
@@ -211,7 +213,7 @@ end
 --- @param obj game_object firing stalker
 --- @param wpn game_object|nil the weapon that fired
 local function _on_shot_lead(obj, wpn, body_state, move_type, temp_disp)
-    if not cfg.reaction_enabled then return end
+    if not cfg.lead_enabled then return end
     if not obj then return end
 
     local id = obj:id()
@@ -262,13 +264,16 @@ local function _refresh_config()
     for i = 1, #TIERS do
         local tier = TIERS[i]
         _aim[tier]     = at_mcm.get_config("rct_aim_" .. tier)     or _aim[tier]
+        _lead[tier]    = at_mcm.get_config("rct_lead_" .. tier)    or _lead[tier]
         _vision[tier]  = at_mcm.get_config("rct_vision_" .. tier)  or _vision[tier]
     end
 end
 
 local function _on_first_update()
     _refresh_config()
-    log.info("Reaction hook initialized (enabled=%s)", cfg.reaction_enabled and "true" or "false")
+    log.info("Reaction hook initialized (aim=%s vision=%s lead=%s)",
+        cfg.aim_enabled and "on" or "off", cfg.vision_enabled and "on" or "off",
+        cfg.lead_enabled and "on" or "off")
 end
 
 function on_game_start()

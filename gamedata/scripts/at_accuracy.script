@@ -35,17 +35,16 @@ local _get_obj_rank_name = ranks.get_obj_rank_name
 -- axr_main.script:126 and _g.script:1213-1217. temp_disp is a shared table;
 -- subscribers read/write temp_disp.dispersion.
 local function _on_npc_shot_dispersion(obj, wpn, body_state, move_type, temp_disp)
-    if not cfg.accuracy_enabled then return end
+    if not (cfg.disp_enabled or cfg.move_enabled) then return end
     if not obj or not temp_disp then return end
 
     local tier = _get_obj_rank_name(obj)
     if not tier or tier == "" then return end
 
-    local disp = _disp[tier]
-    if not disp then return end
-
+    -- Dispersion and moving-fire are independent toggles: a disabled factor stays 1.0 (no change).
+    local disp = (cfg.disp_enabled and _disp[tier]) or 1.0
     local move = 1.0
-    if move_type and move_type <= MT_RUN then
+    if cfg.move_enabled and move_type and move_type <= MT_RUN then
         move = _move[tier] or 1.0
     end
 
@@ -76,8 +75,8 @@ end
 
 local function _on_first_update()
     _refresh_config()
-    log.info("Accuracy hook initialized (enabled=%s, dbg=%s)",
-        cfg.accuracy_enabled and "true" or "false", _dbg and "true" or "false")
+    log.info("Accuracy hook initialized (dispersion=%s, moving=%s, dbg=%s)",
+        cfg.disp_enabled and "on" or "off", cfg.move_enabled and "on" or "off", _dbg and "true" or "false")
 end
 
 function on_game_start()
