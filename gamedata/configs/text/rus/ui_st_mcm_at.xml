@@ -527,10 +527,7 @@
     <text>Кривая скорости зрения</text>
   </string>
   <string id="ui_mcm_at_hdr_reaction_trigger">
-    <text>Кривая спуска (планируется)</text>
-  </string>
-  <string id="ui_mcm_at_reaction_trigger_wip">
-    <text>Планируется: как каждый ранг работает со спуском, через новый движковый хук. Новички зажимают его и поливают длинными задирающимися очередями, высшие ранги дают короткие устойчивые очереди и дают оружию вернуться. Пока нечего настраивать.</text>
+    <text>Огневая дисциплина (длина очереди)</text>
   </string>
   <string id="ui_mcm_at_reaction_rct_vision_novice">
     <text>Скорость зрения у новичка</text>
@@ -681,5 +678,110 @@
   </string>
   <string id="ui_mcm_at_reaction_rct_lead_legend_desc">
     <text>Ошибка упреждения для ранга легенда, высший. 1.00 берет точно и попадает по бегущим.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_discipline_enabled">
+    <text>Включить огневую дисциплину</text>
+  </string>
+  <string id="ui_mcm_at_reaction_discipline_enabled_desc">
+    <text>Масштабирует длину и темп очередей по рангам. Высшие ранги дают короткие точные очереди чаще, низшие остаются ванильными. По умолчанию масштаб длины не меньше масштаба интервала, поэтому попадания в минуту не падают ниже ванили. Выключено = ванильные очереди.</text>
+  </string>
+  <string id="ui_mcm_at_hdr_reaction_qinterval">
+    <text>Темп огня (интервал)</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qsize_novice">
+    <text>Длина очереди: новичок</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qsize_novice_desc">
+    <text>Множитель длины очереди для этого ранга. 1.00 = ваниль, ниже 1 обрезает очередь до точных первых выстрелов.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qsize_trainee">
+    <text>Длина очереди: стажер</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qsize_trainee_desc">
+    <text>Множитель длины очереди для этого ранга. 1.00 = ваниль, ниже 1 обрезает очередь до точных первых выстрелов.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qsize_experienced">
+    <text>Длина очереди: опытный</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qsize_experienced_desc">
+    <text>Множитель длины очереди для этого ранга. 1.00 = ваниль, ниже 1 обрезает очередь до точных первых выстрелов.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qsize_professional">
+    <text>Длина очереди: профессионал</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qsize_professional_desc">
+    <text>Множитель длины очереди для этого ранга. 1.00 = ваниль, ниже 1 обрезает очередь до точных первых выстрелов.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qsize_veteran">
+    <text>Длина очереди: ветеран</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qsize_veteran_desc">
+    <text>Множитель длины очереди для этого ранга. 1.00 = ваниль, ниже 1 обрезает очередь до точных первых выстрелов.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qsize_expert">
+    <text>Длина очереди: эксперт</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qsize_expert_desc">
+    <text>Множитель длины очереди для этого ранга. 1.00 = ваниль, ниже 1 обрезает очередь до точных первых выстрелов.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qsize_master">
+    <text>Длина очереди: мастер</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qsize_master_desc">
+    <text>Множитель длины очереди для этого ранга. 1.00 = ваниль, ниже 1 обрезает очередь до точных первых выстрелов.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qsize_legend">
+    <text>Длина очереди: легенда</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qsize_legend_desc">
+    <text>Множитель длины очереди для этого ранга. 1.00 = ваниль, ниже 1 обрезает очередь до точных первых выстрелов.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qinterval_novice">
+    <text>Темп огня: новичок</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qinterval_novice_desc">
+    <text>Множитель паузы между очередями для этого ранга. 1.00 = ваниль, ниже 1 стреляет чаще.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qinterval_trainee">
+    <text>Темп огня: стажер</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qinterval_trainee_desc">
+    <text>Множитель паузы между очередями для этого ранга. 1.00 = ваниль, ниже 1 стреляет чаще.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qinterval_experienced">
+    <text>Темп огня: опытный</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qinterval_experienced_desc">
+    <text>Множитель паузы между очередями для этого ранга. 1.00 = ваниль, ниже 1 стреляет чаще.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qinterval_professional">
+    <text>Темп огня: профессионал</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qinterval_professional_desc">
+    <text>Множитель паузы между очередями для этого ранга. 1.00 = ваниль, ниже 1 стреляет чаще.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qinterval_veteran">
+    <text>Темп огня: ветеран</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qinterval_veteran_desc">
+    <text>Множитель паузы между очередями для этого ранга. 1.00 = ваниль, ниже 1 стреляет чаще.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qinterval_expert">
+    <text>Темп огня: эксперт</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qinterval_expert_desc">
+    <text>Множитель паузы между очередями для этого ранга. 1.00 = ваниль, ниже 1 стреляет чаще.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qinterval_master">
+    <text>Темп огня: мастер</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qinterval_master_desc">
+    <text>Множитель паузы между очередями для этого ранга. 1.00 = ваниль, ниже 1 стреляет чаще.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qinterval_legend">
+    <text>Темп огня: легенда</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qinterval_legend_desc">
+    <text>Множитель паузы между очередями для этого ранга. 1.00 = ваниль, ниже 1 стреляет чаще.</text>
   </string>
 </string_table>

@@ -72,3 +72,29 @@ vision_veteran      = 1.44
 vision_expert       = 1.54
 vision_master       = 1.65
 vision_legend       = 2.00
+
+; qsize_* / qinterval_* are the two fire-queue scales (t154), fed to npc:set_fire_queue_scale (#603) at
+; spawn: qsize_ multiplies the combat planner's burst SIZE, qinterval_ the inter-burst PAUSE
+; (select_queue_params, stalker_combat_action_base.cpp:246-254). Higher rank = crisper short bursts
+; (qsize < 1) at a tighter cadence (qinterval < 1). NON-DEGRADATION INVARIANT: qsize >= qinterval at every
+; tier. rounds/min is proportional to size/(interval + size*dt), so qsize >= qinterval keeps rounds/min
+; >= vanilla; a shorter burst drops only the dispersed TAIL rounds (past base_dispersioned_bullets_count,
+; WeaponMagazined.cpp:797-800), so per-shot% rises. Volume >= vanilla + per-shot% >= vanilla => hits/min
+; >= vanilla (doc/library/modding/npc-combat-effectiveness.md, the queue section). Novice 1.00/1.00 =
+; exact vanilla. Small spans on purpose: this is a visible fire-behavior variation, not a lethality jump.
+qsize_novice       = 1.00
+qsize_trainee      = 0.98
+qsize_experienced  = 0.96
+qsize_professional = 0.94
+qsize_veteran      = 0.92
+qsize_expert       = 0.90
+qsize_master       = 0.88
+qsize_legend       = 0.85
+qinterval_novice       = 1.00
+qinterval_trainee      = 0.96
+qinterval_experienced  = 0.93
+qinterval_professional = 0.89
+qinterval_veteran      = 0.86
+qinterval_expert       = 0.82
+qinterval_master       = 0.79
+qinterval_legend       = 0.75

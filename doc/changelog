@@ -1,5 +1,5 @@
 next
-  Summary: Adaptive target lead, independent Effectiveness toggles
+  Summary: Adaptive target lead, fire discipline, independent Effectiveness toggles
 
   Effectiveness
     Accuracy
@@ -8,6 +8,8 @@ next
       - Added Target Lead: NPCs now lead a moving target by the round's actual flight time, computed live from range and the weapon's bullet speed, instead of a fixed amount.
         Rank sets how true the lead is: top ranks lead on the mark and hit movers while low ranks over-lead and overshoot, but the error is now bounded and scales with range instead of the old fixed overshoot at every distance.
       - Added a per-rank Target Lead curve in MCM and split the Reaction page into independent on/off switches for Tracking Speed, Vision Speed, and Target Lead, replacing the single Enable Reaction switch, each with its explanation on the toggle.
+      - Added Fire Discipline: higher ranks fire crisper short bursts at a tighter cadence while low ranks stay vanilla, a visible per-rank fire-behavior variation.
+        Two MCM curves (burst size and cadence) with defaults tuned so a rank's rounds per minute never falls below vanilla. Needs a recent engine build.
 
 1.1.5
   Summary: Counterflank, Reaction, Commitment, player-only maneuvers, no dead windows, danger from your setup, performance, fixes

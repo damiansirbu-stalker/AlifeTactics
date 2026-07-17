@@ -431,10 +431,112 @@
     <text>How fast a stalker notices a target at range, per rank, on top of your detection setup. Top ranks spot you sooner. Off leaves the flat detection speed.</text>
   </string>
   <string id="ui_mcm_at_hdr_reaction_trigger">
-    <text>Trigger Curve (planned)</text>
+    <text>Fire Discipline (Burst Size)</text>
   </string>
-  <string id="ui_mcm_at_reaction_trigger_wip">
-    <text>Planned: how each rank works the trigger, through a new engine hook. Rookies clamp it and spray long climbing bursts, top ranks squeeze short settled groups and let the weapon come back down. Nothing to configure yet.</text>
+  <string id="ui_mcm_at_reaction_discipline_enabled">
+    <text>Enable Fire Discipline</text>
+  </string>
+  <string id="ui_mcm_at_reaction_discipline_enabled_desc">
+    <text>Scales each rank's burst length and cadence. High ranks fire crisper short bursts more often; low ranks stay vanilla. Defaults keep the burst-size scale at or above the interval scale, so hits per minute never drops below vanilla. Off = vanilla queues.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qsize_novice">
+    <text>Novice burst size</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qsize_novice_desc">
+    <text>Multiplier on the novice-rank burst length. 1.00 = vanilla; below 1 trims the burst toward its accurate opening rounds.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qsize_trainee">
+    <text>Trainee burst size</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qsize_trainee_desc">
+    <text>Multiplier on the trainee-rank burst length. 1.00 = vanilla; below 1 trims to the accurate opening rounds.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qsize_experienced">
+    <text>Experienced burst size</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qsize_experienced_desc">
+    <text>Multiplier on the experienced-rank burst length. 1.00 = vanilla; below 1 trims to the accurate opening rounds.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qsize_professional">
+    <text>Professional burst size</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qsize_professional_desc">
+    <text>Multiplier on the professional-rank burst length. 1.00 = vanilla; below 1 trims to the accurate opening rounds.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qsize_veteran">
+    <text>Veteran burst size</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qsize_veteran_desc">
+    <text>Multiplier on the veteran-rank burst length. 1.00 = vanilla; below 1 trims to the accurate opening rounds.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qsize_expert">
+    <text>Expert burst size</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qsize_expert_desc">
+    <text>Multiplier on the expert-rank burst length. 1.00 = vanilla; below 1 trims to the accurate opening rounds.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qsize_master">
+    <text>Master burst size</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qsize_master_desc">
+    <text>Multiplier on the master-rank burst length. 1.00 = vanilla; below 1 trims to the accurate opening rounds.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qsize_legend">
+    <text>Legend burst size</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qsize_legend_desc">
+    <text>Multiplier on the legend-rank burst length, the highest rank. Below 1 = crisp short bursts. Keep at or above the interval multiplier so volume holds.</text>
+  </string>
+  <string id="ui_mcm_at_hdr_reaction_qinterval">
+    <text>Fire Cadence (Interval)</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qinterval_novice">
+    <text>Novice fire cadence</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qinterval_novice_desc">
+    <text>Multiplier on the novice-rank pause between bursts. 1.00 = vanilla; below 1 fires more often.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qinterval_trainee">
+    <text>Trainee fire cadence</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qinterval_trainee_desc">
+    <text>Multiplier on the trainee-rank pause between bursts. 1.00 = vanilla; below 1 fires more often.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qinterval_experienced">
+    <text>Experienced fire cadence</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qinterval_experienced_desc">
+    <text>Multiplier on the experienced-rank pause between bursts. 1.00 = vanilla; below 1 fires more often.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qinterval_professional">
+    <text>Professional fire cadence</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qinterval_professional_desc">
+    <text>Multiplier on the professional-rank pause between bursts. 1.00 = vanilla; below 1 fires more often.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qinterval_veteran">
+    <text>Veteran fire cadence</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qinterval_veteran_desc">
+    <text>Multiplier on the veteran-rank pause between bursts. 1.00 = vanilla; below 1 fires more often.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qinterval_expert">
+    <text>Expert fire cadence</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qinterval_expert_desc">
+    <text>Multiplier on the expert-rank pause between bursts. 1.00 = vanilla; below 1 fires more often.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qinterval_master">
+    <text>Master fire cadence</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qinterval_master_desc">
+    <text>Multiplier on the master-rank pause between bursts. 1.00 = vanilla; below 1 fires more often.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qinterval_legend">
+    <text>Legend fire cadence</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qinterval_legend_desc">
+    <text>Multiplier on the legend-rank pause between bursts, the highest rank. Below 1 = tighter cadence, more volume.</text>
   </string>
   <string id="ui_mcm_at_reaction_rct_vision_novice">
     <text>Novice vision speed</text>

@@ -114,7 +114,9 @@ Tracking Speed sets how tightly a barrel follows a moving target, from vanilla a
 Vision Speed sets how fast each rank notices a target at range, up to twice your setup's detection speed at the top.
 Target Lead aims a stalker ahead of a moving target by the round's real flight time, computed from range and the weapon's bullet speed as it fires.
 Higher ranks lead true and hit movers, lower ranks over-lead and overshoot.
-Tracking, Vision, and Target Lead are per-rank MCM slider curves, each with its own on/off and a short note on the toggle. A per-rank trigger curve is planned.
+Fire Discipline gives higher ranks crisper short bursts at a tighter cadence while low ranks stay vanilla.
+Defaults keep a rank's rounds per minute at or above vanilla.
+Tracking, Vision, Target Lead, and Fire Discipline are per-rank MCM slider curves, each with its own on/off and a short note on the toggle.
 Based on per-NPC aim and vision hooks created in xray-monolith for this mod; on older builds the page has no effect.
 
 Range (planned):

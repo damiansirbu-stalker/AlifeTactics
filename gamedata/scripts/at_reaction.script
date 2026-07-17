@@ -88,14 +88,14 @@ local _get_obj_rank_name = ranks.get_obj_rank_name
 local _bind_logged = false
 
 -- Log the reaction-bind capability exactly once, from the first apply that reaches the writes.
-local function _log_binds_once(ok_aim, ok_vision)
+local function _log_binds_once(ok_aim, ok_vision, ok_disc)
     if _bind_logged then return end
     _bind_logged = true
-    if ok_aim or ok_vision then
-        log.info("Reaction engine binds active (aim=%s vision=%s)",
-            ok_aim and "on" or "off", ok_vision and "on" or "off")
+    if ok_aim or ok_vision or ok_disc then
+        log.info("Reaction spawn binds active (aim=%s vision=%s discipline=%s)",
+            ok_aim and "on" or "off", ok_vision and "on" or "off", ok_disc and "on" or "off")
     else
-        log.info("Reaction INACTIVE: exe lacks the per-NPC aim/vision binds (PR #594); vanilla behavior applies")
+        log.info("Reaction INACTIVE: exe lacks the per-NPC spawn binds (PR #594/#603); vanilla behavior applies")
     end
 end
 
@@ -169,6 +169,54 @@ local function _bullet_speed(obj, wpn)
     return KIND_BSPEED[xcombat.get_weapon_kind(obj)], "fallback"
 end
 
+-- Fire discipline (t154): two per-rank queue scales fed to set_fire_queue_scale (#603). _qsize scales
+-- burst size (crisper short bursts at high rank), _qinterval scales the inter-burst pause (tighter
+-- cadence at high rank). NON-DEGRADATION INVARIANT: the shipped defaults keep _qsize >= _qinterval at
+-- every tier. rounds/min is proportional to size/(interval + size*dt), so size_k >= interval_k makes
+-- rounds/min >= vanilla, while a shorter burst drops only the dispersed TAIL rounds (past
+-- base_dispersioned_bullets_count, WeaponMagazined.cpp:797-800) -> per-shot% rises. Volume >= vanilla and
+-- per-shot% >= vanilla => hits/min >= vanilla (doc/library/modding/npc-combat-effectiveness.md, the queue
+-- section). Interval floored so bursts never merge into full-auto. 1.0/1.0 (novice) = exact vanilla.
+-- Vanilla-planner fire only: maneuver/state_mgr fire bypasses select_queue_params and this scale.
+local DISC_INT_FLOOR = 0.60
+local _qsize = {
+    novice       = 1.00,
+    trainee      = 0.98,
+    experienced  = 0.96,
+    professional = 0.94,
+    veteran      = 0.92,
+    expert       = 0.90,
+    master       = 0.88,
+    legend       = 0.85,
+}
+local _qinterval = {
+    novice       = 1.00,
+    trainee      = 0.96,
+    experienced  = 0.93,
+    professional = 0.89,
+    veteran      = 0.86,
+    expert       = 0.82,
+    master       = 0.79,
+    legend       = 0.75,
+}
+
+-- Set the per-rank queue scales on one NPC. novice (1.0/1.0) leaves the vanilla queue (field unset).
+-- No-op when the toggle is off or on a floor exe (the wrapper returns false).
+local function _apply_discipline(npc, tier)
+    if not cfg.discipline_enabled then return end
+    local sk = _qsize[tier]
+    local ik = _qinterval[tier]
+    if not (sk and ik) then return end
+    if sk == 1.0 and ik == 1.0 then return end
+    if ik < DISC_INT_FLOOR then ik = DISC_INT_FLOOR end
+    local ok = xcombat.set_fire_queue_scale(npc, sk, ik)
+    if _dbg then
+        log.debug("[RCT] disc id=%d tier=%s size_k=%.2f interval_k=%.2f applied=%s",
+            npc:id(), tier, sk, ik, ok and "yes" or "no")
+    end
+    return ok
+end
+
 --- Apply the rank curves to one NPC. The npc_on_net_spawn body, public because the engine fields
 --- are set once per spawn and never re-read: a runtime rank change (npc:set_character_rank) leaves
 --- the old tier's aim/lead/vision applied until this re-keys them. Sets tracking behind aim_enabled and
@@ -176,7 +224,7 @@ end
 --- @param npc game_object stalker to (re-)apply the curves to
 function apply(npc)
     if not (npc and npc:alive()) then return end
-    if not (cfg.aim_enabled or cfg.vision_enabled) then return end
+    if not (cfg.aim_enabled or cfg.vision_enabled or cfg.discipline_enabled) then return end
 
     local tier = _get_obj_rank_name(npc)
     if not tier or tier == "" then return end
@@ -194,8 +242,9 @@ function apply(npc)
         local vision = _vision[tier]
         if vision then ok_vision = xcombat.set_vision_speed(npc, vision) end
     end
+    local ok_disc = _apply_discipline(npc, tier)
 
-    _log_binds_once(ok_aim, ok_vision)
+    _log_binds_once(ok_aim, ok_vision, ok_disc)
 
     if _dbg then
         log.debug("[RCT] id=%d tier=%s applied_aim=%s applied_vision=%s",
@@ -252,9 +301,11 @@ local function _load_config()
     local ini = ini_file(CONFIG_PATH)
     for i = 1, #TIERS do
         local tier = TIERS[i]
-        _aim[tier]     = ini:r_float_ex(CONFIG_SECTION, "aim_" .. tier)     or _aim[tier]
-        _lead[tier]    = ini:r_float_ex(CONFIG_SECTION, "lead_" .. tier)    or _lead[tier]
-        _vision[tier]  = ini:r_float_ex(CONFIG_SECTION, "vision_" .. tier)  or _vision[tier]
+        _aim[tier]       = ini:r_float_ex(CONFIG_SECTION, "aim_" .. tier)       or _aim[tier]
+        _lead[tier]      = ini:r_float_ex(CONFIG_SECTION, "lead_" .. tier)      or _lead[tier]
+        _vision[tier]    = ini:r_float_ex(CONFIG_SECTION, "vision_" .. tier)    or _vision[tier]
+        _qsize[tier]     = ini:r_float_ex(CONFIG_SECTION, "qsize_" .. tier)     or _qsize[tier]
+        _qinterval[tier] = ini:r_float_ex(CONFIG_SECTION, "qinterval_" .. tier) or _qinterval[tier]
     end
 end
 
@@ -263,17 +314,19 @@ local function _refresh_config()
     _dbg = log.get_level() >= 5
     for i = 1, #TIERS do
         local tier = TIERS[i]
-        _aim[tier]     = at_mcm.get_config("rct_aim_" .. tier)     or _aim[tier]
-        _lead[tier]    = at_mcm.get_config("rct_lead_" .. tier)    or _lead[tier]
-        _vision[tier]  = at_mcm.get_config("rct_vision_" .. tier)  or _vision[tier]
+        _aim[tier]       = at_mcm.get_config("rct_aim_" .. tier)       or _aim[tier]
+        _lead[tier]      = at_mcm.get_config("rct_lead_" .. tier)      or _lead[tier]
+        _vision[tier]    = at_mcm.get_config("rct_vision_" .. tier)    or _vision[tier]
+        _qsize[tier]     = at_mcm.get_config("rct_qsize_" .. tier)     or _qsize[tier]
+        _qinterval[tier] = at_mcm.get_config("rct_qinterval_" .. tier) or _qinterval[tier]
     end
 end
 
 local function _on_first_update()
     _refresh_config()
-    log.info("Reaction hook initialized (aim=%s vision=%s lead=%s)",
+    log.info("Reaction hook initialized (aim=%s vision=%s lead=%s discipline=%s)",
         cfg.aim_enabled and "on" or "off", cfg.vision_enabled and "on" or "off",
-        cfg.lead_enabled and "on" or "off")
+        cfg.lead_enabled and "on" or "off", cfg.discipline_enabled and "on" or "off")
 end
 
 function on_game_start()
