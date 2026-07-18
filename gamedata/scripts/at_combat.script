@@ -476,6 +476,26 @@ local function _on_hit(npc, amount)
     state.hit_at = time_global()
 end
 
+-- Reload edges (npc_on_weapon_reload_start/stop, the n031 engine events): stamp the NPC's reload state
+-- so the reload_cover row's need is a pure-Lua read on the walk. The stop edge is best-effort (a weapon
+-- detached mid-reload fires nothing), so the stamp carries reload_at and the row bounds it with a
+-- staleness window plus the authoritative xcombat.is_reloading confirm at feasibility. On an exe without
+-- the events the stamps never set and the row is inert (self-gating; INACTIVE logged at on_game_start).
+local function _on_reload_start(npc)
+    if not npc then return end
+    local state = _npc_states[npc:id()]
+    if not state then return end
+    state.reloading = true
+    state.reload_at = time_global()
+end
+
+local function _on_reload_stop(npc)
+    if not npc then return end
+    local state = _npc_states[npc:id()]
+    if not state then return end
+    state.reloading = nil
+end
+
 local function _on_net_destroy(npc)
     if not npc then return end
     local id = npc:id()
@@ -576,4 +596,7 @@ function on_game_start()
     RegisterScriptCallback("actor_on_first_update",       _on_first_update)
     RegisterScriptCallback("on_option_change",            _on_option_change)
     RegisterScriptCallback("mcm_option_restore_default",  _on_option_change)
+    if not (xcombat.on_reload_start(_on_reload_start) and xcombat.on_reload_stop(_on_reload_stop)) then
+        log.info("Reload Cover INACTIVE: exe lacks the NPC reload events (PR #611); row inert")
+    end
 end

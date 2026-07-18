@@ -78,7 +78,7 @@
     <text>Planned: new combat actions the vanilla planner lacks, melee first. Nothing to configure yet.</text>
   </string>
   <string id="ui_mcm_at_commitment_desc">
-    <text>Vanilla stalkers re-plan their fight every moment, so any small change - a cover spot that scores a little better, sight dropping for an instant, a teammate crossing the firing line - makes a stalker abandon what he was doing and choose again. That constant re-deciding is the twitchy strafing and cover-hopping you see in a firefight. Commitment stops it without taking the stalker over: while what he is doing still makes sense, he stays with it instead of trading it away for a marginally better move, and he switches the instant it stops making sense (he loses sight, the shot is blocked, the enemy is gone). The result is a stalker who sees a decision through - keeps up his fire, presses a flank, finishes a reload where he stands - instead of second-guessing himself every frame. Requires a recent engine build with the action-switch veto; on older builds the toggle has no effect and vanilla behavior applies.</text>
+    <text>Vanilla stalkers re-plan their fight every moment, so any small change - a cover spot that scores a little better, sight dropping for an instant, a teammate crossing the firing line - makes a stalker abandon what he was doing and choose again. That constant re-deciding is the twitchy strafing and cover-hopping you see in a firefight. Commitment stops it without taking the stalker over: while what he is doing still makes sense, he stays with it instead of trading it away for a marginally better move, and he switches the instant it stops making sense (he loses sight, the shot is blocked, the enemy is gone). It also pins his cover: a stalker firing with a clear shot keeps his spot instead of sliding to a marginally better one, so the strafe is stopped at its source. The result is a stalker who sees a decision through - keeps up his fire, presses a flank, finishes a reload where he stands - instead of second-guessing himself every frame. Requires a recent engine build; on older builds the toggle has no effect and vanilla behavior applies.</text>
   </string>
   <string id="ui_mcm_at_reaction_desc">
     <text>Stalker rank decides how tightly a stalker's gun tracks a moving target and how fast it spots a target at range. Tracking speed changes gun handling on a moving target; it does not make the first shot come sooner. Target lead and a per-rank trigger curve are planned. Requires a recent engine build with the per-stalker aim and vision binds; on older builds the page has no effect and vanilla behavior applies.</text>
@@ -101,13 +101,19 @@
   </string>
   <!-- ==================== DISCLOSURE PAGE ==================== -->
   <string id="ui_mcm_at_disclosure_desc">
-    <text>Wound one member of a squad and the whole squad learns the shooter at once, including patrol members out of earshot and against a suppressed weapon. Vanilla shares only a shooter the squadmates heard. AlifeTactics enables the shooter in every member's memory and registers the squad into combat, then the engine's own propagation carries it. No relations are faked. The survivor gate below keeps a clean instant kill quiet, and the squad can still find the body.</text>
+    <text>Wound one member of a squad and the whole squad learns the shooter at once, including patrol members out of earshot and against a suppressed weapon. Vanilla shares only a shooter the squadmates heard. AlifeTactics enables the shooter in every member's memory and registers the squad into combat, then the engine's own propagation carries it. On a recent engine build the shooter also enters their seen memory, the class their target selection ranks first, so the squad actually turns on you instead of staying locked on a distant visible enemy. No relations are faked. The survivor gate below keeps a clean instant kill quiet, and the squad can still find the body.</text>
   </string>
   <string id="ui_mcm_at_disclosure_disclosure_enabled">
     <text>Enable Disclosure</text>
   </string>
   <string id="ui_mcm_at_disclosure_disclosure_enabled_desc">
     <text>When off, vanilla behavior runs unmodified: squadmates learn about a shooter only within earshot, and distant patrol members never do.</text>
+  </string>
+  <string id="ui_mcm_at_disclosure_disclosure_turn">
+    <text>Turn on the shooter</text>
+  </string>
+  <string id="ui_mcm_at_disclosure_disclosure_turn_desc">
+    <text>The disclosed shooter enters each member's seen memory, the class their target selection ranks first, so the squad actually turns on him instead of staying locked on a distant visible enemy. Off keeps the softer disclosure: they know the shooter and can engage, but a seen enemy still outranks him. Needs a recent engine build; inactive on older ones.</text>
   </string>
   <string id="ui_mcm_at_disclosure_hdr_survivor">
     <text>Stealth</text>
@@ -596,6 +602,12 @@
     <text>Detection speed factor for legend-rank stalkers, the highest rank. Higher notices targets faster at range. 2.00 notices targets twice as fast as your setup's baseline.</text>
   </string>
   <!-- ==================== COMMITMENT PAGE ==================== -->
+  <string id="ui_mcm_at_commitment_commitment_cover_pin">
+    <text>Cover pinning</text>
+  </string>
+  <string id="ui_mcm_at_commitment_commitment_cover_pin_desc">
+    <text>A stalker firing with a clear shot keeps his cover instead of sliding to a marginally better spot - the mid-fight strafe stopped at its cause, one step before the action switch Commitment already holds. A compromised spot (enemy on top of it, shot blocked) still releases. Needs a recent engine build; inactive on older ones.</text>
+  </string>
   <string id="ui_mcm_at_commitment_commitment_enabled">
     <text>Enable Commitment</text>
   </string>
@@ -635,6 +647,12 @@
   </string>
   <string id="ui_mcm_at_combat_maneuver_counterflank_desc">
     <text>A stalker shooting a distant target while a hostile player stands at contact range turns and engages the closer threat instead of presenting his back.</text>
+  </string>
+  <string id="ui_mcm_at_combat_maneuver_reload_cover">
+    <text>Reload Cover</text>
+  </string>
+  <string id="ui_mcm_at_combat_maneuver_reload_cover_desc">
+    <text>A stalker caught reloading under fire runs to the nearest cover instead of standing in the open, and his weapon finishes reloading on the way. Reloading in peace stays where it is. Needs a recent engine build.</text>
   </string>
   <string id="ui_mcm_at_combat_maneuver_kite">
     <text>Kite</text>
@@ -678,7 +696,13 @@
   </string>
   <!-- ==================== DANGER FOLDER (SOUND / HIT / FIXES) ==================== -->
   <string id="ui_mcm_at_danger_sound_desc">
-    <text>How stalkers react to threats they hear. AlifeTactics installs as a runtime patch onto whichever danger script your modpack ships, so it works with other combat AI instead of replacing the file. Reaction distances come from your setup's danger config; AlifeTactics adds the reactions, not the tuning.</text>
+    <text>How stalkers react to what they hear. Gunfire reactions use your setup's danger config distances; your own noise (movement, handling) uses short built-in radii. Runtime patch onto whichever danger script your modpack ships - works with other combat AI, replaces nothing.</text>
+  </string>
+  <string id="ui_mcm_at_danger_hdr_gunfire">
+    <text>Gunfire</text>
+  </string>
+  <string id="ui_mcm_at_danger_hdr_noise">
+    <text>Your noise</text>
   </string>
   <string id="ui_mcm_at_danger_hit_desc">
     <text>How stalkers react to being hit. Reaction distances come from your setup's danger config; AlifeTactics adds the reactions, not the tuning.</text>
@@ -697,6 +721,30 @@
   </string>
   <string id="ui_mcm_at_fixes_danger_danger_attack_sound_desc">
     <text>Vanilla NPCs ignore gunfire they hear but cannot see. This makes a stalker react to an ENEMY's shots without line of sight: he turns to face the gun and takes a threat stance, and moves to cover once he can see the shooter. He is responding to the sound, not to sight of you. Gunfire from neutral or friendly stalkers, including yours, does not alarm them - that is the engine's relation rule, same as vanilla. Reaction distance follows your setup's danger config.</text>
+  </string>
+  <string id="ui_mcm_at_danger_danger_neutral_gunfire">
+    <text>Neutral gunfire alert</text>
+  </string>
+  <string id="ui_mcm_at_danger_danger_neutral_gunfire_desc">
+    <text>Neutral and friendly stalkers go on alert when you fire close to them - weapon-ready stance, facing your shots - instead of ignoring gunfire next to their heads. Alert is all it is: they do not turn hostile, do not reposition, and settle down when the shooting stops. Short reach, nowhere near combat detection ranges.</text>
+  </string>
+  <string id="ui_mcm_at_danger_danger_move_noise">
+    <text>Movement noise</text>
+  </string>
+  <string id="ui_mcm_at_danger_danger_move_noise_desc">
+    <text>Hostile stalkers hear you move. Each footstep carries a noise radius built from your stance, the surface, and the weather: sneaking is near-silent, sprinting on metal carries far, rain muffles everything, and a jump landing is the loudest thing you can do. A hostile who hears you turns to the sound and goes on alert, he does not magically know where you are. Only stalkers already hostile to you react, and only outside combat, so stealth stays a game of distance and stance instead of NPCs being deaf.</text>
+  </string>
+  <string id="ui_mcm_at_danger_danger_heard_actions">
+    <text>Handling noise</text>
+  </string>
+  <string id="ui_mcm_at_danger_danger_heard_actions_desc">
+    <text>Hostile stalkers react to hearing you rack a reload, click empty, or use an item nearby. Shorter reach than movement noise, and only for sounds their ears actually caught. A hostile who hears it turns to the sound and goes on alert.</text>
+  </string>
+  <string id="ui_mcm_at_danger_danger_noise_mult">
+    <text>Noise carry distance</text>
+  </string>
+  <string id="ui_mcm_at_danger_danger_noise_mult_desc">
+    <text>Scales how far your movement and handling noise carries. Below 1 makes stealth more forgiving, above 1 makes stalkers sharper-eared.</text>
   </string>
   <string id="ui_mcm_at_fixes_danger_danger_actor_tables">
     <text>Player ranges</text>

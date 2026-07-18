@@ -1,4 +1,4 @@
---- at_commitment: Hold a winning combat action - deny the break-contact shuffle via the action-switch veto
+--- at_commitment: Hold a winning combat action - deny the break-contact shuffle at the action-switch and cover re-pick vetoes
 
 local RegisterScriptCallback, time_global, string_format, tostring = RegisterScriptCallback, time_global, string.format, tostring
 local pairs, table_concat = pairs, table.concat
@@ -122,6 +122,17 @@ local RECENT_HOLD_MS = 4000
 -- npc id -> time_global() of the last logged decline (the decline trace dedup, debug only)
 local _decline_at = {}
 local DECLINE_LOG_MS = 1000
+-- npc id -> current combat action id, shadowed from npc_on_combat_action_changed. The cover re-pick
+-- veto hands the subscriber only (npc, flags), and re-picks fire exclusively from the RUNNING combat
+-- action's execute, so this shadow is what scopes the cover deny to the fire actions. The engine does
+-- not report a fight's INITIAL action (stalker_combat_planner.cpp:107 fires only on current != previous
+-- past the first update), so the shadow can be nil (fresh NPC: reads as not-held, re-picks pass) or
+-- stale from the last fight until the first in-combat swap - a wrong hold in that window still passes
+-- the live advantage gates and the cap.
+local _cur_op = {}
+-- npc id -> { since, denies }, the running cover-refusal window - the cover twin of _hold, capped by
+-- the same _hold_cap_ms TTL, closed by any ACTUAL cover change (_on_best_cover_changed)
+local _cover_hold = {}
 
 --- The open hold window for `id` ({ op, since, denies }) or nil - the debug HUD's headline read.
 function get_hold(id)
@@ -277,6 +288,7 @@ end
 local function _on_action_changed(npc, prev_op, new_op)
     if not npc then return end
     local id = npc:id()
+    _cur_op[id] = new_op
     local hold = _hold[id]
     if hold then
         local tg = time_global()
@@ -304,6 +316,56 @@ local function _on_death(npc)
     _decline_at[id] = nil
     _census_at[id] = nil
     _hit_at[id] = nil
+    _cur_op[id] = nil
+    _cover_hold[id] = nil
+end
+
+-- Veto handler on the best-cover re-pick seam (npc_on_best_cover_repick, PR #607). Denies the re-pick
+-- while the NPC is ON a fire action with the shot still paying - the same advantage gate as the
+-- fire-action exit hold - so InCover never drops and the kill_enemy -> take_cover proposal never
+-- happens: the shuffle's CAUSE, caught one step before the switch veto's symptom. Scoped by _cur_op to
+-- the two fire actions; every other caller of best_cover() (take_cover's walk, look_out,
+-- hold_position, the grenade dodge's hide-cover) keeps vanilla re-picks - denying during
+-- hide_from_grenade would pin the NPC's grenade cover to its old fire spot. A maneuver-seized NPC
+-- never reaches here (blocked planner, no combat action executes). Two invalidators are standing
+-- state, not events (enemy inside 3m of the held cover, a smart cover with no loophole): while one
+-- holds and we deny, the engine re-asks every action execute - _hold_cap_ms bounds that window the
+-- same way it bounds the switch-hold deny stream.
+-- @cost O(1) | a few luabind on a fire-action re-pick (best_enemy, sees, can_kill_member,
+--   fire_make_sense - the last two raycast-class), pure-Lua early-out otherwise
+local function _on_cover_repick(npc, flags)
+    if flags.allow == false then return end
+    if not cfg.commitment_enabled then return end
+    if cfg.commitment_cover_pin == false then return end
+    if not _attack_ops then _resolve_ops() end
+    local id = npc:id()
+    if not _attack_ops[_cur_op[id]] then return end
+    if xcreature.community(npc) == "zombied" then return end
+    local enemy = npc:best_enemy()
+    if not enemy then _log_decline(npc, id, "cover_no_enemy") return end
+    if not xcombat.sees(npc, enemy) then _log_decline(npc, id, "cover_no_sight") return end
+    if xcombat.can_kill_member(npc, enemy:position()) then _log_decline(npc, id, "cover_lane_blocked") return end
+    if not xcombat.fire_make_sense(npc, enemy) then _log_decline(npc, id, "cover_out_of_range") return end
+
+    local tg = time_global()
+    local hold = _cover_hold[id]
+    if not hold then
+        hold = { since = tg, denies = 0 }
+        _cover_hold[id] = hold
+        if _dbg then
+            log.debug("[CMT] cover-hold id=%d name=%s op=%s enemy=%d",
+                id, npc:name(), _op_name(_cur_op[id]), enemy:id())
+        end
+    end
+    if tg - hold.since > _hold_cap_ms then
+        if _dbg then
+            log.debug("[CMT] cover-cap id=%d after=%dms denies=%d", id, tg - hold.since, hold.denies)
+        end
+        _cover_hold[id] = nil
+        return
+    end
+    hold.denies = hold.denies + 1
+    flags.allow = false
 end
 
 -- Best-cover re-pick evidence (debug only): the re-pick that flips InCover false is the CAUSE of the
@@ -312,8 +374,19 @@ end
 -- fighter, not just the actor's. Event-driven (fires on cover re-evaluation), one boolean bail when
 -- debug is off.
 local function _on_best_cover_changed(npc, cover_pos, is_smart_cover, smart_cover_name)
-    if not _dbg or not npc then return end
+    if not npc then return end
     local id = npc:id()
+    -- Any ACTUAL cover change closes the cover-refusal window: an allowed re-pick (conditions failed
+    -- or the cap relented) means the next deny starts a fresh cap, mirroring _on_action_changed.
+    local chold = _cover_hold[id]
+    if chold then
+        if _dbg then
+            log.debug("[CMT] cover-release id=%d held=%dms denies=%d",
+                id, time_global() - chold.since, chold.denies)
+        end
+        _cover_hold[id] = nil
+    end
+    if not _dbg then return end
     local maneuver = at_combat.get_maneuver(id)
     local watched = _hold[id] ~= nil or maneuver ~= nil
     if not watched then
@@ -355,4 +428,7 @@ function on_game_start()
     RegisterScriptCallback("npc_on_combat_action_changed",   _on_action_changed)
     RegisterScriptCallback("npc_on_death_callback",          _on_death)
     RegisterScriptCallback("npc_on_hit_callback",            _on_hit)
+    if not xcombat.on_cover_repick(_on_cover_repick) then
+        log.info("Commitment cover pin INACTIVE: exe lacks the cover re-pick veto (PR #607); shuffle held at the switch seam only")
+    end
 end

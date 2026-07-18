@@ -88,7 +88,12 @@ local IsStalker, IsMonster, IsWounded = IsStalker, IsMonster, IsWounded
 
 local log = xlog.get_logger("AT.DANGER", { outfile = "alifetactics.log" })
 local _dbg = false
-local _enabled = { hit_bypass = true, attack_sound = true, actor_tables = true }
+local _enabled = { hit_bypass = true, attack_sound = true, actor_tables = true, neutral_gunfire = true }
+
+-- Non-enemy actor gunfire alert radius (t150), squared. Deliberately its own small constant instead
+-- of the config's attack_sound row (up to 300m on vanilla tuning) - a neutral reacting at combat
+-- ranges would alarm whole camps; 30m is earshot-of-concern.
+local NEUTRAL_GUNFIRE_RADIUS_SQR = 30 * 30
 --------------------
 
 local ini = ini_file("ai_tweaks\\xr_danger.ltx")
@@ -244,6 +249,18 @@ local function is_danger(npc,best_danger,script)
 
 	if (best_danger:dependent_object()) then
 		best_danger_object = best_danger:dependent_object()
+	end
+
+	-- Non-enemy actor gunfire (t150): a NEUTRAL or FRIENDLY stalker goes on alert to the PLAYER's
+	-- shots fired close by - the one admission through the relation gate below, and alert is ALL it
+	-- buys: the handler gives non-enemies a stance-and-look reaction (no repositioning), no relation
+	-- or goodwill is touched, and the entry decays with the danger inertion. Scoped to the actor
+	-- (NPC-vs-NPC neutral fire stays ignored - camps must not alarm to every friendly potshot) and
+	-- to its own short radius, never the config's combat-range attack_sound row.
+	if _enabled.neutral_gunfire and (bd_type == danger_object.attack_sound)
+		and best_danger_object and best_danger_object:id() == AC_ID
+		and npc:relation(db.actor) < game_object.enemy then
+		return (best_danger:position():distance_to_sqr(npc:position()) <= NEUTRAL_GUNFIRE_RADIUS_SQR)
 	end
 
 	-- A direct hit is proof of danger at any distance: no relation, combat-ignore or radius gate
@@ -796,10 +813,8 @@ local function script_action_danger_attacked(npc,st,bd,best_danger_object,depend
 	end
 end
 
--- script_action_danger_alert tunables. ALERT_CLOSE_DIST_SQR is in distance_to_sqr space
--- (120 = ~11m); ALERT_AIM_DOT is the actor-aim cone as a dot product (0.85 = ~32 degrees).
+-- script_action_danger_alert tunable. ALERT_CLOSE_DIST_SQR is in distance_to_sqr space (120 = ~11m).
 local ALERT_CLOSE_DIST_SQR = 120
-local ALERT_AIM_DOT        = 0.85
 
 local function script_action_danger_alert(npc, st, bd, best_danger_object, dependent_object, bd_type)
 	local bdo = dependent_object or best_danger_object
@@ -811,19 +826,18 @@ local function script_action_danger_alert(npc, st, bd, best_danger_object, depen
 	local be = npc:best_enemy() or best_danger_object
 	local tg = time_global()
 
-	if bdo:id() == db.actor:id() then
-		-- Non-enemy actor filter: a neutral player shooting nearby is a
-		-- threat only with a weapon out and roughly aimed at the NPC. An ENEMY player skips it - his
-		-- gunfire alerts like any NPC enemy's, aimed or not. Dormant today: is_danger admits only
-		-- relation >= enemy sources, so no non-enemy actor reaches this handler yet.
-		if npc:relation(db.actor) < game_object.enemy then
-			local actor_wpn = db.actor:active_item()
-			if not actor_wpn then return end
-			local dir_to_npc = vector():set(npc_pos):sub(db.actor:position()):normalize()
-			local actor_dir = db.actor:direction()
-			if actor_dir:dotproduct(dir_to_npc) < ALERT_AIM_DOT then return end
-		end
+	-- Non-enemy actor branch (t150): a NEUTRAL or FRIENDLY stalker hearing the player's shots close
+	-- by goes on alert and NOTHING more - weapon-ready stance, facing the sound, decaying with the
+	-- inertion. No repositioning (the strafe/cover dance below reads as aggression against a
+	-- non-enemy) and no relation write. An ENEMY source falls through to the full reaction, aimed
+	-- or not. Each population obeys its own toggle: with Enemy gunfire off, an enemy-source danger
+	-- admitted for the neutral toggle's sake must not leak into the full reaction, and vice versa.
+	if bdo:id() == db.actor:id() and npc:relation(db.actor) < game_object.enemy then
+		if not _enabled.neutral_gunfire then return end
+		state_mgr.set_state(npc, "threat_na", nil, nil, {look_position = bdo_pos}, {fast_set = true})
+		return
 	end
+	if not _enabled.attack_sound then return end
 
 	if dist <= ALERT_CLOSE_DIST_SQR then
 		if be and npc:see(be) then
@@ -928,7 +942,7 @@ function at_action_danger:execute()
 		script_action_danger_corpse(npc,self.a,best_danger,best_danger_object,dependent_object,bd_type)
 	elseif (bd_type == danger_object.attacked) then
 		script_action_danger_attacked(npc,self.a,best_danger,best_danger_object,dependent_object,bd_type)
-	elseif _enabled.attack_sound and (bd_type == danger_object.attack_sound) then
+	elseif (_enabled.attack_sound or _enabled.neutral_gunfire) and (bd_type == danger_object.attack_sound) then
 		if _dbg then log.debug("attack_sound dispatch npc=%s src=%s", npc:name(), best_danger_object and best_danger_object:name() or "nil") end
 		script_action_danger_alert(npc,self.a,best_danger,best_danger_object,dependent_object,bd_type)
 	end
@@ -1009,11 +1023,12 @@ function at_evaluator_check_danger:evaluate()
 		return false
 	end
 
-	-- attack_sound is admitted only while the React-to-nearby-gunfire improvement is on: it routes
-	-- the danger action to script_action_danger_alert. Without this admission the dispatch in
+	-- attack_sound is admitted while either gunfire improvement is on (Enemy gunfire, or the t150
+	-- neutral alert - the neutral case must not die with the enemy toggle): it routes the danger
+	-- action to script_action_danger_alert. Without this admission the dispatch in
 	-- at_action_danger:execute was unreachable (the 1.1.0 bug: the improvement never fired).
 	if not (bd_type == danger_object.attacked or bd_type == danger_object.entity_corpse or bd_type == danger_object.grenade
-		or (_enabled.attack_sound and bd_type == danger_object.attack_sound)) then
+		or ((_enabled.attack_sound or _enabled.neutral_gunfire) and bd_type == danger_object.attack_sound)) then
 		return false
 	end
 
@@ -1150,9 +1165,10 @@ local function _refresh_log()
 	log.set_level(at_mcm and at_mcm.get_config("log_level") or "WARN")
 	_dbg = log.get_level() >= 5
 	if at_mcm then
-		_enabled.hit_bypass   = at_mcm.get_config("danger_hit_bypass")   ~= false
-		_enabled.attack_sound = at_mcm.get_config("danger_attack_sound") ~= false
-		_enabled.actor_tables = at_mcm.get_config("danger_actor_tables") ~= false
+		_enabled.hit_bypass      = at_mcm.get_config("danger_hit_bypass")      ~= false
+		_enabled.attack_sound    = at_mcm.get_config("danger_attack_sound")    ~= false
+		_enabled.actor_tables    = at_mcm.get_config("danger_actor_tables")    ~= false
+		_enabled.neutral_gunfire = at_mcm.get_config("danger_neutral_gunfire") ~= false
 	end
 end
 

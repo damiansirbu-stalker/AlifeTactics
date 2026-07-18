@@ -33,8 +33,11 @@ end
 -- without any goodwill write. Returns false on a nil member. The register_in_combat inside disclose_enemy
 -- writes the same squad combat-mask bit the Combat takeover graft sets for a different reason (planner-block
 -- compensation, xcombat.script register_in_combat) - two leaves, one engine bit; neither is redundant.
+-- The Turn-on-the-shooter toggle: off passes memory_only, keeping the pre-promotion disclosure
+-- (the shooter is known and engageable but a currently-seen enemy still outranks him).
+local MEMORY_ONLY = { memory_only = true }
 local function _disclose_to_member(mem_npc, who)
-    return xcombat.disclose_enemy(mem_npc, who)
+    return xcombat.disclose_enemy(mem_npc, who, cfg.disclosure_turn == false and MEMORY_ONLY or nil)
 end
 
 local function _disclose(squad, who)

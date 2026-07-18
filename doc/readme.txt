@@ -55,6 +55,7 @@ The design goes further than the single stalker: whole squads coordinating their
 
 These maneuvers cover the moments vanilla fumbles (wip, many will come):
   Counterflank snaps a stalker around when a hostile player stands at contact range while he shoots someone far away.
+  Reload Cover sends a stalker caught reloading under fire to the nearest cover instead of standing in the open; his weapon finishes reloading on the way.
   Flee routs a cautious faction to a distant friendly base - a coward runs before he fights.
   Retreat pulls a steady one to cover under pressure; a coward whose escape is cut off does the same.
   Kite backs a stalker out of an enemy that closed too near, still firing.
@@ -71,8 +72,9 @@ Better cover, a flicker of lost sight, a teammate crossing the line - and off he
 Many mods answer this by switching the stalker to a camper scheme that pins him in place, muting most of Anomaly's combat variety.
 AlifeTactics keeps the engine's full combat AI and instead stops a stalker throwing away a decision that still makes sense.
 While what he is doing still works he stays with it, and he switches the instant it stops: he loses sight, the shot is blocked, or the enemy is gone.
+It also pins his cover: a stalker firing with a clear shot keeps his spot instead of sliding to a marginally better one, stopping the mid-fight strafe at its source.
 The result is a stalker who sees a decision through - keeps up his fire, presses a flank, finishes a reload - instead of second-guessing himself every frame.
-Based on an action-switch hook created in xray-monolith for this mod; on older builds the system stays inactive.
+Based on action-switch and cover-repick hooks created in xray-monolith for this mod; on older builds the system stays inactive.
 
 Behaviors (planned):
 New actions the vanilla planner lacks, like melee, hopefully peek etc.
@@ -89,6 +91,7 @@ Disclosure:
 When a faction enemy wounds any squad member, the whole squad learns the shooter at once, even patrol members out of earshot and even against a silenced weapon.
 Vanilla only shares a shooter the squadmates actually heard, so distant or suppressed attackers stay unknown.
 It works through the engine's own memory, not by faking relations: the shooter is enabled in each member's memory and registered into the squad's combat, and the engine's normal propagation carries it from there.
+On a recent engine build the shooter also enters their seen memory, the class target selection ranks first, so the squad turns on the shooter instead of staying locked on a distant visible enemy.
 A stalker with no squad discloses the shooter to himself.
 New members inherit the fight when they spawn, and a shooter who went offline and returns is flagged again.
 A survivor gate (default on) skips disclosure when the hit kills the victim outright, so a clean kill stays quiet.
@@ -122,7 +125,12 @@ Danger
 Danger is how a stalker reacts to a threat he perceives - by sound, by hit, or (later) by sight. It is a runtime patch laid onto whichever danger script your modpack ships, not a replacement, so it works with other combat AI. Detection distances stay owned by your setup's danger config; AlifeTactics adds the reactions, never the tuning.
 
 Sound:
-Vanilla NPCs ignore gunfire they hear but cannot see. A hostile stalker now reacts to an enemy's shots without line of sight: he turns to face the gun and takes a threat stance, and moves to cover once he can see the shooter. He is responding to the sound, not to sight of you. Gunfire from neutral or friendly stalkers, including your own, does not alarm them - reactions follow the engine's relation rule, same as vanilla. Hearing an enemy's gunfire is the only sound reaction at present.
+Vanilla NPCs ignore gunfire they hear but cannot see. A hostile stalker now reacts to an enemy's shots without line of sight: he turns to face the gun and takes a threat stance, and moves to cover once he can see the shooter. He is responding to the sound, not to sight of you. Gunfire from neutral or friendly stalkers, including your own, does not alarm them - reactions follow the engine's relation rule, same as vanilla.
+Hostile stalkers also hear you move. Each footstep carries by your stance, the surface, and the weather: sneaking is near-silent, sprinting on metal carries far, rain muffles everything, and a jump landing is the loudest thing you can do.
+They react to handling noise too - a reload racked nearby, an empty click, an item used - at shorter reach.
+A hostile who hears you turns to the sound and goes on alert; he does not magically know where you are. Nothing changes in combat, and a carry-distance slider scales it, so stealth stays a game of distance and stance instead of NPCs being deaf.
+Neutral and friendly stalkers get one reaction of their own: fire close to them and they go weapon-ready facing your shots instead of ignoring gunfire next to their heads. Alert is all it is - they never turn hostile and settle down when the shooting stops.
+Every reaction has its own toggle.
 
 Hit:
 A stalker hit from far off reacts even when vanilla would have him stand still - sniped at 200m, he turns and seeks cover. The reaction is the duck; returning fire at that range is the planned Range page above.
@@ -186,6 +194,7 @@ Story NPCs, companions, traders, and squadmates are never armed against their ow
 Conflicts (choose one):
 - NPC Limping and Healing (Vodoxleb): the same limp and heal animations from a different system. The two stack and break the heal cue.
 - NPC Weapon Jamming, or any rank-based NPC jam mod: Anomaly has no jam animation, so jammed NPCs reload forever. AlifeTactics removes it, the mod re-adds it.
+- G.A.M.M.A. No NPC Friendly Fire, or any community-based friendly-fire blocker: AlifeTactics already filters same-community and friendly-faction hits at the per-NPC relation gate. The community version double-filters and mutates NPC relations on hit, fighting the relation gate. Disable it.
 
 Coexists:
 - xrMPE Animations (ANOMALY-GAMMA): replaces the stalker animation files AlifeTactics's hurt and heal poses play from.

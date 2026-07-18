@@ -117,6 +117,16 @@ function at_combat_trace.can_counterflank(id, path)
     log.info("can_counterflank id=%s name=%s path=%s", _show(id), _show(_names[id]), _show(path))
 end
 
+--- One line per reload_cover feasibility check: path "taken" (cover vertex accepted and claimed),
+--- "not_reloading" (the event stamp was stale - the authoritative get_state read disagreed),
+--- "not_under_fire" (reloading in peace, vanilla reloads in place), "no_cover" (nothing near),
+--- or "claim_lost" (another NPC reserved the vertex first).
+function at_combat_trace.can_reload_cover(id, path, vid)
+    if not _on then return end
+    log.info("can_reload_cover id=%s name=%s path=%s cover=%s",
+        _show(id), _show(_names[id]), _show(path), _show(vid or "-"))
+end
+
 --- One line per retreat feasibility check: path "taken" (vertex accepted; cover_dist > npc_dist is the proof
 --- the retreat grows the distance), "no_cover" (nothing behind him), "toward_enemy" (the winner sat closer to
 --- the enemy than he stands, rejected), or "claim_lost" (another NPC reserved the vertex first).

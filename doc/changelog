@@ -1,15 +1,36 @@
 next
-  Summary: Adaptive target lead, fire discipline, independent Effectiveness toggles
+  Summary: Reload Cover, Movement and handling noise, neutral gunfire alert, cover pinning, target lead, fire discipline
+
+  Danger
+    Sound
+      - Added Movement noise: hostile stalkers hear you move. Footsteps carry by stance, surface, and weather.
+        Sneaking is near-silent, sprinting on metal carries far, rain muffles everything, a jump landing carries farthest.
+        A hostile who hears you faces the sound and goes on alert. He does not learn where you are, and combat is untouched.
+      - Added Handling noise: a reload racked nearby, an empty click, or an item used alerts hostile stalkers at shorter reach.
+      - Added Neutral gunfire alert: neutral and friendly stalkers go weapon-ready facing shots you fire close to them.
+        They never turn hostile and settle down when the shooting stops.
+      - Added a carry distance slider scaling all noise.
+
+  Combat
+    Maneuvers
+      - Added Reload Cover: a stalker caught reloading under fire runs to the nearest cover, and his weapon finishes reloading on the way.
+        A stalker reloading in peace stays put. Needs a recent engine build, inactive on older ones.
+    Commitment
+      - Added cover pinning: a stalker firing with a clear shot keeps his cover instead of sliding to a marginally better one, ending the mid-fight cover strafe.
+        Its own toggle. Needs a recent engine build, inactive on older ones.
 
   Effectiveness
     Accuracy
-      - Changed the Accuracy page to independent on/off switches for the Dispersion curve and Moving Fire, replacing the single Enable Accuracy switch, so either can be tuned or turned off on its own.
+      - Changed the Accuracy page to independent switches for the Dispersion and Moving Fire curves, replacing the single master.
+    Disclosure
+      - Changed disclosure so the squad turns on the shooter: he enters their seen memory, the class target selection ranks first.
+        Before, a distant visible enemy always outranked him. A toggle keeps the softer disclosure. Needs a recent engine build, previous behavior on older ones.
     Reaction
-      - Added Target Lead: NPCs now lead a moving target by the round's actual flight time, computed live from range and the weapon's bullet speed, instead of a fixed amount.
-        Rank sets how true the lead is: top ranks lead on the mark and hit movers while low ranks over-lead and overshoot, but the error is now bounded and scales with range instead of the old fixed overshoot at every distance.
-      - Added a per-rank Target Lead curve in MCM and split the Reaction page into independent on/off switches for Tracking Speed, Vision Speed, and Target Lead, replacing the single Enable Reaction switch, each with its explanation on the toggle.
-      - Added Fire Discipline: higher ranks fire crisper short bursts at a tighter cadence while low ranks stay vanilla, a visible per-rank fire-behavior variation.
-        Two MCM curves (burst size and cadence) with defaults tuned so a rank's rounds per minute never falls below vanilla. Needs a recent engine build.
+      - Added Target Lead: NPCs lead a moving target by the round's real flight time, computed from range and bullet speed as they fire.
+        Top ranks lead on the mark and hit movers, low ranks over-lead and overshoot, and the error scales with range instead of the old fixed overshoot.
+      - Added Fire Discipline: higher ranks fire crisper short bursts at a tighter cadence, low ranks stay vanilla.
+        Defaults keep every rank's rounds per minute at or above vanilla. Needs a recent engine build.
+      - Changed the Reaction page to independent switches with per-rank curves for Tracking Speed, Vision Speed, Target Lead, and Fire Discipline.
 
 1.1.5
   Summary: Counterflank, Reaction, Commitment, player-only maneuvers, no dead windows, danger from your setup, performance, fixes

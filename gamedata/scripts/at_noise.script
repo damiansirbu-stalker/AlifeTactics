@@ -1,0 +1,199 @@
+--- at_noise: Danger > Sound - hostile stalkers hear the player's movement and handling noise (t160)
+--
+-- Two feeder signals into the scripted-danger reaction at_danger already owns; this module adds NO
+-- reaction machinery of its own:
+--   movement - the vanilla per-step event actor_on_footstep (step_manager.cpp:209 -> _g.script:1260,
+--     fires only when the actor actually takes a step) accumulates a noise radius from stance,
+--     surface material, and rain; a scheduled pass (never per-frame) hands every hostile stalker
+--     inside the radius to xr_danger.set_script_danger.
+--   handling - npc_on_hear_callback (xr_motivator.script:129 -> xr_hear.script:84) delivers the
+--     actor's TYPED sounds an NPC's ear accepted; the reload / empty-click / item-use types get the
+--     same scripted danger within their own, shorter radii.
+-- Both signals stamp only: the reaction (orient, alert, reposition), its decay (danger_inertion),
+-- its combat gate (no best_enemy - hearing is an out-of-combat sense), and the zombied exclusion all
+-- live in the danger scheme (at_danger's at_evaluator_check_danger / script_action_danger_scripted).
+-- Footsteps are NEVER typed into the engine sound space: a typed hostile footstep would land an
+-- EnemySound danger per step and thrash the sound memory (danger_manager.cpp:322-327) - the reason
+-- GSC left them untyped, and the reason this stays a script-side scoped reaction.
+
+local time_global, string_find, string_lower = time_global, string.find, string.lower
+local IsStalker, IsMoveState, pairs, tostring = IsStalker, IsMoveState, pairs, tostring
+local RegisterScriptCallback = RegisterScriptCallback
+
+local log = xlog.get_logger("AT.NOISE", { outfile = "alifetactics.log" })
+local _dbg = false
+local _enabled = { move = true, actions = true }
+local _mult = 1.0
+
+-- The pass period and the freshness window a step must fall in for the pass to scan at all.
+local TICK_SEC       = 0.5
+local STEP_FRESH_MS  = 900
+-- Per-NPC re-alert throttle: one scripted danger per NPC per window, so sustained walking nearby
+-- refreshes the alert instead of restarting the reaction every pass.
+local REALERT_MS     = 4000
+-- Inertion handed to set_script_danger: how long the heard position stays a danger (the scheme's
+-- own decay; entries are dropped on entity unregister by at_danger fix 12).
+local INERTION_MS    = 5000
+
+-- The movement noise model. Walking on neutral ground carries BASE_RADIUS_M; stance scales it with
+-- the semantics of the engine's own abandoned footstep-hearing design (CROUCH_SOUND_FACTOR /
+-- ACCELERATED_SOUND_FACTOR, ai_sounds.h:81-82 - defined, never consumed); the surface material
+-- scales it (the material name arrives with every step); rain masks it. Values are provisional
+-- until the playtest - the stealth balance lives in these numbers.
+local BASE_RADIUS_M  = 9
+local CROUCH_FACTOR  = 0.35
+local SPRINT_FACTOR  = 1.6
+local RAIN_CUT       = 0.4
+local MATERIAL_FACTORS = {
+    metal = 1.25, wood = 1.15, water = 1.35,
+    grass = 0.7, dirt = 0.8, earth = 0.8, sand = 0.8,
+}
+
+-- Handling radii per xr_hear type string (xr_hear.get_sound_type): a reload is the loudest tell, an
+-- empty click shorter, an item use the quietest. Types not listed are ignored on the first read.
+local ACTION_RADIUS_M = {
+    WPN_reload = 12,
+    WPN_empty  = 10,
+    ITM_use    = 8,
+}
+
+-- A landing is the loudest movement sound the actor makes - a one-off thud, well past a sprint step.
+-- Fed through the same accumulate-and-scan path as steps (actor_on_land, Actor_Movement.cpp:90).
+local LAND_RADIUS_M = 14
+
+-- Loudest step radius accumulated since the last scan, and when it landed.
+local _step_radius  = 0
+local _step_at      = 0
+-- npc id -> time_global() of the last alert stamped on it (the re-alert throttle).
+local _alert_at     = {}
+
+-- Surface factor from the step's material name (substring match, unknown surfaces neutral).
+-- @cost O(k) known materials, pure Lua
+local function _material_factor(material)
+    if not material then return 1.0 end
+    local name = string_lower(material)
+    for key, factor in pairs(MATERIAL_FACTORS) do
+        if string_find(name, key, 1, true) then return factor end
+    end
+    return 1.0
+end
+
+-- Per step: accumulate the loudest pending radius. Fires only while the actor is actually stepping
+-- (standing still produces no events), so the steady-state cost of the feature is zero.
+local function _on_footstep(material, _power, _hud_view, _flags)
+    if not _enabled.move then return end
+    local stance = 1.0
+    if IsMoveState("mcCrouch") then
+        stance = CROUCH_FACTOR
+    elseif IsMoveState("mcSprint") then
+        stance = SPRINT_FACTOR
+    end
+    local radius = BASE_RADIUS_M * stance * _material_factor(material) * _mult
+    if radius > _step_radius then _step_radius = radius end
+    _step_at = time_global()
+end
+
+-- Per landing: one loud accumulate on the same path as steps. landing_speed's unit range is
+-- unverified, so the radius is flat for now; the playtest decides whether to scale by it.
+local function _on_land(_landing_speed)
+    if not _enabled.move then return end
+    local radius = LAND_RADIUS_M * _mult
+    if radius > _step_radius then _step_radius = radius end
+    _step_at = time_global()
+end
+
+-- Stamp one hostile stalker with the scripted danger at the heard position. The scheme gates the
+-- rest: fighting NPCs (best_enemy set) and zombied never run the reaction, wounded are skipped.
+-- @cost O(1) | 2-3 luabind on the stamped path (alive, relation)
+local function _try_alert(npc, id, pos, tg, source)
+    if not npc:alive() then return end
+    if npc:relation(db.actor) ~= game_object.enemy then return end
+    local last = _alert_at[id]
+    if last and (tg - last) < REALERT_MS then return end
+    _alert_at[id] = tg
+    xr_danger.set_script_danger(npc, INERTION_MS, AC_ID, pos)
+    if _dbg then log.debug("[NOISE] alert id=%d name=%s source=%s", id, npc:name(), source) end
+end
+
+-- The movement scan, on the scheduled pass: hostile stalkers inside the accumulated step radius get
+-- the scripted danger at the actor's position. Rain masks the radius live. Walks db.OnlineStalkers
+-- (ids of online stalkers only); the luabind reads run only for NPCs inside the radius.
+local function _scan_movement(tg)
+    if _step_radius <= 0 then return end
+    if (tg - _step_at) > STEP_FRESH_MS then _step_radius = 0 return end
+    local radius = _step_radius
+    _step_radius = 0
+    local rain = level.rain_factor()
+    if rain and rain > 0 then radius = radius * (1.0 - RAIN_CUT * rain) end
+    local radius_sqr = radius * radius
+    local actor_pos = db.actor:position()
+    for i = 1, #db.OnlineStalkers do
+        local id = db.OnlineStalkers[i]
+        local st = db.storage[id]
+        local npc = st and st.object
+        if npc and actor_pos:distance_to_sqr(npc:position()) <= radius_sqr then
+            _try_alert(npc, id, actor_pos, tg, "step")
+        end
+    end
+    if _dbg then log.debug("[NOISE] scan radius=%.1fm rain=%.2f", radius, rain or 0) end
+end
+
+local _pass_active = false
+local function _run_pass()
+    if not _pass_active then return true end
+    ResetTimeEvent("at_noise", "pass", TICK_SEC)
+    if not _enabled.move then return end
+    if not db.actor then return end
+    _scan_movement(time_global())
+end
+
+-- Handling noise, straight off the ear: the callback fires only for typed sounds the NPC's own
+-- sound perception accepted, so attenuation and the perceive thresholds already applied. The first
+-- read rejects every type not in ACTION_RADIUS_M, so gunfire storms cost one table read here.
+local function _on_hear(npc, who_id, s_type, dist_sqr, _power, pos)
+    if not _enabled.actions then return end
+    if who_id ~= AC_ID then return end
+    local radius = ACTION_RADIUS_M[s_type]
+    if not radius then return end
+    radius = radius * _mult
+    if dist_sqr > radius * radius then return end
+    if not (npc and IsStalker(npc)) then return end
+    _try_alert(npc, npc:id(), pos, time_global(), s_type)
+end
+
+local function _on_entity_unregister(se_obj)
+    if se_obj then _alert_at[se_obj.id] = nil end
+end
+
+local function _refresh_config()
+    log.set_level(at_mcm.get_config("log_level") or "WARN")
+    _dbg = log.get_level() >= 5
+    _enabled.move    = at_mcm.get_config("danger_move_noise")    ~= false
+    _enabled.actions = at_mcm.get_config("danger_heard_actions") ~= false
+    _mult = at_mcm.get_config("danger_noise_mult") or 1.0
+end
+
+local function _start_pass()
+    if _pass_active then return end
+    _pass_active = true
+    RemoveTimeEvent("at_noise", "pass")
+    CreateTimeEvent("at_noise", "pass", TICK_SEC, _run_pass)
+end
+
+local function _on_first_update()
+    _refresh_config()
+    -- Time events do not survive a save load, so the pass arms here, per session.
+    _start_pass()
+    log.info("Noise hearing initialized (move=%s actions=%s mult=%.2f)",
+        tostring(_enabled.move), tostring(_enabled.actions), _mult)
+end
+
+function on_game_start()
+    RegisterScriptCallback("actor_on_footstep",           _on_footstep)
+    RegisterScriptCallback("actor_on_land",               _on_land)
+    RegisterScriptCallback("npc_on_hear_callback",        _on_hear)
+    RegisterScriptCallback("server_entity_on_unregister", _on_entity_unregister)
+    RegisterScriptCallback("actor_on_first_update",       _on_first_update)
+    RegisterScriptCallback("on_option_change",            _refresh_config)
+    RegisterScriptCallback("mcm_option_restore_default",  _refresh_config)
+end
