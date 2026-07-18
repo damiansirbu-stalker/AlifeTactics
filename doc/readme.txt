@@ -65,6 +65,15 @@ The decisions come out looking human. Nobody turns his back on a shooter, two me
 Maneuver fire bursts by weapon: pistols and rifles fire real bursts, sniper rifles single shots, in place of the uniform burst the game's script machinery uses for every weapon it drives.
 The takeover overrides no combat scripts, so it fights side by side with vanilla and works with other combat AI instead of replacing it. Companions are excluded by default.
 
+Commitment:
+Vanilla stalkers re-plan the fight every moment, so any small change makes a stalker drop what he is doing and choose again.
+Better cover, a flicker of lost sight, a teammate crossing the line - and off he goes, the twitchy strafing and cover-hopping you see in a firefight.
+Many mods answer this by switching the stalker to a camper scheme that pins him in place, muting most of Anomaly's combat variety.
+AlifeTactics keeps the engine's full combat AI and instead stops a stalker throwing away a decision that still makes sense.
+While what he is doing still works he stays with it, and he switches the instant it stops: he loses sight, the shot is blocked, or the enemy is gone.
+The result is a stalker who sees a decision through - keeps up his fire, presses a flank, finishes a reload - instead of second-guessing himself every frame.
+Based on an action-switch hook created in xray-monolith for this mod; on older builds the system stays inactive.
+
 Behaviors (planned):
 New actions the vanilla planner lacks, like melee, hopefully peek etc.
 
@@ -90,15 +99,6 @@ Same-faction fighters no longer cut each other down in a crossfire.
 A hit between two NPCs of the same faction deals reduced damage, set by a slider (no damage by default, up to full vanilla).
 It keys on their actual relation, so genuinely hostile factions still trade fire while allies stay safe.
 Your own shots are never affected.
-
-Commitment:
-Vanilla stalkers re-plan the fight every moment, so any small change makes a stalker drop what he is doing and choose again.
-Better cover, a flicker of lost sight, a teammate crossing the line - and off he goes, the twitchy strafing and cover-hopping you see in a firefight.
-Many mods answer this by switching the stalker to a camper scheme that pins him in place, muting most of Anomaly's combat variety.
-AlifeTactics keeps the engine's full combat AI and instead stops a stalker throwing away a decision that still makes sense.
-While what he is doing still works he stays with it, and he switches the instant it stops: he loses sight, the shot is blocked, or the enemy is gone.
-The result is a stalker who sees a decision through - keeps up his fire, presses a flank, finishes a reload - instead of second-guessing himself every frame.
-Based on an action-switch hook created in xray-monolith for this mod; on older builds the system stays inactive.
 
 Reaction:
 Stalker rank now shapes gun handling, applied per stalker.
