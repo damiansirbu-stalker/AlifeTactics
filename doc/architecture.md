@@ -129,6 +129,8 @@ Composition classes, what each does to the surrounding stack: `callback` subscri
 
 No system is actor-gated. The Combat takeover targets whatever enemy the engine selected for the NPC (`best_enemy()` - a stalker, the player, or a mutant); the actor gate it shipped with was removed 2026-07-08 once the measured decide costs showed the complication bought nothing. Disclosure, Healing, Accuracy, and Danger never read who the enemy is. Crossfire, Jamming, and Ammo exclude the player only as a participant (the player's own hits, the player's own weapon) - a participant exclusion, not a target gate.
 
+One community-based exclusion overlays this scope: zombified NPCs (`xcreature.community(npc) == "zombied"`) bail at the entry of Accuracy, Reaction, Disclosure, Crossfire, Commitment's veto, and the Combat Maneuvers (`_can_seize`). A zombie is a mindless shambler, not the deliberate combatant those layers model, so it fires and moves as vanilla drives it - no per-rank curve, no takeover, no shuffle veto. Danger already gates zombied in its vanilla-derived body (the grenade and corpse-alert branches); Mechanics (Healing, Jamming, Ammo) are not zombie-gated, though Healing's limp gate skips zombied on its own.
+
 ---
 
 ## Combat

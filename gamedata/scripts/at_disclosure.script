@@ -2,7 +2,7 @@
 --- victim himself when squadless (a solo victim otherwise got nothing; the self-disclosure re-enables
 --- memory a combat-ignore may have suppressed and registers him in combat).
 
-local pairs, tostring, tonumber, RegisterScriptCallback, IsStalker, alife_object = pairs, tostring, tonumber, RegisterScriptCallback, IsStalker, alife_object
+local pairs, tostring, tonumber, RegisterScriptCallback, IsStalker = pairs, tostring, tonumber, RegisterScriptCallback, IsStalker
 -- CreateTimeEvent / ResetTimeEvent / RemoveTimeEvent not cached: demonized_time_events
 -- replaces them at runtime; cached locals would pin the dead originals.
 
@@ -17,12 +17,12 @@ local DECAY_INTERVAL_SEC = 5
 local _disclosed = {}
 local _pending_seq = 0
 
--- character_community(_g.script:2425-2433) returns "monster" for non-stalkers, so
--- mutant-vs-stalker hits pass via is_factions_enemies(<faction>, "monster").
+-- xcreature.community returns "monster" for non-stalkers, so mutant-vs-stalker hits
+-- pass via is_factions_enemies(<faction>, "monster").
 local function _shooter_is_combat_enemy(npc, who)
-    local npc_comm = character_community(npc)
+    local npc_comm = xcreature.community(npc)
     if not npc_comm or npc_comm == "" or npc_comm == "none" then return false end
-    local who_comm = character_community(who)
+    local who_comm = xcreature.community(who)
     if not who_comm or who_comm == "" or who_comm == "none" then return false end
     if who_comm == npc_comm then return false end
     return game_relations.is_factions_enemies(npc_comm, who_comm)
@@ -112,7 +112,7 @@ end
 -- Disclose to the key's audience: a squad key reaches every member; a solo key (the victim's own id,
 -- used when the victim has no squad) reaches the victim alone. Returns the member count reached.
 local function _disclose_key(key_id, who, victim)
-    local squad = alife_object(key_id)
+    local squad = xobject.se(key_id)
     if squad and squad.squad_members then return _disclose(squad, who) end
     return (victim and _disclose_to_member(victim, who)) and 1 or 0
 end
@@ -161,6 +161,7 @@ end
 
 local function _on_hit(npc, amount, _local_direction, who, bone_index)
     if not cfg.disclosure_enabled then return end
+    if xcreature.community(npc) == "zombied" then return end
     if bone_index == "from_death_callback" then return end
     if not amount or amount <= 0 then return end
     if not who or not npc then return end
@@ -182,7 +183,7 @@ local function _on_hit(npc, amount, _local_direction, who, bone_index)
 
     -- The idempotency/retention key: the squad id, or the victim's own id when squadless (a solo
     -- victim discloses to himself - squad and NPC server ids share one id space, so no collision).
-    local squad  = get_object_squad(npc)
+    local squad  = xsquad.get_squad_by_member(npc:id())
     local key_id = squad and squad.id or npc:id()
     local who_id = who:id()
     local gate_ms = tmr_gate:get_ms()
@@ -256,7 +257,7 @@ local function _redisclose_member(mem_npc, who, shooter_id)
 end
 
 local function _redisclose_squad(squad_id, who, shooter_id)
-    local sq = alife_object(squad_id)
+    local sq = xobject.se(squad_id)
     if not sq or not sq.squad_members then return 0 end
     if sq:npc_count() == 0 then return 0 end
     local count = 0
@@ -283,7 +284,7 @@ end
 local function _on_net_spawn(npc)
     if not npc then return end
     local npc_id = npc:id()
-    local squad = get_object_squad(npc)
+    local squad = xsquad.get_squad_by_member(npc_id)
     if squad then
         local squad_map = _disclosed[squad.id]
         if squad_map then _inherit_from_squad(npc, npc_id, squad.id, squad_map) end

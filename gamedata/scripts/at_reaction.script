@@ -224,6 +224,7 @@ end
 --- @param npc game_object stalker to (re-)apply the curves to
 function apply(npc)
     if not (npc and npc:alive()) then return end
+    if xcreature.community(npc) == "zombied" then return end
     if not (cfg.aim_enabled or cfg.vision_enabled or cfg.discipline_enabled) then return end
 
     local tier = _get_obj_rank_name(npc)
@@ -264,6 +265,7 @@ end
 local function _on_shot_lead(obj, wpn, body_state, move_type, temp_disp)
     if not cfg.lead_enabled then return end
     if not obj then return end
+    if xcreature.community(obj) == "zombied" then return end
 
     local id = obj:id()
     local tg = time_global()

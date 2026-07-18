@@ -32,7 +32,6 @@
 
 local IsStalker, IsWeapon, time_global, pairs = IsStalker, IsWeapon, time_global, pairs
 local RegisterScriptCallback, parse_list = RegisterScriptCallback, parse_list
-local alife_object, alife_release = alife_object, alife_release
 local math_random, math_min, math_max = math.random, math.min, math.max
 
 -- The monitor pass period (a vanilla time event): the whole ammo state machine runs once per period
@@ -159,8 +158,8 @@ local function _delete_one_ap_box(npc, section)
         end
     end, npc)
     if not target_id then return end
-    local se_item = alife_object(target_id)
-    if se_item then alife_release(se_item) end
+    local se_item = xobject.se(target_id)
+    if se_item then xobject.release(se_item) end
 end
 
 -- Re-key an AP-keyed weapon with no AP carried back to the default type. The disengage

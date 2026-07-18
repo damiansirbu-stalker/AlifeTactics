@@ -85,7 +85,6 @@ local _actid = 188113
 local math_random, tonumber, math_max = math.random, tonumber, math.max
 local time_global = time_global
 local IsStalker, IsMonster, IsWounded = IsStalker, IsMonster, IsWounded
-local character_community = character_community
 
 local log = xlog.get_logger("AT.DANGER", { outfile = "alifetactics.log" })
 local _dbg = false
@@ -203,7 +202,7 @@ local function is_danger(npc,best_danger,script)
 	--end
 
 	if (bd_type == danger_object.grenade) then
-		if not (best_danger:dependent_object() and character_community(npc) ~= "zombied") then
+		if not (best_danger:dependent_object() and xcreature.community(npc) ~= "zombied") then
 			return false
 		end
 
@@ -215,14 +214,14 @@ local function is_danger(npc,best_danger,script)
 	end
 
 	if (bd_type == danger_object.entity_corpse) then
-		if (best_danger_object and IsStalker(best_danger_object) and character_community(best_danger_object) == character_community(npc)) then
+		if (best_danger_object and IsStalker(best_danger_object) and xcreature.community(best_danger_object) == xcreature.community(npc)) then
 			local corpse_st = db.storage[best_danger_object:id()]
 			if not (corpse_st and corpse_st.death_time and corpse_st.death_by_id) then
 				return false
 			end
 
 			local killer = db.storage[corpse_st.death_by_id] and db.storage[corpse_st.death_by_id].object
-			if not (killer and (IsMonster(killer) or IsStalker(killer)) and killer:alive() and npc:relation(killer) > 0 and character_community(killer) ~= character_community(npc)) then
+			if not (killer and (IsMonster(killer) or IsStalker(killer)) and killer:alive() and npc:relation(killer) > 0 and xcreature.community(killer) ~= xcreature.community(npc)) then
 				return false
 			end
 
@@ -649,7 +648,7 @@ local function script_action_danger_corpse(npc,st,bd,best_danger_object,dependen
 	-- and crashes when the corpse reaction fires before the scheme's initialize set the stage - and since
 	-- stage only ever holds 1 or 2 in this file, the bare compare could only ever crash, never pass.
 	if ((st.stage or 0) >= 4 and killer and killer:id() == AC_ID and killer:alive() and npc:relation(killer) < game_object.enemy and npc:see(killer)) then
-		local squad = get_object_squad(npc)
+		local squad = xsquad.get_squad_by_member(npc:id())
 		if (squad) then
 			for k in squad:squad_members() do
 				local member = db.storage[k.id] and db.storage[k.id].object or level.object_by_id(k.id)
@@ -987,7 +986,7 @@ function at_evaluator_check_danger:evaluate()
 		return false
 	end
 
-	if (character_community(self.object) == "zombied") then
+	if (xcreature.community(self.object) == "zombied") then
 		return false
 	end
 

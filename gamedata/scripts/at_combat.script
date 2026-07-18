@@ -89,6 +89,7 @@ end
 -- takeover fights everywhere; xcombat.is_indoor (a proper roof+walls raycast) stays available if a future
 -- maneuver ever needs it, but the takeover does not.
 local function _can_seize(npc)
+    if xcreature.community(npc) == "zombied" then return false, "zombied" end
     if not xcombat.get_weapon_kind(npc) then return false, "no_weapon" end
     if npc:in_smart_cover() then return false, "smart_cover" end
     return true

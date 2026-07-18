@@ -17,7 +17,7 @@
 
 local math_sqrt, math_floor, vector = math.sqrt, math.floor, vector
 local table_concat = table.concat
-local character_community, time_global, AC_ID = character_community, time_global, AC_ID
+local time_global, AC_ID = time_global, AC_ID
 
 at_combat_doctrine = at_combat_doctrine or {}
 
@@ -454,7 +454,7 @@ end
 -- Faction/weapon palette for a row (nil = match any), reads memoized on the walk.
 local function _palette_matches(row, npc, memo)
     if row.factions then
-        if memo.faction == nil then memo.faction = character_community(npc) end
+        if memo.faction == nil then memo.faction = xcreature.community(npc) end
         if not row.factions[memo.faction] then return false end
     end
     if row.weapons then

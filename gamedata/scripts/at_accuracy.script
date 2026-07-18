@@ -37,6 +37,7 @@ local _get_obj_rank_name = ranks.get_obj_rank_name
 local function _on_npc_shot_dispersion(obj, wpn, body_state, move_type, temp_disp)
     if not (cfg.disp_enabled or cfg.move_enabled) then return end
     if not obj or not temp_disp then return end
+    if xcreature.community(obj) == "zombied" then return end
 
     local tier = _get_obj_rank_name(obj)
     if not tier or tier == "" then return end

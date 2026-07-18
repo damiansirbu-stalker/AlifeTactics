@@ -3,7 +3,7 @@
 local math_random, tostring, pairs = math.random, tostring, pairs
 local se_save_var, se_load_var = se_save_var, se_load_var
 local RegisterScriptCallback, time_global = RegisterScriptCallback, time_global
-local IsStalker, IsWounded, character_community = IsStalker, IsWounded, character_community
+local IsStalker, IsWounded = IsStalker, IsWounded
 
 -- The limp monitor pass period (a vanilla time event): the pass IS the drop-detector clock (a worn
 -- pose must die the moment its gait stops matching); the eligibility check self-throttles to its own
@@ -318,7 +318,7 @@ local function _limp_decline_reason(npc)
     if npc:body_state() ~= move.standing then return "standing" end
     if IsWounded(npc) then return "wounded" end
     if npc:in_smart_cover() then return "smart_cover" end
-    if character_community(npc) == "zombied" then return "zombied" end
+    if xcreature.community(npc) == "zombied" then return "zombied" end
     return "other"
 end
 
@@ -353,7 +353,7 @@ local function _run_limp_check(npc, state, tg)
         and not npc:best_enemy()
         and npc:mental_state() == anim.free
         and npc:body_state() == move.standing
-        and npc:character_community() ~= "zombied"
+        and xcreature.community(npc) ~= "zombied"
         and not IsWounded(npc)
 
     if not eligible then

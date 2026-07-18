@@ -214,13 +214,17 @@ local function _on_hit(npc, amount, _local_direction, _who, bone_index)
     _hit_at[npc:id()] = time_global()
 end
 
+-- Veto handler on the combat action-switch seam. Holds two transitions the break-contact shuffle abuses:
+-- a fire-action exit toward cover (held while the NPC still sees the enemy and the firing lane is clear,
+-- plus fire_make_sense for take_cover) and a blind flank abandonment (held while blind, released on re-sight).
+-- _hold_cap_ms is the TTL that eventually relents one continuous refusal. Gate proofs: architecture.md Commitment.
+-- @cost O(1) | a few luabind on a watched transition (best_enemy, sees, can_kill_member), early-out otherwise
 local function _on_action_switch(npc, from_op, to_op, flags)
     if flags.allow == false then return end
     if not _attack_ops then _resolve_ops() end
     _census_switch(npc, from_op, to_op)
     if not cfg.commitment_enabled then return end
-    -- Watched: the fire-action exits toward cover, plus the flank abandonment. Gate differs per rule
-    -- (proof: the transition table in architecture.md Commitment).
+    if xcreature.community(npc) == "zombied" then return end
     local is_fire_exit  = _attack_ops[from_op] and _cover_ops[to_op]
     local is_flank_exit = from_op == stalker_ids.action_detour_enemy and to_op == stalker_ids.action_take_cover
     if not (is_fire_exit or is_flank_exit) then return end
@@ -231,18 +235,8 @@ local function _on_action_switch(npc, from_op, to_op, flags)
     local sees = xcombat.sees(npc, enemy)
 
     if is_flank_exit then
-        -- The flank (detour_enemy) runs blind by precondition (SeeEnemy=false). Abandoning it for cover
-        -- while STILL blind is the shuffle -> hold; if the enemy is re-seen the NPC should return to the
-        -- fight -> allow. The inverse of the fire gate; a completed detour goes to search and the cap
-        -- relents a stuck flank, so no arrival/direction read is needed.
         if sees then _log_decline(npc, id, "flank_resighted") return end
     else
-        -- Fire-action exit: kill_enemy fires iff visible_now (stalker_combat_actions.cpp:483), so hold only
-        -- while seen (else the held action would not fire). can_kill_member is the friendly-lane guard.
-        -- -> take_cover additionally needs fire_make_sense (the aim-direction lane is clear to the enemy +
-        -- a reasonable floor gap; pick_distance is a raycast to the first occluder, ai_stalker_fire.cpp:684-937):
-        -- an occluded shot or big height gap makes the held fire wasted, so the cover move goes through.
-        -- -> get_ready (reload) holds on sight alone: reload in place, keep the spot.
         if not sees then _log_decline(npc, id, "no_sight") return end
         if xcombat.can_kill_member(npc, enemy:position()) then _log_decline(npc, id, "lane_blocked") return end
         if to_op == stalker_ids.action_take_cover and not xcombat.fire_make_sense(npc, enemy) then
