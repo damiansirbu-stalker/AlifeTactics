@@ -85,14 +85,6 @@ New members inherit the fight when they spawn, and a shooter who went offline an
 A survivor gate (default on) skips disclosure when the hit kills the victim outright, so a clean kill stays quiet.
 The squad can still find you by sound, by sight, or by the body.
 
-Danger:
-Stalkers read danger the way the engine always meant them to.
-AlifeTactics reworks Anomaly's danger scheme as a runtime patch, laid onto whichever danger script a modpack ships instead of replacing the file.
-A set of always-on fixes clears long-standing crashes and misreads across the danger check and the corpse investigation.
-Detection distances stay owned by your setup's danger config. AlifeTactics adds the reactions, never the tuning.
-Three of the improvements are optional: a direct hit answers at any range, ENEMY gunfire draws a cover-and-threat response with no line of sight needed and no aim at them required, and actor-sourced danger reads the separate tables where your config provides them.
-Gunfire from neutral or friendly stalkers, including your own weapon, is not a danger to them - reactions follow the engine's relation rule, same as vanilla.
-
 Crossfire:
 Same-faction fighters no longer cut each other down in a crossfire.
 A hit between two NPCs of the same faction deals reduced damage, set by a slider (no damage by default, up to full vanilla).
@@ -124,6 +116,19 @@ Engagement distance. The game stops NPC fights at a hard range cap regardless of
 
 Resistance (planned):
 NPC toughness from what they carry: armor and equipment, damage mitigators, and artefacts.
+
+Danger
+
+Danger is how a stalker reacts to a threat he perceives - by sound, by hit, or (later) by sight. It is a runtime patch laid onto whichever danger script your modpack ships, not a replacement, so it works with other combat AI. Detection distances stay owned by your setup's danger config; AlifeTactics adds the reactions, never the tuning.
+
+Sound:
+Vanilla NPCs ignore gunfire they hear but cannot see. A hostile stalker now reacts to an enemy's shots without line of sight: he turns to face the gun and takes a threat stance, and moves to cover once he can see the shooter. He is responding to the sound, not to sight of you. Gunfire from neutral or friendly stalkers, including your own, does not alarm them - reactions follow the engine's relation rule, same as vanilla. Hearing an enemy's gunfire is the only sound reaction at present.
+
+Hit:
+A stalker hit from far off reacts even when vanilla would have him stand still - sniped at 200m, he turns and seeks cover. The reaction is the duck; returning fire at that range is the planned Range page above.
+
+Fixes:
+A set of always-on fixes clears long-standing crashes and misreads across the danger check and the corpse investigation; these are not optional. One tuning toggle lets danger you cause read your setup's separate player-specific ranges where the config provides them.
 
 Mechanics
 

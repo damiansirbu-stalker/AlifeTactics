@@ -33,6 +33,15 @@
   <string id="ui_mcm_menu_danger">
     <text>Danger</text>
   </string>
+  <string id="ui_mcm_menu_sound">
+    <text>Sound</text>
+  </string>
+  <string id="ui_mcm_menu_hit">
+    <text>Hit</text>
+  </string>
+  <string id="ui_mcm_menu_fixes">
+    <text>Fixes</text>
+  </string>
   <string id="ui_mcm_menu_crossfire">
     <text>Crossfire</text>
   </string>
@@ -667,27 +676,30 @@
   <string id="ui_mcm_at_crossfire_crossfire_factor_desc">
     <text>How much damage a same-faction hit deals. 0.00 means teammates take no damage from each other. 1.00 is full vanilla damage.</text>
   </string>
-  <!-- ==================== DANGER PAGE ==================== -->
-  <string id="ui_mcm_at_danger_desc">
-    <text>Stalkers read danger and investigate the way the engine always meant them to. A set of always-on fixes clears crashes and misreads across the danger check and the corpse investigation. Detection distances come from your setup's danger config, AlifeTactics adds the reactions. It installs as a runtime patch onto whichever danger script your modpack ships, so it works with other combat AI instead of replacing the file. Three improvements toggle below.</text>
+  <!-- ==================== DANGER FOLDER (SOUND / HIT / FIXES) ==================== -->
+  <string id="ui_mcm_at_danger_sound_desc">
+    <text>How stalkers react to threats they hear. AlifeTactics installs as a runtime patch onto whichever danger script your modpack ships, so it works with other combat AI instead of replacing the file. Reaction distances come from your setup's danger config; AlifeTactics adds the reactions, not the tuning.</text>
   </string>
-  <string id="ui_mcm_at_danger_hdr_improvements">
-    <text>Improvements</text>
+  <string id="ui_mcm_at_danger_hit_desc">
+    <text>How stalkers react to being hit. Reaction distances come from your setup's danger config; AlifeTactics adds the reactions, not the tuning.</text>
+  </string>
+  <string id="ui_mcm_at_danger_fixes_desc">
+    <text>Always-on fixes to the danger check and corpse investigation, plus one tuning toggle. The fixes are not optional; they clear long-standing crashes and misreads. AlifeTactics installs as a runtime patch onto whichever danger script your modpack ships.</text>
   </string>
   <string id="ui_mcm_at_fixes_danger_danger_hit_bypass">
-    <text>Hit-type bypass</text>
+    <text>Distant hits</text>
   </string>
   <string id="ui_mcm_at_fixes_danger_danger_hit_bypass_desc">
     <text>Vanilla stalkers ignore distant shooters because a distance gate caps the response. With this on a direct hit always registers, so a sniped stalker at 200m turns and seeks cover instead of standing still.</text>
   </string>
   <string id="ui_mcm_at_fixes_danger_danger_attack_sound">
-    <text>React to enemy gunfire</text>
+    <text>Enemy gunfire</text>
   </string>
   <string id="ui_mcm_at_fixes_danger_danger_attack_sound_desc">
-    <text>Stalkers hearing gunfire from an ENEMY seek cover and adopt threat poses, no line of sight needed. Gunfire from neutral or friendly stalkers, including yours, does not alarm them - that is the engine's relation rule, same as vanilla. Vanilla does nothing on this danger type even for enemies. Reaction distance follows your setup's danger config.</text>
+    <text>Vanilla NPCs ignore gunfire they hear but cannot see. This makes a stalker react to an ENEMY's shots without line of sight: he turns to face the gun and takes a threat stance, and moves to cover once he can see the shooter. He is responding to the sound, not to sight of you. Gunfire from neutral or friendly stalkers, including yours, does not alarm them - that is the engine's relation rule, same as vanilla. Reaction distance follows your setup's danger config.</text>
   </string>
   <string id="ui_mcm_at_fixes_danger_danger_actor_tables">
-    <text>Actor-source tuning</text>
+    <text>Player ranges</text>
   </string>
   <string id="ui_mcm_at_fixes_danger_danger_actor_tables_desc">
     <text>Danger caused by you reads the separate actor tables where your setup's danger config differentiates them (some combat AI mods do). With a config that ships identical tables this has no effect.</text>
