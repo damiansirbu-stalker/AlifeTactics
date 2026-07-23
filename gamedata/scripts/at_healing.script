@@ -375,9 +375,7 @@ end
 -- One NPC's slice of the limp monitor pass: the drop detectors run on the pass itself (the pass
 -- period IS the drop clock), the eligibility chain self-throttles to its slower period on the
 -- roster record's stamp.
-local function _run_limp_check(npc, state, tg)
-    local id = npc:id()
-
+local function _run_limp_check(npc, id, state, tg)
     local rec = _limping[id]
     if rec and _try_drop_limp(npc, id, rec, tg) then return end
     if state.eligibility_at and tg < state.eligibility_at then return end
@@ -447,7 +445,7 @@ local function _run_monitor()
     local tg = time_global()
     for id, state in pairs(_npc_states) do
         local npc = level.object_by_id(id)
-        if npc then _run_limp_check(npc, state, tg) end
+        if npc then _run_limp_check(npc, id, state, tg) end
     end
 end
 
@@ -461,7 +459,11 @@ end
 
 local function _on_net_destroy(npc)
     if not npc then return end
-    _npc_states[npc:id()] = nil
+    local id = npc:id()
+    _npc_states[id] = nil
+    -- The script-queue overlay dies with the game object; a kept record would fire a spurious
+    -- drop off a stale anchor when the NPC re-onlines.
+    _limping[id] = nil
 end
 
 local function _on_entity_unregister(se_obj)
