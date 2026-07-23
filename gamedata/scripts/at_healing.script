@@ -110,6 +110,45 @@ local function _try_play_heal_anim(npc, gesture)
     if _dbg then log.debug("[HEAL] anim id=%d gesture=%s", npc:id(), gesture) end
 end
 
+-- t165: a fight must be able to end. True while the NPC is actively ENGAGED - a live enemy with
+-- the weapon in his hands (the state_mgr.script:396 read: active_item + weapon_unstrapped), or an
+-- enemy inside contact range regardless of weapon (a mutant mauling him; the reporter's melee-lock
+-- case, where punch damage lost to a 3x heal refill and the fight could not resolve). One tick per
+-- ~6s per healing NPC pays 2-4 luabind reads here.
+local ENGAGED_MELEE_SQR = 5 * 5
+local function _engaged(npc)
+    local enemy = npc:best_enemy()
+    if not (enemy and enemy:alive()) then return false end
+    if npc:active_item() and npc:weapon_unstrapped() then return true end
+    return npc:position():distance_to_sqr(enemy:position()) <= ENGAGED_MELEE_SQR
+end
+
+-- t165 PAUSE while engaged: reset THIS event's timer so it stays queued (the caller returns false) -
+-- no health applied, no tick consumed, the charge waits. Re-creating under the same key from
+-- inside the callback would be a no-op (CreateTimeEvent skips existing keys, _g.script:345,
+-- and the firing event is removed only after a true return, :374) and would kill the chain.
+-- Healing resumes on the same cadence once the fight lets go. Bleed staunching (_patched_heal_bleed)
+-- deliberately stays vanilla: pausing it would turn every pressed fight into a bleed-out
+-- lottery - a larger balance swing than the unwinnable-stalemate fix needs.
+local function _try_pause_hp(npc, id, name, left)
+    if not _engaged(npc) then return false end
+    if _dbg then log.debug("[HEAL] hp_pause id=%d left=%d engaged", id, left) end
+    ResetTimeEvent(id, name .. "_self_healing_event_hp_" .. left, level.get_time_factor())
+    return true
+end
+
+-- Chain-end debug line: why this heal chain stopped (dead, despawned, or ticks spent).
+local function _log_hp_complete(tmr, npc, id, left)
+    if not _dbg then return end
+    local reason = "ticks_exhausted"
+    if npc == nil then
+        reason = "no_obj"
+    elseif not npc:alive() then
+        reason = "dead"
+    end
+    log.debug("[HEAL] complete id=%d reason=%s left=%d [%.2fms]", id, reason, left, tmr:get_ms())
+end
+
 -- Vanilla xr_eat_medkit.heal_hp (script:188-201) with MCM rate multiplier.
 -- Reschedules via xr_eat_medkit.heal_hp lookup so the chain stays on the patched function.
 local function _patched_heal_hp(id, left)
@@ -120,6 +159,11 @@ local function _patched_heal_hp(id, left)
         -- The master toggle is live: off = exact vanilla semantics (flat 0.05, no gesture) through
         -- the same installed function, so an MCM flip applies on the next tick, no restart.
         local enabled = cfg.healing_enabled ~= false
+        local name = npc:name()
+        if enabled and _try_pause_hp(npc, id, name, left) then
+            tmr:stop()
+            return false
+        end
         local mult = enabled and cfg.heal_rate_multiplier or 1
         npc:change_health(0.05 * mult)
         npc.bleeding = 0.01
@@ -131,17 +175,11 @@ local function _patched_heal_hp(id, left)
             log.debug("[HEAL] hp_tick id=%d mult=%.2f health=%.2f left=%d [%.2fms]",
                 id, mult, npc.health, nextl, tmr:get_ms())
         end
-        CreateTimeEvent(id, npc:name() .. "_self_healing_event_hp_" .. nextl,
+        CreateTimeEvent(id, name .. "_self_healing_event_hp_" .. nextl,
             level.get_time_factor(), xr_eat_medkit.heal_hp, id, nextl)
     else
         tmr:stop()
-        if _dbg then
-            local reason = (not npc) and "no_obj"
-                or (not npc:alive()) and "dead"
-                or "ticks_exhausted"
-            log.debug("[HEAL] complete id=%d reason=%s left=%d [%.2fms]",
-                id, reason, left, tmr:get_ms())
-        end
+        _log_hp_complete(tmr, npc, id, left)
     end
     return true
 end
