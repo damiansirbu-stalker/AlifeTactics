@@ -25,7 +25,7 @@ Project-wide constraints. Every system holds all of them; a change that violates
 
 ## Status
 
-Version 1.1.1.
+Version 1.1.5.
 
 | Module | Type | State |
 |---|---|---|
@@ -33,11 +33,17 @@ Version 1.1.1.
 | `at_mcm.script` | infra | done |
 | `at_test.script` | infra | done |
 | `at_hud.script` | infra | done (live debug HUD, noop unless enabled) |
+| `at_combat_trace.script` | infra | done (combat decision/transition trace, noop when off) |
+| `at_perception_trace.script` | infra | done (enemy-selection trace, noop when off) |
+| `at_ballistics.script` | infra | done (outcome recorder, off by default, zero cost off) |
 | `at_disclosure.script` | feature | done |
 | `at_crossfire.script` | feature | done |
 | `at_healing.script` | feature | done |
 | `at_accuracy.script` | feature | done |
-| `at_combat.script` | feature | v2 intermittent takeover: solo maneuver set (counterflank, flee, retreat, kite, pickoff), actor-party fights only; squad coordination and enemy openings are the open phases (todo-combat-takeover-v2.md) |
+| `at_reaction.script` | feature | done (per-rank aim, target lead, vision, fire discipline) |
+| `at_commitment.script` | feature | done (action-switch + cover re-pick vetoes) |
+| `at_combat.script` | feature | v2 intermittent takeover: solo maneuver set (counterflank, reload_cover, flee, retreat, kite, pickoff), actor-party fights only; squad coordination and enemy openings are the open phases (todo-combat-takeover-v2.md) |
+| `at_combat_doctrine.script` | feature | done (the maneuver catalog + arbiter, at_combat's decision half) |
 | `at_danger.script` | feature | done (function-level patch onto the winning xr_danger) |
 | `at_noise.script` | feature | done (movement + handling noise hearing, feeds the danger scheme) |
 | `at_stance.script` | feature | done (conduct posture: crouch behind real low cover, engine body-state callback) |
@@ -47,6 +53,8 @@ Version 1.1.1.
 | `configs/ai_tweaks/mod_xr_eat_medkit_at.ltx` | data | done |
 | `configs/ai_tweaks/mod_xr_danger_at.ltx` | data | done (delete-lines-only DLTX: drops the collision keys; the copied value rows removed 2026-07-10) |
 | `configs/alifetactics/at_combat_config.ltx` | data | done (Combat takeover tunables) |
+| `configs/alifetactics/at_ammo.ltx` | data | done (Ammo tunables) |
+| `configs/alifetactics/at_reaction.ltx` | data | done (Reaction curves; the MCM slider defaults read from it) |
 | `configs/ui/ui_at_stats.xml` | data | done (at_hud layout) |
 
 Backlog (not built):
@@ -76,6 +84,7 @@ AlifeTactics/
 │   │   │   └── mod_xr_danger_at.ltx           # DLTX overlay paired with the danger fn-patch (at_danger)
 │   │   ├── alifetactics/
 │   │   │   ├── at_combat_config.ltx           # Combat numeric tunables
+│   │   │   ├── at_reaction.ltx                # Reaction curves (MCM slider defaults)
 │   │   │   └── at_ammo.ltx                    # Ammo tunables
 │   │   ├── ui/
 │   │   │   └── ui_at_stats.xml                # at_hud HUD layout
@@ -88,7 +97,10 @@ AlifeTactics/
 │   │   ├── at_combat.script                   # Combat > Maneuvers (engine half: GOAP takeover, gates, lifecycle)
 │   │   ├── at_combat_doctrine.script          # Combat decision half (catalog, should/can methods, arbiter)
 │   │   ├── at_combat_trace.script             # Combat DEBUG tracing + telemetry (noop when off)
+│   │   ├── at_commitment.script               # Combat > Commitment (action-switch + cover re-pick vetoes)
+│   │   ├── at_stance.script                   # Combat > Conduct (cover posture)
 │   │   ├── at_accuracy.script                 # Effectiveness > Accuracy
+│   │   ├── at_reaction.script                 # Effectiveness > Reaction (aim, lead, vision, fire discipline)
 │   │   ├── at_disclosure.script               # Effectiveness > Disclosure (hit-share force-disclosure)
 │   │   ├── at_danger.script                   # Effectiveness > Danger (danger scheme fn-patch)
 │   │   ├── at_noise.script                    # Danger > Sound (movement + handling noise hearing)
@@ -97,6 +109,8 @@ AlifeTactics/
 │   │   ├── at_jam.script                      # Mechanics > Jamming (modded-exes xr_weapon_jam override)
 │   │   ├── at_ammo.script                     # Mechanics > Ammo (NPC ammo simulation)
 │   │   ├── zzz_at_healing_patch.script        # vanilla xr_eat_medkit re-roll suppressor
+│   │   ├── at_ballistics.script               # outcome recorder (MCM Development, off by default)
+│   │   ├── at_perception_trace.script         # enemy-selection debug trace
 │   │   ├── at_hud.script                      # live debug HUD (nearby NPC logic/combat/target)
 │   │   └── at_test.script                     # console test commands
 │   └── textures/
@@ -138,7 +152,7 @@ One community-based exclusion overlays this scope: zombified NPCs (`xcreature.co
 
 ## Combat
 
-Status: built incrementally. On `main`: the GOAP graft (`xcombat.install_takeover`), the maneuver-catalog spine (`at_combat_doctrine`), and the full solo maneuver set — counterflank, flee, retreat, kite, pickoff — with the fire discipline owned by `xcombat.set_combat`. It runs only on fights the actor is party to (2026-07-10; the 2026-07-08/09 any-enemy + seize-radius form is retired); squad coordination and enemy openings remain the open phases. Full phase plan + the decision record: `stalker-dev/doc/todo/todo-combat-takeover-v2.md` (t130-t139 + the Plan section). The full-takeover v1 is preserved on the `combat_takeover` branch.
+Status: built incrementally. On `main`: the GOAP graft (`xcombat.install_takeover`), the maneuver-catalog spine (`at_combat_doctrine`), and the full solo maneuver set — counterflank, reload_cover, flee, retreat, kite, pickoff — with the fire discipline owned by `xcombat.set_combat`. It runs only on fights the actor is party to (2026-07-10; the 2026-07-08/09 any-enemy + seize-radius form is retired); squad coordination and enemy openings remain the open phases. Full phase plan + the decision record: `stalker-dev/doc/todo/todo-combat-takeover-v2.md` (t130-t139 + the Plan section). The full-takeover v1 is preserved on the `combat_takeover` branch.
 
 ### Two systems
 

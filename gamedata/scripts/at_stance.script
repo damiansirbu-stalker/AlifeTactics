@@ -28,7 +28,8 @@ local POSTURE_TIERS = { experienced = true, professional = true, veteran = true,
 -- thresholds, nothing flaps between them): ENTER crouch at or above STANCE_ENTER, LEAVE it below
 -- STANCE_EXIT, keep the held posture in the band. The raw read jitters 0.0-0.3 second to second as
 -- both sides move - a single 0.2 cutoff produced 1658 posture flips in one session (2026-07-23);
--- 0.2 center = vanilla's own threshold for this read (axr_npc_vs_heli:259).
+-- 0.2 center = vanilla's 0.2 threshold on the adjacent high-cover field
+-- (level.high_cover_in_direction, axr_npc_vs_heli.script:259).
 local STANCE_ENTER = 0.25
 local STANCE_EXIT  = 0.15
 -- The engine re-asks its combat body state several times a second while an action runs; deciding

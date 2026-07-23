@@ -135,7 +135,8 @@ end
 
 -- The movement scan, on the scheduled pass: hostile stalkers inside the accumulated step radius get
 -- the scripted danger at the actor's position. Rain masks the radius live. Walks db.OnlineStalkers
--- (ids of online stalkers only); the luabind reads run only for NPCs inside the radius.
+-- (ids of online stalkers only): one position read per online stalker, the alert reads (alive,
+-- relation) only inside the radius.
 local function _scan_movement(tg)
     if _step_radius <= 0 then return end
     if (tg - _step_at) > STEP_FRESH_MS then _step_radius = 0 return end
@@ -167,7 +168,7 @@ end
 
 -- Handling noise, straight off the ear: the callback fires only for typed sounds the NPC's own
 -- sound perception accepted, so attenuation and the perceive thresholds already applied. The first
--- read rejects every type not in ACTION_RADIUS_M, so gunfire storms cost one table read here.
+-- read rejects every type not in ACTIONS, so gunfire storms cost one table read here.
 local function _on_hear(npc, who_id, s_type, dist_sqr, _power, pos)
     if not _enabled.actions then return end
     if who_id ~= AC_ID then return end

@@ -38,7 +38,7 @@ Everything is 100% canon, engine-pure, safe and fast:
 - Where the engine had no seam, the seam was added upstream first: per-NPC hooks created in xray-monolith specifically for this mod, merged into the official modded exes.
 - It never replaces a vanilla script file. Takeovers block the planner only for their seconds and hand back; patches lay onto whichever script your setup ships.
 - Every value ships as a formula over the engine's own constants, never an invented number.
-- Zero per-frame Lua. Everything runs on engine callbacks and scheduled passes; the whole mod costs 3 timer compares per frame, whatever the NPC count.
+- Zero per-frame Lua. Everything runs on engine callbacks and scheduled passes; the whole mod costs 5 timer compares per frame, whatever the NPC count.
 - Dozens of vanilla Anomaly bugs fixed along the way: dead branches, wrong calculations, plain crashes in original code.
 
 
