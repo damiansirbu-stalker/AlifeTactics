@@ -288,8 +288,9 @@ end
 --- Adaptive target lead on the fire seam (t156). Throttled per NPC: most shots cost one timestamp
 --- compare. On recompute it reads the best_enemy range and the weapon's bullet speed, derives the
 --- physically-correct lead time (flight time = range / bullet_speed), scales it by rank skill, clamps
---- it, and re-writes predict_time. It re-passes the rank aim (min_speed) so the adaptive call does not
---- revert min_speed to the global. Keeps the last predict when there is no enemy or no usable bullet
+--- it, and re-writes predict_time. It re-passes the rank aim (min_speed, behind aim_enabled; -1 with
+--- the toggle off = the engine's unset sentinel, min_speed follows the live global) so the adaptive
+--- call does not revert an applied rank aim. Keeps the last predict when there is no enemy or no usable bullet
 --- speed. INACTIVE exes no-op inside set_aim_params.
 --- Callback signature (obj, wpn, body_state, move_type, temp_disp), same seam as at_accuracy.
 --- @param obj game_object firing stalker
@@ -297,13 +298,12 @@ end
 local function _on_shot_lead(obj, wpn, body_state, move_type, temp_disp)
     if not cfg.lead_enabled then return end
     if not obj then return end
-    if xcreature.community(obj) == "zombied" then return end
-
     local id = obj:id()
     local tg = time_global()
     local nxt = _next_lead[id]
     if nxt and tg < nxt then return end
     _next_lead[id] = tg + LEAD_THROTTLE_MS
+    if xcreature.community(obj) == "zombied" then return end
 
     local enemy = obj:best_enemy()
     if not enemy then return end
@@ -318,7 +318,8 @@ local function _on_shot_lead(obj, wpn, body_state, move_type, temp_disp)
     local predict = range / bs * err
     if predict < 0 then predict = 0 elseif predict > PREDICT_MAX_S then predict = PREDICT_MAX_S end
 
-    local ok = xcombat.set_aim_params(obj, -1, -1, _resolve_aim(tier) or -1, predict)
+    local aim = cfg.aim_enabled and (_resolve_aim(tier) or -1) or -1
+    local ok = xcombat.set_aim_params(obj, -1, -1, aim, predict)
     _log_lead_once(ok, bs, src, predict)
 
     if _dbg then
