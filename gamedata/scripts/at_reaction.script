@@ -200,6 +200,38 @@ local _qinterval = {
     legend       = 0.75,
 }
 
+-- npc id -> tier string, filled on the first queue_scales read. Ranks are effectively static; a
+-- runtime rank change reads stale until respawn - the same acceptance apply() documents for the
+-- engine fields. Dropped on entity unregister.
+local _tier_cache = {}
+
+--- Fire-discipline scales for one NPC: the same per-tier factors _apply_discipline feeds the engine
+--- planner, for consumers that pace fire OUTSIDE it (at_combat's maneuver queue patch). Returns
+--- (1, 1) when the discipline toggle is off or the NPC has no tier, so callers multiply blindly.
+--- Interval floored like the engine path (DISC_INT_FLOOR), live MCM curve values honored.
+--- @param npc game_object stalker
+--- @return number size_k burst-size multiplier
+--- @return number interval_k inter-burst-pause multiplier
+--- @cost O(1) | 1 luabind (rank) on the first call per id, pure table reads after
+function queue_scales(npc)
+    if not cfg.discipline_enabled then return 1, 1 end
+    local id = npc:id()
+    local tier = _tier_cache[id]
+    if tier == nil then
+        tier = _get_obj_rank_name(npc) or false
+        _tier_cache[id] = tier
+    end
+    if not tier then return 1, 1 end
+    local sk = _qsize[tier] or 1
+    local ik = _qinterval[tier] or 1
+    if ik < DISC_INT_FLOOR then ik = DISC_INT_FLOOR end
+    return sk, ik
+end
+
+local function _on_entity_unregister(se_obj)
+    if se_obj then _tier_cache[se_obj.id] = nil end
+end
+
 -- Set the per-rank queue scales on one NPC. novice (1.0/1.0) leaves the vanilla queue (field unset).
 -- No-op when the toggle is off or on a floor exe (the wrapper returns false).
 local function _apply_discipline(npc, tier)
@@ -335,6 +367,7 @@ function on_game_start()
     _load_config()
     RegisterScriptCallback("npc_on_net_spawn",           apply)
     RegisterScriptCallback("npc_shot_dispersion",        _on_shot_lead)
+    RegisterScriptCallback("server_entity_on_unregister", _on_entity_unregister)
     RegisterScriptCallback("actor_on_first_update",      _on_first_update)
     RegisterScriptCallback("on_option_change",           _refresh_config)
     RegisterScriptCallback("mcm_option_restore_default", _refresh_config)
