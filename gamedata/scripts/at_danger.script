@@ -184,8 +184,9 @@ end
 
 local function danger_in_radius(npc,best_danger,bd_type)
 	local bd_name = bd_types[bd_type]
+	local bdo = best_danger:object()
 	local from_actor = _actor_tables_live and _enabled.actor_tables
-		and best_danger:object() and best_danger:object():id() == db.actor:id()
+		and bdo and bdo:id() == AC_ID
 	local src = (from_actor and DangerIgnoreActor[bd_name]) or DangerIgnore[bd_name]
 	local condlist = _parse_cached(npc, bd_name, "danger_object", src)
 	local ignore_distance = condlist and tonumber(xr_logic.pick_section_from_condlist(db.actor,npc,condlist)) or 0
@@ -373,7 +374,8 @@ local function eval_danger(self)
 		end
 	end
 
-	local from_actor = _enabled.actor_tables and danger:object() and danger:object():id() == db.actor:id()
+	local danger_obj = danger:object()
+	local from_actor = _enabled.actor_tables and danger_obj and danger_obj:id() == AC_ID
 	local src = (from_actor and DangerInertionActor[bd_name]) or DangerInertion[bd_name]
 	local inertion = tonumber(xr_logic.pick_section_from_condlist(db.actor, npc, _parse_cached(npc, bd_name, "danger_inertion_time", src))) or 0
 	if prof then tmr:stop() local t = tmr:get_us() _seg_cond = t - seg_mark seg_mark = t end
