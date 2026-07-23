@@ -1,23 +1,43 @@
 next
-  Summary: Reload Cover, Movement and handling noise, neutral gunfire alert, cover pinning, target lead, fire discipline
+  Summary: Reload Cover, Pickoff, Cover posture, Movement and handling noise, neutral gunfire alert, cover pinning, combat-paused healing, target lead, fire discipline
 
   Danger
     Sound
       - Added Movement noise: hostile stalkers hear you move. Footsteps carry by stance, surface, and weather.
-        Sneaking is near-silent, sprinting on metal carries far, rain muffles everything, a jump landing carries farthest.
-        A hostile who hears you faces the sound and goes on alert. He does not learn where you are, and combat is untouched.
-      - Added Handling noise: a reload racked nearby, an empty click, or an item used alerts hostile stalkers at shorter reach.
+        Crouched movement is silent. A 5m walking base, x1.6 sprinting, a 10m jump landing. Surfaces: metal x1.25, wood x1.15, water x1.35, grass x0.7, dirt and sand x0.8. Rain cuts carry by up to 40 percent.
+        Reaction follows the evidence: a heard walk turns him weapon-ready toward the sound, a sprint or a landing sends him walking over to check the spot.
+        A sound never reads as a confirmed enemy: he investigates at a walk, never charges, does not learn where you are, and combat is untouched.
+      - Added Handling noise: a reload racked nearby or an empty click sends a hostile checking the spot, an item used turns him weapon-ready, all at shorter reach than movement.
       - Added Neutral gunfire alert: neutral and friendly stalkers go weapon-ready facing shots you fire close to them.
         They never turn hostile and settle down when the shooting stops.
       - Added a carry distance slider scaling all noise.
+    Fixes
+      - Changed Player ranges to apply only when the installed danger script itself uses the separate actor tables,
+        so a config that ships the section unused keeps its own tuning.
 
   Combat
     Maneuvers
-      - Added Reload Cover: a stalker caught reloading under fire runs to the nearest cover, and his weapon finishes reloading on the way.
-        A stalker reloading in peace stays put. Needs a recent engine build, inactive on older ones.
+      - Added Reload Cover: a stalker caught reloading in your line of fire runs to the nearest cover, and his weapon finishes reloading on the way.
+        It fires when you could actually hit him - you hold a weapon, face him, and nothing blocks the shot. Reloading out of your line stays put. Needs a recent engine build, inactive on older ones.
+      - Fixed maneuvers interrupting reloads: a maneuver's fire order no longer cancels an NPC's reload in progress,
+        ending the rack-restart-rack loop visible when pressing a reloading NPC at close range. He walks weapon-up until the reload finishes, then fires.
+      - Changed Snipe into Pickoff, now for any weapon: a stalker who has his enemy outranged in a standoff stands his ground
+        and picks him off with deliberate single shots, 1 aimed round every 1.5-2 seconds, tighter at high rank.
+        He plants only comfortably beyond his enemy's effective range and breaks off the moment the enemy closes back in, takes fire, or lands under your crosshair.
+        Shots follow where his weapon actually points, with recoil, and his accuracy comes from the rank curve alone.
+      - Changed maneuver fire to vary like the engine's own: burst length and pauses roll fresh each burst inside the per-weapon ranges
+        and follow the Fire Discipline rank curve, so a maneuver-held master fires tighter than a rookie.
     Commitment
       - Added cover pinning: a stalker firing with a clear shot keeps his cover instead of sliding to a marginally better one, ending the mid-fight cover strafe.
         Its own toggle. Needs a recent engine build, inactive on older ones.
+    Conduct
+      - Added Cover posture: experienced riflemen and snipers crouch when real chest-high cover stands toward their enemy and stand when it does not,
+        replacing vanilla's blind posture picks (crouching behind random bumps and firing into them). Reads the game's own cover map. Needs a recent engine build.
+
+  Mechanics
+    Healing
+      - Changed self-healing to pause while a stalker is actively fighting - weapon in hand on a live enemy, or an enemy at contact range.
+        Healing resumes when the fight lets go and no charge is lost. A fight can no longer be healed through faster than the damage arrives.
 
   Effectiveness
     Accuracy

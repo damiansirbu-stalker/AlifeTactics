@@ -55,15 +55,15 @@ The design goes further than the single stalker: whole squads coordinating their
 
 These maneuvers cover the moments vanilla fumbles (wip, many will come):
   Counterflank snaps a stalker around when a hostile player stands at contact range while he shoots someone far away.
-  Reload Cover sends a stalker caught reloading under fire to the nearest cover instead of standing in the open; his weapon finishes reloading on the way.
+  Reload Cover sends a stalker caught reloading in your line of fire to the nearest cover instead of standing in the open; his weapon finishes reloading on the way.
   Flee routs a cautious faction to a distant friendly base - a coward runs before he fights.
   Retreat pulls a steady one to cover under pressure; a coward whose escape is cut off does the same.
   Kite backs a stalker out of an enemy that closed too near, still firing.
-  Snipe holds a stalled marksman on precision aim.
+  Pickoff plants a stalker who has his enemy outranged and picks him off with deliberate single shots, breaking off the moment the threat returns.
 Maneuvers run only in fights the player is part of; NPC-only fights stay fully vanilla.
 A maneuver fires when its problem is real and ends when it is solved; if you keep creating the problem (keep pressing a shotgunner's minimum range), the answer keeps coming.
-The decisions come out looking human. Nobody turns his back on a shooter, two men never take the same cover, a sniper never plants under your crosshair.
-Maneuver fire bursts by weapon: pistols and rifles fire real bursts, sniper rifles single shots, in place of the uniform burst the game's script machinery uses for every weapon it drives.
+The decisions come out looking human. Nobody turns his back on a shooter, two men never take the same cover, nobody plants under your crosshair.
+Maneuver fire bursts by weapon and by skill: burst length and pauses vary shot to shot inside the game's own per-weapon ranges and tighten with rank, in place of the uniform burst the game's script machinery uses for every weapon it drives.
 The takeover overrides no combat scripts, so it fights side by side with vanilla and works with other combat AI instead of replacing it. Companions are excluded by default.
 
 Commitment:
@@ -75,6 +75,11 @@ While what he is doing still works he stays with it, and he switches the instant
 It also pins his cover: a stalker firing with a clear shot keeps his spot instead of sliding to a marginally better one, stopping the mid-fight strafe at its source.
 The result is a stalker who sees a decision through - keeps up his fire, presses a flank, finishes a reload - instead of second-guessing himself every frame.
 Based on action-switch and cover-repick hooks created in xray-monolith for this mod; on older builds the system stays inactive.
+
+Conduct:
+Small combat habits for stalkers the vanilla engine drives - no takeover, just better choices at moments the engine already decides.
+Cover posture: experienced riflemen and snipers crouch when real chest-high cover stands between them and their enemy, and stand when it does not, replacing vanilla's blind posture picks (crouching behind random bumps and firing into them).
+Reads the game's own cover map toward the enemy; short-weapon carriers and green ranks keep vanilla behavior.
 
 Behaviors (planned):
 New actions the vanilla planner lacks, like melee, hopefully peek etc.
@@ -126,9 +131,14 @@ Danger is how a stalker reacts to a threat he perceives - by sound, by hit, or (
 
 Sound:
 Vanilla NPCs ignore gunfire they hear but cannot see. A hostile stalker now reacts to an enemy's shots without line of sight: he turns to face the gun and takes a threat stance, and moves to cover once he can see the shooter. He is responding to the sound, not to sight of you. Gunfire from neutral or friendly stalkers, including your own, does not alarm them - reactions follow the engine's relation rule, same as vanilla.
-Hostile stalkers also hear you move. Each footstep carries by your stance, the surface, and the weather: sneaking is near-silent, sprinting on metal carries far, rain muffles everything, and a jump landing is the loudest thing you can do.
+Hostile stalkers also hear you move. Each footstep carries by your stance, the surface, and the weather: crouched movement is silent, sprinting on metal carries far, rain muffles everything, and a jump landing is the loudest thing you can do.
+The numbers: a 5m walking base, x1.6 sprinting, a 10m jump landing. Crouched: silent, always.
+Surfaces: metal x1.25, wood x1.15, water x1.35, grass x0.7, dirt and sand x0.8. Rain cuts carry by up to 40 percent.
 They react to handling noise too - a reload racked nearby, an empty click, an item used - at shorter reach.
-A hostile who hears you turns to the sound and goes on alert; he does not magically know where you are. Nothing changes in combat, and a carry-distance slider scales it, so stealth stays a game of distance and stance instead of NPCs being deaf.
+Reaction follows the evidence: a heard walk or an item used turns him weapon-ready toward the sound, while a sprint, a landing, a racked reload, or an empty click sends him walking over to check the spot.
+A sound is never treated as a confirmed enemy: he investigates at a walk, never charges, and does not magically know where you are. Nothing changes in combat, and a carry-distance slider scales it, so stealth stays a game of distance and stance instead of NPCs being deaf.
+Compatible with stealth mods: stealth in Anomaly is about being SEEN - light, cover, and stance - and the sound system never touches vision or detection.
+Hearing only adds the short-range sense vanilla lacks, and crouched movement is silent, so the crouched approach your stealth setup allows is never given away by sound.
 Neutral and friendly stalkers get one reaction of their own: fire close to them and they go weapon-ready facing your shots instead of ignoring gunfire next to their heads. Alert is all it is - they never turn hostile and settle down when the shooting stops.
 Every reaction has its own toggle.
 
