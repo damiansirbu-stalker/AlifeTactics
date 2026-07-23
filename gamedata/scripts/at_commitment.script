@@ -308,9 +308,10 @@ local function _on_action_changed(npc, prev_op, new_op)
         xcombat.sees(npc, enemy) and "yes" or "no", npc:position():distance_to(enemy:position()))
 end
 
-local function _on_death(npc)
-    if not npc then return end
-    local id = npc:id()
+-- Drop every per-id record for one NPC. Shared by the death and unregister paths: death covers the
+-- online case, unregister covers offline deaths and despawns, so a recycled id never inherits a stale
+-- _cur_op (the cover-pin veto scopes on it) or an open hold window.
+local function _forget(id)
     _hold[id] = nil
     _last[id] = nil
     _decline_at[id] = nil
@@ -318,6 +319,15 @@ local function _on_death(npc)
     _hit_at[id] = nil
     _cur_op[id] = nil
     _cover_hold[id] = nil
+end
+
+local function _on_death(npc)
+    if not npc then return end
+    _forget(npc:id())
+end
+
+local function _on_entity_unregister(se_obj)
+    if se_obj then _forget(se_obj.id) end
 end
 
 -- Veto handler on the best-cover re-pick seam (npc_on_best_cover_repick, PR #607). Denies the re-pick
@@ -409,6 +419,9 @@ local function _refresh_config()
 end
 
 local function _on_first_update()
+    -- Session boundary: a loaded save re-creates entities under different ids, so every per-id
+    -- record is stale (the at_combat trace.reset / at_disclosure _disclosed = {} shape).
+    _hold, _last, _decline_at, _census_at, _hit_at, _cur_op, _cover_hold = {}, {}, {}, {}, {}, {}, {}
     _refresh_config()
     log.info("Commitment initialized (enabled=%s, hold_cap=%dms)",
         cfg.commitment_enabled and "true" or "false", _hold_cap_ms)
@@ -418,6 +431,7 @@ function on_game_start()
     -- The best-cover re-pick trace registers regardless of the veto seam: the shuffle it evidences exists on
     -- every exe, and the maneuver/actor-enemy filters work without Commitment.
     RegisterScriptCallback("npc_on_best_cover_changed",      _on_best_cover_changed)
+    RegisterScriptCallback("server_entity_on_unregister",    _on_entity_unregister)
     RegisterScriptCallback("actor_on_first_update",          _on_first_update)
     RegisterScriptCallback("on_option_change",               _refresh_config)
     RegisterScriptCallback("mcm_option_restore_default",     _refresh_config)
