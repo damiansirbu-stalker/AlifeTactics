@@ -684,7 +684,7 @@ The engine then runs its own combat detection (property_enemy, m_combat_mask, ag
 
 - Task queue: `stalker-dev/doc/todo/todo-alifetactics-next.md`
 - Takeover build plan: `stalker-dev/doc/todo/todo-combat-takeover-v2.md`
-- Adversarial review: `stalker-dev/doc/todo/todo-alifetactics-fable-review.md`
+- Adversarial reviews: closed (2026-07-02, 2026-07-08, 2026-07-23); records in stalker-dev git history, deferred release-gate items in `todo-alifetactics-next.md` (t167)
 - Engine PR queue: `stalker-dev/doc/todo/todo-demonized-exes.md`
 - xlibs architecture: `stalker-mods/xlibs/doc/architecture.md`
 - AlifePlus architecture: `stalker-mods/AlifePlus/doc/architecture.md`
