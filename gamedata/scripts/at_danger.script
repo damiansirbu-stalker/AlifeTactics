@@ -89,6 +89,11 @@ local IsStalker, IsMonster, IsWounded = IsStalker, IsMonster, IsWounded
 local log = xlog.get_logger("AT.DANGER", { outfile = "alifetactics.log" })
 local _dbg = false
 local _enabled = { hit_bypass = true, attack_sound = true, actor_tables = true, neutral_gunfire = true }
+-- Actor-table liveness: [danger_object_actor] is honored only when the winning danger script consumed
+-- it itself (its module carries the DangerIgnoreActor field, probed at _install_patches). Some danger
+-- scripts ship the section with stale values and never read it - resurrecting it would override their
+-- tuned base radii. Vanilla ships base and actor tables identical, so the probe changes nothing there.
+local _actor_tables_live = false
 
 -- Non-enemy actor gunfire alert radius (t150), squared. Deliberately its own small constant instead
 -- of the config's attack_sound row (up to 300m on vanilla tuning) - a neutral reacting at combat
@@ -134,7 +139,11 @@ local bd_types = {
 -----------------------------------------------------------------------------
 -- 																PUBLIC
 -----------------------------------------------------------------------------
-function set_script_danger(npc,time,who_id,pos)
+-- strength (optional, t163): the evidence grade the scripted reaction runs at - "faint" (stance
+-- only) or "solid" (walk-investigate). Absent = the original assault reaction, so foreign callers
+-- (the winning xr_danger's own feeds) are untouched. Assigned unconditionally: a later ungraded
+-- stamp must not inherit a stale grade.
+function set_script_danger(npc,time,who_id,pos,strength)
 	-- Bug 5 guard: the vanilla hit callback calls this with an undefined who_id.
 	-- Reject the nil-source write so that callback cannot corrupt the entry.
 	if not who_id then
@@ -142,12 +151,13 @@ function set_script_danger(npc,time,who_id,pos)
 	end
 	local id = npc:id()
 	if not (script_danger[id]) then
-		script_danger[id] = {danger_time = time_global(), danger_inertion = time, id = who_id, position = pos}
+		script_danger[id] = {danger_time = time_global(), danger_inertion = time, id = who_id, position = pos, strength = strength}
 	else
 		script_danger[id].danger_time = time_global()
 		script_danger[id].danger_inertion = time
 		script_danger[id].id = who_id
 		script_danger[id].position = pos
+		script_danger[id].strength = strength
 	end
 end
 
@@ -174,7 +184,8 @@ end
 
 local function danger_in_radius(npc,best_danger,bd_type)
 	local bd_name = bd_types[bd_type]
-	local from_actor = _enabled.actor_tables and best_danger:object() and best_danger:object():id() == db.actor:id()
+	local from_actor = _actor_tables_live and _enabled.actor_tables
+		and best_danger:object() and best_danger:object():id() == db.actor:id()
 	local src = (from_actor and DangerIgnoreActor[bd_name]) or DangerIgnore[bd_name]
 	local condlist = _parse_cached(npc, bd_name, "danger_object", src)
 	local ignore_distance = condlist and tonumber(xr_logic.pick_section_from_condlist(db.actor,npc,condlist)) or 0
@@ -496,6 +507,20 @@ local function script_action_danger_scripted(npc,st)
 	end
 	--]]
 
+	-- t163 graded reaction: a sound is a position ESTIMATE, never a confirmed enemy, so no
+	-- sound-only stamp may produce a run state. FAINT (walk step, item handling): orient to the
+	-- heard position weapon-ready, no movement - the stamped position, not the source's live one
+	-- (facing a live position on a faint sound would track the actor through walls). SOLID
+	-- (reload, empty click, sprint, landing): the reposition below runs at "raid" (walk, weapon
+	-- up) instead of "assault". Absent strength (foreign set_script_danger callers): the original
+	-- assault path, byte-identical.
+	local strength = script_danger[id].strength
+	if (strength == "faint") then
+		state_mgr.set_state(npc,"threat_na",nil,nil,{look_position = bdo_pos},{fast_set = true})
+		return
+	end
+	local move_state = strength == "solid" and "raid" or "assault"
+
 	if (st.stage == 1) then
 		local new_vid = random_choice(utils_obj.try_to_strafe(npc),utils_obj.try_go_backward(npc,6),utils_obj.try_go_cover(npc,bdo and bdo:position() or bdo_pos or npc:position()))
 
@@ -522,9 +547,9 @@ local function script_action_danger_scripted(npc,st)
 			st.stage = 2
 
 			local sm = db.storage[npc:id()].state_mgr
-			if (sm and sm.target_state ~= "assault") then
+			if (sm and sm.target_state ~= move_state) then
 				npc:clear_animations()
-				sm:set_state("assault",nil,nil,{look_position = who_dist and who_dist < 22500 and bdo and bdo:position() or bdo_pos}, {fast_set = true})
+				sm:set_state(move_state,nil,nil,{look_position = who_dist and who_dist < 22500 and bdo and bdo:position() or bdo_pos}, {fast_set = true})
 				sm.animation:set_state(nil, true)
 				sm.animation:set_control()
 				sm.animstate:set_state(nil, true)
@@ -546,7 +571,7 @@ local function script_action_danger_scripted(npc,st)
 			state_mgr.set_state(npc,"threat_danger",nil,nil,{look_position = who_dist and who_dist < 22500 and bdo and bdo:position() or bdo_pos},{fast_set = true})
 			return
 		end
-		state_mgr.set_state(npc,"assault",nil,nil,{look_position = who_dist and who_dist < 22500 and bdo and bdo:position() or bdo_pos},{fast_set = true})
+		state_mgr.set_state(npc,move_state,nil,nil,{look_position = who_dist and who_dist < 22500 and bdo and bdo:position() or bdo_pos},{fast_set = true})
 		utils_obj.send_to_nearest_accessible_vertex(npc,st.lvid)
 	end
 end
@@ -1191,6 +1216,9 @@ local function _install_patches()
 	xr_danger.get_danger_time      = get_danger_time
 	xr_danger.set_script_danger    = set_script_danger
 	xr_danger.has_danger           = has_danger
+	-- Probed BEFORE our assignments could matter: the field belongs to the shipped module, we never
+	-- set it. Non-nil = that script read [danger_object_actor] itself, so the actor tables are live.
+	_actor_tables_live = xr_danger.DangerIgnoreActor ~= nil
 end
 
 function on_game_start()

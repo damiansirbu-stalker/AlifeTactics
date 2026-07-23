@@ -40,8 +40,12 @@ local INERTION_MS    = 5000
 -- ACCELERATED_SOUND_FACTOR, ai_sounds.h:81-82 - defined, never consumed); the surface material
 -- scales it (the material name arrives with every step); rain masks it. Values are provisional
 -- until the playtest - the stealth balance lives in these numbers.
-local BASE_RADIUS_M  = 9
-local CROUCH_FACTOR  = 0.35
+-- Anchored to Anomaly room scale (4-5m): the walk base stays inside one room, only sprint and the
+-- landing thud reach past a wall. The scan has no occlusion test, so radii ARE the wall policy.
+-- Crouch is SILENT (factor 0): the crouched approach is the stealth-kill gait the modpack's
+-- vision-based stealth is built around - hearing must never catch what light and cover allowed.
+local BASE_RADIUS_M  = 5
+local CROUCH_FACTOR  = 0
 local SPRINT_FACTOR  = 1.6
 local RAIN_CUT       = 0.4
 local MATERIAL_FACTORS = {
@@ -49,23 +53,31 @@ local MATERIAL_FACTORS = {
     grass = 0.7, dirt = 0.8, earth = 0.8, sand = 0.8,
 }
 
--- Handling radii per xr_hear type string (xr_hear.get_sound_type): a reload is the loudest tell, an
--- empty click shorter, an item use the quietest. Types not listed are ignored on the first read.
-local ACTION_RADIUS_M = {
-    WPN_reload = 12,
-    WPN_empty  = 10,
-    ITM_use    = 8,
+-- Handling rows per xr_hear type string (xr_hear.get_sound_type): { radius m, strength }. A reload
+-- is the loudest tell, an empty click shorter, an item use the quietest. The strength is the t163
+-- evidence grade the scripted reaction runs at - "solid" (walk-investigate, weapon up) for the
+-- distinctive weapon tells, "faint" (orient + ready stance, no movement) for item handling. Types
+-- not listed are ignored on the first read.
+local ACTIONS = {
+    WPN_reload = { 8, "solid" },
+    WPN_empty  = { 6, "solid" },
+    ITM_use    = { 5, "faint" },
 }
 
 -- A landing is the loudest movement sound the actor makes - a one-off thud, well past a sprint step.
 -- Fed through the same accumulate-and-scan path as steps (actor_on_land, Actor_Movement.cpp:90).
-local LAND_RADIUS_M = 14
+local LAND_RADIUS_M = 10
 
--- Loudest step radius accumulated since the last scan, and when it landed.
-local _step_radius  = 0
-local _step_at      = 0
--- npc id -> time_global() of the last alert stamped on it (the re-alert throttle).
-local _alert_at     = {}
+-- Loudest step radius accumulated since the last scan, when it landed, and its evidence grade
+-- (walk = faint; sprint and landing = solid - the grade rides the loudest accumulated event).
+local _step_radius   = 0
+local _step_at       = 0
+local _step_strength = "faint"
+-- npc id -> time_global() of the last alert stamped on it (the re-alert throttle), and the grade
+-- it carried (a solid event bypasses the throttle over a standing faint alert, so a sprint past
+-- an already-alerted NPC escalates now instead of after the window).
+local _alert_at       = {}
+local _alert_strength = {}
 
 -- Surface factor from the step's material name (substring match, unknown surfaces neutral).
 -- @cost O(k) known materials, pure Lua
@@ -82,14 +94,16 @@ end
 -- (standing still produces no events), so the steady-state cost of the feature is zero.
 local function _on_footstep(material, _power, _hud_view, _flags)
     if not _enabled.move then return end
-    local stance = 1.0
+    local stance, strength = 1.0, "faint"
     if IsMoveState("mcCrouch") then
         stance = CROUCH_FACTOR
     elseif IsMoveState("mcSprint") then
-        stance = SPRINT_FACTOR
+        stance, strength = SPRINT_FACTOR, "solid"
     end
     local radius = BASE_RADIUS_M * stance * _material_factor(material) * _mult
-    if radius > _step_radius then _step_radius = radius end
+    if radius > _step_radius then
+        _step_radius, _step_strength = radius, strength
+    end
     _step_at = time_global()
 end
 
@@ -98,21 +112,25 @@ end
 local function _on_land(_landing_speed)
     if not _enabled.move then return end
     local radius = LAND_RADIUS_M * _mult
-    if radius > _step_radius then _step_radius = radius end
+    if radius > _step_radius then
+        _step_radius, _step_strength = radius, "solid"
+    end
     _step_at = time_global()
 end
 
 -- Stamp one hostile stalker with the scripted danger at the heard position. The scheme gates the
 -- rest: fighting NPCs (best_enemy set) and zombied never run the reaction, wounded are skipped.
 -- @cost O(1) | 2-3 luabind on the stamped path (alive, relation)
-local function _try_alert(npc, id, pos, tg, source)
+local function _try_alert(npc, id, pos, tg, source, strength)
     if not npc:alive() then return end
     if npc:relation(db.actor) ~= game_object.enemy then return end
     local last = _alert_at[id]
-    if last and (tg - last) < REALERT_MS then return end
+    local escalates = strength == "solid" and _alert_strength[id] == "faint"
+    if last and (tg - last) < REALERT_MS and not escalates then return end
     _alert_at[id] = tg
-    xr_danger.set_script_danger(npc, INERTION_MS, AC_ID, pos)
-    if _dbg then log.debug("[NOISE] alert id=%d name=%s source=%s", id, npc:name(), source) end
+    _alert_strength[id] = strength
+    xr_danger.set_script_danger(npc, INERTION_MS, AC_ID, pos, strength)
+    if _dbg then log.debug("[NOISE] alert id=%d name=%s source=%s strength=%s", id, npc:name(), source, strength) end
 end
 
 -- The movement scan, on the scheduled pass: hostile stalkers inside the accumulated step radius get
@@ -121,8 +139,8 @@ end
 local function _scan_movement(tg)
     if _step_radius <= 0 then return end
     if (tg - _step_at) > STEP_FRESH_MS then _step_radius = 0 return end
-    local radius = _step_radius
-    _step_radius = 0
+    local radius, strength = _step_radius, _step_strength
+    _step_radius, _step_strength = 0, "faint"
     local rain = level.rain_factor()
     if rain and rain > 0 then radius = radius * (1.0 - RAIN_CUT * rain) end
     local radius_sqr = radius * radius
@@ -132,7 +150,7 @@ local function _scan_movement(tg)
         local st = db.storage[id]
         local npc = st and st.object
         if npc and actor_pos:distance_to_sqr(npc:position()) <= radius_sqr then
-            _try_alert(npc, id, actor_pos, tg, "step")
+            _try_alert(npc, id, actor_pos, tg, "step", strength)
         end
     end
     if _dbg then log.debug("[NOISE] scan radius=%.1fm rain=%.2f", radius, rain or 0) end
@@ -153,16 +171,19 @@ end
 local function _on_hear(npc, who_id, s_type, dist_sqr, _power, pos)
     if not _enabled.actions then return end
     if who_id ~= AC_ID then return end
-    local radius = ACTION_RADIUS_M[s_type]
-    if not radius then return end
-    radius = radius * _mult
+    local row = ACTIONS[s_type]
+    if not row then return end
+    local radius = row[1] * _mult
     if dist_sqr > radius * radius then return end
     if not (npc and IsStalker(npc)) then return end
-    _try_alert(npc, npc:id(), pos, time_global(), s_type)
+    _try_alert(npc, npc:id(), pos, time_global(), s_type, row[2])
 end
 
 local function _on_entity_unregister(se_obj)
-    if se_obj then _alert_at[se_obj.id] = nil end
+    if se_obj then
+        _alert_at[se_obj.id] = nil
+        _alert_strength[se_obj.id] = nil
+    end
 end
 
 local function _refresh_config()
