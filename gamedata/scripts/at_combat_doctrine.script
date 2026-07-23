@@ -79,11 +79,11 @@ local function _can_kite(npc, _enemy, state, _tg, memo)
         local lane_sqr = xmath.dist_flat_sqr(level.vertex_position(vid), np)
         local needed_m = xcombat.get_weapon_range(memo.kind).min - dist
         if lane_sqr <= needed_m * needed_m then
-            at_combat_trace.can_kite(npc:id(), dist, math_sqrt(lane_sqr), nil)
+            at_combat_trace.can_kite(state.id, dist, math_sqrt(lane_sqr), nil)
             return nil
         end
     end
-    at_combat_trace.can_kite(npc:id(), dist, back_m, vid)
+    at_combat_trace.can_kite(state.id, dist, back_m, vid)
     return vid
 end
 
@@ -114,12 +114,12 @@ end
 local function _can_pickoff(npc, enemy, state, tg, memo)
     local blocked = _pickoff_blocked(npc, enemy, state, tg, memo.npc_pos)
     if blocked then
-        at_combat_trace.can_pickoff(npc:id(), state.dist, nil, blocked)
+        at_combat_trace.can_pickoff(state.id, state.dist, nil, blocked)
         return nil
     end
     local enemy_band = xcombat.get_weapon_range(xcombat.get_weapon_kind(enemy) or "w_rifle")
     local planted = state.dist > enemy_band.max * PICKOFF_ENTER_FACTOR
-    at_combat_trace.can_pickoff(npc:id(), state.dist, enemy_band.max, planted and "plant" or "in_effective_range")
+    at_combat_trace.can_pickoff(state.id, state.dist, enemy_band.max, planted and "plant" or "in_effective_range")
     if not planted then return nil end
     state.pickoff_exit_m = enemy_band.max
     return npc:level_vertex_id()
@@ -147,12 +147,12 @@ end
 -- engine's own selection outright - at hand-back best_enemy IS the actor, which is what negates the need
 -- (the transaction's success is the engine changing its mind). One raycast at feasibility: a wall between
 -- them means facing him is theater, decline.
-local function _can_counterflank(npc, _enemy, _state, _tg, memo)
+local function _can_counterflank(npc, _enemy, state, _tg, memo)
     if xcombat.has_obstacle_to_target(memo.npc_pos, memo.actor_pos) then
-        at_combat_trace.can_counterflank(npc:id(), "obstructed")
+        at_combat_trace.can_counterflank(state.id, "obstructed")
         return nil
     end
-    at_combat_trace.can_counterflank(npc:id(), "taken")
+    at_combat_trace.can_counterflank(state.id, "taken")
     return npc:level_vertex_id()
 end
 
@@ -171,23 +171,23 @@ end
 local function _can_reload_cover(npc, _enemy, state, _tg, memo)
     if not xcombat.is_reloading(npc) then
         state.reloading = nil
-        at_combat_trace.can_reload_cover(npc:id(), "not_reloading")
+        at_combat_trace.can_reload_cover(state.id, "not_reloading")
         return nil
     end
     if not xcombat.actor_can_hit(npc, RELOAD_COVER_CONE_DEG) then
-        at_combat_trace.can_reload_cover(npc:id(), "actor_no_shot")
+        at_combat_trace.can_reload_cover(state.id, "actor_no_shot")
         return nil
     end
     local vid = xcombat.find_cover(npc, memo.enemy_pos)
     if not vid then
-        at_combat_trace.can_reload_cover(npc:id(), "no_cover")
+        at_combat_trace.can_reload_cover(state.id, "no_cover")
         return nil
     end
-    if not xcombat.claim_cover(vid, npc:id()) then
-        at_combat_trace.can_reload_cover(npc:id(), "claim_lost", vid)
+    if not xcombat.claim_cover(vid, state.id) then
+        at_combat_trace.can_reload_cover(state.id, "claim_lost", vid)
         return nil
     end
-    at_combat_trace.can_reload_cover(npc:id(), "taken", vid)
+    at_combat_trace.can_reload_cover(state.id, "taken", vid)
     state.cover_lvid = vid
     return vid
 end
@@ -217,21 +217,21 @@ local function _can_retreat(npc, _enemy, state, _tg, memo)
     end
     local vid = xcombat.find_cover(npc, ep, center)
     if not vid then
-        at_combat_trace.can_retreat(npc:id(), "no_cover")
+        at_combat_trace.can_retreat(state.id, "no_cover")
         return nil
     end
     local vp = level.vertex_position(vid)
     local vdx, vdz = vp.x - ep.x, vp.z - ep.z
     local cover_dist_sqr = vdx * vdx + vdz * vdz
     if cover_dist_sqr <= dist_sqr then
-        at_combat_trace.can_retreat(npc:id(), "toward_enemy", vid, math_sqrt(cover_dist_sqr), state.dist)
+        at_combat_trace.can_retreat(state.id, "toward_enemy", vid, math_sqrt(cover_dist_sqr), state.dist)
         return nil
     end
-    if not xcombat.claim_cover(vid, npc:id()) then
-        at_combat_trace.can_retreat(npc:id(), "claim_lost", vid)
+    if not xcombat.claim_cover(vid, state.id) then
+        at_combat_trace.can_retreat(state.id, "claim_lost", vid)
         return nil
     end
-    at_combat_trace.can_retreat(npc:id(), "taken", vid, math_sqrt(cover_dist_sqr), state.dist)
+    at_combat_trace.can_retreat(state.id, "taken", vid, math_sqrt(cover_dist_sqr), state.dist)
     state.cover_lvid = vid
     return vid
 end
@@ -613,8 +613,8 @@ end
 --- need holds runs its can_maneuver - the ONE geometry probe this tick - and ends the walk either way: a
 --- vertex stages the row, a nil declines the tick. In BOTH cases the cursor moves past that row, so a
 --- declined row defers to the next candidate and retries after at most one lap (~catalog size x begin
---- period), and a picked row hands the NEXT decision to the row below it - a still-hurt timid NPC
---- escalates retreat -> flee with no escalation state. The cursor resets to the top when the NPC leaves
+--- period), and a picked row hands the NEXT decision to the row below it - a timid NPC whose flee
+--- declined falls to retreat with no escalation state. The cursor resets to the top when the NPC leaves
 --- the fight (at_combat). Cost per tick is bounded by construction: at most one lap of need compares
 --- (microseconds) plus at most one can_maneuver. Positions and shared reads memoize on state.memo per
 --- tick. When tracing is on, state.rows carries every examined row as "name:situation/stage" with
@@ -681,7 +681,16 @@ function at_combat_doctrine.resolve_maneuver(npc, enemy, state, tg)
         state.rows = table_concat(rows_trace, ",")
         state.walk_us = math_floor(walk_timer:get_us())
     end
-    if not spent_vid or _circuit_tripped(state, spent_sit, memo.npc_pos) then return nil end
+    if not spent_vid then return nil end
+    if _circuit_tripped(state, spent_sit, memo.npc_pos) then
+        -- The refused pick's can_maneuver may have claimed a cover vertex (retreat, reload_cover); no
+        -- maneuver opens, so _end_maneuver never releases it - release here or the claim outlives the walk.
+        if state.cover_lvid then
+            xcombat.release_cover(state.cover_lvid, state.id)
+            state.cover_lvid = nil
+        end
+        return nil
+    end
     state.trigger = spent_sit
     return spent_row, spent_vid
 end
