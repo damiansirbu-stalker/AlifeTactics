@@ -29,7 +29,7 @@ local CONFIG_SECTION = "at_combat"
 local HURT_FRAC, STALL_MS, STALL_MOVE_SQR, STALL_CLOSE_M
 local KITE_ARC_DEG, KITE_SPREAD_DEG
 local FLEE_MIN_DIST_M, FLEE_BASE_MIN_DIST_M, RETREAT_REAR_M, UNDER_FIRE_MS
-local COUNTERFLANK_ACTOR_DIST_SQR, SNIPE_TARGETED_DEG, CIRCUIT_LIMIT, RELOAD_STALE_MS
+local COUNTERFLANK_ACTOR_DIST_SQR, PICKOFF_TARGETED_DEG, PICKOFF_ENTER_FACTOR, CIRCUIT_LIMIT, RELOAD_STALE_MS, RELOAD_COVER_CONE_DEG
 
 -- Displacement under this between two same-situation picks reads as "the transaction changed nothing"
 -- (squared, flat - stairs do not read as movement).
@@ -87,45 +87,57 @@ local function _can_kite(npc, _enemy, state, _tg, memo)
     return vid
 end
 
--- The snipe premise beyond the range geometry: a hold is for the unbothered. "under_fire" - a fresh hit
+-- The pickoff premise beyond the range geometry: a hold is for the unbothered. "under_fire" - a fresh hit
 -- (state.hit_at within UNDER_FIRE_MS) or a perceived shot from the enemy (the NPC's own danger memory);
--- "targeted" - the actor's aim is on him (facing offset under SNIPE_TARGETED_DEG; a motionless head under
+-- "targeted" - the actor's aim is on him (facing offset under PICKOFF_TARGETED_DEG; a motionless head under
 -- a player's crosshair is a gift regardless of range). Checked at feasibility (the luabind reads live off
 -- the cascade path, the same placement as flee's _flee_blocked) and re-checked while the hold runs (the
 -- row's should_end) - a broken premise ends the hold now, not at the cap. Returns the reason, or nil.
-local function _snipe_blocked(npc, enemy, state, tg, npc_pos)
+local function _pickoff_blocked(npc, enemy, state, tg, npc_pos)
     if state.hit_at and (tg - state.hit_at) < UNDER_FIRE_MS then return "under_fire" end
     if xcombat.is_under_fire(npc, enemy, tg, UNDER_FIRE_MS) then return "under_fire" end
-    if db.actor and xcombat.get_facing_offset(db.actor, npc_pos) <= SNIPE_TARGETED_DEG then return "targeted" end
+    if db.actor and xcombat.get_facing_offset(db.actor, npc_pos) <= PICKOFF_TARGETED_DEG then return "targeted" end
     return nil
 end
 
--- snipe: a precision-fire HOLD on the NPC's own node, only past the ENEMY's weapon maximum - he plants exactly
--- where the enemy cannot effectively answer (past 15m vs a shotgun, past 80m vs a rifle) and never gifts a
--- motionless head inside the enemy's working range. Declines while its premise is broken (_snipe_blocked:
--- under fire or under the actor's aim). ends_on=time runs it to the hold timeout, not an arrival.
--- fire=SNIPE, and set_combat's fire discipline downgrades it to READY when a shot makes no sense (occluded /
--- no LOS), so a sniper without a lane holds weapon-up instead of firing at a wall.
--- A weaponless enemy (a mutant) has no kind and reads as the rifle band, so snipe only plants on it
--- past 80m - conservative, and a melee mutant past 80m is no threat to a planted sniper anyway.
-local function _can_snipe(npc, enemy, state, tg, memo)
-    local blocked = _snipe_blocked(npc, enemy, state, tg, memo.npc_pos)
+-- pickoff: a deliberate-fire HOLD on the NPC's own node, only comfortably past the ENEMY's EFFECTIVE
+-- range - the distance where his weapon is still genuinely dangerous, not where bullets stop existing
+-- (a shotgun blast at 25m still arrives, spread thin), so the advantage is statistical, never immunity,
+-- and the break-offs stay strict. Range hysteresis, 2 thresholds: ENTER only past effective range x
+-- PICKOFF_ENTER_FACTOR; the should_end re-check ENDS the hold when the enemy closes inside 1.0x (his
+-- weapon is dangerous again). Between the two nothing flaps. Declines while its premise is broken
+-- (_pickoff_blocked: under fire or under the actor's aim). ends_on=time runs it to the hold timeout.
+-- fire=FIRE at STILL, and set_combat's fire discipline downgrades it to READY when a shot makes no
+-- sense (occluded / no LOS), so a holder without a lane stands weapon-up instead of firing at a wall.
+-- A weaponless enemy (a mutant) has no kind and reads as the rifle band, so pickoff only plants on it
+-- past 80m x factor - conservative, and a melee mutant that far away is no threat to a standing shooter.
+local function _can_pickoff(npc, enemy, state, tg, memo)
+    local blocked = _pickoff_blocked(npc, enemy, state, tg, memo.npc_pos)
     if blocked then
-        at_combat_trace.can_snipe(npc:id(), state.dist, nil, blocked)
+        at_combat_trace.can_pickoff(npc:id(), state.dist, nil, blocked)
         return nil
     end
     local enemy_band = xcombat.get_weapon_range(xcombat.get_weapon_kind(enemy) or "w_rifle")
-    local planted = state.dist > enemy_band.max
-    at_combat_trace.can_snipe(npc:id(), state.dist, enemy_band.max, planted and "plant" or "in_enemy_range")
+    local planted = state.dist > enemy_band.max * PICKOFF_ENTER_FACTOR
+    at_combat_trace.can_pickoff(npc:id(), state.dist, enemy_band.max, planted and "plant" or "in_effective_range")
     if not planted then return nil end
+    state.pickoff_exit_m = enemy_band.max
     return npc:level_vertex_id()
 end
 
--- The snipe premise re-check while the hold runs (the catalog row's should_end, on the 200ms end check):
--- the same terms _can_snipe gated on. A hit landing or the actor's crosshair arriving mid-hold ends the
--- maneuver with that reason - a planted sniper does not sit through being shot at.
-local function _should_end_snipe(npc, enemy, state, tg)
-    return _snipe_blocked(npc, enemy, state, tg, npc:position())
+-- The pickoff premise re-check while the hold runs (the catalog row's should_end, on the 200ms end check):
+-- the same terms _can_pickoff gated on, plus the hysteresis exit - the enemy closing inside his own
+-- EFFECTIVE range (stashed at feasibility) makes his weapon dangerous again and ends the hold now.
+-- A hit landing or the actor's crosshair arriving mid-hold ends it with that reason - a standing
+-- shooter does not sit through being shot at.
+local function _should_end_pickoff(npc, enemy, state, tg)
+    local pos = npc:position()
+    local blocked = _pickoff_blocked(npc, enemy, state, tg, pos)
+    if blocked then return blocked end
+    if state.pickoff_exit_m and enemy and pos:distance_to(enemy:position()) < state.pickoff_exit_m then
+        return "in_effective_range"
+    end
+    return nil
 end
 
 -- counterflank: the actor-party row - an enemy actor at near-contact range while this NPC's committed fight
@@ -144,24 +156,26 @@ local function _can_counterflank(npc, _enemy, _state, _tg, memo)
     return npc:level_vertex_id()
 end
 
--- reload_cover: the vulnerable-window reposition (t135, the n031 consumer). A reloading NPC under fire
--- moves to cover instead of standing in the open - the engine finishes the reload on its own timer
--- during the move. Order: the authoritative reload confirm FIRST (xcombat.is_reloading over get_state -
--- the event stamp the need read can be stale when the stop edge was missed on a detached weapon), then
--- the under-fire gate (a fresh hit via state.hit_at, or a perceived shot via the NPC's danger memory -
--- reloading in peace declines: vanilla reloads in place, per the t135 spec), then the cover search at
+-- reload_cover: the vulnerable-window reposition (t135, the n031 consumer). A reloading NPC in the
+-- PLAYER'S line of fire moves to cover instead of standing in the open - the engine finishes the
+-- reload on its own timer during the move. Order: the authoritative reload confirm FIRST
+-- (xcombat.is_reloading over get_state - the event stamp the need read can be stale when the stop
+-- edge was missed on a detached weapon), then the exposure gate: xcombat.actor_can_hit - the player
+-- holds a firearm, faces him within RELOAD_COVER_CONE_DEG, and the shot line is clear. The leading
+-- indicator, scope-correct for a player-only maneuver (the earlier hit/heard-shot/danger evidence
+-- counted fire from ANY source - third-party crossfire fed a player-scoped decision - and reacted
+-- only after the danger had materialized). Reloading out of the player's line declines: vanilla
+-- reloads in place, per the t135 spec. Then the cover search at
 -- his own position (nearest cover, no rear bias - the point is out of the open, not gaining distance)
 -- with the claim/release pairing retreat uses (state.cover_lvid, released on every exit).
-local function _can_reload_cover(npc, enemy, state, tg, memo)
+local function _can_reload_cover(npc, _enemy, state, _tg, memo)
     if not xcombat.is_reloading(npc) then
         state.reloading = nil
         at_combat_trace.can_reload_cover(npc:id(), "not_reloading")
         return nil
     end
-    local under = (state.hit_at and (tg - state.hit_at) < UNDER_FIRE_MS)
-        or xcombat.is_under_fire(npc, enemy, tg, UNDER_FIRE_MS)
-    if not under then
-        at_combat_trace.can_reload_cover(npc:id(), "not_under_fire")
+    if not xcombat.actor_can_hit(npc, RELOAD_COVER_CONE_DEG) then
+        at_combat_trace.can_reload_cover(npc:id(), "actor_no_shot")
         return nil
     end
     local vid = xcombat.find_cover(npc, memo.enemy_pos)
@@ -356,8 +370,8 @@ end
 
 -- stalled: held position with the enemy not closing (_eval_stalled) for STALL_MS SINCE the last maneuver
 -- (a transaction resets the tracker, so a finished hold negates its own need), AND the enemy inside MY
--- weapon's working band - a standoff my rifle can exploit. The tracker runs on every walk that reaches
--- the snipe row, so the stall memory stays warm across declined walks.
+-- weapon's EFFECTIVE range - a standoff my weapon can exploit. The tracker runs on every walk that
+-- reaches the pickoff row, so the stall memory stays warm across declined walks.
 local function _should_stalled(npc, _enemy, state, tg, memo)
     if not _eval_stalled(state, tg, memo.npc_pos, state.dist) then return nil end
     if memo.kind == nil then memo.kind = xcombat.get_weapon_kind(npc) or "w_rifle" end
@@ -397,12 +411,12 @@ end
 -- blocked rout (under fire / squad stands / no base) defers via the cursor to retreat - the coward
 -- fights from cover only when he cannot run; retreat FOURTH - the brave factions' pressure answer (they
 -- fall through flee's palette in the same tick and lose nothing to its position); kite FIFTH (a violated
--- weapon minimum); snipe LAST (a pressed sniper retreats, only the merely-stalled one plants).
+-- weapon minimum); pickoff LAST (a pressed NPC retreats, only the merely-stalled one plants).
 -- factions/weapons nil = match any. vs_actor marks
 -- the row whose problem is the ACTOR (walked only when he is NOT the selected enemy; the shell stages
 -- him as the committed target). update = the row's periodic re-application; every row re-applies its
 -- combat state (a firing row re-checks its shot, flee re-asserts its holster). should_end = the row's
--- premise re-check while it runs (snipe only).
+-- premise re-check while it runs (pickoff only).
 local function _build_catalog(read_int)
     return {
         {
@@ -485,20 +499,21 @@ local function _build_catalog(read_int)
             timeout        = read_int("maneuver_max_ms", 8000),
         },
         {
-            -- snipe: w_sniper-only and a HOLD: ends_on=time (dest is the own node, so there is no arrival),
-            -- so it runs to snipe_hold_ms. should_end re-checks the premise (under fire / targeted) while
+            -- pickoff: any-firearm HOLD: ends_on=time (dest is the own node, so there is no arrival),
+            -- so it runs to pickoff_hold_ms. should_end re-checks the premise (under fire / targeted /
+            -- enemy back inside his effective range) while
             -- it runs - a broken premise ends the hold now, not at the cap.
-            name           = "snipe",
-            toggle         = "maneuver_snipe",
+            name           = "pickoff",
+            toggle         = "maneuver_pickoff",
             should_maneuver = _should_stalled,
             factions       = nil,
-            weapons        = { w_sniper = true },
-            can_maneuver   = _can_snipe,
+            weapons        = nil,
+            can_maneuver   = _can_pickoff,
             update         = _apply_state,
-            should_end     = _should_end_snipe,
-            fire           = xcombat.SNIPE, posture = xcombat.STAND, movement = xcombat.STILL,
+            should_end     = _should_end_pickoff,
+            fire           = xcombat.FIRE, posture = xcombat.STAND, movement = xcombat.STILL,
             ends_on        = "time",
-            timeout        = read_int("snipe_hold_ms", 8000),
+            timeout        = read_int("pickoff_hold_ms", 8000),
         },
     }
 end
@@ -522,7 +537,9 @@ function at_combat_doctrine.load_config()
     FLEE_BASE_MIN_DIST_M = read_int("flee_base_min_dist_m", 100)
     local counterflank_dist_m    = read_float("counterflank_actor_dist_m",  5)
     COUNTERFLANK_ACTOR_DIST_SQR  = counterflank_dist_m * counterflank_dist_m
-    SNIPE_TARGETED_DEG   = read_float("snipe_targeted_deg", 10)
+    PICKOFF_TARGETED_DEG = read_float("pickoff_targeted_deg", 10)
+    PICKOFF_ENTER_FACTOR = read_float("pickoff_enter_factor", 1.2)
+    RELOAD_COVER_CONE_DEG = read_float("reload_cover_cone_deg", 30)
     CIRCUIT_LIMIT        = read_int("circuit_limit", 3)
     RELOAD_STALE_MS      = read_int("reload_stale_ms", 6000)
     CATALOG = _build_catalog(read_int)

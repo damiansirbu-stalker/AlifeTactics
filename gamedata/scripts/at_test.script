@@ -320,7 +320,7 @@ end
 -- The lab harness: stock every nearby stalker so all AlifeTactics systems have fuel.
 -- Per pass: a medkit + bandage to anyone missing them (Healing spends them when hurt), AP boxes +
 -- veteran rank for the active weapon (Ammo fires them; the rank also moves the Accuracy tier and the
--- healing-charge tier), and one palette weapon per squad (kind variety - a sniper feeds snipe, a
+-- healing-charge tier), and one palette weapon per squad (kind variety - a long rifle feeds pickoff, a
 -- shotgun/pistol feeds the kite range bands). Fights, hits, and heals then show in alifetactics.log
 -- under [AP] / [HEAL] / [LIMP] / [ACC] / [DISCLOSURE] / [CROSSFIRE] / [JAM] / monitor with log
 -- level DEBUG.
@@ -456,7 +456,7 @@ end
 
 -- Mixed faction wave: bandits ahead, military flank, monolith behind. Tests
 -- different communities (monolith and zombied are excluded from flee/retreat only;
--- the universal rows - counterflank, kite, snipe - still fire for them), different
+-- the universal rows - counterflank, kite, pickoff - still fire for them), different
 -- weapon loadouts, simultaneous tracking.
 --- @export console
 function at_spawn_mixed()

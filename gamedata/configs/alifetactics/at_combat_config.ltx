@@ -19,24 +19,34 @@ stall_close_m = 2          ; enemy gaining more than this much ground resets the
 circuit_limit = 3          ; consecutive same-situation picks with the NPC still standing within 2m of the last pick before the takeover stops trying (the transactions are provably changing nothing); releases when he moves, the situation changes, or the fight ends (0 = off)
 counterflank_actor_dist_m = 5  ; counterflank fires when an enemy actor is inside this range while the NPC's committed target is farther than him
 
-; Scheme fire discipline - the burst a maneuver-driven NPC fires, per weapon kind, as
-; "queue size, interval ms". Replaces the state machinery's generic 5-round/300ms fallback
-; (state_mgr.script:322); animation-tuned states (barricade/cover attacks) keep their own values.
-; Defaults = the engine planner's own [fire_queue_params] medium-band midpoints (m_stalker.ltx:826-909).
-queue_w_pistol  = 2, 450
-queue_w_shotgun = 2, 675
-queue_w_rifle   = 3, 475
-queue_w_smg     = 7, 400
-queue_w_sniper  = 1, 1750
+; Scheme fire discipline - the burst a maneuver-driven NPC fires. Replaces the state machinery's
+; generic 5-round/300ms fallback (state_mgr.script:322); animation-tuned states (barricade/cover
+; attacks) keep their own values. By default each burst ROLLS size and pause fresh inside the engine
+; planner's own [fire_queue_params] medium band for the weapon kind (m_stalker.ltx:826-909), then the
+; Fire Discipline rank factors scale it. Uncommenting a queue_w_* key PINS that kind to fixed
+; "queue size, interval ms" values - no roll (rank factors still apply).
+;queue_w_pistol  = 2, 450
+;queue_w_shotgun = 2, 675
+;queue_w_rifle   = 3, 475
+;queue_w_smg     = 7, 400
+;queue_w_sniper  = 1, 1750
+
+; Pickoff fire: 1 deliberate aimed shot per pull, the pause rolled fresh each shot in this band -
+; the engine's own deliberate-fire rhythm (the [fire_queue_params] sniper medium band). The rank
+; interval factor tightens it (legend ~1100-1500ms).
+pickoff_interval_min_ms = 1500
+pickoff_interval_max_ms = 2000
 
 ; Maneuvers (kite backs off a fixed per-weapon distance - no key, KITE_BACK in at_combat_doctrine is the source)
 kite_arc_deg    = 45       ; back-lane fan step: try straight-back, then +-45, then +-90 for a clear lane
 kite_spread_deg = 90       ; max fan to either side when the straight-back lane is blocked by a wall or obstacle
 retreat_rear_m  = 8        ; retreat centers its cover search this far behind the NPC; the winning spot must be farther from the enemy than he stands. MUST exceed the 7m cover-search radius: at 4 the circle included the NPC's own cover, best_cover kept re-picking it, and retreat declined toward_enemy forever (2026-07-11 playtest)
-under_fire_ms   = 2000     ; flee and snipe decline while a hit landed or a shot from that enemy was perceived within this window
-snipe_targeted_deg = 10    ; snipe declines (and an open hold ends) while the actor's aim is within this many degrees of the NPC - no motionless head under a crosshair
+under_fire_ms   = 2000     ; flee and pickoff decline while a hit landed or a shot from that enemy was perceived within this window
+reload_cover_cone_deg = 30 ; reload_cover fires only when the player CAN HIT the reloader: holds a firearm, faces him within this many degrees, clear shot line (xcombat.actor_can_hit)
+pickoff_targeted_deg = 10  ; pickoff declines (and an open hold ends) while the actor's aim is within this many degrees of the NPC - no motionless head under a crosshair
+pickoff_enter_factor = 1.2 ; hysteresis: plant only past the enemy's EFFECTIVE range x this factor; an open hold ends when he closes inside 1.0x (his weapon is dangerous again). Between the two nothing flaps
 maneuver_max_ms = 8000     ; stuck cap - a committed maneuver hands back after this even if it never arrives
-snipe_hold_ms   = 8000     ; snipe is a precision-fire hold (ends_on=time); it hands back to vanilla after this
+pickoff_hold_ms = 8000     ; pickoff is a deliberate-fire hold (ends_on=time); it hands back to vanilla after this
 counterflank_max_ms = 3000     ; counterflank is a hold: aim at the actor, the turn makes him seen, the engine's selection flips; hands back after this
 flee_max_ms     = 20000    ; flee is a rout (ends_on=arrival); a rout to a far base needs a longer cap than a maneuver
 flee_min_dist_m = 5        ; flee only when the enemy is at least this far - nobody turns their back point-blank; most combat is <20m so keep this small (0 = off)

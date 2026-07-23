@@ -4,7 +4,7 @@
 --- runs zero code on any per-frame path.
 
 local IsStalker, time_global, tostring, pairs = IsStalker, time_global, tostring, pairs
-local math_floor, RegisterScriptCallback, AC_ID = math.floor, RegisterScriptCallback, AC_ID
+local math_floor, math_random, RegisterScriptCallback, AC_ID = math.floor, math.random, RegisterScriptCallback, AC_ID
 local string_match, tonumber = string.match, tonumber
 
 local cfg = at_mcm.cfg
@@ -38,13 +38,19 @@ local _open_count = 0
 -- Scheme fire discipline: while a maneuver drives an NPC, the state machinery asks
 -- state_mgr_weapon.get_queue_params for the burst, and every state without an animation-specific
 -- entry falls to the caller's generic {5,300,0} override - full-auto on a pistol, a burst on a
--- sniper rifle (state_mgr.script:322). For maneuver-held NPCs we swap that fallback override for a
--- per-weapon-kind triple {queue size, interval ms, aim time}; the animation-tuned entries
--- (state_mgr_weapon state_queue_params) keep their priority, the original's aim_time machinery
--- stays intact, and NPCs we are not driving pass through byte-identical. Triples fill at
--- _load_config from xcombat.get_fire_queue medium-band midpoints; queue_w_* LTX keys override.
+-- sniper rifle (state_mgr.script:322). For maneuver-held NPCs we swap that fallback: each query
+-- ROLLS burst size and pause inside the engine planner's own per-weapon medium band
+-- (xcombat.FIRE_QUEUE, the [fire_queue_params] envelope) - the same fresh-numbers-per-burst
+-- variance the vanilla planner has - then multiplies by the Fire Discipline rank factors
+-- (at_reaction.queue_scales: one owner, toggle-governed, pure Lua so it works on every exe).
+-- The pickoff row swaps the weapon band for its own {1 shot, deliberate pause} band. The
+-- animation-tuned entries (state_mgr_weapon state_queue_params) keep their priority, the
+-- original's aim_time machinery stays intact, and NPCs we are not driving pass through
+-- byte-identical. Bands fill at _load_config; a queue_w_* LTX key pins that kind to fixed
+-- values (no roll).
 local QUEUE_KINDS = { "w_pistol", "w_shotgun", "w_rifle", "w_smg", "w_sniper" }
-local _queue_by_kind = {}
+local _queue_band_by_kind = {}
+local _pickoff_band
 
 local _orig_get_queue_params
 -- The kind read adds no crash surface over the original: vanilla get_queue_params makes the
@@ -53,15 +59,28 @@ local function _patched_get_queue_params(npc, st, override)
     local state = npc and _npc_states[npc:id()]
     if state and state.maneuver then
         local tmr = xprofiler.new_if(_dbg):start()
-        local kind = xcombat.get_weapon_kind(npc)
-        local triple = kind and _queue_by_kind[kind]
+        local band
+        if state.maneuver.name == "pickoff" then
+            band = _pickoff_band
+        else
+            local kind = xcombat.get_weapon_kind(npc)
+            band = kind and _queue_band_by_kind[kind]
+        end
+        if band then
+            local size     = math_random(band[1], band[2])
+            local interval = math_random(band[3], band[4])
+            local sk, ik = at_reaction.queue_scales(npc)
+            size = math_floor(size * sk + 0.5)
+            if size < 1 then size = 1 end
+            interval = math_floor(interval * ik + 0.5)
+            override = { size, interval, 0 }
+        end
         tmr:stop()
-        if triple then override = triple end
         if _dbg then
-            log.debug("[QUE] id=%d kind=%s size=%s interval=%s [%.3fms]",
-                npc:id(), tostring(kind),
-                triple and tostring(triple[1]) or "vanilla",
-                triple and tostring(triple[2]) or "vanilla", tmr:get_ms())
+            log.debug("[QUE] id=%d row=%s size=%s interval=%s [%.3fms]",
+                npc:id(), state.maneuver.name,
+                band and tostring(override[1]) or "vanilla",
+                band and tostring(override[2]) or "vanilla", tmr:get_ms())
         end
     end
     return _orig_get_queue_params(npc, st, override)
@@ -317,6 +336,14 @@ local function _update_maneuver(npc, state, _tg)
     local maneuver = state.maneuver
     if not maneuver or not state.maneuver_at then return end
     if not maneuver.update then return end
+    -- A reloading weapon: leave the applied state completely alone this pass. Re-applying ANY
+    -- state mid-reload costs a weapon-pose transition - the discipline's READY degrade at reload
+    -- start plus FIRE at reload end was 2 visible dips per reload, read as a "reload shuffle" on
+    -- small mags (field session 2026-07-23, single-weapon case). The state applied BEFORE the
+    -- reload stays; the mag-swap animation plays inside it; the begin path is untouched (a
+    -- maneuver STARTING mid-reload still applies its state once, with the discipline's degrade
+    -- keeping the fire goal off the reloading gun).
+    if xcombat.is_reloading(npc) then return end
     local enemy = xcombat.resolve_enemy(state.enemy_id)
     local tmr = xprofiler.new_if(_dbg):start()
     local fire, gate = maneuver.update(npc, maneuver, enemy)
@@ -337,8 +364,8 @@ end
 
 -- Movers end on arrival; the cap (from begin_at) ends everything, so a gate that raised but never began a
 -- maneuver cannot wedge the NPC. Holds have no arrival and end only on the cap. A row's should_end is its
--- PREMISE: the need terms that must hold for the transaction's whole life (snipe: not under fire, not
--- targeted) - a broken premise ends the maneuver now, not at the cap. A feature turned off mid-maneuver
+-- PREMISE: the need terms that must hold for the transaction's whole life (pickoff: not under fire, not
+-- targeted, enemy outside his effective range) - a broken premise ends the maneuver now, not at the cap. A feature turned off mid-maneuver
 -- ends here too: SPEC.gate already handed the NPC back to vanilla, so the row's update must stop driving
 -- it - ending drops state.gate, which stops _update_maneuver on the same pass.
 -- Why an open maneuver should end NOW, or nil to keep running: the row's premise (should_end, a broken
@@ -481,18 +508,25 @@ end
 -- detached mid-reload fires nothing), so the stamp carries reload_at and the row bounds it with a
 -- staleness window plus the authoritative xcombat.is_reloading confirm at feasibility. On an exe without
 -- the events the stamps never set and the row is inert (self-gating; INACTIVE logged at on_game_start).
+-- Debug [RELOAD] edge traces: stop held-ms near the mag-swap duration = the maneuver's state force
+-- left the engine reload running; stop right after the row's "taken" = it canceled it.
 local function _on_reload_start(npc)
     if not npc then return end
     local state = _npc_states[npc:id()]
     if not state then return end
     state.reloading = true
     state.reload_at = time_global()
+    if _dbg then log.debug("[RELOAD] start id=%d", npc:id()) end
 end
 
 local function _on_reload_stop(npc)
     if not npc then return end
     local state = _npc_states[npc:id()]
     if not state then return end
+    if _dbg then
+        log.debug("[RELOAD] stop id=%d held=%dms", npc:id(),
+            state.reload_at and (time_global() - state.reload_at) or -1)
+    end
     state.reloading = nil
 end
 
@@ -528,14 +562,19 @@ local function _load_config()
     for i = 1, #QUEUE_KINDS do
         local kind = QUEUE_KINDS[i]
         local min_s, max_s, min_i, max_i = xcombat.get_fire_queue(kind, "medium")
-        local size, interval = math_floor((min_s + max_s) / 2), math_floor((min_i + max_i) / 2)
+        local band = { min_s, max_s, min_i, max_i }
         local raw = ini:r_string_ex(LTX_SECTION, "queue_" .. kind)
         local o_size, o_interval = string_match(raw or "", "^%s*(%d+)%s*,%s*(%d+)")
         if o_size then
-            size, interval = tonumber(o_size), tonumber(o_interval)
+            -- An LTX key pins this kind to fixed values: a degenerate band, no roll.
+            local s, iv = tonumber(o_size), tonumber(o_interval)
+            band = { s, s, iv, iv }
         end
-        _queue_by_kind[kind] = { size, interval, 0 }
+        _queue_band_by_kind[kind] = band
     end
+    _pickoff_band = { 1, 1,
+        read_int("pickoff_interval_min_ms", 1500),
+        read_int("pickoff_interval_max_ms", 2000) }
     _build_checks()
 end
 

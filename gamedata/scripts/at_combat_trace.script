@@ -100,13 +100,13 @@ function at_combat_trace.circuit(id, situation, picks)
         _show(id), _show(_names[id]), _show(situation), picks or -1)
 end
 
---- One line per snipe feasibility check: path "plant" (taken), "in_enemy_range" (inside the enemy's weapon
---- maximum, declined - a motionless head inside the enemy's band is a gift), "under_fire" (a fresh hit or a
---- perceived shot, declined - a hold's premise is being unbothered), or "targeted" (the actor's aim is on
---- him, declined). dist/enemy_max carry the range evidence on the range path.
-function at_combat_trace.can_snipe(id, dist, enemy_max, path)
+--- One line per pickoff feasibility check: path "plant" (taken), "in_effective_range" (not comfortably past
+--- the enemy's effective range - a motionless head where his weapon is dangerous is a gift), "under_fire"
+--- (a fresh hit or a perceived shot, declined - a hold's premise is being unbothered), or "targeted" (the
+--- actor's aim is on him, declined). dist/enemy_max carry the range evidence on the range path.
+function at_combat_trace.can_pickoff(id, dist, enemy_max, path)
     if not _on then return end
-    log.info("can_snipe id=%s name=%s dist=%.1f enemy_max=%s result=%s",
+    log.info("can_pickoff id=%s name=%s dist=%.1f enemy_max=%s result=%s",
         _show(id), _show(_names[id]), dist or -1, _show(enemy_max), _show(path))
 end
 
