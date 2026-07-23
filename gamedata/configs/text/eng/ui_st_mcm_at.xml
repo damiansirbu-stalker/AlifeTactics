@@ -64,6 +64,9 @@
   <string id="ui_mcm_menu_commitment">
     <text>Commitment</text>
   </string>
+  <string id="ui_mcm_menu_conduct">
+    <text>Conduct</text>
+  </string>
   <string id="ui_mcm_menu_reaction">
     <text>Reaction</text>
   </string>
@@ -79,6 +82,15 @@
   </string>
   <string id="ui_mcm_at_commitment_desc">
     <text>Vanilla stalkers re-plan their fight every moment, so any small change - a cover spot that scores a little better, sight dropping for an instant, a teammate crossing the firing line - makes a stalker abandon what he was doing and choose again. That constant re-deciding is the twitchy strafing and cover-hopping you see in a firefight. Commitment stops it without taking the stalker over: while what he is doing still makes sense, he stays with it instead of trading it away for a marginally better move, and he switches the instant it stops making sense (he loses sight, the shot is blocked, the enemy is gone). It also pins his cover: a stalker firing with a clear shot keeps his spot instead of sliding to a marginally better one, so the strafe is stopped at its source. The result is a stalker who sees a decision through - keeps up his fire, presses a flank, finishes a reload where he stands - instead of second-guessing himself every frame. Requires a recent engine build; on older builds the toggle has no effect and vanilla behavior applies.</text>
+  </string>
+  <string id="ui_mcm_at_conduct_desc">
+    <text>Small combat habits applied to stalkers the vanilla engine drives - no takeover, just better choices at moments the engine already decides. Requires a recent engine build; on older builds the page has no effect and vanilla behavior applies.</text>
+  </string>
+  <string id="ui_mcm_at_conduct_conduct_posture">
+    <text>Cover posture</text>
+  </string>
+  <string id="ui_mcm_at_conduct_conduct_posture_desc">
+    <text>Experienced riflemen and snipers crouch when real chest-high cover stands between them and their enemy, and stand when it does not. Vanilla picks its combat posture blind, so stalkers crouch behind random bumps and shoot into them, or stand tall next to cover they could use. The decision reads the game's own cover map toward the enemy. Short-weapon carriers and green ranks keep vanilla behavior.</text>
   </string>
   <string id="ui_mcm_at_reaction_desc">
     <text>Stalker rank decides how tightly a stalker's gun tracks a moving target and how fast it spots a target at range. Tracking speed changes gun handling on a moving target; it does not make the first shot come sooner. Target lead and a per-rank trigger curve are planned. Requires a recent engine build with the per-stalker aim and vision binds; on older builds the page has no effect and vanilla behavior applies.</text>
@@ -652,7 +664,7 @@
     <text>Reload Cover</text>
   </string>
   <string id="ui_mcm_at_combat_maneuver_reload_cover_desc">
-    <text>A stalker caught reloading under fire runs to the nearest cover instead of standing in the open, and his weapon finishes reloading on the way. Reloading in peace stays where it is. Needs a recent engine build.</text>
+    <text>A stalker caught reloading in your line of fire runs to the nearest cover instead of standing in the open, and his weapon finishes reloading on the way. Reloading out of your sight or aim stays where it is. Needs a recent engine build.</text>
   </string>
   <string id="ui_mcm_at_combat_maneuver_kite">
     <text>Kite</text>
@@ -672,11 +684,11 @@
   <string id="ui_mcm_at_combat_maneuver_flee_desc">
     <text>The last man of a broken squad routs to a distant friendly base, weapon slung. He waits for a lull in the shooting first. Cautious factions only, fanatics never break.</text>
   </string>
-  <string id="ui_mcm_at_combat_maneuver_snipe">
-    <text>Snipe</text>
+  <string id="ui_mcm_at_combat_maneuver_pickoff">
+    <text>Pickoff</text>
   </string>
-  <string id="ui_mcm_at_combat_maneuver_snipe_desc">
-    <text>A marksman stuck in a standoff plants and takes precision shots. He only plants beyond his enemy's effective range, and never while taking fire or under your crosshair.</text>
+  <string id="ui_mcm_at_combat_maneuver_pickoff_desc">
+    <text>A stalker who has his enemy outranged in a standoff stands his ground and picks him off with deliberate single shots. He only plants comfortably beyond his enemy's effective range, breaks off the moment the enemy closes back in, and never holds while taking fire or under your crosshair.</text>
   </string>
   <!-- ==================== CROSSFIRE PAGE ==================== -->
   <string id="ui_mcm_at_crossfire_desc">
@@ -696,7 +708,7 @@
   </string>
   <!-- ==================== DANGER FOLDER (SOUND / HIT / FIXES) ==================== -->
   <string id="ui_mcm_at_danger_sound_desc">
-    <text>How stalkers react to what they hear. Gunfire reactions use your setup's danger config distances; your own noise (movement, handling) uses short built-in radii. Runtime patch onto whichever danger script your modpack ships - works with other combat AI, replaces nothing.</text>
+    <text>How stalkers react to what they hear. Gunfire reactions use your setup's danger config distances; your own noise (movement, handling) uses short built-in radii. Runtime patch onto whichever danger script your modpack ships - works with other combat AI, replaces nothing. Compatible with stealth mods: stealth is about being SEEN (light, cover, stance), and the sound system never touches vision or detection - hearing only adds the short-range sense vanilla lacks, and crouched movement is silent, so a stealth approach plays exactly as your stealth setup intends.</text>
   </string>
   <string id="ui_mcm_at_danger_hdr_gunfire">
     <text>Gunfire</text>
@@ -732,13 +744,13 @@
     <text>Movement noise</text>
   </string>
   <string id="ui_mcm_at_danger_danger_move_noise_desc">
-    <text>Hostile stalkers hear you move. Each footstep carries a noise radius built from your stance, the surface, and the weather: sneaking is near-silent, sprinting on metal carries far, rain muffles everything, and a jump landing is the loudest thing you can do. A hostile who hears you turns to the sound and goes on alert, he does not magically know where you are. Only stalkers already hostile to you react, and only outside combat, so stealth stays a game of distance and stance instead of NPCs being deaf.</text>
+    <text>Hostile stalkers hear you move. Each footstep carries a noise radius built from your stance, the surface, and the weather: a 5m walking base, x1.6 sprinting, a 10m jump landing, and crouched movement is fully silent, so sneaking stays a matter of light and cover. Surfaces: metal x1.25, wood x1.15, water x1.35, grass x0.7, dirt and sand x0.8, and rain cuts carry by up to 40 percent. Reaction follows the evidence: a heard walk turns him weapon-ready toward the sound, a sprint or a landing sends him walking over to check the spot. A sound is never treated as a confirmed enemy - he investigates at a walk, never charges, and does not magically know where you are. Only stalkers already hostile to you react, and only outside combat, so stealth stays a game of distance and stance instead of NPCs being deaf.</text>
   </string>
   <string id="ui_mcm_at_danger_danger_heard_actions">
     <text>Handling noise</text>
   </string>
   <string id="ui_mcm_at_danger_danger_heard_actions_desc">
-    <text>Hostile stalkers react to hearing you rack a reload, click empty, or use an item nearby. Shorter reach than movement noise, and only for sounds their ears actually caught. A hostile who hears it turns to the sound and goes on alert.</text>
+    <text>Hostile stalkers react to hearing you rack a reload, click empty, or use an item nearby. Shorter reach than movement noise, and only for sounds their ears actually caught. A racked reload or an empty click sends him walking over to check the spot, an item used turns him weapon-ready toward the sound.</text>
   </string>
   <string id="ui_mcm_at_danger_danger_noise_mult">
     <text>Noise carry distance</text>
@@ -750,7 +762,7 @@
     <text>Player ranges</text>
   </string>
   <string id="ui_mcm_at_fixes_danger_danger_actor_tables_desc">
-    <text>Danger caused by you reads the separate actor tables where your setup's danger config differentiates them (some combat AI mods do). With a config that ships identical tables this has no effect.</text>
+    <text>Danger caused by you reads the separate actor tables where your setup's danger config differentiates them (some combat AI mods do). Applies only when your installed danger script itself uses those tables - a config that ships the section unused, or with identical tables, keeps its own tuning.</text>
   </string>
   <string id="ui_mcm_at_danger_hdr_fixes">
     <text>Always-on bug fixes (not toggleable)</text>
