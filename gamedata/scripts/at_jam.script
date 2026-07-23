@@ -13,12 +13,9 @@
 --- Engine `Weapon.cpp:1778` already gates the functor call to non-actor parents,
 --- so actor's own condition-based misfire mechanic is unaffected.
 
-local RegisterScriptCallback, UnregisterScriptCallback = RegisterScriptCallback, UnregisterScriptCallback
-local IsWeapon, time_global = IsWeapon, time_global
-local type = type
+local RegisterScriptCallback, type = RegisterScriptCallback, type
 
 local log = xlog.get_logger("AT.JAM", { outfile = "alifetactics.log" })
-local _dbg = false
 
 local _original
 -- Snapshot of the jam_enabled MCM value (mcm.md snapshot pattern): the functor runs per NPC shot,
@@ -29,46 +26,9 @@ local _jam_enabled = true
 local _suppressed = 0
 local SUMMARY_EVERY = 200
 
--- Reload trace: every NPC reload START with the magazine content it started with - the "reloading
--- for nothing" evidence. A near-full mag_left is the planner topping up, not a misfire (the misfire
--- rolls are suppressed above and counted as [JAM] lines). Edge-detected on a 200ms per-NPC clock.
--- The npc_on_update subscription exists ONLY at DEBUG log level (_refresh_log registers/unregisters
--- on the flag); below DEBUG the module has no per-frame subscriber at all.
-local RELOAD_CHECK_MS  = 200
--- CWeapon::eReload = 7 (eLastBaseState = eBore = 4, HudItem.h:50-55; eFire=5, eFire2=6, eReload=7,
--- Weapon.h:183-185). The old 5 was eFire - the vanilla "== 5" at actor_effects.script:1105 gates
--- shoot_effect on an ammo change, not a reload - so this trace was logging firing NPCs as reloaders.
-local WPN_STATE_RELOAD = 7
-local _reloading  = {}
-local _next_check = {}
-
-local function _on_update(npc)
-    if not _dbg then return end
-    if not npc then return end
-    local id = npc:id()
-    local tg = time_global()
-    if (_next_check[id] or 0) > tg then return end
-    _next_check[id] = tg + RELOAD_CHECK_MS
-    local tmr = xprofiler.new_if(_dbg):start()
-    local wpn = npc:active_item()
-    local reloading = wpn ~= nil and IsWeapon(wpn) and wpn:get_state() == WPN_STATE_RELOAD
-    if not reloading then
-        _reloading[id] = nil
-        tmr:stop()
-        return
-    end
-    if _reloading[id] then tmr:stop() return end
-    _reloading[id] = true
-    tmr:stop()
-    log.debug("[RELOAD] id=%d name=%s wpn=%s mag_left=%d fighting=%s [%dus]",
-        id, npc:name(), wpn:section(), wpn:get_ammo_in_magazine() or -1, npc:best_enemy() and "yes" or "no", tmr:get_us())
-end
-
-local function _on_entity_unregister(se_obj)
-    if not se_obj then return end
-    _reloading[se_obj.id] = nil
-    _next_check[se_obj.id] = nil
-end
+-- The reload-start trace (the "reloading for nothing" evidence: a near-full mag_left is the planner
+-- topping up, not a misfire) lives on at_combat's [RELOAD] edge handlers (the n031 reload events);
+-- the old npc_on_update poll here was the mod's one per-frame subscriber and is gone.
 
 local function _install()
     -- Capture the original functor first and install the wrapper only if it is a real function
@@ -97,22 +57,11 @@ end
 
 local function _refresh_log()
     log.set_level(at_mcm.get_config("log_level") or "WARN")
-    _dbg = log.get_level() >= 5
     _jam_enabled = at_mcm.get_config("jam_enabled") ~= false
-    -- The reload trace is per-frame work, so its subscription follows the debug flag: registered at
-    -- DEBUG, unregistered (and its edge-detect state dropped) below. Register/unregister are
-    -- function-keyed set writes (axr_main.callback_set/unset), so repeat calls are idempotent.
-    if _dbg then
-        RegisterScriptCallback("npc_on_update", _on_update)
-    else
-        UnregisterScriptCallback("npc_on_update", _on_update)
-        _reloading, _next_check = {}, {}
-    end
 end
 
 function on_game_start()
     _install()
-    RegisterScriptCallback("server_entity_on_unregister", _on_entity_unregister)
     RegisterScriptCallback("actor_on_first_update",      _refresh_log)
     RegisterScriptCallback("on_option_change",           _refresh_log)
     RegisterScriptCallback("mcm_option_restore_default", _refresh_log)

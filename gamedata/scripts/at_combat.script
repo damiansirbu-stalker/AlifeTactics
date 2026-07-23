@@ -509,14 +509,20 @@ end
 -- staleness window plus the authoritative xcombat.is_reloading confirm at feasibility. On an exe without
 -- the events the stamps never set and the row is inert (self-gating; INACTIVE logged at on_game_start).
 -- Debug [RELOAD] edge traces: stop held-ms near the mag-swap duration = the maneuver's state force
--- left the engine reload running; stop right after the row's "taken" = it canceled it.
-local function _on_reload_start(npc)
+-- left the engine reload running; stop right after the row's "taken" = it canceled it. The start
+-- line carries the weapon and its mag_left - a near-full mag is the planner topping up, not a
+-- misfire (the evidence the old at_jam npc_on_update poll existed for).
+local function _on_reload_start(npc, wpn)
     if not npc then return end
     local state = _npc_states[npc:id()]
     if not state then return end
     state.reloading = true
     state.reload_at = time_global()
-    if _dbg then log.debug("[RELOAD] start id=%d", npc:id()) end
+    if _dbg then
+        log.debug("[RELOAD] start id=%d wpn=%s mag_left=%d fighting=%s", state.id,
+            wpn and wpn:section() or "?", wpn and wpn:get_ammo_in_magazine() or -1,
+            npc:best_enemy() and "yes" or "no")
+    end
 end
 
 local function _on_reload_stop(npc)
@@ -537,6 +543,8 @@ local function _on_net_destroy(npc)
     _drop_gate(_npc_states[id])
     _release_cover(_npc_states[id])
     _npc_states[id] = nil
+    _shots[id] = nil
+    _hits[id] = nil
 end
 
 local function _on_entity_unregister(se_obj)
@@ -548,6 +556,8 @@ local function _on_entity_unregister(se_obj)
     _drop_gate(_npc_states[id])
     _release_cover(_npc_states[id])
     _npc_states[id] = nil
+    _shots[id] = nil
+    _hits[id] = nil
     if _dbg then trace.forget(id) end
 end
 
