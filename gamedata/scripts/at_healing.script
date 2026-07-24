@@ -297,6 +297,13 @@ local function _drop_limp(npc, id, reason, us)
     if _dbg then log.debug("[LIMP] lost id=%d hp=%.2f reason=%s [%dus]", id, npc.health, reason, us or -1) end
 end
 
+-- In combat = an enemy is selected OR the NPC is no longer calm (mental left free). The limp only starts
+-- while calm (the eligibility chain), so either flip means a fight began. One predicate so the start gate
+-- and the fast drop share the same definition of "in combat".
+local function _in_combat(npc)
+    return npc:best_enemy() ~= nil or npc:mental_state() ~= anim.free
+end
+
 -- The drop detectors, on their own 200ms clock. While a script animation is queued the engine
 -- SUSPENDS its whole animation selection: update_impl returns right after play_script
 -- (stalker_animation_manager_update.cpp:232) so play_torso/play_legs never run, and the script bone
@@ -310,6 +317,14 @@ local function _try_drop_limp(npc, id, rec, tg)
     if not npc:alive() or IsWounded(npc) or npc:critically_wounded() then
         tmr:stop()
         _drop_limp(npc, id, "wounded_or_dead", tmr:get_us())
+        return true
+    end
+    -- Combat drop on the FAST clock (this detector runs every pass; the enemy/mental gate otherwise sits
+    -- on the throttled eligibility chain, ~1s): the instant a fight begins, drop the overlay now, not up to
+    -- a second later. A limp still playing when the NPC is shot is what pins the body and slides it.
+    if _in_combat(npc) then
+        tmr:stop()
+        _drop_limp(npc, id, "combat", tmr:get_us())
         return true
     end
     if rec.mt == nil then tmr:stop() return false end

@@ -1,0 +1,220 @@
+--- at_world_trace: physical-behavior watchdog. Reads only; zero gameplay effect. Toggled from MCM
+--- Development. OFF = no callbacks, no time events, zero cost. ON = a monitor pass over the combat NPCs
+--- near the actor plus a hit-triggered fast watcher, flagging any NPC whose VISIBLE state is wrong -
+--- sliding, posture-flapping, aiming off its enemy, weapon-flapping, stuck reloading, or pinned by an
+--- animation overlay - and attributing each to whatever drives the NPC (a maneuver, Commitment, or
+--- vanilla), so a flag names its suspect. Its own log: alifetactics_world.log.
+---
+--- Cost: every check on the monitor pass is a FIELD read (position, movement_type, body_state,
+--- animation_count, weapon state, best_enemy) - no raycast on this path, so it is the cheap tier. The
+--- environment tier (cover/LOS raycasts confirming a decision was justified) is a separate future gate.
+--- Anomaly-only: a line is written only for an NPC that fails a check, never a per-tick dump.
+
+local RegisterScriptCallback, UnregisterScriptCallback = RegisterScriptCallback, UnregisterScriptCallback
+local IsStalker, IsWeapon, time_global, level, db = IsStalker, IsWeapon, time_global, level, db
+local math_sqrt, math_floor, math_max, pairs, tostring = math.sqrt, math.floor, math.max, pairs, tostring
+local table_concat = table.concat
+
+local log = xlog.get_logger("AT.WORLD", { outfile = "alifetactics_world.log" })
+local cfg = at_mcm.cfg
+local _enabled = false
+local _dbg = false
+
+-- Monitor pass period (the fast clock) and the fight radius around the actor - the visible combat.
+local SAMPLE_SEC  = 0.15
+local RADIUS_SQR  = 70 * 70
+-- SLIDE: a real translation this far in one pass while the movement type is NOT walk/run = the body
+-- moved without a locomotion animation. HIT variant catches the sub-pass knockback (displacement persists).
+local SLIDE_M     = 0.30
+local SLIDE_HIT_M = 0.50
+local WATCH_MS    = 600
+local WATCH_SEC   = 0.06
+-- MISAIM: body facing this far off the enemy it sees, while not mid-turn.
+local MISAIM_DEG  = 50
+-- RELOAD_LOOP: continuously in the reload state past this with an empty magazine = a reload that never
+-- completes (above the slowest legitimate reload, so a normal slow reload never trips it).
+local RELOAD_MS   = 3500
+
+-- id -> { x, z, t }: last position, for the real per-pass translation.
+local _prev = {}
+-- id -> t the NPC entered the reload state with an empty mag; cleared when it leaves or the mag fills.
+local _reload_since = {}
+-- id -> { t0, x, z, anims0, drv0 }: the hit-triggered slide window (the knockback catcher).
+local _watch = {}
+-- Reused scratch: ids to drop from _watch after a pass - never mutate a table mid-pairs.
+local _drop = {}
+
+-- move enum -> short name, built lazily (move is a global absent at file body).
+local _MOVE
+local function _mt_name(v)
+    if not _MOVE then _MOVE = { [move.walk] = "walk", [move.run] = "run", [move.stand] = "stand", [move.steal] = "steal" } end
+    return _MOVE[v] or tostring(v)
+end
+local function _bs_name(v)
+    return (v == move.crouch and "crouch") or (v == move.standing and "stand") or tostring(v)
+end
+
+-- Who drives the NPC right now - the attribution a flag needs to point at a suspect.
+local function _driver(id)
+    local maneuver = at_combat.get_maneuver(id)
+    if maneuver then return maneuver end
+    if at_commitment.get_hold(id) then return "commit" end
+    return "vanilla"
+end
+
+-- The checks, all field reads. Returns the flag list for one NPC (empty = looks right), plus the
+-- fields worth logging beside the flags.
+local function _check(npc, id, tg)
+    local pos = npc:position()
+    local moved, dt = 0, 0
+    local pv = _prev[id]
+    if pv then moved = math_sqrt((pos.x - pv.x) ^ 2 + (pos.z - pv.z) ^ 2); dt = tg - pv.t end
+    _prev[id] = { x = pos.x, z = pos.z, t = tg }
+
+    local mt, tmt = npc:movement_type(), npc:target_movement_type()
+    local bs, tbs = npc:body_state(), npc:target_body_state()
+    local anims = npc:animation_count()
+    local wpn = npc:active_item()
+    local has_wpn = wpn and IsWeapon(wpn)
+    local translating = moved >= SLIDE_M and dt > 0
+
+    -- RELOAD_LOOP: stuck reloading with an empty mag past RELOAD_MS.
+    local reloading = xcombat.is_reloading(npc)
+    local mag = has_wpn and wpn:get_ammo_in_magazine() or -1
+    if reloading and mag == 0 then
+        _reload_since[id] = _reload_since[id] or tg
+    else
+        _reload_since[id] = nil
+    end
+
+    local flags = {}
+    if translating and mt ~= move.walk and mt ~= move.run then flags[#flags + 1] = "SLIDE" end
+    if translating and anims > 0 then flags[#flags + 1] = "OVERLAY_PIN" end
+    if bs ~= tbs then flags[#flags + 1] = "POSTURE_FLAP" end
+    if mt ~= tmt then flags[#flags + 1] = "MOVE_DESYNC" end
+    if not has_wpn then flags[#flags + 1] = "WEAPON_FLAP" end
+    if _reload_since[id] and (tg - _reload_since[id]) > RELOAD_MS then flags[#flags + 1] = "RELOAD_LOOP" end
+
+    local enemy = npc:best_enemy()
+    local aim_off = -1
+    if enemy and xcombat.sees(npc, enemy) and not npc:is_body_turning() then
+        aim_off = xcombat.get_facing_offset(npc, enemy:position())
+        if aim_off >= MISAIM_DEG then flags[#flags + 1] = "MISAIM" end
+    end
+
+    if #flags == 0 then return nil end
+    log.info("[WORLD] id=%d %s FLAGS=%s drv=%s moved=%.2f mt=%s/%s body=%s/%s anims=%d aim_off=%.0f wpn=%s",
+        id, npc:name() or "?", table_concat(flags, ","), _driver(id), moved,
+        _mt_name(mt), _mt_name(tmt), _bs_name(bs), _bs_name(tbs), anims, aim_off,
+        has_wpn and wpn:section() or "-")
+    return true
+end
+
+-- Near the actor = inside the fight radius (a field read, cheap).
+local function _near(npc, ap)
+    local pos = npc:position()
+    return (pos.x - ap.x) ^ 2 + (pos.z - ap.z) ^ 2 <= RADIUS_SQR
+end
+
+-- The monitor pass: walk the combat NPCs near the actor, run the checks, log only the failures.
+local function _monitor()
+    if not _enabled then return true end
+    ResetTimeEvent("at_world_trace", "monitor", SAMPLE_SEC)
+    local ac = db.actor
+    if not ac then return false end
+    local ap, tg = ac:position(), time_global()
+    for i = 1, #db.OnlineStalkers do
+        local npc = level.object_by_id(db.OnlineStalkers[i])
+        if npc and npc:alive() and IsStalker(npc) and npc:best_enemy() and _near(npc, ap) then
+            _check(npc, npc:id(), tg)
+        end
+    end
+    return false
+end
+
+-- Hit-triggered slide catcher: the monitor pass can miss the sub-pass knockback, but the displacement
+-- persists, so on each hit we watch that NPC for WATCH_MS and flag a move past SLIDE_HIT_M with no
+-- walk/run intent - the shove/knockback slide, with the overlay-at-hit that pins it.
+local function _on_hit(npc)
+    if not (npc and npc:alive() and IsStalker(npc) and db.actor) then return end
+    local id = npc:id()
+    if _watch[id] then return end
+    local pos = npc:position()
+    _watch[id] = { t0 = time_global(), x = pos.x, z = pos.z, anims0 = npc:animation_count(), drv0 = _driver(id) }
+end
+
+-- One watched NPC's step: accumulate displacement, and when the window ends flag a knockback slide
+-- (moved past SLIDE_HIT_M with no walk/run intent). Returns true when the window has closed.
+local function _watch_step(npc, id, w, tg)
+    local pos = npc:position()
+    w.maxd = math_max(w.maxd or 0, math_sqrt((pos.x - w.x) ^ 2 + (pos.z - w.z) ^ 2))
+    local mt = npc:movement_type()
+    if mt == move.walk or mt == move.run then w.walked = true end
+    if tg - w.t0 < WATCH_MS then return false end
+    if w.maxd >= SLIDE_HIT_M and not w.walked then
+        log.info("[WORLD] id=%d %s FLAGS=SLIDE_ONHIT moved=%.2f overlay_at_hit=%s drv=%s",
+            id, npc:name() or "?", w.maxd, (w.anims0 > 0) and "YES" or "no", w.drv0)
+    end
+    return true
+end
+
+local function _watch_poll()
+    if not _enabled then return true end
+    ResetTimeEvent("at_world_trace", "watch", WATCH_SEC)
+    local tg = time_global()
+    local dropped = 0
+    for id, w in pairs(_watch) do
+        local npc = level.object_by_id(id)
+        local drop = true
+        if npc and npc:alive() then drop = _watch_step(npc, id, w, tg) end
+        if drop then dropped = dropped + 1; _drop[dropped] = id end
+    end
+    for i = 1, dropped do _watch[_drop[i]] = nil; _drop[i] = nil end
+    return false
+end
+
+local function _on_unregister(se_obj)
+    if not se_obj then return end
+    local id = se_obj.id
+    _prev[id], _reload_since[id], _watch[id] = nil, nil, nil
+end
+
+-- Toggle-gated like the ballistics recorder: nothing is registered while off, so the module is truly
+-- zero cost when the player leaves it off.
+local function _apply_enabled()
+    local want = cfg.world_trace_enabled and true or false
+    if want == _enabled then return end
+    _enabled = want
+    if _enabled then
+        _prev, _reload_since, _watch = {}, {}, {}
+        RegisterScriptCallback("npc_on_hit_callback", _on_hit)
+        RegisterScriptCallback("server_entity_on_unregister", _on_unregister)
+        RemoveTimeEvent("at_world_trace", "monitor")
+        CreateTimeEvent("at_world_trace", "monitor", SAMPLE_SEC, _monitor)
+        RemoveTimeEvent("at_world_trace", "watch")
+        CreateTimeEvent("at_world_trace", "watch", WATCH_SEC, _watch_poll)
+        log.info("World trace enabled (sample=%dms, radius=%dm)", math_floor(SAMPLE_SEC * 1000), 70)
+    else
+        UnregisterScriptCallback("npc_on_hit_callback", _on_hit)
+        UnregisterScriptCallback("server_entity_on_unregister", _on_unregister)
+        RemoveTimeEvent("at_world_trace", "monitor")
+        RemoveTimeEvent("at_world_trace", "watch")
+        log.info("World trace disabled")
+    end
+end
+
+local function _refresh_config()
+    log.set_level(at_mcm.get_config("log_level") or "WARN")
+    _dbg = log.get_level() >= 5
+    _apply_enabled()
+end
+
+local function _on_first_update()
+    _refresh_config()
+end
+
+function on_game_start()
+    RegisterScriptCallback("actor_on_first_update",      _on_first_update)
+    RegisterScriptCallback("on_option_change",           _refresh_config)
+    RegisterScriptCallback("mcm_option_restore_default", _refresh_config)
+end

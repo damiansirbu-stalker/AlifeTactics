@@ -79,6 +79,7 @@ Based on action-switch and cover-repick hooks created in xray-monolith for this 
 Conduct:
 Small combat habits for stalkers the vanilla engine drives - no takeover, just better choices at moments the engine already decides.
 Cover posture: experienced riflemen and snipers crouch when real chest-high cover stands between them and their enemy, and stand when it does not, replacing vanilla's blind posture picks (crouching behind random bumps and firing into them).
+They crouch only at a range that suits the weapon - a rifleman past about 24m, a sniper past about 45m - so they never drop to a knee at your feet in a close fight.
 Reads the game's own cover map toward the enemy; short-weapon carriers and green ranks keep vanilla behavior.
 
 Behaviors (planned):

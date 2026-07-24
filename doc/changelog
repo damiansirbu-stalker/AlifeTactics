@@ -1,5 +1,5 @@
 next
-  Summary: Reload Cover, Pickoff, Cover posture, Movement and handling noise, neutral gunfire alert, cover pinning, combat-paused healing, target lead, fire discipline
+  Summary: Reload Cover, Pickoff, Cover posture, Movement and handling noise, neutral gunfire alert, cover pinning, combat-paused healing, target lead, fire discipline, world-behaviour debug
 
   Danger
     Sound
@@ -32,12 +32,14 @@ next
         Its own toggle. Needs a recent engine build, inactive on older ones.
     Conduct
       - Added Cover posture: experienced riflemen and snipers crouch when real chest-high cover stands toward their enemy and stand when it does not,
-        replacing vanilla's blind posture picks (crouching behind random bumps and firing into them). Reads the game's own cover map. Needs a recent engine build.
+        replacing vanilla's blind posture picks (crouching behind random bumps and firing into them). Reads the game's own cover map.
+        They crouch only at a range that suits the weapon - a rifleman past about 24m, a sniper past about 45m - so they never drop to a knee at your feet in a close fight. Needs a recent engine build.
 
   Mechanics
     Healing
       - Changed self-healing to pause while a stalker is actively fighting - weapon in hand on a live enemy, or an enemy at contact range.
         Healing resumes when the fight lets go and no charge is lost. A fight can no longer be healed through faster than the damage arrives.
+      - Fixed limping in combat: a hurt stalker's limp is dropped the instant a fight starts, so one pulled into a fight while limping no longer keeps the hurt pose or slides when shot mid-limp.
 
   Effectiveness
     Accuracy
@@ -51,6 +53,15 @@ next
       - Added Fire Discipline: higher ranks fire crisper short bursts at a tighter cadence, low ranks stay vanilla.
         Defaults keep every rank's rounds per minute at or above vanilla. Needs a recent engine build.
       - Changed the Reaction page to independent switches with per-rank curves for Tracking Speed, Vision Speed, Target Lead, and Fire Discipline.
+
+  Development
+    World behaviour
+      - Added World behaviour debug: a toggle that watches the combat NPCs near you and logs anything visibly wrong -
+        a body sliding without a walk, crouch and stand flickering, aiming off the target it sees, a reload that never finishes, or an animation pinning the body during a hit.
+        Each line names the system driving that NPC (maneuver, Commitment, or vanilla). Its own log, off by default, free while off.
+    Debug HUD
+      - Changed the debug HUD to colour every row by which combat system holds the NPC: green a maneuver, blue Commitment, mauve Conduct, plain vanilla,
+        with the active state named in its own cell.
 
 1.1.5
   Summary: Counterflank, Reaction, Commitment, player-only maneuvers, no dead windows, danger from your setup, performance, fixes

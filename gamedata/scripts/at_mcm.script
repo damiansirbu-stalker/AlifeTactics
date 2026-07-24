@@ -104,6 +104,7 @@ local defaults = {
     log_level = "WARN",
     hud_position   = "off",
     ballistics_enabled  = false,
+    world_trace_enabled = false,
 }
 
 local RegisterScriptCallback = RegisterScriptCallback
@@ -215,6 +216,7 @@ local _key_to_tab = {
     btn_reset_all = "development",
     hud_position   = "development",
     ballistics_enabled  = "development",
+    world_trace_enabled = "development",
 }
 
 local function path_builder(key)
@@ -648,6 +650,7 @@ function on_mcm_load()
                         },
                     },
                     { id = "ballistics_enabled", type = "check", val = 1, def = false, hint = "at_development_ballistics_enabled" },
+                    { id = "world_trace_enabled", type = "check", val = 1, def = false, hint = "at_development_world_trace_enabled" },
 
                     { id = "div_hud", type = "line" },
                     { id = "hdr_hud", type = "desc", text = "ui_mcm_at_hdr_hud", clr = {255, 200, 200, 200} },

@@ -42,14 +42,17 @@ local SCHEME_MAX       = 14
 local FACING_DEG = 60
 
 -- Colors built lazily; GetARGB is not present at module-load under the static validator.
-local CLR_AT, CLR_HOLD, CLR_NORMAL, CLR_DIM = nil, nil, nil, nil
+local CLR_AT, CLR_HOLD, CLR_CONDUCT, CLR_NORMAL, CLR_DIM = nil, nil, nil, nil, nil
 
+-- Row colour = which combat system touches the NPC: green a maneuver drives him, blue Commitment holds
+-- him, mauve Conduct posture (crouch) on an otherwise vanilla NPC, plain vanilla untouched, dim detail.
 local function _init_colors()
     if CLR_AT then return end
-    CLR_AT     = GetARGB(240, 170, 220, 170)
-    CLR_HOLD   = GetARGB(240, 150, 190, 235)
-    CLR_NORMAL = GetARGB(220, 200, 200, 200)
-    CLR_DIM    = GetARGB(160, 160, 160, 160)
+    CLR_AT      = GetARGB(240, 170, 220, 170)
+    CLR_HOLD    = GetARGB(240, 150, 190, 235)
+    CLR_CONDUCT = GetARGB(240, 205, 165, 220)
+    CLR_NORMAL  = GetARGB(220, 200, 200, 200)
+    CLR_DIM     = GetARGB(160, 160, 160, 160)
 end
 
 
@@ -114,9 +117,15 @@ end
 -- the xr_logic scheme plus the mental word; the state_mgr target state moved to the decision trace.
 local function _headline(id, maneuver)
     if maneuver then return string_upper(maneuver), true, false end
+    -- Commitment is one system with two vetoes (MCM Combat > Commitment): the action-switch hold
+    -- (COMMIT) and the cover-pin (PIN, commitment_cover_pin). Both read here, in the one commit cell.
     local hold = at_commitment.get_hold(id)
+    local pin = at_commitment.cover_held(id) and " PIN" or ""
     if hold then
-        return string_format("COMMIT %ds", math_floor((time_global() - hold.since) / 1000)), true, true
+        return string_format("COMMIT %ds%s", math_floor((time_global() - hold.since) / 1000), pin), true, true
+    end
+    if pin ~= "" then
+        return "PIN", true, true
     end
     -- Afterglow: commitments run sub-second (deny-only, no imposed delay), invisible at the refresh
     -- cadence - the row stays blue for a few seconds showing what was just committed.
@@ -133,9 +142,14 @@ local function _derive(npc, st)
     local enemy = npc:best_enemy()
     local rank = ranks.get_obj_rank_name(npc)
     local headline, live, held = _headline(id, maneuver)
+    -- Conduct posture (at_stance, Combat > Conduct) is the third combat system: it crouches an
+    -- experienced rifleman behind real cover. It colours the row mauve and shows CROUCH in the states
+    -- cell. Mechanics (ammo AP, healing, limp) are not combat state and stay in the log / world trace.
+    local crouched = at_stance.crouched(id)
     return {
         tag     = maneuver and "AT" or nil,
         held    = held,
+        conduct = crouched,
         stalker = string_format("(%s) %s %d%%",
             rank or "-",
             _truncate(npc:character_name() or npc:name(), SUBJECT_NAME_MAX),
@@ -146,6 +160,7 @@ local function _derive(npc, st)
         engine  = (st.active_scheme and (_truncate(st.active_scheme, SCHEME_MAX) .. " ") or "")
             .. _mental_name(npc),
         maneuver = headline,
+        states  = crouched and "CROUCH" or "",
         headline_live = live,
         is_combat = enemy ~= nil,
     }
@@ -224,9 +239,9 @@ end
 
 -- The shared grid (chars per column) and what each line puts in it. The maneuver sits top-right on the
 -- bright line - the headline; the target reads under its owner, the engine words dim beside it.
-local GRID  = { 34, 20 }
-local ROW_A = { "stalker", "maneuver" }
-local ROW_B = { "target", "engine" }
+local GRID  = { 34, 20, 8 }
+local ROW_A = { "stalker", "maneuver", "states" }
+local ROW_B = { "target", "engine", "pad" }
 
 local function _lay_widths(chars)
     local widths, total = {}, 0
@@ -294,6 +309,7 @@ local function _row_color(row)
     if row.is_overflow then return CLR_DIM end
     if row.tag == "AT" then return CLR_AT end
     if row.held then return CLR_HOLD end
+    if row.conduct then return CLR_CONDUCT end
     return CLR_NORMAL
 end
 
@@ -302,7 +318,7 @@ local function _paint_entry(a, b, row)
     for c = 1, #ROW_A do
         local key = ROW_A[c]
         a[c]:SetText(row[key] or "")
-        a[c]:SetTextColor((key == "maneuver" and not row.headline_live) and CLR_DIM or color)
+        a[c]:SetTextColor((key == "states" or (key == "maneuver" and not row.headline_live)) and CLR_DIM or color)
     end
     for c = 1, #ROW_B do
         b[c]:SetText(row.is_overflow and "" or (row[ROW_B[c]] or ""))

@@ -849,10 +849,17 @@
   </string>
   <!-- Development - Ballistics -->
   <string id="ui_mcm_at_development_ballistics_enabled">
-    <text>Ballistics recorder</text>
+    <text>Ballistics debug</text>
   </string>
   <string id="ui_mcm_at_development_ballistics_enabled_desc">
-    <text>Records shot outcomes near you: per-rank hit rates split by shooter motion, damage dealt, near misses, and burst lengths per weapon kind, with the driver context (maneuver, Commitment hold, or vanilla) on every record. Tables go to alifetactics_ballistics.log once a minute. Off costs nothing.</text>
+    <text>Debug recorder for shot outcomes near you: per-rank hit rates split by shooter motion, damage dealt, near misses, and burst lengths per weapon kind, each with the system driving the shooter (maneuver, Commitment, or vanilla). Tables go to alifetactics_ballistics.log once a minute. Off costs nothing.</text>
+  </string>
+  <!-- Development - World trace -->
+  <string id="ui_mcm_at_development_world_trace_enabled">
+    <text>World behaviour debug</text>
+  </string>
+  <string id="ui_mcm_at_development_world_trace_enabled_desc">
+    <text>Debug watchdog over the combat NPCs near you, flagging abnormal movement or animation: a body sliding without a walk, crouch and stand flickering, aiming off the target it sees, no weapon in hand mid-fight, a reload that never finishes, or an animation pinning the body during a hit. Each line names the system driving that NPC (maneuver, Commitment, or vanilla). Lines go to alifetactics_world.log. Off costs nothing.</text>
   </string>
   <!-- Development - Reset -->
   <string id="ui_mcm_at_development_btn_reset_all">

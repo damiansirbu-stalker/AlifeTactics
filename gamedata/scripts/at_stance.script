@@ -37,8 +37,21 @@ local STANCE_EXIT  = 0.15
 -- the combat op changes; every ask during the hold answers the HELD posture, so the applied value
 -- never alternates. The same sampled-decision-with-reset shape as the doctrine's stall tracker.
 local DECIDE_MS = 3000
+-- Crouching to fire over cover is a firing-line behaviour: it pays only when the shot is a ranged aimed
+-- shot, where the crouch's stillness (and a scope's zoom) turn misses into hits. The close-quarters
+-- ceiling scales PER WEAPON - this fraction of the weapon's effective (max) range (xcombat.WEAPON_RANGES,
+-- rifle 80m / sniper 150m). A rifle crouches past ~24m; a sniper not until ~45m, since below its own
+-- effective band the NPC hits standing and mobility beats a static crouch, and a point-blank crouch is
+-- the feet-crouch bug. The one canonical range table, so this never drifts from the maneuver ranges.
+local CONDUCT_FLOOR_FRAC = 0.3
 -- npc id -> { at, op, want } - the held decision. Dropped on entity unregister.
 local _decision = {}
+
+--- True while this NPC's held stance decision is crouch (HUD read).
+function crouched(id)
+    local dec = _decision[id]
+    return dec ~= nil and dec.want == move.crouch
+end
 -- npc id -> tier-and-community eligibility, static per NPC life (the at_reaction _tier_cache
 -- shape); saves a rank read + community read per engine ask. Dropped on entity unregister.
 local _eligible = {}
@@ -61,8 +74,12 @@ end
 -- The measured half of the decision: sample the low-cover field toward the enemy and resolve it
 -- through the hysteresis band against the previously held posture.
 -- @cost O(1) | 3 luabind (positions, lvid) + 1 engine cover query; runs once per DECIDE_MS per NPC
-local function _decide(npc, enemy, prev_want)
+local function _decide(npc, enemy, prev_want, kind)
     local np, ep = npc:position(), enemy:position()
+    -- Distance gate, per weapon: below CONDUCT_FLOOR_FRAC of this weapon's effective range it is a close
+    -- fight - stand and stay mobile, never crouch at the enemy's feet.
+    local floor_m = CONDUCT_FLOOR_FRAC * xcombat.get_weapon_range(kind).max
+    if np:distance_to_sqr(ep) < floor_m * floor_m then return move.stand, -1 end
     local dir = vector():set(ep.x - np.x, ep.y - np.y, ep.z - np.z)
     local cov = level.low_cover_in_direction(npc:level_vertex_id(), dir) or 0
     if cov >= STANCE_ENTER then return move.crouch, cov end
@@ -103,7 +120,7 @@ local function _on_combat_body_state(npc, world_operator, _body_state, flags)
     -- DECIDE_MS is the contract.
     if not (held and (tg - held.at) < DECIDE_MS) then
         local prev_want = held and held.want
-        local want, cov = _decide(npc, enemy, prev_want)
+        local want, cov = _decide(npc, enemy, prev_want, kind)
         held = { at = tg, op = world_operator, want = want }
         _decision[id] = held
         if _dbg and want ~= prev_want then

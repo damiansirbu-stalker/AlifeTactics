@@ -134,6 +134,11 @@ local _cur_op = {}
 -- the same _hold_cap_ms TTL, closed by any ACTUAL cover change (_on_best_cover_changed)
 local _cover_hold = {}
 
+--- True while Commitment is pinning this NPC's cover (the cover-pin hold is open; HUD read).
+function cover_held(id)
+    return _cover_hold[id] ~= nil
+end
+
 --- The open hold window for `id` ({ op, since, denies }) or nil - the debug HUD's headline read.
 function get_hold(id)
     return _hold[id]
