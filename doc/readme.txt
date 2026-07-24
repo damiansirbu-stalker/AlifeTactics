@@ -183,7 +183,7 @@ It coexists with other combat AI mods, but vanilla plus AlifeTactics is the inte
 
 Requirements:
 Anomaly 1.5.3
-Modded exes (themrdemonized 20250908 or newer, or AOEngine v0.55 or newer)
+Modded exes (themrdemonized 2025.9.10 or newer, or AOEngine v0.55 or newer)
 xlibs (https://www.moddb.com/mods/stalker-anomaly/addons/xlibs-1001)
 MCM
 
@@ -234,7 +234,7 @@ Coexists:
 
 FAQ:
 Do I need modded exes?
-  Yes. AlifeTactics needs themrdemonized modded exes (20250908 or newer) or AOEngine (v0.55 or newer). Vanilla Anomaly does not expose the APIs it relies on.
+  Yes. AlifeTactics needs themrdemonized modded exes (2025.9.10 or newer) or AOEngine (v0.55 or newer). Vanilla Anomaly does not expose the APIs it relies on.
 
 Credits:
 Altogolik - support, ideas, source materials
