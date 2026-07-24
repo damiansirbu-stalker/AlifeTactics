@@ -227,7 +227,10 @@ function queue_scales(npc)
 end
 
 local function _on_entity_unregister(se_obj)
-    if se_obj then _tier_cache[se_obj.id] = nil end
+    if se_obj then
+        _tier_cache[se_obj.id] = nil
+        _next_lead[se_obj.id] = nil
+    end
 end
 
 -- Set the per-rank queue scales on one NPC. novice (1.0/1.0) leaves the vanilla queue (field unset).
@@ -382,6 +385,9 @@ local function _refresh_config()
 end
 
 local function _on_first_update()
+    -- Session boundary: a loaded save re-creates entities under different ids, so every per-id
+    -- record is stale (the at_commitment _on_first_update shape).
+    _tier_cache, _next_lead = {}, {}
     _refresh_config()
     at_trace.info("Reaction hook initialized (aim=%s vision=%s lead=%s discipline=%s)",
         cfg.aim_enabled and "on" or "off", cfg.vision_enabled and "on" or "off",
