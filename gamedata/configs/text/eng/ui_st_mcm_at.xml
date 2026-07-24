@@ -847,19 +847,12 @@
   <string id="at_development_hud_position_lst_bottomright">
     <text>Bottom Right</text>
   </string>
-  <!-- Development - Ballistics -->
-  <string id="ui_mcm_at_development_ballistics_enabled">
-    <text>Ballistics debug</text>
-  </string>
-  <string id="ui_mcm_at_development_ballistics_enabled_desc">
-    <text>Debug recorder for shot outcomes near you: per-rank hit rates split by shooter motion, damage dealt, near misses, and burst lengths per weapon kind, each with the system driving the shooter (maneuver, Commitment, or vanilla). Tables go to alifetactics_world.log once a minute. Off costs nothing.</text>
-  </string>
   <!-- Development - World trace -->
   <string id="ui_mcm_at_development_world_trace_enabled">
     <text>World behaviour debug</text>
   </string>
   <string id="ui_mcm_at_development_world_trace_enabled_desc">
-    <text>Debug watchdog over the combat NPCs near you, flagging a body that slides: real distance covered with no walk or run animation, including the shove right after a hit. Each line names the system driving that NPC (maneuver, Commitment, or vanilla). Lines go to alifetactics_world.log. Off costs nothing.</text>
+    <text>Debug recorder for the physical fight around you. Flags a body that slides (real distance covered with no walk or run animation, including the shove right after a hit) and records shot outcomes: per-rank hit rates split by shooter motion, damage dealt, near misses, and burst lengths per weapon kind, written as tables once a minute. Each line names the system driving that NPC (maneuver, Commitment, or vanilla). Everything goes to alifetactics_world.log. Off costs nothing.</text>
   </string>
   <!-- Development - Reset -->
   <string id="ui_mcm_at_development_btn_reset_all">

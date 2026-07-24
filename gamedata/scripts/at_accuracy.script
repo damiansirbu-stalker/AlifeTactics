@@ -11,9 +11,10 @@ local cfg = at_mcm.cfg
 -- cone; 1.0 preserves engine baseline, lower = tighter, above 1.0 loosens). move applies ONLY while
 -- the shooter is moving (move_type walk/run - the same movement_type() the engine keys its walk/run
 -- multipliers on, ai_stalker_fire.cpp:81-104): it cancels part of the movement penalty per rank. The
--- penalty is ~2x cone (walk 5.1+1 vs still 2.0+1, m_stalker.ltx:478-482), so factor 0.50 erases it
--- and 1.00 keeps the full vanilla penalty; legend 0.50 = full erase for the top rank, novice 1.00 =
--- full penalty. Same tier-floor lerp as every curve (game_relations.ltx:8 floors / 27000).
+-- penalty is ~2x cone (walk 5.1+1 vs still 2.0+1, m_stalker.ltx:478-482); factor 1.00 keeps the full
+-- vanilla penalty, 0.50 would erase it. Shipped legend is 0.70 (~1.8x penalty left), novice 1.00 =
+-- full penalty: every rank still pays visibly for moving, so planted fire keeps its edge. Same
+-- tier-floor lerp as every curve (game_relations.ltx:8 floors / 27000).
 
 -- Per-tier curves, filled from at_mcm at _refresh_config (single source of truth: the at_mcm defaults
 -- table + MCM sliders). Empty here on purpose - get_config never returns nil for these keys (the

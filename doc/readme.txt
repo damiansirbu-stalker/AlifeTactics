@@ -90,7 +90,7 @@ Effectiveness
 Accuracy:
 Anomaly's rank curve clamps every NPC to the same dispersion, accuracy never scaled per rank, even though the engine code exists.
 AlifeTactics restores a real per-rank curve through the engine's own dispersion callback, tunable per tier.
-A second curve covers fire on the move: each rank keeps a share of the movement spread penalty, so rookies spray while repositioning and top ranks lose about half the penalty.
+A second curve covers fire on the move: each rank keeps a share of the movement spread penalty, so rookies spray while repositioning and top ranks cut about a third of it.
 Note that the engine has many dispersion variables (eg barrel, weapon, npc), this is the NPC skill-based dispersion.
 
 Disclosure:

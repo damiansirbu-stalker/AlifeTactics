@@ -25,13 +25,13 @@ local defaults = {
     acc_disp_master        = 0.34,
     acc_disp_legend        = 0.22,
     acc_move_novice        = 1.00,
-    acc_move_trainee       = 0.93,
-    acc_move_experienced   = 0.86,
-    acc_move_professional  = 0.79,
-    acc_move_veteran       = 0.72,
-    acc_move_expert        = 0.65,
-    acc_move_master        = 0.57,
-    acc_move_legend        = 0.50,
+    acc_move_trainee       = 0.96,
+    acc_move_experienced   = 0.91,
+    acc_move_professional  = 0.87,
+    acc_move_veteran       = 0.83,
+    acc_move_expert        = 0.79,
+    acc_move_master        = 0.74,
+    acc_move_legend        = 0.70,
     aim_enabled            = true,
     vision_enabled         = true,
     lead_enabled           = true,
@@ -101,7 +101,6 @@ local defaults = {
     ammo_enabled = true,
     log_level = "WARN",
     hud_position   = "off",
-    ballistics_enabled  = false,
     world_trace_enabled = false,
 }
 
@@ -213,7 +212,6 @@ local _key_to_tab = {
     log_level     = "development",
     btn_reset_all = "development",
     hud_position   = "development",
-    ballistics_enabled  = "development",
     world_trace_enabled = "development",
 }
 
@@ -283,8 +281,8 @@ function on_mcm_load()
         qsize_veteran = 0.92, qsize_expert = 0.90, qsize_master = 0.88, qsize_legend = 0.85,
         qinterval_novice = 1.00, qinterval_trainee = 0.96, qinterval_experienced = 0.93, qinterval_professional = 0.89,
         qinterval_veteran = 0.86, qinterval_expert = 0.82, qinterval_master = 0.79, qinterval_legend = 0.75,
-        vision_novice = 1.00, vision_trainee = 1.00, vision_experienced = 1.00, vision_professional = 1.00,
-        vision_veteran = 1.00, vision_expert = 1.00, vision_master = 1.00, vision_legend = 1.00,
+        vision_novice = 1.00, vision_trainee = 1.13, vision_experienced = 1.24, vision_professional = 1.33,
+        vision_veteran = 1.44, vision_expert = 1.54, vision_master = 1.65, vision_legend = 2.00,
     }
     local RCT_CONFIG_PATH    = "alifetactics\\at_reaction.ltx"
     local RCT_CONFIG_SECTION = "at_reaction"
@@ -387,13 +385,13 @@ function on_mcm_load()
                             { id = "hdr_accuracy_move", type = "desc", text = "ui_mcm_at_hdr_accuracy_move", clr = {255, 200, 200, 200} },
                             { id = "move_enabled", type = "check", val = 1, def = true, hint = "at_accuracy_move_enabled" },
                             { id = "acc_move_novice",       type = "track", val = 2, min = 0.50, max = 1.00, step = 0.01, def = 1.00, hint = "at_accuracy_acc_move_novice" },
-                            { id = "acc_move_trainee",      type = "track", val = 2, min = 0.50, max = 1.00, step = 0.01, def = 0.93, hint = "at_accuracy_acc_move_trainee" },
-                            { id = "acc_move_experienced",  type = "track", val = 2, min = 0.50, max = 1.00, step = 0.01, def = 0.86, hint = "at_accuracy_acc_move_experienced" },
-                            { id = "acc_move_professional", type = "track", val = 2, min = 0.50, max = 1.00, step = 0.01, def = 0.79, hint = "at_accuracy_acc_move_professional" },
-                            { id = "acc_move_veteran",      type = "track", val = 2, min = 0.50, max = 1.00, step = 0.01, def = 0.72, hint = "at_accuracy_acc_move_veteran" },
-                            { id = "acc_move_expert",       type = "track", val = 2, min = 0.50, max = 1.00, step = 0.01, def = 0.65, hint = "at_accuracy_acc_move_expert" },
-                            { id = "acc_move_master",       type = "track", val = 2, min = 0.50, max = 1.00, step = 0.01, def = 0.57, hint = "at_accuracy_acc_move_master" },
-                            { id = "acc_move_legend",       type = "track", val = 2, min = 0.50, max = 1.00, step = 0.01, def = 0.50, hint = "at_accuracy_acc_move_legend" },
+                            { id = "acc_move_trainee",      type = "track", val = 2, min = 0.50, max = 1.00, step = 0.01, def = 0.96, hint = "at_accuracy_acc_move_trainee" },
+                            { id = "acc_move_experienced",  type = "track", val = 2, min = 0.50, max = 1.00, step = 0.01, def = 0.91, hint = "at_accuracy_acc_move_experienced" },
+                            { id = "acc_move_professional", type = "track", val = 2, min = 0.50, max = 1.00, step = 0.01, def = 0.87, hint = "at_accuracy_acc_move_professional" },
+                            { id = "acc_move_veteran",      type = "track", val = 2, min = 0.50, max = 1.00, step = 0.01, def = 0.83, hint = "at_accuracy_acc_move_veteran" },
+                            { id = "acc_move_expert",       type = "track", val = 2, min = 0.50, max = 1.00, step = 0.01, def = 0.79, hint = "at_accuracy_acc_move_expert" },
+                            { id = "acc_move_master",       type = "track", val = 2, min = 0.50, max = 1.00, step = 0.01, def = 0.74, hint = "at_accuracy_acc_move_master" },
+                            { id = "acc_move_legend",       type = "track", val = 2, min = 0.50, max = 1.00, step = 0.01, def = 0.70, hint = "at_accuracy_acc_move_legend" },
                         },
                     },
                     {
@@ -647,7 +645,6 @@ function on_mcm_load()
                             {"DEBUG", "debug"},
                         },
                     },
-                    { id = "ballistics_enabled", type = "check", val = 1, def = false, hint = "at_development_ballistics_enabled" },
                     { id = "world_trace_enabled", type = "check", val = 1, def = false, hint = "at_development_world_trace_enabled" },
 
                     { id = "div_hud", type = "line" },

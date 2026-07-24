@@ -1,3 +1,15 @@
+next
+  Summary: Moving Fire defaults
+
+  Effectiveness
+    Accuracy
+      - Changed the Moving Fire defaults to keep a clear movement penalty at every rank: legend now cuts about a third of the moving spread instead of erasing it (0.70, was 0.50),
+        so planted fire keeps its edge over firing on the run.
+
+  Development
+    - Changed the two world debug recorders into one: the Ballistics toggle is gone, and World behaviour debug now records both the slide watchdog
+      and the shot outcome tables into alifetactics_world.log.
+
 1.1.6
   Summary: Reload Cover, Pickoff, Cover posture, Movement and handling noise, neutral gunfire alert, cover pinning, combat-paused healing, target lead, fire discipline, world-behaviour debug
 
