@@ -1,5 +1,5 @@
 STALKER Mod Validation Report
-Generated: 2026-07-15 21:50:37
+Generated: 2026-07-24 21:48:14
 Validator: stalker-manager validate
 Mods: 1
 
@@ -14,7 +14,6 @@ Files:
   gamedata/scripts/at_ballistics.script
   gamedata/scripts/at_combat.script
   gamedata/scripts/at_combat_doctrine.script
-  gamedata/scripts/at_combat_trace.script
   gamedata/scripts/at_commitment.script
   gamedata/scripts/at_crossfire.script
   gamedata/scripts/at_danger.script
@@ -23,19 +22,22 @@ Files:
   gamedata/scripts/at_hud.script
   gamedata/scripts/at_jam.script
   gamedata/scripts/at_mcm.script
-  gamedata/scripts/at_perception_trace.script
+  gamedata/scripts/at_noise.script
   gamedata/scripts/at_reaction.script
+  gamedata/scripts/at_stance.script
   gamedata/scripts/at_test.script
+  gamedata/scripts/at_trace.script
+  gamedata/scripts/at_world_trace.script
   gamedata/scripts/zzz_at_healing_patch.script
 
 [1/4] luacheck - static analysis (PASS)
   Checks: syntax errors, undefined globals, unused variables, type mismatches
-  Files checked: 19
+  Files checked: 21
   Errors: 0
 
 [2/4] selene - advanced linting (PASS)
   Checks: shadowing, deprecated API, misused variables, style violations
-  Files checked: 19
+  Files checked: 21
   Errors: 0, Warnings: 0
 
 [3/4] contract - project rules (PASS (S+))
@@ -297,75 +299,80 @@ Files:
 [4/4] load - runtime loading (PASS)
   Test: lua54 interpreter + X-Ray engine stubs
   Load test: AlifeTactics
-  LOAD: xlevel
-  LOAD: xevent
-  LOAD: at_reaction
-  LOAD: at_commitment
-  LOAD: xcreature
-  LOAD: xactor
-  LOAD: xpp
-  LOAD: at_jam
-  LOAD: at_combat_trace
-  LOAD: xpda
-  LOAD: xsquad
-  LOAD: xsmart_spawn
-  LOAD: xbus
-  LOAD: at_ballistics
-  LOAD: at_accuracy
   LOAD: xobject
-  LOAD: at_perception_trace
-  LOAD: xlog
-  LOAD: xdata
-  LOAD: at_combat
-  LOAD: at_test
-  LOAD: xtime
-  LOAD: xmcm
-  LOAD: xinventory
-  LOAD: at_hud
-  LOAD: zzz_at_healing_patch
-  LOAD: at_ammo
-  LOAD: xsmart
-  LOAD: xconst
-  LOAD: at_healing
   LOAD: xchange
-  LOAD: at_combat_doctrine
-  LOAD: at_disclosure
-  LOAD: xlibs
-  LOAD: at_mcm
-  LOAD: xlibs_mcm
+  LOAD: xconst
+  LOAD: xstring
+  LOAD: xevent
+  LOAD: at_combat
+  LOAD: xbus
+  LOAD: xsmart_spawn
+  LOAD: xactor
+  LOAD: xtime
+  LOAD: xpp
+  LOAD: xsound
+  LOAD: xinspect
+  LOAD: at_reaction
+  LOAD: at_crossfire
+  LOAD: xttltable
+  LOAD: xlog
+  LOAD: xsquad
+  LOAD: zzz_at_healing_patch
+  LOAD: xinventory
+  LOAD: xmath
+  LOAD: at_trace
+  LOAD: xtable
+  LOAD: _at_deps
+  LOAD: at_world_trace
   LOAD: xprofiler
   LOAD: xtrace
+  LOAD: at_healing
+  LOAD: xcreature
+  LOAD: at_test
+  LOAD: xdata
+  LOAD: at_accuracy
+  LOAD: xlibs
+  LOAD: at_jam
+  LOAD: at_hud
+  LOAD: at_stance
+  LOAD: at_mcm
   LOAD: xcombat
-  LOAD: xstring
-  LOAD: _at_deps
-  LOAD: xsound
-  LOAD: xtable
-  LOAD: xstash
+  LOAD: at_commitment
   LOAD: xslice
-  LOAD: xmath
-  LOAD: xinspect
-  LOAD: xttltable
-  LOAD: at_crossfire
-  START: at_healing.on_game_start
-  START: at_combat.on_game_start
-  START: at_commitment.on_game_start
-  START: zzz_at_healing_patch.on_game_start
-  START: at_accuracy.on_game_start
-  START: at_mcm.on_game_start
+  LOAD: at_ammo
+  LOAD: xmcm
+  LOAD: xstash
+  LOAD: at_ballistics
+  LOAD: at_combat_doctrine
+  LOAD: at_disclosure
+  LOAD: xsmart
+  LOAD: at_noise
+  LOAD: xpda
+  LOAD: xlibs_mcm
+  LOAD: xlevel
+  START: at_world_trace.on_game_start
   START: _at_deps.on_game_start
-  START: xtime.on_game_start
-  START: at_ballistics.on_game_start
-  START: at_ammo.on_game_start
-  START: at_crossfire.on_game_start
-  START: xlog.on_game_start
   START: at_hud.on_game_start
+  START: at_trace.on_game_start
   START: at_jam.on_game_start
-  START: at_reaction.on_game_start
+  START: at_combat.on_game_start
   START: xpp.on_game_start
-  START: at_perception_trace.on_game_start
+  START: at_ammo.on_game_start
+  START: at_reaction.on_game_start
+  START: at_ballistics.on_game_start
+  START: at_stance.on_game_start
+  START: at_mcm.on_game_start
+  START: at_crossfire.on_game_start
+  START: at_noise.on_game_start
+  START: zzz_at_healing_patch.on_game_start
+  START: at_commitment.on_game_start
+  START: xtime.on_game_start
   START: xsound.on_game_start
+  START: xlog.on_game_start
+  START: at_healing.on_game_start
   START: at_disclosure.on_game_start
-  OK: 49 loaded, 19 on_game_start
+  START: at_accuracy.on_game_start
+  OK: 51 loaded, 22 on_game_start
 
 ========================================================================
 RESULT: PASS | Grade: S+ | Score: 0
