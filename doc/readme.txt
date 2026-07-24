@@ -1,5 +1,5 @@
 AlifeTactics: NPC combat behavior for STALKER Anomaly, by Damian
-Version: 1.1.5 (xlibs 1.8.2, demonized 20250908)
+Version: 1.1.6 (xlibs 1.8.3, demonized 20250908)
 GitHub: https://github.com/damiansirbu-stalker/AlifeTactics
 Changelog: https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/changelog
 Russian / Na russkom: https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/readme_ru.txt
@@ -97,7 +97,7 @@ Disclosure:
 When a faction enemy wounds any squad member, the whole squad learns the shooter at once, even patrol members out of earshot and even against a silenced weapon.
 Vanilla only shares a shooter the squadmates actually heard, so distant or suppressed attackers stay unknown.
 It works through the engine's own memory, not by faking relations: the shooter is enabled in each member's memory and registered into the squad's combat, and the engine's normal propagation carries it from there.
-On a recent engine build the shooter also enters their seen memory, the class target selection ranks first, so the squad turns on the shooter instead of staying locked on a distant visible enemy.
+On demonized 20260722 or newer the shooter also enters their seen memory, the class target selection ranks first, so the squad turns on the shooter instead of staying locked on a distant visible enemy.
 A stalker with no squad discloses the shooter to himself.
 New members inherit the fight when they spawn, and a shooter who went offline and returns is flagged again.
 A survivor gate (default on) skips disclosure when the hit kills the victim outright, so a clean kill stays quiet.

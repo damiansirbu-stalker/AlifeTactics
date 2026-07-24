@@ -1,5 +1,9 @@
-next
-  Summary: Reload Cover, Pickoff, Cover posture, Movement and handling noise, neutral gunfire alert, cover pinning, combat-paused healing, target lead, fire discipline, world-behaviour debug
+1.1.6
+  Summary: Reload Cover, Pickoff, Cover posture, Movement and handling noise, neutral gunfire alert, cover pinning, combat-paused healing, target lead, fire discipline, zombie exclusion, world-behaviour debug
+
+  General
+    - Changed the mod to leave zombified stalkers alone. A zombie fights as vanilla drives it, excluded from every combat and effectiveness layer,
+      because a mindless shambler is not the deliberate combatant those systems model.
 
   Danger
     Sound
@@ -18,7 +22,7 @@ next
   Combat
     Maneuvers
       - Added Reload Cover: a stalker caught reloading in your line of fire runs to the nearest cover, and his weapon finishes reloading on the way.
-        It fires when you could actually hit him - you hold a weapon, face him, and nothing blocks the shot. Reloading out of your line stays put. Needs a recent engine build, inactive on older ones.
+        It fires when you could actually hit him - you hold a weapon, face him, and nothing blocks the shot. Reloading out of your line stays put. Needs demonized 20260722 or newer, inactive on older exes.
       - Fixed maneuvers interrupting reloads: a maneuver's fire order no longer cancels an NPC's reload in progress,
         ending the rack-restart-rack loop visible when pressing a reloading NPC at close range. He walks weapon-up until the reload finishes, then fires.
       - Changed Snipe into Pickoff, now for any weapon: a stalker who has his enemy outranged in a standoff stands his ground
@@ -29,11 +33,12 @@ next
         and follow the Fire Discipline rank curve, so a maneuver-held master fires tighter than a rookie.
     Commitment
       - Added cover pinning: a stalker firing with a clear shot keeps his cover instead of sliding to a marginally better one, ending the mid-fight cover strafe.
-        Its own toggle. Needs a recent engine build, inactive on older ones.
+        Its own toggle. Needs demonized 20260722 or newer, inactive on older exes.
     Conduct
       - Added Cover posture: experienced riflemen and snipers crouch when real chest-high cover stands toward their enemy and stand when it does not,
         replacing vanilla's blind posture picks (crouching behind random bumps and firing into them). Reads the game's own cover map.
-        They crouch only at a range that suits the weapon - a rifleman past about 24m, a sniper past about 45m - so they never drop to a knee at your feet in a close fight. Needs a recent engine build.
+        They crouch only at a range that suits the weapon - a rifleman past about 24m, a sniper past about 45m - so they never drop to a knee at your feet in a close fight.
+        Needs demonized 20260722 or newer, inactive on older exes.
 
   Mechanics
     Healing
@@ -46,12 +51,12 @@ next
       - Changed the Accuracy page to independent switches for the Dispersion and Moving Fire curves, replacing the single master.
     Disclosure
       - Changed disclosure so the squad turns on the shooter: he enters their seen memory, the class target selection ranks first.
-        Before, a distant visible enemy always outranked him. A toggle keeps the softer disclosure. Needs a recent engine build, previous behavior on older ones.
+        Before, a distant visible enemy always outranked him. A toggle keeps the softer disclosure. Needs demonized 20260722 or newer, previous behavior on older exes.
     Reaction
       - Added Target Lead: NPCs lead a moving target by the round's real flight time, computed from range and bullet speed as they fire.
         Top ranks lead on the mark and hit movers, low ranks over-lead and overshoot, and the error scales with range instead of the old fixed overshoot.
       - Added Fire Discipline: higher ranks fire crisper short bursts at a tighter cadence, low ranks stay vanilla.
-        Defaults keep every rank's rounds per minute at or above vanilla. Needs a recent engine build.
+        Defaults keep every rank's rounds per minute at or above vanilla. Needs demonized 20260722 or newer, inactive on older exes.
       - Changed the Reaction page to independent switches with per-rank curves for Tracking Speed, Vision Speed, Target Lead, and Fire Discipline.
 
   Development
