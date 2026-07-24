@@ -1,23 +1,5 @@
 1.1.6
-  Summary: Reload Cover, Pickoff, Cover posture, Movement and handling noise, neutral gunfire alert, cover pinning, combat-paused healing, target lead, fire discipline, zombie exclusion, world-behaviour debug
-
-  General
-    - Changed the mod to leave zombified stalkers alone. A zombie fights as vanilla drives it, excluded from every combat and effectiveness layer,
-      because a mindless shambler is not the deliberate combatant those systems model.
-
-  Danger
-    Sound
-      - Added Movement noise: hostile stalkers hear you move. Footsteps carry by stance, surface, and weather.
-        Crouched movement is silent. A 5m walking base, x1.6 sprinting, a 10m jump landing. Surfaces: metal x1.25, wood x1.15, water x1.35, grass x0.7, dirt and sand x0.8. Rain cuts carry by up to 40 percent.
-        Reaction follows the evidence: a heard walk turns him weapon-ready toward the sound, a sprint or a landing sends him walking over to check the spot.
-        A sound never reads as a confirmed enemy: he investigates at a walk, never charges, does not learn where you are, and combat is untouched.
-      - Added Handling noise: a reload racked nearby or an empty click sends a hostile checking the spot, an item used turns him weapon-ready, all at shorter reach than movement.
-      - Added Neutral gunfire alert: neutral and friendly stalkers go weapon-ready facing shots you fire close to them.
-        They never turn hostile and settle down when the shooting stops.
-      - Added a carry distance slider scaling all noise.
-    Fixes
-      - Changed Player ranges to apply only when the installed danger script itself uses the separate actor tables,
-        so a config that ships the section unused keeps its own tuning.
+  Summary: Reload Cover, Pickoff, Cover posture, Movement and handling noise, neutral gunfire alert, cover pinning, combat-paused healing, target lead, fire discipline, world-behaviour debug
 
   Combat
     Maneuvers
@@ -40,12 +22,6 @@
         They crouch only at a range that suits the weapon - a rifleman past about 24m, a sniper past about 45m - so they never drop to a knee at your feet in a close fight.
         Needs demonized 20260722 or newer, inactive on older exes.
 
-  Mechanics
-    Healing
-      - Changed self-healing to pause while a stalker is actively fighting - weapon in hand on a live enemy, or an enemy at contact range.
-        Healing resumes when the fight lets go and no charge is lost. A fight can no longer be healed through faster than the damage arrives.
-      - Fixed limping in combat: a hurt stalker's limp is dropped the instant a fight starts, so one pulled into a fight while limping no longer keeps the hurt pose or slides when shot mid-limp.
-
   Effectiveness
     Accuracy
       - Changed the Accuracy page to independent switches for the Dispersion and Moving Fire curves, replacing the single master.
@@ -58,6 +34,26 @@
       - Added Fire Discipline: higher ranks fire crisper short bursts at a tighter cadence, low ranks stay vanilla.
         Defaults keep every rank's rounds per minute at or above vanilla. Needs demonized 20260722 or newer, inactive on older exes.
       - Changed the Reaction page to independent switches with per-rank curves for Tracking Speed, Vision Speed, Target Lead, and Fire Discipline.
+
+  Danger
+    Sound
+      - Added Movement noise: hostile stalkers hear you move. Footsteps carry by stance, surface, and weather.
+        Crouched movement is silent. A 5m walking base, x1.6 sprinting, a 10m jump landing. Surfaces: metal x1.25, wood x1.15, water x1.35, grass x0.7, dirt and sand x0.8. Rain cuts carry by up to 40 percent.
+        Reaction follows the evidence: a heard walk turns him weapon-ready toward the sound, a sprint or a landing sends him walking over to check the spot.
+        A sound never reads as a confirmed enemy: he investigates at a walk, never charges, does not learn where you are, and combat is untouched.
+      - Added Handling noise: a reload racked nearby or an empty click sends a hostile checking the spot, an item used turns him weapon-ready, all at shorter reach than movement.
+      - Added Neutral gunfire alert: neutral and friendly stalkers go weapon-ready facing shots you fire close to them.
+        They never turn hostile and settle down when the shooting stops.
+      - Added a carry distance slider scaling all noise.
+    Fixes
+      - Changed Player ranges to apply only when the installed danger script itself uses the separate actor tables,
+        so a config that ships the section unused keeps its own tuning.
+
+  Mechanics
+    Healing
+      - Changed self-healing to pause while a stalker is actively fighting - weapon in hand on a live enemy, or an enemy at contact range.
+        Healing resumes when the fight lets go and no charge is lost. A fight can no longer be healed through faster than the damage arrives.
+      - Fixed limping in combat: a hurt stalker's limp is dropped the instant a fight starts, so one pulled into a fight while limping no longer keeps the hurt pose or slides when shot mid-limp.
 
   Development
     World behaviour
