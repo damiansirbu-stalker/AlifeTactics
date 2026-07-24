@@ -2,8 +2,6 @@
 
 local IsStalker, RegisterScriptCallback, AC_ID = IsStalker, RegisterScriptCallback, AC_ID
 
-local log = xlog.get_logger("AT.CROSSFIRE", { outfile = "alifetactics.log" })
-local _dbg = false
 local cfg = at_mcm.cfg
 
 -- Friendly-fire damage gate. Suppress damage unless the shooter and victim are actually enemies
@@ -23,25 +21,17 @@ local function _on_before_hit(npc, shit, _bone_id, _flags)
     if attacker_id == npc:id() then return end
     if not (IsStalker(attacker) and IsStalker(npc)) then return end
     if xcreature.community(npc) == "zombied" then return end
-    local tmr = xprofiler.new_if(_dbg):start()
+    local tmr = xprofiler.new_if(at_trace.on()):start()
     if attacker:relation(npc) == game_object.enemy then tmr:stop() return end
     local before = shit.power
     shit.power = before * cfg.crossfire_factor
     tmr:stop()
-    if _dbg and before > 0 then
-        log.debug("[CROSSFIRE] blocked attacker=%d victim=%d power=%.3f->%.3f [%dus]",
+    if at_trace.on() and before > 0 then
+        at_trace.dbg("[CROSSFIRE] blocked attacker=%d victim=%d power=%.3f->%.3f [%dus]",
             attacker:id(), npc:id(), before, shit.power, tmr:get_us())
     end
 end
 
-local function _refresh_log()
-    log.set_level(at_mcm.get_config("log_level") or "WARN")
-    _dbg = log.get_level() >= 5
-end
-
 function on_game_start()
-    RegisterScriptCallback("npc_on_before_hit",          _on_before_hit)
-    RegisterScriptCallback("actor_on_first_update",      _refresh_log)
-    RegisterScriptCallback("on_option_change",           _refresh_log)
-    RegisterScriptCallback("mcm_option_restore_default", _refresh_log)
+    RegisterScriptCallback("npc_on_before_hit", _on_before_hit)
 end

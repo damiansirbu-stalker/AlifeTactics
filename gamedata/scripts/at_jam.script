@@ -15,8 +15,6 @@
 
 local RegisterScriptCallback, type = RegisterScriptCallback, type
 
-local log = xlog.get_logger("AT.JAM", { outfile = "alifetactics.log" })
-
 local _original
 -- Snapshot of the jam_enabled MCM value (mcm.md snapshot pattern): the functor runs per NPC shot,
 -- so it reads this boolean instead of a live ui_mcm.get; refreshed on every option change.
@@ -39,7 +37,7 @@ local function _install()
     -- calling it), a nil-call crash the moment jam is disabled (the disabled path calls _original).
     _original = xr_weapon_jam and xr_weapon_jam.GetConditionMisfireProbability
     if type(_original) ~= "function" then
-        log.warn("xr_weapon_jam.GetConditionMisfireProbability not present; NPC misfire suppression inert")
+        at_trace.warn("xr_weapon_jam.GetConditionMisfireProbability not present; NPC misfire suppression inert")
         return
     end
     xr_weapon_jam.GetConditionMisfireProbability = function(weapon, npc, base_value)
@@ -48,21 +46,20 @@ local function _install()
         end
         _suppressed = _suppressed + 1
         if _suppressed % SUMMARY_EVERY == 0 then
-            log.debug("[JAM] suppressed=%d NPC misfire rolls this session", _suppressed)
+            at_trace.dbg("[JAM] suppressed=%d NPC misfire rolls this session", _suppressed)
         end
         return 0
     end
-    log.info("xr_weapon_jam.GetConditionMisfireProbability patched (NPC misfire suppression active)")
+    at_trace.info("xr_weapon_jam.GetConditionMisfireProbability patched (NPC misfire suppression active)")
 end
 
-local function _refresh_log()
-    log.set_level(at_mcm.get_config("log_level") or "WARN")
+local function _refresh_config()
     _jam_enabled = at_mcm.get_config("jam_enabled") ~= false
 end
 
 function on_game_start()
     _install()
-    RegisterScriptCallback("actor_on_first_update",      _refresh_log)
-    RegisterScriptCallback("on_option_change",           _refresh_log)
-    RegisterScriptCallback("mcm_option_restore_default", _refresh_log)
+    RegisterScriptCallback("actor_on_first_update",      _refresh_config)
+    RegisterScriptCallback("on_option_change",           _refresh_config)
+    RegisterScriptCallback("mcm_option_restore_default", _refresh_config)
 end

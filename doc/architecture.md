@@ -19,7 +19,7 @@ Project-wide constraints. Every system holds all of them; a change that violates
 - **Engine truth.** Every mechanism claim in this document carries an engine source cite (file:line into xray-monolith or vanilla Anomaly). A behavior that could not be proven from source does not ship; where the engine had no seam, the seam was added upstream first (the demonized PRs: action-switch veto, per-NPC aim and vision, fire-discipline binds).
 - **The takeover is a bounded transaction that TRIES to solve its problem.** Vanilla owns every NPC by default. AT borrows one NPC for one committed, time-boxed maneuver and releases it - at most one open maneuver per NPC and at most `max_concurrent_maneuvers` open across all NPCs (a runaway failsafe), ended on arrival, a hard cap, or a broken premise, cleaned up on death and despawn. There is no reseize cooldown: every row's need states the FULL problem and the maneuver's success negates it (kite clears its own weapon minimum, retreat/flee push past the enemy's reach, counterflank flips the engine's enemy selection, a finished pickoff hold resets the stall measurement), so a solved problem does not re-fire and a recurred or unsolved one legitimately does - three kites under sustained pressure are three correct transactions. Every maneuver is locked to the target it was staged against (`state.enemy_id` resolved via `xcombat.resolve_enemy`, in the shared shell so every current and future row inherits it): the NPC aims at him and only him for the maneuver's life, and his death or despawn ends the maneuver at once (`target_lost`) with vanilla re-selecting from there. AT is an interrupt over vanilla, never the combat brain.
 - **xcombat boundary.** Every NPC combat command and read goes through an xcombat (xlibs) primitive; AT makes no raw engine combat call. AT owns policy (when, whom, which maneuver); xcombat owns mechanism (how to issue it to the engine).
-- **Debug is free when off.** Every trace call gates on one boolean. The off path builds no string, allocates nothing, and crosses no luabind bridge.
+- **Debug is free when off.** Every trace call gates on one integer compare (`at_trace.on()` / `at_trace.dbg`). The off path builds no string, allocates nothing, and crosses no luabind bridge; an expensive line's whole site sits behind `if at_trace.on()`.
 
 ---
 
@@ -33,10 +33,9 @@ Version 1.1.5.
 | `at_mcm.script` | infra | done |
 | `at_test.script` | infra | done |
 | `at_hud.script` | infra | done (live debug HUD; each row coloured by the combat system holding the NPC — maneuver green / commitment blue / conduct mauve — noop unless enabled) |
-| `at_combat_trace.script` | infra | done (combat decision/transition trace, noop when off) |
-| `at_perception_trace.script` | infra | done (enemy-selection trace, noop when off) |
-| `at_ballistics.script` | infra | done (outcome recorder, off by default, zero cost off) |
-| `at_world_trace.script` | infra | done (physical-behaviour watchdog: slide/posture/aim/reload/overlay flags with driver attribution, MCM Development, zero cost off) |
+| `at_trace.script` | infra | done (the one code-trace primitives file: logger, gate, formatters, level lifecycle; every module logs through it) |
+| `at_ballistics.script` | infra | done (outcome recorder into the world log, off by default, zero cost off) |
+| `at_world_trace.script` | infra | done (slide watchdog: position-only SLIDE / SLIDE_ONHIT with driver attribution, MCM Development, zero cost off) |
 | `at_disclosure.script` | feature | done |
 | `at_crossfire.script` | feature | done |
 | `at_healing.script` | feature | done |
@@ -95,9 +94,9 @@ AlifeTactics/
 │   ├── scripts/
 │   │   ├── _at_deps.script                    # dependency gate
 │   │   ├── at_mcm.script                      # MCM configuration
+│   │   ├── at_trace.script                    # code-trace primitives (one logger -> alifetactics.log, the on() gate, formatters, level lifecycle)
 │   │   ├── at_combat.script                   # Combat > Maneuvers (engine half: GOAP takeover, gates, lifecycle)
 │   │   ├── at_combat_doctrine.script          # Combat decision half (catalog, should/can methods, arbiter)
-│   │   ├── at_combat_trace.script             # Combat DEBUG tracing + telemetry (noop when off)
 │   │   ├── at_commitment.script               # Combat > Commitment (action-switch + cover re-pick vetoes)
 │   │   ├── at_stance.script                   # Combat > Conduct (cover posture)
 │   │   ├── at_accuracy.script                 # Effectiveness > Accuracy
@@ -110,9 +109,8 @@ AlifeTactics/
 │   │   ├── at_jam.script                      # Mechanics > Jamming (modded-exes xr_weapon_jam override)
 │   │   ├── at_ammo.script                     # Mechanics > Ammo (NPC ammo simulation)
 │   │   ├── zzz_at_healing_patch.script        # vanilla xr_eat_medkit re-roll suppressor
-│   │   ├── at_ballistics.script               # outcome recorder (MCM Development, off by default)
-│   │   ├── at_world_trace.script              # physical-behaviour watchdog (slide/freeze/desync, MCM Development, off by default)
-│   │   ├── at_perception_trace.script         # enemy-selection debug trace
+│   │   ├── at_ballistics.script               # outcome recorder -> alifetactics_world.log (MCM Development, off by default)
+│   │   ├── at_world_trace.script              # slide watchdog -> alifetactics_world.log (position-only, MCM Development, off by default)
 │   │   ├── at_hud.script                      # live debug HUD (nearby NPC logic/combat/target)
 │   │   └── at_test.script                     # console test commands
 │   └── textures/
@@ -657,15 +655,21 @@ The numeric tunables live in `configs/alifetactics/at_ammo.ltx` with matching sc
 
 ## Ballistics
 
-MCM: Development > Ballistics (`at_ballistics.script`, toggle under the Logging group). An outcome recorder over the engine's shot and impact feeds, reads only, OFF by default with zero cost (no callbacks registered until the toggle). Two gates: the toggle drives CAPTURE (in-memory counters + a 200ms actor-velocity poll for the aim split), the log level drives OUTPUT (per-bullet lines at DEBUG, minute tables at INFO to `alifetactics_ballistics.log`, a one-line summary mirrored to the main log). No on-screen panel (removed 2026-07-14). Per minute-table tier line: hit% split still/moving, arrival conversion, damage, hits per minute, per-driver hit rates, the burst histogram per weapon kind, plus the per-bullet aim split — `ang` (mean fired-direction error off the shooter->actor line) and `ahead` (% of bullets passing in front of actor travel = lead overshoot vs tracking lag, computed only while the actor moves). `reset()` zeroes the counters and restarts the session clock — the bench-run boundary, since module state survives a save load within one game session.
+MCM: Development > Ballistics (`at_ballistics.script`, toggle under the Logging group). An outcome recorder over the engine's shot and impact feeds, reads only, OFF by default with zero cost (no callbacks registered until the toggle). Two gates: the toggle drives CAPTURE (in-memory counters + a 200ms actor-velocity poll for the aim split), the log level drives OUTPUT (per-bullet lines at DEBUG, minute tables at INFO to `alifetactics_world.log`, the world log it shares with the slide watchdog). No on-screen panel (removed 2026-07-14). Per minute-table tier line: hit% split still/moving, arrival conversion, damage, hits per minute, per-driver hit rates, the burst histogram per weapon kind, plus the per-bullet aim split — `ang` (mean fired-direction error off the shooter->actor line) and `ahead` (% of bullets passing in front of actor travel = lead overshoot vs tracking lag, computed only while the actor moves). `reset()` zeroes the counters and restarts the session clock — the bench-run boundary, since module state survives a save load within one game session.
 
 Per bullet fired (`npc_shot_dispersion`) it records tier, weapon kind, shooter motion, and the driver context read directly from the modules at capture time — `at_combat.get_maneuver` / `at_commitment.get_hold` / vanilla — so no cross-log correlation ever happens. Per bullet landed (`bullet_on_impact`): hit on the actor or a near miss inside 10m. Per actor hit: damage attributed to the shooter's tier. The minute tables carry per-tier hit% split standing/moving (the Moving Fire differential), arrival conversion, damage, hits per minute, per-driver hit rates, and the burst-length histogram per weapon kind (the scheme fire-discipline evidence).
 
-### World trace (physical-behaviour watchdog)
+### Observability: measure outputs, never intent
 
-MCM: Development > World behaviour trace (`at_world_trace.script`). A reads-only watchdog over the combat NPCs near the actor, OFF by default with zero cost (no callbacks or time events until the toggle). It flags any NPC whose VISIBLE state is wrong and attributes each flag to its driver (`at_combat.get_maneuver` / `at_commitment.get_hold` / vanilla), logging violations only — never a per-tick dump — to `alifetactics_world.log`. The point is to see from the log whether the fight LOOKS RIGHT, not just what the mod decided.
+Two concerns, two log files, no logging-only middle files. CODE tracing - what the mod's code decides and does - goes to `alifetactics.log` through the one primitives file `at_trace.script` (one logger, the `at_trace.on()` gate, shared `flag`/`show` formatters, the log level refreshed mod-wide from one lifecycle); every gameplay module calls `at_trace.dbg/info/warn` at its own sites, in its own words, and no module owns a logger or a debug boolean. WORLD tracing - whether the fight physically looks right, measured from positions and bullets - goes to `alifetactics_world.log` through `at_world_trace.script` (slide) and `at_ballistics.script` (shot outcomes), each with its own logger into that shared file. One is the code's account of itself, the other is the world's account of the code.
 
-Two clocks, both cheap (field reads, no raycast): a 150ms monitor pass over online stalkers within the fight radius that carry a `best_enemy`, and a 60ms hit-triggered watcher that catches the sub-pass knockback slide (the displacement persists, so a slower sample still measures it). Flags: `SLIDE` (translation with no walk/run animation), `OVERLAY_PIN` (a script overlay while translating), `POSTURE_FLAP` (body_state != target), `MOVE_DESYNC` (movement_type != target), `WEAPON_FLAP` (no weapon in hand mid-fight), `RELOAD_LOOP` (stuck in the reload state with an empty mag past 3.5s), `MISAIM` (body facing 50deg+ off the enemy it sees, not mid-turn), and `SLIDE_ONHIT` from the hit watcher with `overlay_at_hit` telling whether an animation overlay pinned the body when the knockback landed. The environment/raycast tier (confirming a decision was justified by real cover/LOS) is a separate future gate, kept off the cheap path by design so a player can leave the watchdog on without the FPS cost.
+The 2026-07-24 lesson governs every "does it look/work right" trace: measure what the NPC actually DID (where its body moved, where its bullets went, whether a need cleared), never what the engine INTENDS (movement_type target, body_state, animation_count). Intent fields read as frozen whenever an animation plays, so a healthy vanilla NPC and a genuinely stuck one give identical reads - the earlier watchdog judged appearance from those fields and produced fake conclusions at volume. The three signals below are outputs; none is an appearance guess.
+
+**Slide watchdog** (`at_world_trace.script`, MCM Development > World behaviour trace). Reads-only, OFF by default, zero cost until the toggle. It reports ONE thing, the one visual defect provable from cheap reads: a SLIDE, the body travelling a real distance while its movement_type is never a locomotion type (walk/run/steal) - it moved with no walk cycle, the visible glide. Measured from POSITION, an output that cannot go stale; violations only to `alifetactics_world.log`, each with its driver (`at_combat.get_maneuver` / `at_commitment.get_hold` / vanilla). Two detectors: a 150ms monitor pass logs one line per slide EPISODE when displacement from the start of a non-locomotion stretch crosses 1m (a still NPC never accumulates displacement, so it never trips), and a 60ms hit-triggered watcher (`SLIDE_ONHIT`) catches the sub-pass knockback (the displacement persists; `overlay_at_hit` is context, not verdict). Everything the old watchdog inferred from intent fields (posture flap, weapon flap, misaim, overlay pin, frozen-reload) is deleted.
+
+**Firing the wrong way** (`at_ballistics.script`). The angle between a round's own direction and the shooter->best_enemy line, measured from the BULLET on `bullet_on_impact`, not from facing. A large angle is the NPC firing away from its target, the provable form of "shooting the wall". Reported per rank tier as the average off-target angle and the fraction of rounds past 50deg, beside the actor-relative aim split.
+
+**need_cleared** (`at_combat.script`, at maneuver end). Did the maneuver negate the situation it fired on? `at_combat_doctrine.recheck_need` re-runs the row's own `should_maneuver` with a fresh memo; a need still holding at hand-back (`need_cleared=n`) is the churn signal - the maneuver ran and did not solve its problem. Debug-path only, on the `end` trace line.
 
 ---
 

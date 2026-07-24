@@ -6,8 +6,6 @@ local time_global, alife_object, level = time_global, alife_object, level
 local alife = alife
 -- CreateTimeEvent NOT cached: demonized_time_events replaces it at runtime.
 
-local log = xlog.get_logger("AT.TEST", { outfile = "alifetactics.log" })
-
 local DEFAULT_SECTION  = "bandit_sim_squad_novice"
 local DEFAULT_DISTANCE = 50
 local INVALID_VERTEX   = 4294967295
@@ -80,7 +78,7 @@ local function _spawn(section, distance, angle_deg, grenades)
     end
     if not ini_sys:section_exist(section) then
         local msg = string_format("AT.TEST: squad section '%s' not in squad_descr", section)
-        log.warn(msg)
+        at_trace.warn(msg)
         _tip(msg)
         return
     end
@@ -116,7 +114,7 @@ local function _spawn(section, distance, angle_deg, grenades)
         TeleportSquad(squad, target_pos, target_lvid, actor_gvid)
     end
 
-    log.info("[SPAWN] section=%s squad_id=%d distance=%dm angle=%ddeg on_map=%s",
+    at_trace.info("[SPAWN] section=%s squad_id=%d distance=%dm angle=%ddeg on_map=%s",
         section, squad.id, distance, angle_deg, tostring(on_map))
     _tip(string_format("AT.TEST: %s id=%d %s",
         section, squad.id,
@@ -130,7 +128,7 @@ local function _spawn_set(label, entries)
         local entry = entries[i]
         _spawn(entry[1], entry[2], entry[3])
     end
-    log.info("[SPAWN] set=%s count=%d", label, #entries)
+    at_trace.info("[SPAWN] set=%s count=%d", label, #entries)
 end
 
 --------------------------------------------------------------------------------
@@ -253,7 +251,7 @@ function at_spawn_unarmed()
     CreateTimeEvent(0, "at_unarmed_strip_" .. tostring(time_global()), 3, function()
         local sq = alife_object(squad_id)
         local removed = sq and _strip_weapons(sq) or 0
-        log.info("[SPAWN] unarmed squad=%d weapons_removed=%d", squad_id, removed)
+        at_trace.info("[SPAWN] unarmed squad=%d weapons_removed=%d", squad_id, removed)
         _tip(string_format("AT.TEST: unarmed squad id=%d, %d weapons removed", squad_id, removed))
         return true
     end)
@@ -311,7 +309,7 @@ function at_arm_ap()
             armed = armed + (_arm_ap(npc) and 1 or 0)
         end
     end
-    log.info("[AMMO] arm_ap armed=%d seen=%d boxes=%d rank=%d", armed, seen, AP_BOXES, AP_RANK)
+    at_trace.info("[AMMO] arm_ap armed=%d seen=%d boxes=%d rank=%d", armed, seen, AP_BOXES, AP_RANK)
     _tip(string_format("AT.AMMO: armed %d/%d stalkers with AP (rank %d). Fight them, watch [AP] log.",
         armed, seen, AP_RANK))
 end
@@ -383,7 +381,7 @@ local function _lab_pass()
             weapons = weapons + wpn_n
         end
     end
-    log.info("[LAB] pass npcs=%d items_given=%d ap_armed=%d squad_weapons=%d", seen, items, aps, weapons)
+    at_trace.info("[LAB] pass npcs=%d items_given=%d ap_armed=%d squad_weapons=%d", seen, items, aps, weapons)
     _tip(string_format("AT.LAB: %d NPCs stocked, %d items, %d AP-armed, %d squad weapons", seen, items, aps, weapons))
 end
 
@@ -407,7 +405,7 @@ function at_lab_loop()
     if _lab_loop_on then
         _lab_loop_on = false
         RemoveTimeEvent("at_lab", "loop")
-        log.info("[LAB] loop stopped")
+        at_trace.info("[LAB] loop stopped")
         _tip("AT.LAB: loop stopped")
         return
     end
@@ -415,7 +413,7 @@ function at_lab_loop()
     _lab_pass()
     RemoveTimeEvent("at_lab", "loop")
     CreateTimeEvent("at_lab", "loop", LAB_PERIOD_SEC, _lab_tick)
-    log.info("[LAB] loop started period=%ds", LAB_PERIOD_SEC)
+    at_trace.info("[LAB] loop started period=%ds", LAB_PERIOD_SEC)
     _tip("AT.LAB: loop started (a pass every " .. LAB_PERIOD_SEC .. "s)")
 end
 
@@ -477,7 +475,7 @@ function at_dump()
     local count = 0
     at_disclosure.iterate_disclosed(function(squad_id, shooter_count)
         count = count + 1
-        log.info("[DUMP] squad=%d shooters=%d", squad_id, shooter_count)
+        at_trace.info("[DUMP] squad=%d shooters=%d", squad_id, shooter_count)
     end)
     _tip(string_format("AT.TEST: %d disclosed-squad records (see alifetactics.log)", count))
 end

@@ -14,8 +14,6 @@
 local RegisterScriptCallback = RegisterScriptCallback
 local tostring, time_global = tostring, time_global
 
-local log = xlog.get_logger("AT.STANCE", { outfile = "alifetactics.log" })
-local _dbg = false
 local cfg = at_mcm.cfg
 
 -- Long-range kinds whose carriers run posture discipline; short weapons keep vanilla's pick
@@ -123,8 +121,8 @@ local function _on_combat_body_state(npc, world_operator, _body_state, flags)
         local want, cov = _decide(npc, enemy, prev_want, kind)
         held = { at = tg, op = world_operator, want = want }
         _decision[id] = held
-        if _dbg and want ~= prev_want then
-            log.debug("[STANCE] id=%d op=%s cov=%.2f -> %s", id, tostring(world_operator),
+        if at_trace.on() and want ~= prev_want then
+            at_trace.dbg("[STANCE] id=%d op=%s cov=%.2f -> %s", id, tostring(world_operator),
                 cov, want == move.crouch and "crouch" or "stand")
         end
     end
@@ -138,20 +136,13 @@ local function _on_entity_unregister(se_obj)
     end
 end
 
-local function _refresh_config()
-    log.set_level(at_mcm.get_config("log_level") or "WARN")
-    _dbg = log.get_level() >= 5
-end
-
 local function _on_first_update()
-    _refresh_config()
-    log.info("Stance conduct initialized (posture=%s)", tostring(cfg.conduct_posture))
+    at_trace.refresh()
+    at_trace.info("Stance conduct initialized (posture=%s)", tostring(cfg.conduct_posture))
 end
 
 function on_game_start()
     RegisterScriptCallback("npc_on_combat_set_body_state", _on_combat_body_state)
     RegisterScriptCallback("server_entity_on_unregister",  _on_entity_unregister)
     RegisterScriptCallback("actor_on_first_update",        _on_first_update)
-    RegisterScriptCallback("on_option_change",             _refresh_config)
-    RegisterScriptCallback("mcm_option_restore_default",   _refresh_config)
 end

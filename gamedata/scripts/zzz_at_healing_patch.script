@@ -15,6 +15,5 @@
 function on_game_start()
     if not xr_eat_medkit or not xr_eat_medkit.on_register then return end
     UnregisterScriptCallback("server_entity_on_register", xr_eat_medkit.on_register)
-    xlog.get_logger("AT.HEALING", { outfile = "alifetactics.log" })
-        .info("[PATCH] xr_eat_medkit.on_register suppressed (vanilla save-load re-roll bug)")
+    at_trace.info("[PATCH] xr_eat_medkit.on_register suppressed (vanilla save-load re-roll bug)")
 end

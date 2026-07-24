@@ -1,7 +1,5 @@
 --- at_mcm: MCM configuration for AlifeTactics
 
-local log = xlog.get_logger("AT.MCM", { outfile = "alifetactics.log" })
-
 local defaults = {
     disclosure_enabled        = true,
     disclosure_turn           = true,
@@ -684,18 +682,17 @@ local function _log_mcm_settings()
         parts[#parts + 1] = key .. "=" .. tostring(cfg[key])
     end
     table.sort(parts)
-    log.info("[MCM] %s", table.concat(parts, " "))
+    at_trace.info("[MCM] %s", table.concat(parts, " "))
 end
 
 local function _on_first_update()
-    log.set_level(get_config("log_level") or "WARN")
-    log.info("AlifeTactics MCM loaded (log_level=%s)", get_config("log_level") or "WARN")
+    at_trace.refresh()
+    at_trace.info("AlifeTactics MCM loaded (log_level=%s)", get_config("log_level") or "WARN")
     _log_mcm_settings()
 end
 
 local function _on_option_change()
     load_config()
-    log.set_level(get_config("log_level") or "WARN")
 end
 
 function on_game_start()

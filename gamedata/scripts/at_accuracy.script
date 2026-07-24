@@ -2,8 +2,6 @@
 
 local RegisterScriptCallback = RegisterScriptCallback
 
-local log = xlog.get_logger("AT.ACC", { outfile = "alifetactics.log" })
-local _dbg = false
 local cfg = at_mcm.cfg
 
 -- Engine flow (ai_stalker_fire.cpp:75-142): base = PI/180; base *= m_fRankDisperison (=0.8
@@ -49,24 +47,22 @@ local function _on_npc_shot_dispersion(obj, wpn, body_state, move_type, temp_dis
         move = _move[tier] or 1.0
     end
 
-    local tmr  = xprofiler.new_if(_dbg):start()
+    local tmr  = xprofiler.new_if(at_trace.on()):start()
     local base = temp_disp.dispersion
     if not base then tmr:stop() return end
     local out  = base * disp * move
     temp_disp.dispersion = out
     tmr:stop()
 
-    if _dbg then
+    if at_trace.on() then
         local sect = (wpn and wpn:section()) or "none"
-        log.debug("[ACC] id=%d tier=%s section=%s bs=%d mt=%d base=%.5f disp=%.2f move=%.2f out=%.5f [%.3fms]",
+        at_trace.dbg("[ACC] id=%d tier=%s section=%s bs=%d mt=%d base=%.5f disp=%.2f move=%.2f out=%.5f [%.3fms]",
             obj:id(), tier, sect, body_state, move_type, base, disp, move, out, tmr:get_ms())
     end
 end
 
 local function _refresh_config()
-    log.set_level(at_mcm.get_config("log_level") or "WARN")
-    _dbg = log.get_level() >= 5
-
+    at_trace.refresh()
     for i = 1, #TIERS do
         local tier = TIERS[i]
         _disp[tier] = at_mcm.get_config("acc_disp_" .. tier)
@@ -76,8 +72,8 @@ end
 
 local function _on_first_update()
     _refresh_config()
-    log.info("Accuracy hook initialized (dispersion=%s, moving=%s, dbg=%s)",
-        cfg.disp_enabled and "on" or "off", cfg.move_enabled and "on" or "off", _dbg and "true" or "false")
+    at_trace.info("Accuracy hook initialized (dispersion=%s, moving=%s, dbg=%s)",
+        cfg.disp_enabled and "on" or "off", cfg.move_enabled and "on" or "off", at_trace.on() and "true" or "false")
 end
 
 function on_game_start()

@@ -90,8 +90,6 @@ local _ammo_class_cache = {}
 local _rpm_cache = {}
 
 local _enabled = true
-local _dbg = false
-local log = xlog.get_logger("AT.AMMO", { outfile = "alifetactics.log" })
 
 -- nil = unprobed; false = the exe ships no g_ai_unlimited_ammo (the magic refill is unconditionally
 -- on); true = the cvar exists (read live per tick - a console toggle mid-session must be honored).
@@ -170,20 +168,20 @@ local function _try_rekey_depleted(npc, wpn, wpn_sec, ammo_class)
     local cur = wpn:get_ammo_type()
     if cur ~= 0 and AP_SECTIONS[ammo_class[cur + 1]] then
         wpn:set_ammo_type(0)
-        if _dbg then log.debug("[AP] rekey npc=%d wpn=%s ap depleted, back to type 0", npc:id(), wpn_sec) end
+        if at_trace.on() then at_trace.dbg("[AP] rekey npc=%d wpn=%s ap depleted, back to type 0", npc:id(), wpn_sec) end
     end
 end
 
 -- Combat tick: (re)scan AP on entry or weapon change, then hold AP as the loaded type.
 local function _on_combat_tick(npc, wpn, wpn_sec, ammo_class, st, now)
     if not st.fighting or st.wpn_sec ~= wpn_sec then
-        local tmr = xprofiler.new_if(_dbg):start()
+        local tmr = xprofiler.new_if(at_trace.on()):start()
         st.fighting = true
         st.wpn_sec = wpn_sec
         st.idx, st.sec = _find_ap(wpn, ammo_class)
         if not st.idx then _try_rekey_depleted(npc, wpn, wpn_sec, ammo_class) end
         tmr:stop()
-        if _dbg then log.debug("[AP] engage npc=%d wpn=%s ap=%s [%dus]", npc:id(), wpn_sec, st.sec or "none", tmr:get_us()) end
+        if at_trace.on() then at_trace.dbg("[AP] engage npc=%d wpn=%s ap=%s [%dus]", npc:id(), wpn_sec, st.sec or "none", tmr:get_us()) end
     end
     st.last_seen = now
     if st.idx and wpn:get_ammo_type() ~= st.idx then
@@ -198,7 +196,7 @@ local function _on_peace_tick(npc, wpn, wpn_sec, st, now)
     if now - (st.last_seen or 0) < PEACE_DEBOUNCE_MS then return end
     st.fighting = false
     if not st.idx then return end
-    local tmr = xprofiler.new_if(_dbg):start()
+    local tmr = xprofiler.new_if(at_trace.on()):start()
     local chance = _decay_chance(npc, st.wpn_sec)
     local dropped = math_random() < chance
     if dropped then _delete_one_ap_box(npc, st.sec) end
@@ -212,8 +210,8 @@ local function _on_peace_tick(npc, wpn, wpn_sec, st, now)
         if left <= 0 and wpn:get_ammo_type() ~= 0 then wpn:set_ammo_type(0) end
     end
     tmr:stop()
-    if _dbg then
-        log.debug("[AP] disengage npc=%d ap=%s p=%.2f %s left=%d%s [%.2fms]", npc:id(), st.sec, chance,
+    if at_trace.on() then
+        at_trace.dbg("[AP] disengage npc=%d ap=%s p=%.2f %s left=%d%s [%.2fms]", npc:id(), st.sec, chance,
             dropped and "DROP" or "keep", left, (left == 0) and " fmj" or "", tmr:get_ms())
     end
 end
@@ -228,7 +226,7 @@ function pick(npc, now)
     if not _engine_unlimited_ammo() then
         if not _inert_logged then
             _inert_logged = true
-            log.info("[AP] inert: g_ai_unlimited_ammo is 0, the engine consumes real rounds (box decay would double-consume)")
+            at_trace.info("[AP] inert: g_ai_unlimited_ammo is 0, the engine consumes real rounds (box decay would double-consume)")
         end
         return
     end
@@ -300,8 +298,6 @@ end
 
 local function _refresh_cfg()
     _enabled = at_mcm.get_config("ammo_enabled") ~= false
-    log.set_level(at_mcm.get_config("log_level") or "WARN")
-    _dbg = log.get_level() >= 5
 end
 
 function on_game_start()

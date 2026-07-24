@@ -2,19 +2,19 @@
 --- identical column positions on both lines, so everything aligns by construction (a single line
 --- per NPC was tried and proved too wide). NO header rows of any kind (tried, read as noise): the
 --- grouping is pure ORDER - AT-driven first (green), then anyone fighting (blue while Commitment
---- refuses his cover move), then idle (only with HUD_SHOW_IDLE) - and every row is self-describing. Line A, bright: full rank + name + hp | the
---- HEADLINE - the open maneuver's name in caps, or COMMIT + age while Commitment vetoes, "-" dim when
---- vanilla drives untouched. Line B, dim: target (name + distance + sight word) | engine (scheme +
---- mental). Sight words are plain English: "sees" / "aims-off" (sees but body pointed away) /
---- "blind". The cover belief/ray forensics and the fire-gate verdicts live in the decision trace.
+--- refuses his cover move), then idle (only with HUD_SHOW_IDLE) - and every row is self-describing.
+--- Line A, bright: full rank + name + hp | SYSTEMS - every AT combat system active on the NPC, one
+--- comma-joined list in the who-drives colour (a maneuver's name in caps; COMMIT + age and PIN while
+--- Commitment vetoes; CROUCH while Conduct holds a posture), "-" plain when vanilla drives untouched.
+--- Line B, dim: target (name + distance + sight word) | engine (scheme + mental). Sight words are
+--- plain English: "sees" / "aims-off" (sees but body pointed away) / "blind". The cover belief/ray
+--- forensics and the fire-gate verdicts live in the decision trace.
 
-local pairs, table_sort, math_floor, tostring = pairs, table.sort, math.floor, tostring
+local pairs, table_sort, table_concat, math_floor, tostring = pairs, table.sort, table.concat, math.floor, tostring
 local time_global = time_global
 local string_sub, string_format, string_upper = string.sub, string.format, string.upper
 local IsStalker, RegisterScriptCallback = IsStalker, RegisterScriptCallback
 
-local log = xlog.get_logger("AT.HUD", { outfile = "alifetactics.log" })
-local _dbg = false
 local cfg = at_mcm.cfg
 
 -- 0.5s: the takeover state this HUD reports changes on a 200ms cadence and maneuvers can live ~2-3s;
@@ -111,29 +111,35 @@ local function _mental_name(npc)
     return _MENTAL[mental] or tostring(mental)
 end
 
--- Per-NPC readout, one table, one HUD line of 4 composite cells. tag=AT drives the COLOUR (green, only
--- while a maneuver is actually open); the maneuver cell is the HEADLINE - the open maneuver's name in
--- caps, COMMIT + age while Commitment vetoes for this NPC, "-" when vanilla drives untouched. engine is
--- the xr_logic scheme plus the mental word; the state_mgr target state moved to the decision trace.
-local function _headline(id, maneuver)
-    if maneuver then return string_upper(maneuver), true, false end
+-- The SYSTEMS cell: every AT combat system active on the NPC, one comma-joined list rendered in the
+-- who-drives colour, so the three systems read the same way instead of one being a bright headline and
+-- another a dim exile. A maneuver is exclusive (it blocks the planner, so no hold and no conduct can
+-- co-occur) and stands alone; Commitment (COMMIT + age, PIN) and Conduct (CROUCH) are composable
+-- modifiers on a vanilla NPC and list together when both hold. Returns the text and the dominant
+-- driver (AT > HOLD > CONDUCT) that colours the row. "-" plain when vanilla drives untouched.
+local function _systems(id, maneuver)
+    if maneuver then return string_upper(maneuver), "AT" end
+    local tokens, driver = {}, nil
     -- Commitment is one system with two vetoes (MCM Combat > Commitment): the action-switch hold
-    -- (COMMIT) and the cover-pin (PIN, commitment_cover_pin). Both read here, in the one commit cell.
+    -- (COMMIT) and the cover-pin (PIN, commitment_cover_pin).
     local hold = at_commitment.get_hold(id)
-    local pin = at_commitment.cover_held(id) and " PIN" or ""
-    if hold then
-        return string_format("COMMIT %ds%s", math_floor((time_global() - hold.since) / 1000), pin), true, true
+    if hold then tokens[#tokens + 1] = string_format("COMMIT %ds", math_floor((time_global() - hold.since) / 1000)) end
+    if at_commitment.cover_held(id) then tokens[#tokens + 1] = "PIN" end
+    if #tokens == 0 then
+        -- Afterglow: commitments run sub-second (deny-only, no imposed delay), invisible at the refresh
+        -- cadence - the row stays blue for a few seconds showing what was just committed.
+        local recent = at_commitment.get_recent_hold(id)
+        if recent then tokens[#tokens + 1] = string_format("COMMITTED %.1fs x%d", recent.held_ms / 1000, recent.denies) end
     end
-    if pin ~= "" then
-        return "PIN", true, true
+    if #tokens > 0 then driver = "HOLD" end
+    -- Conduct posture (at_stance, Combat > Conduct): crouches an experienced rifleman behind real cover.
+    -- Composes with a Commitment hold on the same vanilla NPC, so it appends rather than replaces.
+    if at_stance.crouched(id) then
+        tokens[#tokens + 1] = "CROUCH"
+        driver = driver or "CONDUCT"
     end
-    -- Afterglow: commitments run sub-second (deny-only, no imposed delay), invisible at the refresh
-    -- cadence - the row stays blue for a few seconds showing what was just committed.
-    local recent = at_commitment.get_recent_hold(id)
-    if recent then
-        return string_format("COMMITTED %.1fs x%d", recent.held_ms / 1000, recent.denies), true, true
-    end
-    return "-", false, false
+    if #tokens == 0 then return "-", nil end
+    return table_concat(tokens, ", "), driver
 end
 
 local function _derive(npc, st)
@@ -141,15 +147,12 @@ local function _derive(npc, st)
     local maneuver = at_combat.get_maneuver(id)
     local enemy = npc:best_enemy()
     local rank = ranks.get_obj_rank_name(npc)
-    local headline, live, held = _headline(id, maneuver)
-    -- Conduct posture (at_stance, Combat > Conduct) is the third combat system: it crouches an
-    -- experienced rifleman behind real cover. It colours the row mauve and shows CROUCH in the states
-    -- cell. Mechanics (ammo AP, healing, limp) are not combat state and stay in the log / world trace.
-    local crouched = at_stance.crouched(id)
+    -- The three combat systems (Maneuvers, Commitment, Conduct) collapse into one comma-joined SYSTEMS
+    -- cell; its dominant driver colours the whole row. Mechanics (ammo AP, healing, limp) are not
+    -- combat state and stay in the log / world trace.
+    local systems, driver = _systems(id, maneuver)
     return {
-        tag     = maneuver and "AT" or nil,
-        held    = held,
-        conduct = crouched,
+        driver  = driver,
         stalker = string_format("(%s) %s %d%%",
             rank or "-",
             _truncate(npc:character_name() or npc:name(), SUBJECT_NAME_MAX),
@@ -159,9 +162,7 @@ local function _derive(npc, st)
         -- minus); mental is always present, so the cell is never empty.
         engine  = (st.active_scheme and (_truncate(st.active_scheme, SCHEME_MAX) .. " ") or "")
             .. _mental_name(npc),
-        maneuver = headline,
-        states  = crouched and "CROUCH" or "",
-        headline_live = live,
+        systems = systems,
         is_combat = enemy ~= nil,
     }
 end
@@ -237,11 +238,12 @@ end
 -- (no per-tick widget construction). Two lines per NPC on ONE shared grid.
 -- =========================================================================
 
--- The shared grid (chars per column) and what each line puts in it. The maneuver sits top-right on the
--- bright line - the headline; the target reads under its owner, the engine words dim beside it.
-local GRID  = { 34, 20, 8 }
-local ROW_A = { "stalker", "maneuver", "states" }
-local ROW_B = { "target", "engine", "pad" }
+-- The shared grid (chars per column) and what each line puts in it. Two columns per line: identity over
+-- its target on the left, the active systems over the engine words on the right. The systems budget (28)
+-- holds the longest realistic list - "COMMIT 9s, PIN, CROUCH".
+local GRID  = { 34, 28 }
+local ROW_A = { "stalker", "systems" }
+local ROW_B = { "target", "engine" }
 
 local function _lay_widths(chars)
     local widths, total = {}, 0
@@ -299,26 +301,24 @@ function UIDebugHUD:_cell(xml, x, y, w)
 end
 
 -- Rewrite both lines per entry from freshly built rows; blank only what the previous refresh used.
--- No allocation, no widget construction. A section row writes its title across the first A cell in
--- the header color and blanks the rest. Line A takes the row color (green while a maneuver drives);
--- the headline cell reads bright only while a maneuver or hold is live, dim "-" otherwise - the
--- headline never lies. Line B stays dim, the pairing cue. The overflow entry fills only its first A cell.
--- Row color: green = a maneuver drives him, blue = Commitment is refusing his cover move (he stands
--- his ground shooting), plain = vanilla drives untouched.
+-- No allocation, no widget construction. Both Line A cells take the row color, uniformly - the name and
+-- the systems list read in the who-drives colour together, so no system is a bright headline while
+-- another is a dim exile. Line B stays dim, the pairing cue. The overflow entry fills only its first A
+-- cell. Row color: green = a maneuver drives him, blue = Commitment holds/pins him, mauve = Conduct
+-- crouches him, plain = vanilla drives untouched.
 local function _row_color(row)
     if row.is_overflow then return CLR_DIM end
-    if row.tag == "AT" then return CLR_AT end
-    if row.held then return CLR_HOLD end
-    if row.conduct then return CLR_CONDUCT end
+    if row.driver == "AT" then return CLR_AT end
+    if row.driver == "HOLD" then return CLR_HOLD end
+    if row.driver == "CONDUCT" then return CLR_CONDUCT end
     return CLR_NORMAL
 end
 
 local function _paint_entry(a, b, row)
     local color = _row_color(row)
     for c = 1, #ROW_A do
-        local key = ROW_A[c]
-        a[c]:SetText(row[key] or "")
-        a[c]:SetTextColor((key == "states" or (key == "maneuver" and not row.headline_live)) and CLR_DIM or color)
+        a[c]:SetText(row[ROW_A[c]] or "")
+        a[c]:SetTextColor(color)
     end
     for c = 1, #ROW_B do
         b[c]:SetText(row.is_overflow and "" or (row[ROW_B[c]] or ""))
@@ -369,7 +369,7 @@ local function _drop_hud()
 end
 
 local function _refresh()
-    local tmr = xprofiler.new_if(_dbg):start()
+    local tmr = xprofiler.new_if(at_trace.on()):start()
     if _debug_wanted() then
         local rows = _build_rows()
         if not _hud then _hud = UIDebugHUD() end
@@ -380,7 +380,7 @@ local function _refresh()
         _hud:set_rows(rows)
     end
     tmr:stop()
-    if _dbg then log.debug("[HUD] refresh [%.2fms]", tmr:get_ms()) end
+    if at_trace.on() then at_trace.dbg("[HUD] refresh [%.2fms]", tmr:get_ms()) end
 end
 
 local function _is_visible()
@@ -406,7 +406,7 @@ local function _start()
     _tick_active = true
     RemoveTimeEvent("at_hud", "tick")
     CreateTimeEvent("at_hud", "tick", REFRESH_INTERVAL_SEC, _tick)
-    log.info("Debug HUD enabled (position=%s, radius=%dm, show_idle=%s)",
+    at_trace.info("Debug HUD enabled (position=%s, radius=%dm, show_idle=%s)",
         cfg.hud_position or "center_right", HUD_RADIUS_M, tostring(HUD_SHOW_IDLE))
 end
 
@@ -414,12 +414,11 @@ local function _stop()
     _tick_active = false
     RemoveTimeEvent("at_hud", "tick")
     _drop_hud()
-    log.info("Debug HUD disabled")
+    at_trace.info("Debug HUD disabled")
 end
 
 local function _refresh_log()
-    log.set_level(at_mcm.get_config("log_level") or "WARN")
-    _dbg = log.get_level() >= 5
+    at_trace.refresh()
 end
 
 local function _on_option_change()
