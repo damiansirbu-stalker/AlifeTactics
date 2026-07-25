@@ -1,0 +1,47 @@
+; at_gear tunables. Effect bands per artefact channel: rmin/rmax span the line's vanilla config
+; range (items_artefacts.ltx), bmin/bmax is the effect band the range maps onto (weakest ->
+; strongest artefact of the line). Caps are the user rule: one item never exceeds cap_item, an
+; NPC's summed numeric effects never exceed cap_total (proportional scale-down when over).
+; Missing keys fall back to the same values compiled into at_gear.script.
+
+[at_gear]
+cap_item        = 0.07
+cap_total       = 0.15
+
+; fire line (burn_immunity) -> outgoing damage
+dealt_rmin      = 0.00115
+dealt_rmax      = 0.0059
+dealt_bmin      = 0.03
+dealt_bmax      = 0.07
+
+; electra line (shock_immunity) -> aim tracking + vision speed
+reflex_rmin     = 0.062
+reflex_rmax     = 0.42
+reflex_bmin     = 0.03
+reflex_bmax     = 0.07
+
+; soul line (health_restore_speed) and blood line (bleeding_restore_speed) -> self-heal rate
+regen_rmin      = 0.000075
+regen_rmax      = 0.0003
+regen_bmin      = 0.03
+regen_bmax      = 0.07
+bleed_rmin      = 0.0001
+bleed_rmax      = 0.0044
+
+; stamina line (power_restore_speed) -> fire-queue interval (lower = faster follow-ups)
+firerate_rmin   = 0.00088
+firerate_rmax   = 0.00186
+firerate_bmin   = 0.03
+firerate_bmax   = 0.07
+
+; gravi line (additional_inventory_weight) -> dispersion (lower = tighter fire)
+disp_rmin       = 5.23
+disp_rmax       = 13.3
+disp_bmin       = 0.03
+disp_bmax       = 0.07
+
+; carried optics -> vision speed factor (added to 1.0); NVG applies during the night window only
+vision_binoc    = 0.07
+vision_nvg      = 0.07
+night_start_h   = 22
+night_end_h     = 5

@@ -54,6 +54,9 @@
   <string id="ui_mcm_menu_ammo">
     <text>Ammo</text>
   </string>
+  <string id="ui_mcm_menu_gear">
+    <text>Gear</text>
+  </string>
   <string id="ui_mcm_menu_development">
     <text>Development</text>
   </string>
@@ -789,6 +792,40 @@
   </string>
   <string id="ui_mcm_at_fixes_ammo_ammo_enabled_desc">
     <text>On: eligible stalkers load the AP they carry and spend it per fight. Off: every stalker fires vanilla standard rounds and no carried ammo is consumed.</text>
+  </string>
+  <!-- ==================== GEAR PAGE ==================== -->
+  <string id="ui_mcm_at_gear_desc">
+    <text>Items a stalker carries become live benefits, read from each item's own game data. Armor artefacts and inserts reduce the damage he takes, fire artefacts raise the damage he deals, electric artefacts sharpen his aim and eyes, psy artefacts keep him from panicking, healing artefacts speed his recovery, acid artefacts feed him armor-piercing rounds, stamina artefacts quicken his trigger, gravity artefacts steady his fire. Binoculars and night-vision lamps sharpen his eyes. Any single item tops out around 7 percent and everything he carries together around 15, so gear tilts a fight, never decides one. A glowing stalker is carrying a real artefact, and killing him is how you get it.</text>
+  </string>
+  <string id="ui_mcm_at_gear_gear_enabled">
+    <text>Carried items empower stalkers</text>
+  </string>
+  <string id="ui_mcm_at_gear_gear_enabled_desc">
+    <text>On: carried artefacts and equipment give their stalker the effects described above. Off: inventory items stay inert loot, exact vanilla.</text>
+  </string>
+  <string id="ui_mcm_at_gear_gear_artefacts_enabled">
+    <text>Artefact effects</text>
+  </string>
+  <string id="ui_mcm_at_gear_gear_artefacts_enabled_desc">
+    <text>On: carried artefacts and armor inserts give their stalker the combat effects described above. Off: artefacts stay inert; binoculars and night-vision keep their own toggles.</text>
+  </string>
+  <string id="ui_mcm_at_gear_gear_aura_enabled">
+    <text>Artefact auras</text>
+  </string>
+  <string id="ui_mcm_at_gear_gear_aura_enabled_desc">
+    <text>On: the strongest artefact active on a stalker emits its idle glow on his body, so a carrier is visible and huntable. Off: effects apply with no visual tell.</text>
+  </string>
+  <string id="ui_mcm_at_gear_gear_binoc_enabled">
+    <text>Binocular spotters</text>
+  </string>
+  <string id="ui_mcm_at_gear_gear_binoc_enabled_desc">
+    <text>On: a stalker carrying binoculars spots targets faster. Off: binoculars stay inert.</text>
+  </string>
+  <string id="ui_mcm_at_gear_gear_nvg_enabled">
+    <text>Night-vision at night</text>
+  </string>
+  <string id="ui_mcm_at_gear_gear_nvg_enabled_desc">
+    <text>On: a stalker carrying a night-vision lamp spots targets faster during night hours. Off: night-vision lamps stay inert.</text>
   </string>
   <!-- ==================== DEVELOPMENT PAGE ==================== -->
   <string id="ui_mcm_at_development_desc">

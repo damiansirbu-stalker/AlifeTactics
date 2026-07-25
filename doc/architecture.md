@@ -48,6 +48,7 @@ Version 1.1.5.
 | `at_stance.script` | feature | done (conduct posture: crouch behind real low cover, engine body-state callback) |
 | `at_jam.script` | feature | done (NPC misfire suppression via the modded-exes functor) |
 | `at_ammo.script` | feature | done (AP fired from carried boxes, box-delete decay) |
+| `at_gear.script` | feature | done (functional NPC inventory: artefact channels, optics, auras, capped effects) |
 | `zzz_at_healing_patch.script` | feature | done (vanilla xr_eat_medkit re-roll suppressor) |
 | `configs/ai_tweaks/mod_xr_eat_medkit_at.ltx` | data | done |
 | `configs/ai_tweaks/mod_xr_danger_at.ltx` | data | done (delete-lines-only DLTX: drops the collision keys; the copied value rows removed 2026-07-10) |
@@ -107,6 +108,7 @@ AlifeTactics/
 │   │   ├── at_healing.script                  # Mechanics > Healing
 │   │   ├── at_jam.script                      # Mechanics > Jamming (modded-exes xr_weapon_jam override)
 │   │   ├── at_ammo.script                     # Mechanics > Ammo (NPC ammo simulation)
+│   │   ├── at_gear.script                     # Mechanics > Gear (functional NPC inventory)
 │   │   ├── zzz_at_healing_patch.script        # vanilla xr_eat_medkit re-roll suppressor
 │   │   ├── at_world_trace.script              # world log: slide watchdog + ballistics recorder -> alifetactics_world.log (MCM Development, off by default)
 │   │   ├── at_hud.script                      # live debug HUD (nearby NPC logic/combat/target)
@@ -137,6 +139,7 @@ The MCM menu is a six-category gameplay tree plus a Development tab, the canonic
 | Healing | `at_healing.script` | Mechanics > Healing | `healing_enabled` | All NPCs | fn-patch |
 | Jamming | `at_jam.script` | Mechanics > Jamming | `jam_enabled` | All NPCs | save-wrap |
 | Ammo | `at_ammo.script` | Mechanics > Ammo | `ammo_enabled` | All NPCs | callback |
+| Gear | `at_gear.script` | Mechanics > Gear | `gear_enabled` | All NPCs | callback |
 
 Composition classes, what each does to the surrounding stack: `callback` subscribes to an engine callback and adds to it (composes with any other subscriber); `fn-patch` replaces a vanilla module function, rescheduling through the same lookup so it holds; `save-wrap` saves the prior function and forwards to it when disabled (composes with a prior installer); `transaction-override` suppresses whatever brain is installed, but only for the seconds it holds one NPC; `scheme-patch` installs a generic scheme's binder and evaluators onto whichever file won the MO2 slot, at `on_game_start`, so it layers onto a rival override instead of excluding it (Danger is the one such leaf).
 
@@ -648,6 +651,18 @@ The numeric tunables live in `configs/alifetactics/at_ammo.ltx` with matching sc
 - Save/load resets `_state`, but depletion lives in the inventory (boxes are released, not tracked), so it persists for free; `_state` re-seeds on the next engagement.
 - Requires a loose-AP source (AlifePlus trade/loot) and the magazine system off; with NPC ammo encapsulated in magazine items, `get_ammo_count_for_type` reads 0 and the NPC stays on FMJ.
 - No interaction with `at_jam`; different engine paths, compose freely.
+
+---
+
+## Gear
+
+MCM: Mechanics > Gear (`at_gear.script`). Items a stalker CARRIES become live benefits, read from each item's own config keys, so vanilla, junk, and modded items resolve without a hand table. Artefacts translate per CHANNEL: `fire_wound`/`wound`/`explosion`/`strike` immunities scale incoming damage on `npc_on_before_hit` (full table including penalties, engine hit-type enum joined 1:1); `burn_immunity` (fire line) scales outgoing damage on the same seam, shooter side (`actor_on_before_hit` covers hits on the player); `shock_immunity` (electra line) becomes reflexes, multiplied into `at_reaction.apply()`'s aim/vision writes; `telepatic_immunity` (psy line) is panic immunity via a function-level wrap of `axr_stalker_panic.evaluator_stalker_panic.evaluate`; `health_restore_speed` + `bleeding_restore_speed` (soul and blood lines) scale `at_healing`'s hp tick; `chemical_burn_immunity` (acid line) grants AP eligibility in `at_ammo` regardless of rank; `power_restore_speed` (stamina line) tightens `interval_k` inside `at_reaction._apply_discipline`; `additional_inventory_weight` (gravi line) tightens dispersion inside `at_accuracy`'s per-shot product. Binoculars (`wpn_binoc*`) and night-vision torches (`device_torch_nv*`) add a vision factor, NVG during night hours only (a 60s tick re-applies on the day/night flip). Radiation, satiety, and raw power/weight player-semantics have no NPC simulation and are documented skips.
+
+Caps: one item's effect never exceeds `cap_item` (0.07); the SUM of an NPC's numeric effects never exceeds `cap_total` (0.15, proportional scale-down); at most 3 channels apply; the same channel never stacks across items — strongest wins. Effects scale by item condition, matching the player belt loop (`Actor.cpp:2606-2609`); the carried-in-inventory condition (vs the player's belt-only) is a deliberate deviation — NPCs manage no belt. Band tunables live in `configs/alifetactics/at_gear.ltx` (line config-range -> effect-band normalization per channel).
+
+Mechanics: one LAZY per-id cache — the first `at_gear.factor(npc, ch)` read for an unknown id runs one `xinventory.iterate_inventory` pass and stores the resolved set; `npc_on_item_take`/`npc_on_item_drop` re-resolve that id (they fire for pickups, drops, AND NPC-to-NPC `transfer_item` trades — engine chain Inventory.cpp:209/315 -> InventoryOwner callbacks -> xr_motivator.script:194/212) and refresh the spawn-written engine params via the idempotent `at_reaction.apply(npc)`; `server_entity_on_unregister` drops it; `at_gear.refresh(npc)` is the public re-resolve for flows that grant items without a take event (parented spawn). Aura: ONE glow per NPC — the strongest selected artefact with a `particles` key emits its own idle effect on the carrier's body (bone-verified attach, stopped at death/unregister/deselection, re-attached at `npc_on_net_spawn` — the `ap_ext_object_mutator` lifecycle; particles die only with the game object, no other loss path, per `doc/library/modding/particles.md`). A glowing stalker IS a visible, huntable artefact drop, and kevlar/plate inserts carry no particles key so armor carriers do not glow. All new logic lives in `at_gear.script`; the four consumer modules each hold a 1-2 line factor read at a write site they already own (the no-pollution rule).
+
+Carrier persistence: benefit items stay on carriers via the POLICY KERNEL, not per-flow logic — `configs/xlibs/xinventory_protected.ltx` declares artefacts (kind `i_arty`), binoculars, and NVG torches as protected classes; `xinventory.get_section_category` classifies them "untouchable", and every policy-kernel consumer (AlifeGuard culling, loot trim, stash, barter, trade, market) skips them automatically. Circulation is loot and combat only.
 
 ---
 

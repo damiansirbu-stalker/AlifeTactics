@@ -1,5 +1,14 @@
 next
-  Summary: Moving Fire defaults
+  Summary: Gear, Moving Fire defaults
+
+  Mechanics
+    Gear
+      - Added Gear: items a stalker carries become live benefits read from each item's own game data, so any artefact from any mod works.
+        Armor artefacts and inserts reduce damage taken, fire artefacts raise damage dealt, electric ones sharpen aim and eyes, psy ones stop panic,
+        healing ones speed recovery, acid ones feed armor-piercing rounds, stamina ones quicken the trigger, gravity ones steady fire, and binoculars or night-vision lamps sharpen spotting.
+        Any single item tops out near 7 percent and a whole loadout near 15, and the carrier's strongest artefact glows its aura on him, so a glowing stalker is a huntable artefact drop.
+    Healing
+      - Fixed the bandaging gesture playing on a walking NPC, which froze his legs and made him glide. The gesture now waits until he stands still.
 
   Effectiveness
     Accuracy

@@ -89,10 +89,14 @@ local function _rank_tier(npc)
 end
 
 -- One-shot medkit/bandage gesture. Gated on healing_anim toggle, on no visible
--- enemy (no anim during combat), and on not-on-ground. The hurt pose belongs to
--- LIMP, not here; HEAL is "I am applying an item" and nothing else. The engine
--- drains the queue when the gesture ends; action transitions clear it on the way
--- to action_wounded / action_critically_wounded (stalker_base_action.cpp:24-29).
+-- enemy (no anim during combat), on not-on-ground, and on STANDING STILL: a torso
+-- gesture on a moving NPC suspends his leg animation while the body keeps
+-- translating - the frozen-legs glide (reporter video 2026-07-25). movement_type
+-- is the INTENT read, exactly right here: it answers "will his legs be animating".
+-- The hurt pose belongs to LIMP, not here; HEAL is "I am applying an item" and
+-- nothing else. The engine drains the queue when the gesture ends; action
+-- transitions clear it on the way to action_wounded / action_critically_wounded
+-- (stalker_base_action.cpp:24-29).
 local function _try_play_heal_anim(npc, gesture)
     if not cfg.healing_anim_enabled then return end
     if xcombat.actor_dist_sqr(npc) > ANIM_RADIUS_SQR then return end
@@ -102,6 +106,14 @@ local function _try_play_heal_anim(npc, gesture)
     end
     if IsWounded(npc) or npc:critically_wounded() then
         if at_trace.on() then at_trace.dbg("[HEAL] anim skipped id=%d reason=wounded", npc:id()) end
+        return
+    end
+    if npc:movement_type() ~= move.stand then
+        if at_trace.on() then at_trace.dbg("[HEAL] anim skipped id=%d reason=moving", npc:id()) end
+        return
+    end
+    if npc:animation_count() > 0 then
+        if at_trace.on() then at_trace.dbg("[HEAL] anim skipped id=%d reason=queued", npc:id()) end
         return
     end
     utils_obj.add_anim(npc, gesture)
@@ -162,7 +174,7 @@ local function _patched_heal_hp(id, left)
             tmr:stop()
             return false
         end
-        local mult = enabled and cfg.heal_rate_multiplier or 1
+        local mult = (enabled and cfg.heal_rate_multiplier or 1) * at_gear.factor(npc, at_gear.CH.REGEN)
         npc:change_health(0.05 * mult)
         npc.bleeding = 0.01
         if enabled and left == HEAL_TICK_FIRST then

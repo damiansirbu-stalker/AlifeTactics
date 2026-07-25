@@ -240,6 +240,7 @@ local function _apply_discipline(npc, tier)
     local sk = _qsize[tier]
     local ik = _qinterval[tier]
     if not (sk and ik) then return end
+    ik = ik * at_gear.factor(npc, at_gear.CH.INTERVAL)
     if sk == 1.0 and ik == 1.0 then return end
     if ik < DISC_INT_FLOOR then ik = DISC_INT_FLOOR end
     local ok = xcombat.set_fire_queue_scale(npc, sk, ik)
@@ -270,11 +271,11 @@ function apply(npc)
     local ok_aim, ok_vision
     if cfg.aim_enabled then
         local aim = _resolve_aim(tier)
-        if aim then ok_aim = xcombat.set_aim_params(npc, -1, -1, aim, -1) end
+        if aim then ok_aim = xcombat.set_aim_params(npc, -1, -1, aim * at_gear.factor(npc, at_gear.CH.AIM), -1) end
     end
     if cfg.vision_enabled then
         local vision = _vision[tier]
-        if vision then ok_vision = xcombat.set_vision_speed(npc, vision) end
+        if vision then ok_vision = xcombat.set_vision_speed(npc, vision * at_gear.factor(npc, at_gear.CH.VISION)) end
     end
     local ok_disc = _apply_discipline(npc, tier)
 
