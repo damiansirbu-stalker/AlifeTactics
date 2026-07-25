@@ -753,7 +753,7 @@
     <text>Handling noise</text>
   </string>
   <string id="ui_mcm_at_danger_danger_heard_actions_desc">
-    <text>Hostile stalkers react to hearing you rack a reload, click empty, or use an item nearby. Shorter reach than movement noise, and only for sounds their ears actually caught. A racked reload or an empty click sends him walking over to check the spot, an item used turns him weapon-ready toward the sound.</text>
+    <text>Hostile stalkers react to hearing you rack a reload, click empty, or use an item nearby. Shorter reach than movement noise: a racked reload carries 8m, an empty click 6m, an item used 5m - and only for sounds their ears actually caught, so a setup that deafens NPC hearing quiets these too. A racked reload or an empty click sends him walking over to check the spot, an item used turns him weapon-ready toward the sound.</text>
   </string>
   <string id="ui_mcm_at_danger_danger_noise_mult">
     <text>Noise carry distance</text>

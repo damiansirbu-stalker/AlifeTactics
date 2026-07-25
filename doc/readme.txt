@@ -135,7 +135,8 @@ Vanilla NPCs ignore gunfire they hear but cannot see. A hostile stalker now reac
 Hostile stalkers also hear you move. Each footstep carries by your stance, the surface, and the weather: crouched movement is silent, sprinting on metal carries far, rain muffles everything, and a jump landing is the loudest thing you can do.
 The numbers: a 5m walking base, x1.6 sprinting, a 10m jump landing. Crouched: silent, always.
 Surfaces: metal x1.25, wood x1.15, water x1.35, grass x0.7, dirt and sand x0.8. Rain cuts carry by up to 40 percent.
-They react to handling noise too - a reload racked nearby, an empty click, an item used - at shorter reach.
+They react to handling noise too, at shorter reach: a racked reload carries 8m, an empty click 6m, an item used 5m.
+Handling noise goes through each stalker's own ears, so a setup that deafens NPC hearing quiets these sounds with it.
 Reaction follows the evidence: a heard walk or an item used turns him weapon-ready toward the sound, while a sprint, a landing, a racked reload, or an empty click sends him walking over to check the spot.
 A sound is never treated as a confirmed enemy: he investigates at a walk, never charges, and does not magically know where you are. Nothing changes in combat, and a carry-distance slider scales it, so stealth stays a game of distance and stance instead of NPCs being deaf.
 Compatible with stealth mods: stealth in Anomaly is about being SEEN - light, cover, and stance - and the sound system never touches vision or detection.
