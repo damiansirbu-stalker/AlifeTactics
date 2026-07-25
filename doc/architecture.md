@@ -458,11 +458,17 @@ on_game_start: at_danger points the winning xr_danger's entry points at itself
 bind time (modules.script): _G["xr_danger"].add_to_binder -> AT's evaluators + action
     installed into every stalker's motivation manager under the danger scheme ids
 runtime, per plan solve:
-    eval_danger -> npc_on_eval_danger (third-party veto seam) -> best_danger type
+    eval_danger -> npc_on_eval_danger (third-party veto seam)
+        -> live script_danger stamp = TRUE on its own (the stamp is an ACTIVATOR;
+           vanilla's set_script_danger only redirected an already-active danger action,
+           so stamp reactions silently died on modpacks that mute engine sound
+           perception - 2026-07-25 reporter fix, same reorder in the selector and execute)
+        -> else best_danger type
         -> inertion + ignore tables (the winning ai_tweaks\xr_danger.ltx rows)
         -> danger_flag
-    at_action_danger:execute -> per-type response
-        (scripted / grenade / corpse / attacked / attack_sound alert)
+    at_action_danger:execute -> script_danger stamp first, else per-type response
+        (grenade / corpse / attacked / attack_sound alert)
+    combat-safe by GOAP construction: the action requires property_enemy false
 feeders: the winner's own hear + death callbacks
     -> patched set_script_danger -> script_danger table
 ```

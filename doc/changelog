@@ -10,6 +10,11 @@ next
     Healing
       - Fixed the bandaging gesture playing on a walking NPC, which froze his legs and made him glide. The gesture now waits until he stands still.
 
+  Danger
+    Sound
+      - Fixed heard noise producing no reaction on modpacks that mute NPC sound perception: the noise alert now wakes the danger scheme on its own,
+        where before it only worked when the engine coincidentally perceived a danger of its own at the same time.
+
   Effectiveness
     Accuracy
       - Changed the Moving Fire defaults to keep a clear movement penalty at every rank: legend now cuts about a third of the moving spread instead of erasing it (0.70, was 0.50),

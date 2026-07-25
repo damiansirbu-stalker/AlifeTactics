@@ -348,6 +348,15 @@ local function eval_danger(self)
 	if prof then tmr:stop() local t = tmr:get_us() _seg_cb = t - seg_mark seg_mark = t end
 	if flags.ret_value == false then return false end
 
+	-- A live script-danger stamp activates the scheme ON ITS OWN. Without this the noise/impact
+	-- feeds only reacted when the engine coincidentally held a best_danger too - true on installs
+	-- whose engine hearing perceives the enemy, silently dead on modpacks that mute NPC sound
+	-- perception (reporter 2026-07-25: alerts stamped, zero reactions). The scripted reaction
+	-- consumes only the stamped position; it needs no engine danger object.
+	if check_script_danger(npc:id()) then
+		return true
+	end
+
 	if not (danger) then
 		return false
 	end
@@ -943,13 +952,16 @@ function at_action_danger:execute()
 	--utils_data.debug_write("BEFORE scripted_danger_action_planner",true)
 	local npc = self.object
 
-	local best_danger = npc:best_danger()
-	if not (best_danger) then
+	-- Script-danger first: the scripted reaction runs off the stamped position alone, so it must
+	-- not sit behind the engine best_danger bail (the evaluator can admit on a stamp with no
+	-- engine danger present at all).
+	if (check_script_danger(npc:id())) then
+		script_action_danger_scripted(npc,self.a)
 		return
 	end
 
-	if (check_script_danger(npc:id())) then
-		script_action_danger_scripted(npc,self.a)
+	local best_danger = npc:best_danger()
+	if not (best_danger) then
 		return
 	end
 
@@ -1029,18 +1041,20 @@ function at_evaluator_check_danger:evaluate()
 		return false
 	end
 
-	local bd = self.object:best_danger()
-	if not (bd) then
-		return false
-	end
-
 	local id = self.object:id()
 	if not (db.storage[id].danger_flag) then
 		return false
 	end
 
+	-- Script stamp before the engine best_danger bail, same reorder as at_action_danger:execute:
+	-- a stamp must reach the scripted reaction with no engine danger present.
 	if (check_script_danger(id)) then
 		return true
+	end
+
+	local bd = self.object:best_danger()
+	if not (bd) then
+		return false
 	end
 
 	local bd_type = bd:type()
