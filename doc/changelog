@@ -14,6 +14,8 @@ next
     Sound
       - Fixed heard noise producing no reaction on modpacks that mute NPC sound perception: the noise alert now wakes the danger scheme on its own,
         where before it only worked when the engine coincidentally perceived a danger of its own at the same time.
+      - Movement and landing noise now scales with the installed pack's own NPC hearing tuning,
+        so a stealth rebalance that deafens stalker hearing quiets your footsteps by the same ratio. On vanilla and GAMMA tuning nothing changes.
 
   Effectiveness
     Accuracy

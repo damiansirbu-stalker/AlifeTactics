@@ -4,8 +4,9 @@
 -- reaction machinery of its own:
 --   movement - the vanilla per-step event actor_on_footstep (step_manager.cpp:209 -> _g.script:1260,
 --     fires only when the actor actually takes a step) accumulates a noise radius from stance,
---     surface material, and rain; a scheduled pass (never per-frame) hands every hostile stalker
---     inside the radius to xr_danger.set_script_danger.
+--     surface material, rain, and the winning install's own NPC hearing sensitivity (t170); a
+--     scheduled pass (never per-frame) hands every hostile stalker inside the radius to
+--     xr_danger.set_script_danger.
 --   handling - npc_on_hear_callback (xr_motivator.script:129 -> xr_hear.script:84) delivers the
 --     actor's TYPED sounds an NPC's ear accepted; the reload / empty-click / item-use types get the
 --     same scripted danger within their own, shorter radii.
@@ -18,7 +19,7 @@
 
 local time_global, string_find, string_lower = time_global, string.find, string.lower
 local IsStalker, IsMoveState, pairs, tostring = IsStalker, IsMoveState, pairs, tostring
-local RegisterScriptCallback = RegisterScriptCallback
+local RegisterScriptCallback, ini_sys = RegisterScriptCallback, ini_sys
 
 local _enabled = { move = true, actions = true }
 local _mult = 1.0
@@ -66,6 +67,17 @@ local ACTIONS = {
 -- Fed through the same accumulate-and-scan path as steps (actor_on_land, Actor_Movement.cpp:90).
 local LAND_RADIUS_M = 10
 
+-- The install-hearing term (t170): the synthesized movement radii scale by the winning config's
+-- own NPC hearing sensitivity over vanilla's, so a pack that deafens or sharpens stalker hearing
+-- moves our footsteps identically. The engine-heard handling rows need no term - their ear
+-- callback fires only for sounds the install's own perception already admitted. Vanilla baselines
+-- from m_stalker.ltx: [stalker] sound_threshold 0.5, [stalker_sound_perceive] npc 1.0.
+local VANILLA_SOUND_THRESHOLD = 0.5
+local VANILLA_NPC_FACTOR      = 1.0
+local HEAR_SCALE_MIN          = 0.25
+local HEAR_SCALE_MAX          = 2.0
+local _hear_scale             = 1.0
+
 -- Loudest step radius accumulated since the last scan, when it landed, and its evidence grade
 -- (walk = faint; sprint and landing = solid - the grade rides the loudest accumulated event).
 local _step_radius   = 0
@@ -98,7 +110,7 @@ local function _on_footstep(material, _power, _hud_view, _flags)
     elseif IsMoveState("mcSprint") then
         stance, strength = SPRINT_FACTOR, "solid"
     end
-    local radius = BASE_RADIUS_M * stance * _material_factor(material) * _mult
+    local radius = BASE_RADIUS_M * stance * _material_factor(material) * _mult * _hear_scale
     if radius > _step_radius then
         _step_radius, _step_strength = radius, strength
     end
@@ -109,7 +121,7 @@ end
 -- unverified, so the radius is flat for now; the playtest decides whether to scale by it.
 local function _on_land(_landing_speed)
     if not _enabled.move then return end
-    local radius = LAND_RADIUS_M * _mult
+    local radius = LAND_RADIUS_M * _mult * _hear_scale
     if radius > _step_radius then
         _step_radius, _step_strength = radius, "solid"
     end
@@ -185,6 +197,25 @@ local function _on_entity_unregister(se_obj)
     end
 end
 
+-- The winning install's stalker hearing sensitivity over vanilla's, one clamped number. Engine
+-- admission is scaled_power >= sound_threshold, the power scaled first by the perceive class
+-- factor (sound_memory_manager.cpp:168-180); footsteps would ride the npc class had GSC typed
+-- them (SOUND_TYPE_MONSTER), so that is the factor read. Power falls with distance, so the
+-- admitted radius grows with the factor and shrinks with the threshold. One read per session -
+-- config never changes in-session. GAMMA, Stealth Overhaul, and vanilla all sit at factor 1.0
+-- (verified 2026-07-25); only a pack that actually retunes stalker hearing moves this.
+-- @cost 3 luabind ini reads, once at first update
+local function _derive_hear_scale()
+    local threshold = ini_sys:r_float_ex("stalker", "sound_threshold") or VANILLA_SOUND_THRESHOLD
+    local perceive = ini_sys:r_string_ex("stalker", "sound_perceive_section") or "stalker_sound_perceive"
+    local npc_factor = ini_sys:r_float_ex(perceive, "npc") or VANILLA_NPC_FACTOR
+    if threshold <= 0 then return 1.0 end
+    local scale = (VANILLA_SOUND_THRESHOLD / threshold) * (npc_factor / VANILLA_NPC_FACTOR)
+    if scale < HEAR_SCALE_MIN then return HEAR_SCALE_MIN end
+    if scale > HEAR_SCALE_MAX then return HEAR_SCALE_MAX end
+    return scale
+end
+
 local function _refresh_config()
     at_trace.refresh()
     _enabled.move    = at_mcm.get_config("danger_move_noise")    ~= false
@@ -201,10 +232,11 @@ end
 
 local function _on_first_update()
     _refresh_config()
+    _hear_scale = _derive_hear_scale()
     -- Time events do not survive a save load, so the pass arms here, per session.
     _start_pass()
-    at_trace.info("Noise hearing initialized (move=%s actions=%s mult=%.2f)",
-        tostring(_enabled.move), tostring(_enabled.actions), _mult)
+    at_trace.info("Noise hearing initialized (move=%s actions=%s mult=%.2f hear_scale=%.2f)",
+        tostring(_enabled.move), tostring(_enabled.actions), _mult, _hear_scale)
 end
 
 function on_game_start()
