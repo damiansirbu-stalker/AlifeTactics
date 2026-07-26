@@ -12,9 +12,14 @@
 --- frozen-reload) fired on healthy vanilla NPCs and led to fake conclusions. Those are gone.
 ---   SLIDE (monitor pass) - one line per episode when displacement from the start of a non-locomotion
 ---     stretch crosses SLIDE_TOTAL_M. A still NPC never accumulates displacement, so it never trips.
----   SLIDE_ONHIT (hit watch) - the sub-pass knockback: a shove past SLIDE_HIT_M inside WATCH_MS of a
----     hit with no walk/run intent.
---- Anomaly-only: a line is written only for a real slide, never a per-tick dump.
+---   HIT (hit watch) - one raw record per hit window, WATCH_MS after every hit landed on a nearby NPC:
+---     health, animation-overlay count and movement type at the hit against the same reads at close,
+---     plus the displacement over the window. No verdict in the line. It carries both open reports at
+---     once - the overlay counts are the reaction ("staggered or not"; the engine plays none of its own,
+---     CAI_Stalker::HitSignal is an empty body), the displacement against the movement types is the
+---     knockback slide the monitor pass is too coarse to catch.
+--- The monitor writes a line only for a real slide, never a per-tick dump; the hit watch writes one line
+--- per hit, which is the point - it is a per-event record, not a sampler.
 ---
 --- BALLISTICS RECORDER. Outcome measurement over the engine's shot and impact feeds: in-memory counters
 --- per rank tier, weapon kind, shooter motion, and driver context (maneuver-held / Commitment-held /
@@ -54,9 +59,7 @@ local RADIUS_SQR  = 70 * 70
 -- SLIDE (monitor): the body travels this far with movement_type never walk/run/steal across the stretch
 -- = it moved with no locomotion animation, the visible glide. One line per episode, not per pass.
 local SLIDE_TOTAL_M = 1.0
--- SLIDE_ONHIT (hit watch): the sub-pass knockback - a shove past SLIDE_HIT_M inside WATCH_MS of a hit
--- with no walk/run intent (the displacement persists, so the fast poll catches it).
-local SLIDE_HIT_M = 0.50
+-- HIT window: how long after a hit the body is sampled, and how fast. One raw record per window.
 local WATCH_MS    = 600
 local WATCH_SEC   = 0.06
 
@@ -127,29 +130,33 @@ local function _monitor()
     return false
 end
 
--- Hit-triggered slide catcher: the monitor pass can miss the sub-pass knockback, but the displacement
--- persists, so on each hit we watch that NPC for WATCH_MS and flag a move past SLIDE_HIT_M with no
--- walk/run intent - the shove/knockback slide. anims0 (an overlay present at the hit) is logged as
--- context, not as the verdict: the slide itself is the displacement-with-no-locomotion.
-local function _on_hit(npc)
+-- Hit-triggered watch: the monitor pass runs at 150ms and misses what happens in the few frames after a
+-- bullet lands, but the displacement and the overlay state persist, so on each hit the NPC is sampled at
+-- WATCH_SEC for WATCH_MS and one raw record is written at close. Captured at the hit: health, overlay
+-- count, movement type, damage amount, bone, and who was driving.
+local function _on_hit(npc, amount, _local_direction, _who, bone_index)
     if not (npc and npc:alive() and IsStalker(npc) and db.actor) then return end
     local id = npc:id()
     if _watch[id] then return end
     local pos = npc:position()
-    _watch[id] = { t0 = time_global(), x = pos.x, z = pos.z, anims0 = npc:animation_count(), drv0 = _driver(id) }
+    _watch[id] = { t0 = time_global(), x = pos.x, z = pos.z, anims0 = npc:animation_count(), drv0 = _driver(id),
+                   hp0 = npc.health, mt0 = npc:movement_type(), amount = amount or 0, bone = bone_index or -1 }
 end
 
--- One watched NPC's step: accumulate displacement, and when the window ends flag a knockback slide
--- (moved past SLIDE_HIT_M with no walk/run/steal intent). Returns true when the window has closed.
+-- One watched NPC's step: accumulate displacement, and at window close write ONE raw record of what the
+-- body did around the hit. No verdict in the line - the numbers are the finding. It answers both open
+-- reports at once: the animation-overlay count at the hit against the count at close is the reaction
+-- ("staggered or not"; the engine plays none of its own, CAI_Stalker::HitSignal is empty), and the
+-- displacement against the movement types is the slide. Returns true when the window has closed.
 local function _watch_step(npc, id, w, tg)
     local pos = npc:position()
     w.maxd = math_max(w.maxd or 0, math_sqrt((pos.x - w.x) ^ 2 + (pos.z - w.z) ^ 2))
     if _locomoting(npc:movement_type()) then w.walked = true end
     if tg - w.t0 < WATCH_MS then return false end
-    if w.maxd >= SLIDE_HIT_M and not w.walked then
-        log.info("[WORLD] id=%d %s FLAGS=SLIDE_ONHIT moved=%.2f overlay_at_hit=%s drv=%s",
-            id, npc:name() or "?", w.maxd, (w.anims0 > 0) and "YES" or "no", w.drv0)
-    end
+    log.info("[WORLD] hit id=%d %s drv=%s amount=%.2f bone=%d hp0=%.2f hp1=%.2f anims0=%d anims1=%d" ..
+        " mt0=%s mt1=%s moved=%.2f walked=%s over=%dms",
+        id, npc:name() or "?", w.drv0, w.amount, w.bone, w.hp0, npc.health, w.anims0, npc:animation_count(),
+        _mt_name(w.mt0), _mt_name(npc:movement_type()), w.maxd, w.walked and "y" or "n", tg - w.t0)
     return true
 end
 
