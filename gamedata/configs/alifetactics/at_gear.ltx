@@ -46,21 +46,24 @@ vision_nvg      = 0.07
 night_start_h   = 22
 night_end_h     = 5
 
-; Aura per artefact family. The carrier's strongest selected family channel picks the row:
-; burn -> thermal, shock -> electric, chemical_burn -> acidic, weight -> gravi.
-; Verified in game 2026-07-26: thermal red glow, electric same glow with sparkle, acidic green
-; and subtle, gravi an air distortion. Bone bip01_spine.
+; The aura every artefact carrier wears, whatever the artefact does. Carried binoculars and NVG
+; grant their vision factor without an aura - they are tools, not anomalous matter.
 ;
-; BLANK OR MISSING MEANS NO GLOW - there is deliberately no fallback to the artefact's own
+; anomaly2\burer_prepare is the burer's gravity wind-up: a colourless space distortion that tracks
+; the body (user pick 2026-07-26, auditioned in game against 8 other candidates). The coloured idle
+; glows were tested the same day - thermal red, electric red with sparkle, acidic green, gravi a
+; wide air distortion - and rejected as too loud.
+;
+; BLANK OR MISSING MEANS NO AURA - there is deliberately no fallback to the artefact's own
 ; particles key, so an unset row can never bring back an effect nobody chose.
 ;
 ; ONLY config-referenced particle names belong here. A name that lives solely inside particles.xr
 ; can be absent from a modpack that ships its own library, and a missing name is an engine fatal
 ; with no existence check from script (r4.cpp:738-748, doc/library/modding/particles.md).
 ; Proven case: artefact\effects\af_gravi_idle_color exists in vanilla and is ABSENT from GAMMA's
-; Particles Cinematic VFX library.
-aura_thermal    = artefact\af_thermal_idle
-aura_electric   = artefact\af_electra_idle
-aura_acidic     = artefact\af_acidic_idle
-aura_gravi      = anomaly2\gravity_idle
+; Particles Cinematic VFX library. anomaly2\burer_prepare passes that rule - vanilla m_burer.ltx:272
+; names it as Particle_Gravi_Prepare, so every library ships it or its own burers stop telegraphing
+; their gravi attack; present in GAMMA's Particles Cinematic VFX 3.5 and the Boomsticks and
+; Sharpsticks library.
+aura            = anomaly2\burer_prepare
 aura_bone       = bip01_spine

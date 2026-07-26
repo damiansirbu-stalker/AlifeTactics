@@ -6,11 +6,10 @@
 --- health/bleeding restore (soul and blood lines) scale the self-heal rate; chemical_burn (acid
 --- line) grants AP affinity; power (stamina line) tightens the fire-queue interval; weight (gravi
 --- line) tightens dispersion. Binoculars and night-vision torches add a vision factor (NVG at
---- night only). A carrier wears ONE aura, the effect configured for the family of his strongest
---- selected channel (burn -> thermal, shock -> electric, chemical_burn -> acidic, weight ->
---- gravi) - a glowing stalker IS a visible, huntable artefact drop. The effects are named in
---- at_gear.ltx; a blank row means that family shows no glow, and there is no fallback to the
---- artefact's own particles key.
+--- night only). Any artefact carrier wears the one aura named in at_gear.ltx, whatever the
+--- artefact does - a distorting stalker IS a visible, huntable artefact drop. Optics never
+--- trigger it. A blank row means no aura at all, and there is no fallback to the artefact's own
+--- particles key.
 ---
 --- Caps (user rule): one item's effect never exceeds cap_item (7%); the SUM of an NPC's numeric
 --- effects never exceeds cap_total (15%, proportional scale-down); at most MAX_EFFECTS channels
@@ -22,14 +21,14 @@
 --- Mechanics: one LAZY per-id cache - the first factor()/resist read for an unknown id runs one
 --- xinventory.iterate_inventory pass and stores the resolved effect set; npc_on_item_take/drop
 --- re-resolve that id; server_entity_on_unregister drops it. The only new callback seams live
---- HERE (before-hit both directions, auras, a 60s night-flip tick, the panic evaluator patch);
+--- HERE (before-hit both directions, the aura, a 60s night-flip tick, the panic evaluator patch);
 --- other modules read at_gear.factor() at write sites they already own. No polling, no per-frame
 --- work; all tracing rides at_trace and is a no-op below DEBUG.
 
 local pairs, next, math_abs, math_max, math_min = pairs, next, math.abs, math.max, math.min
 local table_sort, string_find = table.sort, string.find
 local RegisterScriptCallback = RegisterScriptCallback
-local level, ini_sys, ini_file, IsStalker = level, ini_sys, ini_file, IsStalker
+local level, ini_sys, ini_file, IsStalker, AC_ID = level, ini_sys, ini_file, IsStalker, AC_ID
 local xinventory, xcreature, at_trace = xinventory, xcreature, at_trace
 
 local cfg = at_mcm.cfg
@@ -80,31 +79,21 @@ local _bands = {
     night_end_h = 5,
 }
 
--- Aura per artefact family, from at_gear.ltx. Empty means NO GLOW for that family - there is no
--- fallback to the artefact's own particles key, so an unset row can never resurface an effect
--- nobody picked. Only config-referenced particle names are valid here: a name living solely
--- inside particles.xr can be absent from a modpack shipping its own library, and a missing name
--- is an engine fatal with no existence check from script (r4.cpp:738-748).
-local _auras = { thermal = "", electric = "", acidic = "", gravi = "" }
+-- The one aura, from at_gear.ltx: any artefact carrier wears it, whatever the artefact does.
+-- Empty means NO GLOW at all - there is no fallback to the artefact's own particles key, so an
+-- unset row can never resurface an effect nobody picked. Only config-referenced particle names are
+-- valid here: a name living solely inside particles.xr can be absent from a modpack shipping its
+-- own library, and a missing name is an engine fatal with no existence check from script
+-- (r4.cpp:738-748).
+local _aura = ""
 local _aura_bone = ""
-
--- Which translated channel names the family whose aura the carrier wears. A carrier showing
--- several channels wears the aura of the strongest-scored one that maps here. Module-level, not
--- built in _load_config: a lazy resolve can precede first update.
--- Channel -> family: burn is thermal, shock is electric, chemical_burn is acidic, weight is gravi.
-local CH_FAMILY = {
-    [CH_DEALT]  = "thermal",
-    [CH_REFLEX] = "electric",
-    [CH_AP]     = "acidic",
-    [CH.DISP]   = "gravi",
-}
 
 -- sec -> static item profile ({arty channels, particles} / {binoc=true} / {nvg=true} / false).
 -- Config never changes in-session, so this is session-lifetime.
 local _sect_cache = {}
 -- id -> resolved effect set (see _resolve) or false for a resolved non-carrier.
 local _resolved = {}
--- id -> list of live aura emitters { name, bone } (stop_particles needs both verbatim).
+-- id -> the bone the aura is emitting on; the name is always _aura (stop_particles needs both).
 local _emitting = {}
 -- ids whose resolved record carries panic immunity: the pure-Lua early-out for the panic
 -- evaluator wrap (an existing per-frame engine Lua path; with no psy carrier alive the wrap
@@ -304,36 +293,28 @@ local _BUILDERS = {
     [CH.DISP]     = function(record, cand) record.disp = 1 - cand.score end,
 }
 
--- Kept candidates into the flat per-id record. ONE aura only (user rule 2026-07-25: stacked
--- glows read as noise): the strongest-scored selected channel that names a family, wearing that
--- family's configured effect. A family with a blank row contributes no aura.
+-- Kept candidates into the flat per-id record. The aura rule is the whole rule: carry an artefact
+-- and you wear it, whatever the artefact does. cand.sect exists only on artefact candidates, so
+-- binoculars and NVG - which occupy the same vision channel - never light anyone up.
 local function _build_record(kept)
-    local record = { aim = 1, vision = 1, regen = 1, interval = 1, disp = 1, auras = {} }
-    local best_score
+    local record = { aim = 1, vision = 1, regen = 1, interval = 1, disp = 1 }
     for ch, cand in pairs(kept) do
         _BUILDERS[ch](record, cand)
-        local family = CH_FAMILY[ch]
-        local effect = family and _auras[family]
-        if effect and effect ~= "" and (not best_score or cand.score > best_score) then
-            best_score = cand.score
-            record.auras[1] = { sect = cand.sect, name = effect, family = family }
-        end
+        if cand.sect then record.aura_sect = cand.sect end
     end
     return record
 end
 
--- Attach every selected aura not yet emitting on the live game object (multiple auras allowed -
--- each selected artefact with a particles key glows). Bone verified before attach; dedup by name.
-local function _try_apply_auras(id, record)
-    if not cfg.gear_aura_enabled then return end
-    if not record or #record.auras == 0 then return end
+-- Attach the aura if this carrier is not already emitting it. Bone verified before attach.
+local function _try_apply_aura(id, record)
+    if not cfg.gear_aura_enabled or _aura == "" then return end
+    if not (record and record.aura_sect) then return end
+    if _emitting[id] then return end
     local obj = level.object_by_id(id)
     if not obj then return end
     if not obj:alive() then return end
-    local live = _emitting[id]
-    if not live then live = {} _emitting[id] = live end
-    -- Configured bone first (bip01_spine, the height the effects were judged at); AURA_BONES is
-    -- the fallback order for visuals that lack it. get_bone_id is the crash guard - start_particles
+    -- Configured bone first (bip01_spine, the height the effect was judged at); AURA_BONES is the
+    -- fallback order for visuals that lack it. get_bone_id is the crash guard - start_particles
     -- asserts on an unresolved bone (script_game_object4.cpp:418).
     local bone
     if _aura_bone ~= "" and obj:get_bone_id(_aura_bone) ~= BI_NONE then
@@ -344,36 +325,35 @@ local function _try_apply_auras(id, record)
         end
     end
     if not bone then return end
-    for i = 1, #record.auras do
-        local aura = record.auras[i]
-        if not live[aura.name] then
-            obj:start_particles(aura.name, bone)
-            live[aura.name] = bone
-            if at_trace.on() then at_trace.dbg("[GEAR] aura id=%d sect=%s particle=%s bone=%s", id, aura.sect, aura.name, bone) end
-        end
-    end
+    obj:start_particles(_aura, bone)
+    _emitting[id] = bone
+    if at_trace.on() then at_trace.dbg("[GEAR] aura id=%d sect=%s particle=%s bone=%s", id, record.aura_sect, _aura, bone) end
 end
 
--- Stop every live aura for an id; safe when the game object is already gone.
-local function _stop_auras(id)
-    local live = _emitting[id]
-    if not live then return end
+-- Stop the live aura for an id; safe when the game object is already gone.
+local function _stop_aura(id)
+    local bone = _emitting[id]
+    if not bone then return end
     local obj = level.object_by_id(id)
-    if obj then
-        for name, bone in pairs(live) do obj:stop_particles(name, bone) end
-    end
+    if obj then obj:stop_particles(_aura, bone) end
     _emitting[id] = nil
 end
 
--- Eligible carrier: a live, non-zombied stalker with at least one candidate effect.
+-- Eligible carrier: a live, non-zombied NPC stalker with at least one candidate effect.
+-- The actor check is NOT redundant with IsStalker: that test accepts clsid.script_actor and
+-- clsid.actor alongside the two stalker classes (_g.script:2838-2843), so the player passes it.
+-- Without this line the player resolves like any carrier - his own inventory gets scanned, an
+-- aura attaches to his bip01_spine, and _shooter_dealt multiplies his outgoing hits by the burn
+-- channel. His artefacts are the engine's business (belt loop, Actor.cpp:2599-2615), never ours.
 local function _carrier_eligible(npc, candidates)
+    if npc:id() == AC_ID then return false end
     if not IsStalker(npc) then return false end
     if xcreature.community(npc) == "zombied" then return false end
     return next(candidates) ~= nil
 end
 
 -- Full resolve for one id: inventory pass -> per-channel candidates -> capped selection ->
--- flat record + auras. false is the resolved non-carrier sentinel (never rescans until an
+-- flat record + aura. false is the resolved non-carrier sentinel (never rescans until an
 -- inventory event invalidates it).
 local function _resolve(id)
     if not cfg.gear_enabled then return false end
@@ -390,15 +370,15 @@ local function _resolve(id)
     local record = _build_record(_select(candidates))
     _resolved[id] = record
     _panic_ids[id] = record.panic or nil
-    _try_apply_auras(id, record)
+    _try_apply_aura(id, record)
     tmr:stop()
     if at_trace.on() then
-        at_trace.dbg("[GEAR] resolve id=%d aim=%.3f vision=%.3f regen=%.3f interval=%.3f disp=%.3f dealt=%s resist=%s panic=%s ap=%s vision_item=%s auras=%d [%.3fms]",
+        at_trace.dbg("[GEAR] resolve id=%d aim=%.3f vision=%.3f regen=%.3f interval=%.3f disp=%.3f dealt=%s resist=%s panic=%s ap=%s vision_item=%s [%.3fms]",
             id, record.aim, record.vision, record.regen, record.interval, record.disp,
             record.dealt and ("%.3f"):format(record.dealt) or "-",
             record.resist and "yes" or "-",
             record.panic and "yes" or "-", record.ap and "yes" or "-",
-            record.vision_item and ("%.3f"):format(record.vision_item) or "-", #record.auras, tmr:get_ms())
+            record.vision_item and ("%.3f"):format(record.vision_item) or "-", tmr:get_ms())
     end
     return record
 end
@@ -434,7 +414,7 @@ function factor(npc, ch)
     return 1
 end
 
---- Re-resolve one NPC's gear now: drop the record and auras, resolve fresh, refresh the
+--- Re-resolve one NPC's gear now: drop the record and aura, resolve fresh, refresh the
 --- spawn-written engine params. For callers that grant items WITHOUT a take event (parented
 --- spawn, scripted transfer) - the take/drop callbacks cover organic pickup on their own.
 --- @param npc game_object stalker
@@ -443,7 +423,7 @@ function refresh(npc)
     local id = npc:id()
     _resolved[id] = nil
     _panic_ids[id] = nil
-    _stop_auras(id)
+    _stop_aura(id)
     if _resolve(id) ~= nil then at_reaction.apply(npc) end
 end
 
@@ -517,7 +497,7 @@ local function _on_actor_before_hit(shit, _bone_id, _flags)
     end
 end
 
--- Inventory changed: drop the record, stop the auras, re-resolve, refresh the spawn-written
+-- Inventory changed: drop the record, stop the aura, re-resolve, refresh the spawn-written
 -- engine params through the owning module's idempotent apply.
 local function _on_inventory_change(npc, item)
     if not (cfg.gear_enabled and npc and IsStalker(npc)) then return end
@@ -530,7 +510,7 @@ local function _on_inventory_change(npc, item)
     end
     _resolved[id] = nil
     _panic_ids[id] = nil
-    _stop_auras(id)
+    _stop_aura(id)
     local record = _resolve(id)
     if record ~= nil then at_reaction.apply(npc) end
 end
@@ -540,11 +520,11 @@ local function _on_net_spawn(npc, _se_obj)
     local id = npc:id()
     _emitting[id] = nil
     local record = _resolved[id]
-    if record then _try_apply_auras(id, record) end
+    if record then _try_apply_aura(id, record) end
 end
 
 local function _on_death(victim, _who)
-    if victim then _stop_auras(victim:id()) end
+    if victim then _stop_aura(victim:id()) end
 end
 
 local function _on_entity_unregister(se_obj)
@@ -600,16 +580,14 @@ local function _load_config()
     for key, fallback in pairs(_bands) do
         _bands[key] = ini:r_float_ex(GEAR_SECTION, key) or fallback
     end
-    for family in pairs(_auras) do
-        _auras[family] = ini:r_string_ex(GEAR_SECTION, "aura_" .. family) or ""
-    end
+    _aura = ini:r_string_ex(GEAR_SECTION, "aura") or ""
     _aura_bone = ini:r_string_ex(GEAR_SECTION, "aura_bone") or ""
 end
 
 -- Option change: caps/toggles may have moved - drop every record and aura; carriers re-resolve
 -- lazily on their next read with the new values.
 local function _on_option_change()
-    for id in pairs(_emitting) do _stop_auras(id) end
+    for id in pairs(_emitting) do _stop_aura(id) end
     _resolved = {}
     _panic_ids = {}
 end

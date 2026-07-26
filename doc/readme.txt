@@ -177,7 +177,7 @@ Armor artefacts and inserts reduce the damage he takes, fire artefacts raise the
 psy artefacts keep him from panicking, healing artefacts speed his recovery, acid artefacts feed him armor-piercing rounds,
 stamina artefacts quicken his trigger, gravity artefacts steady his fire, and binoculars or night-vision lamps sharpen his spotting.
 Any single item tops out around 7 percent and a whole loadout around 15, so gear tilts a fight, never decides one.
-The carrier's strongest artefact glows its aura on him, so a glowing stalker is a real, huntable artefact drop.
+Any artefact carrier warps the air around his body, so a distorting stalker is a real, huntable artefact drop.
 Effect strengths are tunable in configs/alifetactics/at_gear.ltx.
 
 Effects (planned):
