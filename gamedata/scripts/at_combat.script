@@ -136,6 +136,29 @@ local function _drop_gate(state)
     end
 end
 
+-- Trace-only raw reads. state_mgr keeps its per-NPC record on db.storage; target_state is the state the
+-- state machinery is currently driving toward and combat is its own idle-bookkeeping flag. Both are plain
+-- table fields (zero luabind), read verbatim into trace lines so a session shows what the state machinery
+-- held at each moment without this file interpreting it.
+local function _sm_target(id)
+    local st = db.storage[id]
+    local sm = st and st.state_mgr
+    return sm and sm.target_state or nil
+end
+
+local function _sm_combat(id)
+    local st = db.storage[id]
+    local sm = st and st.state_mgr
+    return sm and sm.combat or nil
+end
+
+-- Metres from the NPC to the maneuver's staged destination vertex, or -1 when there is no destination.
+-- Trace-path only (one luabind for the vertex position), always called inside an at_trace.on() gate.
+local function _dest_m(npc, dest)
+    if not dest then return -1 end
+    return npc:position():distance_to(level.vertex_position(dest))
+end
+
 -- Debug-only lethality evidence per maneuver window: shots fired (npc_shot_dispersion, once per
 -- bullet, ai_stalker_fire.cpp:135-139) vs hits landed on the actor (actor_on_hit_callback carries
 -- the shooter). Both handlers bail on the at_trace.on() gate; the counts ride the end trace line.
@@ -147,26 +170,37 @@ local _hits = {}
 -- reservation in db.used_level_vertex_ids (t136). Also resets the stall tracker: a transaction consumes
 -- the situation's accumulated measurement, so `stalled` means "standoff SINCE the last maneuver" and a
 -- completed hold negates its own need (a fresh stall must accumulate before the next one).
-local function _end_maneuver(state, tg, reason, check_us)
-    if at_trace.on() then
-        -- need_cleared: did the maneuver negate the situation it fired on? Re-run the row's own need with a
-        -- fresh memo. nil = couldn't check (target gone); false = the need still holds = churn (the maneuver
-        -- ran and did not solve its problem); true = cleared. The measured "did it work", not a guess.
-        local row = state.maneuver
-        local need_cleared
-        if row and state.trigger then
-            local npc = level.object_by_id(state.id)
-            local enemy = npc and xcombat.resolve_enemy(state.enemy_id)
-            if npc and enemy then need_cleared = doctrine.recheck_need(row, npc, enemy, state, tg) == nil end
-        end
-        at_trace.dbg("[CMB] end id=%s name=%s maneuver=%s reason=%s dur=%dms shots=%d hits_actor=%d result=%s need_cleared=%s [%dus]",
-            show(state.id), show(state.name), show(row and row.name), show(reason),
-            math_floor(tg - (state.begin_at or tg)), _shots[state.id] or 0, _hits[state.id] or 0,
-            show(state.result or "-"), flag(need_cleared), check_us or -1)
+-- The end line, extracted so _end_maneuver stays a lifecycle function. need_cleared: did the maneuver
+-- negate the situation it fired on? Re-run the row's own need with a fresh memo. nil = couldn't check
+-- (target gone); false = the need still holds = churn (the maneuver ran and did not solve its problem);
+-- true = cleared. The measured "did it work", not a guess. reenters/vertex/dest_m/tgt are the raw reads
+-- for the re-entry question; the position half says whether the NPC ever reached what he was sent to.
+local function _trace_end(state, tg, reason, check_us)
+    local check = check_us or -1
+    local row = state.maneuver
+    local npc = level.object_by_id(state.id)
+    local need_cleared
+    if row and state.trigger and npc then
+        local enemy = xcombat.resolve_enemy(state.enemy_id)
+        if enemy then need_cleared = doctrine.recheck_need(row, npc, enemy, state, tg) == nil end
     end
+    local vertex, dest_m = "gone", -1
+    if npc then vertex, dest_m = npc:level_vertex_id(), _dest_m(npc, state.dest) end
+    at_trace.dbg("[CMB] end id=%s name=%s maneuver=%s reason=%s dur=%dms shots=%d hits_actor=%d result=%s" ..
+        " need_cleared=%s reenters=%d vertex=%s dest=%s dest_m=%.1f tgt=%s [%dus]",
+        show(state.id), show(state.name), show(row and row.name), show(reason),
+        math_floor(tg - (state.begin_at or tg)), _shots[state.id] or 0, _hits[state.id] or 0,
+        show(state.result or "-"), flag(need_cleared), state.reenters or 0,
+        show(vertex), show(state.dest), dest_m, show(_sm_target(state.id)), check)
+end
+
+local function _end_maneuver(state, tg, reason, check_us)
+    if at_trace.on() then _trace_end(state, tg, reason, check_us) end
     _shots[state.id] = nil
     _hits[state.id] = nil
     state.result = nil
+    state.reenters, state.granted_at, state.released_at = nil, nil, nil
+    state.tgt_seen, state.tgt_at, state.sent = nil, nil, nil
     _drop_gate(state)
     state.maneuver = nil
     state.dest = nil
@@ -175,6 +209,38 @@ local function _end_maneuver(state, tg, reason, check_us)
     state.begin_at = nil
     state.stall_set = false
     _release_cover(state)
+end
+
+-- The begin line, plus a second line only when send_to substituted the destination. Extracted so
+-- _begin_maneuver keeps one level of nesting: send_to re-targets an inaccessible vertex to
+-- accessible_nearest and falls back to the NPC's own node, and until now nothing recorded that it had.
+local function _trace_begin(npc, state, fire, gate, send_us, apply_us)
+    if not at_trace.on() then return end
+    local maneuver = state.maneuver
+    local pos = npc:position()
+    at_trace.dbg("[CMB] begin id=%s name=%s maneuver=%s trigger=%s dest=%s sent=%s fire=%s move=%s" ..
+        " requested=%s fire_gate=%s cover=%s op=%s tgt=%s vertex=%s pos=%.1f,%.1f dest_m=%.1f [send=%dus apply=%dus]",
+        show(state.id), show(state.name), show(maneuver.name), show(state.trigger), show(state.dest),
+        show(state.sent), show(fire), show(maneuver.movement), show(maneuver.fire), show(gate), show(state.cover),
+        show(xcombat.get_operator(npc)), show(_sm_target(state.id)), show(npc:level_vertex_id()),
+        pos.x, pos.z, _dest_m(npc, state.sent or state.dest), send_us, apply_us)
+    if state.sent == state.dest then return end
+    at_trace.dbg("[CMB] dest_substituted id=%s maneuver=%s asked=%s got=%s own=%s",
+        show(state.id), show(maneuver.name), show(state.dest), show(state.sent), show(npc:level_vertex_id()))
+end
+
+-- The re-entry line: the grafted action's initialize ran again while this maneuver was already begun.
+-- Extracted for the same nesting reason. away= is how long another action held the NPC, from the release
+-- stamp, which is the one interval the 200ms operator census cannot resolve.
+local function _trace_reenter(npc, state, maneuver, tg)
+    if not at_trace.on() then return end
+    at_trace.dbg("[CMB] reenter id=%s maneuver=%s n=%d op=%s tgt=%s combat=%s vertex=%s dest=%s dest_m=%.1f" ..
+        " since_begin=%dms since_apply=%dms away=%dms",
+        show(state.id), show(maneuver.name), state.reenters,
+        show(xcombat.get_operator(npc)), show(_sm_target(state.id)), flag(_sm_combat(state.id)),
+        show(npc:level_vertex_id()), show(state.dest), _dest_m(npc, state.sent or state.dest),
+        math_floor(tg - (state.begin_at or tg)), math_floor(tg - state.maneuver_at),
+        state.released_at and math_floor(tg - state.released_at) or -1)
 end
 
 -- Begin the maneuver - the first engine write, at the grafted action's initialize (the engine granted control
@@ -188,10 +254,24 @@ local function _begin_maneuver(npc)
     if not state or not state.maneuver then return end
     local tg = time_global()
     local maneuver = state.maneuver
+    -- RE-ENTRY: the grafted action's initialize ran again while this maneuver was already begun. The
+    -- shell's begin CHECK cannot be the source (CHECKS gates begin_maneuver on open == false, so it does
+    -- not run while state.gate is up), so every one of these came from the engine re-selecting the
+    -- grafted action. The line records the raw reads at that instant and nothing is suppressed - the
+    -- re-issue below still runs, exactly as it does today.
+    if state.maneuver_at then
+        state.reenters = (state.reenters or 0) + 1
+        _trace_reenter(npc, state, maneuver, tg)
+    end
+    -- When the engine granted control this time round, so the next release can report how long we held it.
+    state.granted_at = tg
     local enemy = xcombat.resolve_enemy(state.enemy_id)
     if not enemy then _end_maneuver(state, tg, "target_lost") return end
+    -- send_to substitutes silently: an inaccessible vertex is re-targeted to accessible_nearest, and a
+    -- failure there falls back to the NPC's own node. Keep what it ACTUALLY set, so the trace and any
+    -- distance read reflect where he was really sent rather than where the row asked.
     local tmr_send = xprofiler.new_if(at_trace.on()):start()
-    xcombat.send_to(npc, state.dest)
+    state.sent = xcombat.send_to(npc, state.dest)
     tmr_send:stop()
     local tmr_apply = xprofiler.new_if(at_trace.on()):start()
     local fire, gate = doctrine.apply_state(npc, maneuver, enemy)
@@ -199,12 +279,7 @@ local function _begin_maneuver(npc)
     state.maneuver_at = tg
     _shots[state.id] = nil
     _hits[state.id] = nil
-    if at_trace.on() then
-        at_trace.dbg("[CMB] begin id=%s name=%s maneuver=%s trigger=%s dest=%s fire=%s move=%s requested=%s fire_gate=%s cover=%s [send=%dus apply=%dus]",
-            show(state.id), show(state.name), show(maneuver.name), show(state.trigger), show(state.dest),
-            show(fire), show(maneuver.movement), show(maneuver.fire), show(gate), show(state.cover),
-            math_floor(tmr_send:get_us()), math_floor(tmr_apply:get_us()))
-    end
+    _trace_begin(npc, state, fire, gate, math_floor(tmr_send:get_us()), math_floor(tmr_apply:get_us()))
 end
 
 -- Shot counter (debug only): one increment per bullet a maneuvering NPC fires.
@@ -244,6 +319,21 @@ end
 -- The gate reads cfg.combat_enabled FIRST: the graft installs for every stalker even when the feature is off,
 -- and the engine re-evaluates the grafted evaluator every plan solve (problem_solver actual()), so with the
 -- feature disabled the whole crossing is one Lua boolean read - the npc:id() luabind never runs.
+-- The engine took the NPC away from the grafted action. Stamped so the NEXT on_begin can report how long
+-- someone else held him, which is the one interval no other seam exposes: the operator census samples at
+-- 200ms and the re-entry line only fires once control comes back. Trace-only, no behaviour.
+local function _on_release(npc)
+    local state = _npc_states[npc:id()]
+    if not (state and state.maneuver_at) then return end
+    local tg = time_global()
+    state.released_at = tg
+    if not at_trace.on() then return end
+    at_trace.dbg("[CMB] release id=%s maneuver=%s held=%dms op=%s tgt=%s vertex=%s",
+        show(state.id), show(state.maneuver and state.maneuver.name),
+        math_floor(tg - (state.granted_at or tg)),
+        show(xcombat.get_operator(npc)), show(_sm_target(state.id)), show(npc:level_vertex_id()))
+end
+
 local SPEC = {
     gate = function(npc)
         if not cfg.combat_enabled then return false end
@@ -251,6 +341,7 @@ local SPEC = {
         return state ~= nil and state.gate == true
     end,
     on_begin = _begin_maneuver,
+    on_release = _on_release,
 }
 
 -- Compact cover readout "<in_cover><looked_out><held>/<ray>": the combat planner's stored beliefs
@@ -368,7 +459,7 @@ end
 -- life; a gone/dead target applies READY here and the end check closes the maneuver on its next period.
 -- The debug trace is the mid-maneuver aim evidence: sight to the staged target, body-to-target angle,
 -- applied fire + gate.
-local function _update_maneuver(npc, state, _tg)
+local function _update_maneuver(npc, state, tg)
     local maneuver = state.maneuver
     if not maneuver or not state.maneuver_at then return end
     if not maneuver.update then return end
@@ -391,10 +482,26 @@ local function _update_maneuver(npc, state, _tg)
             show(state.id), show(state.name), show(maneuver.name), show(fire), show(gate), us)
         return
     end
-    at_trace.dbg("[CMB] update id=%s name=%s maneuver=%s target=%s(%s) seen=%s aim=%ddeg fire=%s fire_gate=%s [%dus]",
+    -- The 200ms sample of who actually holds the top-level slot while AT believes it is driving, plus the
+    -- state machinery's own target and the raw geometry. op is the engine's current action id mapped to a
+    -- name: any value other than "takeover" means the graft was NOT current at this sample.
+    local pos = npc:position()
+    local tgt = _sm_target(state.id)
+    -- One line per TRANSITION of the state machinery's target, not per sample: this is where our applied
+    -- combat state being replaced (notably by "idle") shows up with a timestamp, instead of having to be
+    -- diffed out of the 200ms samples below.
+    if tgt ~= state.tgt_seen then
+        at_trace.dbg("[CMB] tgt_change id=%s maneuver=%s from=%s to=%s op=%s held=%dms",
+            show(state.id), show(maneuver.name), show(state.tgt_seen), show(tgt),
+            show(xcombat.get_operator(npc)), math_floor(tg - (state.tgt_at or tg)))
+        state.tgt_seen, state.tgt_at = tgt, tg
+    end
+    at_trace.dbg("[CMB] update id=%s name=%s maneuver=%s target=%s(%s) seen=%s aim=%ddeg fire=%s fire_gate=%s op=%s tgt=%s mt=%s vertex=%s pos=%.1f,%.1f dest_m=%.1f reenters=%d [%dus]",
         show(state.id), show(state.name), show(maneuver.name), show(enemy:id()), show(xcreature.get_name(enemy:id())),
         xcombat.sees(npc, enemy) and "yes" or "no", math_floor(xcombat.get_facing_offset(npc, enemy:position())),
-        show(fire), show(gate), us)
+        show(fire), show(gate), show(xcombat.get_operator(npc)), show(tgt),
+        show(npc:movement_type()), show(npc:level_vertex_id()), pos.x, pos.z,
+        _dest_m(npc, state.sent or state.dest), state.reenters or 0, us)
 end
 
 -- Movers end on arrival; the cap (from begin_at) ends everything, so a gate that raised but never began a
