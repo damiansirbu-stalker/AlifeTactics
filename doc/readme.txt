@@ -235,10 +235,13 @@ Conflicts (choose one):
 - NPC Limping and Healing (Vodoxleb): the same limp and heal animations from a different system. The two stack and break the heal cue.
 - NPC Weapon Jamming, or any mod that jams NPC guns: Anomaly ships no jam animation for NPCs, so a jammed stalker loops the reload forever instead of clearing the stoppage.
   AlifeTactics removes NPC jamming for that reason and the mod puts it back. Player-side jamming (Weapon Parts Overhaul and the GAMMA jam mods) is a separate system and is untouched.
-- G.A.M.M.A. NPCs Faster Reactions: raises stalker sight range from 150 to 220, Monolith to 275, and the vision cone from 160 to 175 degrees.
-  An unaware stalker picks you up at 244m where vanilla stopped at 166m, an alerted one at 389m instead of 265m,
-  and since the engine divides by that range when it accumulates detection, they also notice faster at every distance in between.
-  This is what people mean when they say NPCs see across open ground. Its raised cover threshold is a real improvement, so patch the two range keys back with DLTX rather than deleting the file.
+- G.A.M.M.A. NPCs Faster Reactions: its creature config is a copy of GAMMA's own Stealth Overhaul file with the stalker sight range raised from 160 to 220, Monolith to 275.
+  Everything else people credit to it, the 175-degree vision cone included, belongs to the file it copied and stays in place when it is disabled.
+  An unaware stalker picks you up at 222m where the copied file stopped at 162m, an alerted one at 268m instead of 195m.
+  The engine divides by that same range while it accumulates detection, so they also notice faster at every distance inside it: 1.3 to 1.4 times faster at 100m, about twice as fast at 150m.
+  That sits on the same accumulator as AlifeTactics's Vision Speed curve, which spans 1.0 at rookie to 2.0 at legend, so a rookie detects like a veteran and rank stops reading as skill.
+  Its raised occlusion threshold is the part worth keeping: one bush breaks line of sight in combat where two were needed before.
+  Patch the two range keys back with DLTX rather than deleting the file.
 - Worse NPC Vision and Accuracy: the vision half is sound, but the same file multiplies the eight NPC dispersion values by 6 to 18 times, taking aimed standing fire from 0.42 to 7.5.
   Every stalker then shoots like a blind rookie whatever his rank, and any rank-based accuracy curve laid over that base disappears underneath it. Keep the vision half, drop the rest.
 - RE:DONE Combat AI: its aim system overwrites the four global ai_aim console variables with values 25 to 79 times the engine defaults,
