@@ -773,6 +773,17 @@ function on_game_start()
         _orig_get_queue_params = state_mgr_weapon.get_queue_params
         state_mgr_weapon.get_queue_params = _patched_get_queue_params
     end
+    -- Declare the takeover to state_mgr, through vanilla's own extension point. Its idle evaluator forces
+    -- its combat flag false on every evaluation where the current action is absent from this table
+    -- (state_mgr.script:93-96), which leaves state_mgr_to_idle_combat applicable for the whole life of a
+    -- maneuver - and that action re-sends the NPC to his own vertex, clears his animations and forces
+    -- state "idle" (:194-210), deleting whatever the row applied. The table's own comment says a scheme
+    -- that drives body and movement state itself belongs here; xrs_facer registers itself the same way
+    -- (xrs_facer.script:29-32). Additive, idempotent, and nothing is removed on teardown because the
+    -- graft is permanent for the NPC's life.
+    if state_mgr and state_mgr.combat_action_ids and xcombat.TAKEOVER_ID then
+        state_mgr.combat_action_ids[xcombat.TAKEOVER_ID] = true
+    end
     RegisterScriptCallback("npc_on_net_spawn",            _install)
     RegisterScriptCallback("npc_on_hit_callback",         _on_hit)
     RegisterScriptCallback("npc_shot_dispersion",         _on_shot_fired)
