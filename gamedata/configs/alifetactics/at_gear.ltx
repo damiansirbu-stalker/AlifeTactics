@@ -45,3 +45,22 @@ vision_binoc    = 0.07
 vision_nvg      = 0.07
 night_start_h   = 22
 night_end_h     = 5
+
+; Aura per artefact family. The carrier's strongest selected family channel picks the row:
+; burn -> thermal, shock -> electric, chemical_burn -> acidic, weight -> gravi.
+; Verified in game 2026-07-26: thermal red glow, electric same glow with sparkle, acidic green
+; and subtle, gravi an air distortion. Bone bip01_spine.
+;
+; BLANK OR MISSING MEANS NO GLOW - there is deliberately no fallback to the artefact's own
+; particles key, so an unset row can never bring back an effect nobody chose.
+;
+; ONLY config-referenced particle names belong here. A name that lives solely inside particles.xr
+; can be absent from a modpack that ships its own library, and a missing name is an engine fatal
+; with no existence check from script (r4.cpp:738-748, doc/library/modding/particles.md).
+; Proven case: artefact\effects\af_gravi_idle_color exists in vanilla and is ABSENT from GAMMA's
+; Particles Cinematic VFX library.
+aura_thermal    = artefact\af_thermal_idle
+aura_electric   = artefact\af_electra_idle
+aura_acidic     = artefact\af_acidic_idle
+aura_gravi      = anomaly2\gravity_idle
+aura_bone       = bip01_spine

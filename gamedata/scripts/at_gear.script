@@ -6,8 +6,11 @@
 --- health/bleeding restore (soul and blood lines) scale the self-heal rate; chemical_burn (acid
 --- line) grants AP affinity; power (stamina line) tightens the fire-queue interval; weight (gravi
 --- line) tightens dispersion. Binoculars and night-vision torches add a vision factor (NVG at
---- night only). Every selected artefact with a particles key emits its own idle aura - a glowing
---- stalker IS a visible, huntable artefact drop.
+--- night only). A carrier wears ONE aura, the effect configured for the family of his strongest
+--- selected channel (burn -> thermal, shock -> electric, chemical_burn -> acidic, weight ->
+--- gravi) - a glowing stalker IS a visible, huntable artefact drop. The effects are named in
+--- at_gear.ltx; a blank row means that family shows no glow, and there is no fallback to the
+--- artefact's own particles key.
 ---
 --- Caps (user rule): one item's effect never exceeds cap_item (7%); the SUM of an NPC's numeric
 --- effects never exceeds cap_total (15%, proportional scale-down); at most MAX_EFFECTS channels
@@ -75,6 +78,25 @@ local _bands = {
     vision_nvg = 0.07,
     night_start_h = 22,
     night_end_h = 5,
+}
+
+-- Aura per artefact family, from at_gear.ltx. Empty means NO GLOW for that family - there is no
+-- fallback to the artefact's own particles key, so an unset row can never resurface an effect
+-- nobody picked. Only config-referenced particle names are valid here: a name living solely
+-- inside particles.xr can be absent from a modpack shipping its own library, and a missing name
+-- is an engine fatal with no existence check from script (r4.cpp:738-748).
+local _auras = { thermal = "", electric = "", acidic = "", gravi = "" }
+local _aura_bone = ""
+
+-- Which translated channel names the family whose aura the carrier wears. A carrier showing
+-- several channels wears the aura of the strongest-scored one that maps here. Module-level, not
+-- built in _load_config: a lazy resolve can precede first update.
+-- Channel -> family: burn is thermal, shock is electric, chemical_burn is acidic, weight is gravi.
+local CH_FAMILY = {
+    [CH_DEALT]  = "thermal",
+    [CH_REFLEX] = "electric",
+    [CH_AP]     = "acidic",
+    [CH.DISP]   = "gravi",
 }
 
 -- sec -> static item profile ({arty channels, particles} / {binoc=true} / {nvg=true} / false).
@@ -168,7 +190,6 @@ local function _read_arty(sec)
         if source then chan[row.ch] = _read_channel(row, source) end
     end
     chan[CH.REGEN] = _read_regen(sec)
-    profile.particles = ini_sys:r_string_ex(sec, "particles")
     return profile
 end
 
@@ -229,7 +250,7 @@ local function _collect(candidates, item)
         local score = _arty_score(ch, value, cond)
         local prev = candidates[ch]
         if not prev or score > prev.score then
-            candidates[ch] = { score = score, value = value, cond = cond, sect = sect, particles = info.particles }
+            candidates[ch] = { score = score, value = value, cond = cond, sect = sect }
         end
     end
 end
@@ -284,15 +305,18 @@ local _BUILDERS = {
 }
 
 -- Kept candidates into the flat per-id record. ONE aura only (user rule 2026-07-25: stacked
--- glows read as noise): the strongest-scored selected artefact with a particles key.
+-- glows read as noise): the strongest-scored selected channel that names a family, wearing that
+-- family's configured effect. A family with a blank row contributes no aura.
 local function _build_record(kept)
     local record = { aim = 1, vision = 1, regen = 1, interval = 1, disp = 1, auras = {} }
     local best_score
     for ch, cand in pairs(kept) do
         _BUILDERS[ch](record, cand)
-        if cand.particles and (not best_score or cand.score > best_score) then
+        local family = CH_FAMILY[ch]
+        local effect = family and _auras[family]
+        if effect and effect ~= "" and (not best_score or cand.score > best_score) then
             best_score = cand.score
-            record.auras[1] = { sect = cand.sect, name = cand.particles }
+            record.auras[1] = { sect = cand.sect, name = effect, family = family }
         end
     end
     return record
@@ -308,9 +332,16 @@ local function _try_apply_auras(id, record)
     if not obj:alive() then return end
     local live = _emitting[id]
     if not live then live = {} _emitting[id] = live end
+    -- Configured bone first (bip01_spine, the height the effects were judged at); AURA_BONES is
+    -- the fallback order for visuals that lack it. get_bone_id is the crash guard - start_particles
+    -- asserts on an unresolved bone (script_game_object4.cpp:418).
     local bone
-    for i = 1, #AURA_BONES do
-        if obj:get_bone_id(AURA_BONES[i]) ~= BI_NONE then bone = AURA_BONES[i] break end
+    if _aura_bone ~= "" and obj:get_bone_id(_aura_bone) ~= BI_NONE then
+        bone = _aura_bone
+    else
+        for i = 1, #AURA_BONES do
+            if obj:get_bone_id(AURA_BONES[i]) ~= BI_NONE then bone = AURA_BONES[i] break end
+        end
     end
     if not bone then return end
     for i = 1, #record.auras do
@@ -569,6 +600,10 @@ local function _load_config()
     for key, fallback in pairs(_bands) do
         _bands[key] = ini:r_float_ex(GEAR_SECTION, key) or fallback
     end
+    for family in pairs(_auras) do
+        _auras[family] = ini:r_string_ex(GEAR_SECTION, "aura_" .. family) or ""
+    end
+    _aura_bone = ini:r_string_ex(GEAR_SECTION, "aura_bone") or ""
 end
 
 -- Option change: caps/toggles may have moved - drop every record and aura; carriers re-resolve
