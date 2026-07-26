@@ -287,6 +287,9 @@ Not related to AlifeTactics:
   In GAMMA the lever is the michiko_patch option on the Stealth MCM page, which widens the window and steepens the curve, and it ships off.
   AlifeTactics cannot reach this, because changing it means running code on every sight test in the game, which the mod deliberately does not do.
 - Stalkers who see across open ground: that is sight range, set in your setup's creature config, not acquisition speed. See NPCs Faster Reactions under Conflicts.
+- Stalkers who react to danger from across the map: your setup's danger config decides this. Vanilla Anomaly fills its reaction-distance table with the values from its reaction-duration table,
+  so the distances are really durations and a corpse, a ricochet or a shot counts as danger out to 300m and past it. AlifeTactics reads whatever your setup ships instead of substituting numbers
+  of its own, so on a stock install those distances stay. GAMMA's Stealth Overhaul rewrites them to a 75 to 125m band, which is the scale they were meant to be.
 
 FAQ:
 Do I need modded exes?
