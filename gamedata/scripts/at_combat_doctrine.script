@@ -76,17 +76,21 @@ local function _can_kite(npc, _enemy, state, _tg, memo)
     local dir = (dist > 0) and vector():set((np.x - ep.x) / dist, 0, (np.z - ep.z) / dist) or npc:direction()
     local back_m = KITE_BACK[memo.kind] or KITE_BACK.w_rifle
     local vid = xcombat.find_flee_lane(npc, dir, back_m, KITE_ARC_DEG, KITE_SPREAD_DEG)
-    if vid then
-        local lane_sqr = xmath.dist_flat_sqr(level.vertex_position(vid), np)
-        local needed_m = xcombat.get_weapon_range(memo.kind).min - dist
-        if lane_sqr <= needed_m * needed_m then
-            at_trace.dbg("[CMB] can_kite id=%s name=%s dist=%.1f back_m=%.1f lane=none",
-                show(state.id), show(state.name), dist or -1, math_sqrt(lane_sqr))
-            return nil
-        end
+    -- Every number the accept/decline decision reads, on both paths: back_m is the withdrawal the row asks
+    -- find_flee_lane for, lane_m is what came back, needed_m is what the check actually validates against
+    -- (weapon minimum minus the current distance), and min_m is that weapon minimum. The previous decline
+    -- line printed lane_m into the back_m slot, so both numbers read wrong.
+    local min_m    = xcombat.get_weapon_range(memo.kind).min
+    local needed_m = min_m - dist
+    local lane_m   = vid and math_sqrt(xmath.dist_flat_sqr(level.vertex_position(vid), np)) or -1
+    if vid and lane_m <= needed_m then
+        at_trace.dbg("[CMB] can_kite id=%s name=%s dist=%.1f min_m=%.1f back_m=%.1f needed_m=%.2f lane_m=%.2f lane=%s result=short",
+            show(state.id), show(state.name), dist or -1, min_m, back_m, needed_m, lane_m, show(vid))
+        return nil
     end
-    at_trace.dbg("[CMB] can_kite id=%s name=%s dist=%.1f back_m=%.1f lane=%s",
-        show(state.id), show(state.name), dist or -1, back_m or -1, show(vid or "none"))
+    at_trace.dbg("[CMB] can_kite id=%s name=%s dist=%.1f min_m=%.1f back_m=%.1f needed_m=%.2f lane_m=%.2f lane=%s result=%s",
+        show(state.id), show(state.name), dist or -1, min_m, back_m, needed_m, lane_m,
+        show(vid or "none"), vid and "taken" or "no_lane")
     return vid
 end
 
