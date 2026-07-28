@@ -174,15 +174,18 @@ local _hits = {}
 -- completed hold negates its own need (a fresh stall must accumulate before the next one).
 -- The end line, extracted so _end_maneuver stays a lifecycle function. need_cleared: did the maneuver
 -- negate the situation it fired on? Re-run the row's own need with a fresh memo. nil = couldn't check
--- (target gone); false = the need still holds = churn (the maneuver ran and did not solve its problem);
--- true = cleared. The measured "did it work", not a guess. reenters/vertex/dest_m/tgt are the raw reads
+-- (target gone, or the row opts out); false = the need still holds = churn (the maneuver ran and did
+-- not solve its problem); true = cleared. The measured "did it work", not a guess. A row carrying
+-- need_recheck=false is exempt (pickoff: its success is the tracker reset that happens after this
+-- trace, so the recheck would read pre-reset state and mutate the tracker it measures - r003); the
+-- line prints "-" for it. reenters/vertex/dest_m/tgt are the raw reads
 -- for the re-entry question; the position half says whether the NPC ever reached what he was sent to.
 local function _trace_end(state, tg, reason, check_us)
     local check = check_us or -1
     local row = state.maneuver
     local npc = level.object_by_id(state.id)
     local need_cleared
-    if row and state.trigger and npc then
+    if row and row.need_recheck ~= false and state.trigger and npc then
         local enemy = xcombat.resolve_enemy(state.enemy_id)
         if enemy then need_cleared = doctrine.recheck_need(row, npc, enemy, state, tg) == nil end
     end
@@ -210,6 +213,7 @@ local function _end_maneuver(state, tg, reason, check_us)
     state.maneuver_at = nil
     state.begin_at = nil
     state.stall_set = false
+    state.pickoff_exit_m = nil
     _release_cover(state)
 end
 

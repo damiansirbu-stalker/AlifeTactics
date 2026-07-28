@@ -525,12 +525,13 @@ local function _build_catalog(read_int)
             timeout        = read_int("maneuver_max_ms", 8000),
         },
         {
-            -- pickoff: any-firearm HOLD: ends_on=time (dest is the own node, so there is no arrival),
-            -- so it runs to pickoff_hold_ms. should_end re-checks the premise (under fire / targeted /
-            -- enemy back inside his effective range) while
-            -- it runs - a broken premise ends the hold now, not at the cap.
+            -- pickoff: any-firearm HOLD: ends_on=time (dest = own node, no arrival), runs to the hold
+            -- timeout; should_end re-checks the premise (under fire / targeted / enemy back in range),
+            -- ending a broken hold now, not at the cap. need_recheck=false: this row's success IS the
+            -- stall-tracker reset, so a recheck reads pre-reset state - _trace_end prints "-" instead.
             name           = "pickoff",
             toggle         = "maneuver_pickoff",
+            need_recheck   = false,
             should_maneuver = _should_stalled,
             factions       = nil,
             weapons        = nil,
