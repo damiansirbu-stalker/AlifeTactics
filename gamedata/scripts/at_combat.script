@@ -113,8 +113,11 @@ local function _can_seize(npc)
     if npc:in_smart_cover() then return false, "smart_cover" end
     -- Never seize an animating body (design law, 2026-07-27): a seize writes state and starts
     -- movement, which under a playing stagger/flinch/overlay is the glide by construction. The
-    -- tick defers; the begin check re-asks in 600ms, after the reaction released the body.
-    if xcombat.body_busy(npc) then return false, "body_busy" end
+    -- tick defers; the begin check re-asks in 600ms, after the reaction released the body. The
+    -- tripping TERM is the returned reason ("stagger"/"overlay"/"flinch"), so the monitor trace
+    -- splits the deferral counts by cause with no string built on the live path.
+    local busy, why = xcombat.body_busy(npc)
+    if busy then return false, why end
     return true
 end
 
@@ -184,6 +187,13 @@ local _hits = {}
 -- trace, so the recheck would read pre-reset state and mutate the tracker it measures - r003); the
 -- line prints "-" for it. reenters/vertex/dest_m/tgt are the raw reads
 -- for the re-entry question; the position half says whether the NPC ever reached what he was sent to.
+-- need_cleared label: "-" = the row opts out of the recheck (need_recheck=false: its success IS
+-- the reset the recheck would read); else y/n from the recheck, "?" = could not check (target gone).
+local function _cleared_label(row, need_cleared)
+    if row and row.need_recheck == false then return "-" end
+    return flag(need_cleared)
+end
+
 local function _trace_end(state, tg, reason, check_us)
     local check = check_us or -1
     local row = state.maneuver
@@ -199,7 +209,7 @@ local function _trace_end(state, tg, reason, check_us)
         " need_cleared=%s reenters=%d vertex=%s dest=%s dest_m=%.1f tgt=%s [%dus]",
         show(state.id), show(state.name), show(row and row.name), show(reason),
         math_floor(tg - (state.begin_at or tg)), _shots[state.id] or 0, _hits[state.id] or 0,
-        show(state.result or "-"), flag(need_cleared), state.reenters or 0,
+        show(state.result or "-"), _cleared_label(row, need_cleared), state.reenters or 0,
         show(vertex), show(state.dest), dest_m, show(_sm_target(state.id)), check)
 end
 
@@ -211,6 +221,7 @@ local function _end_maneuver(state, tg, reason, check_us)
     state.reenters, state.granted_at, state.released_at = nil, nil, nil
     state.tgt_seen, state.tgt_at, state.sent = nil, nil, nil
     state.escape_warned = nil
+    state.sight_warned, state.sight_glue_count = nil, nil
     _drop_gate(state)
     state.maneuver = nil
     state.dest = nil
@@ -472,6 +483,26 @@ local function _try_begin_maneuver(npc, state, tg)
     if maneuver and maneuver.vs_actor then state.enemy_id = AC_ID end
 end
 
+-- Sight-glue watchdog (debug-gated by the caller; the escape-WARN shape): a firing row's
+-- committed-target sight write (xcombat set_combat, f015) makes a foreign sight owner impossible
+-- while the maneuver applies - so 3 consecutive interval samples serving another object's sight
+-- are a self-reporting regression, named once per maneuver. The caller samples BEFORE the row's
+-- re-apply (a post-apply read echoes our own write); the counter resets on any clean sample and
+-- clears at maneuver end.
+local function _check_sight_glue(state, maneuver, sight_id)
+    if state.sight_warned then return end
+    if maneuver.fire ~= xcombat.FIRE and maneuver.fire ~= xcombat.SNIPE then return end
+    if sight_id == nil or sight_id == state.enemy_id then
+        state.sight_glue_count = nil
+        return
+    end
+    state.sight_glue_count = (state.sight_glue_count or 0) + 1
+    if state.sight_glue_count < 3 then return end
+    state.sight_warned = true
+    at_trace.warn("[CMB] sight_glue id=%d maneuver=%s staged=%d sight=%d - committed-target sight lost (f015 regression)",
+        state.id, maneuver.name, state.enemy_id, sight_id)
+end
+
 -- Run the maneuver's own update from its catalog row (a firing row re-checks its shot, flee re-asserts its
 -- holster, a row without one does nothing). Begun-guarded: no engine write before _begin_maneuver ran.
 -- Target commitment: the row keeps aiming at the STAGED enemy (state.enemy_id) for the maneuver's whole
@@ -506,9 +537,25 @@ local function _update_maneuver(npc, state, tg)
     -- An animating body: leave the applied state alone this pass, same shape as the reload skip -
     -- a re-apply would fight the playing reaction. The stagger, the flinch, and a script overlay
     -- all PAUSE here and the maneuver resumes when the animation releases the body; only the real
-    -- wounded-down state (IsWounded) ends the maneuver, on the end check.
-    if xcombat.body_busy(npc) then return end
+    -- wounded-down state (IsWounded) ends the maneuver, on the end check. The pause line keeps the
+    -- skipped passes visible in a debug log (otherwise a paused maneuver reads as silence).
+    local busy, busy_why = xcombat.body_busy(npc)
+    if busy then
+        at_trace.dbg("[CMB] pause id=%s maneuver=%s why=%s", show(state.id), show(maneuver.name), show(busy_why))
+        return
+    end
     local enemy = xcombat.resolve_enemy(state.enemy_id)
+    -- The sight sample is taken BEFORE the row re-applies its state: the re-apply writes the
+    -- committed-target sight itself (xcombat set_combat, f015), so a read taken after it echoes
+    -- our own write and could never see a foreign owner - the sample must show what the 200ms
+    -- interval LEFT in the slot. Debug-only: zero reads, zero lines when tracing is off.
+    local sight_id, sight_mode
+    if at_trace.on() then
+        sight_id, sight_mode = xcombat.get_sight_target(npc)
+        -- Enemy-guarded at the call: with the target gone the maneuver is one end check from
+        -- closing and a foreign sight is then legitimate, not glue.
+        if enemy then _check_sight_glue(state, maneuver, sight_id) end
+    end
     local tmr = xprofiler.new_if(at_trace.on()):start()
     local fire, gate = maneuver.update(npc, maneuver, enemy)
     tmr:stop()
@@ -527,7 +574,6 @@ local function _update_maneuver(npc, state, tg)
     -- (never the body angle), so a zero-shot hold shows here whether the look order was ever accepted.
     local pos = npc:position()
     local tgt = _sm_target(state.id)
-    local sight_id, sight_mode = xcombat.get_sight_target(npc)
     local sight_label = sight_id and (sight_id == state.enemy_id and "tgt" or tostring(sight_id)) or "-"
     -- One line per TRANSITION of the state machinery's target, not per sample: this is where our applied
     -- combat state being replaced (notably by "idle") shows up with a timestamp, instead of having to be
@@ -538,7 +584,8 @@ local function _update_maneuver(npc, state, tg)
             show(xcombat.get_operator(npc)), math_floor(tg - (state.tgt_at or tg)))
         state.tgt_seen, state.tgt_at = tgt, tg
     end
-    at_trace.dbg("[CMB] update id=%s name=%s maneuver=%s target=%s(%s) seen=%s aim=%ddeg sight=%s stype=%s fire=%s fire_gate=%s op=%s tgt=%s mt=%s vertex=%s pos=%.1f,%.1f dest_m=%.1f reenters=%d [%dus]",
+    at_trace.dbg("[CMB] update id=%s name=%s maneuver=%s target=%s(%s) seen=%s aim=%ddeg sight=%s stype=%s"
+        .. " fire=%s fire_gate=%s op=%s tgt=%s mt=%s vertex=%s pos=%.1f,%.1f dest_m=%.1f reenters=%d [%dus]",
         show(state.id), show(state.name), show(maneuver.name), show(enemy:id()), show(xcreature.get_name(enemy:id())),
         xcombat.sees(npc, enemy) and "yes" or "no", math_floor(xcombat.get_facing_offset(npc, enemy:position())),
         sight_label, show(sight_mode),
