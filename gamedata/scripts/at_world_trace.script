@@ -12,6 +12,11 @@
 --- frozen-reload) fired on healthy vanilla NPCs and led to fake conclusions. Those are gone.
 ---   SLIDE (monitor pass) - one line per episode when displacement from the start of a non-locomotion
 ---     stretch crosses SLIDE_TOTAL_M. A still NPC never accumulates displacement, so it never trips.
+---   FAST (monitor pass) - one line per episode when the body's measured rate exceeds the fastest speed
+---     its own config allows ([stalker_movement_speeds] max, derived once, times a blend tolerance),
+---     WHATEVER the movement type - the walked-glide class the SLIDE anchor cannot see (a body walked
+---     with no cycle still reads mt=walk; the rate is the output that cannot lie). A smart-cover snap
+---     or scripted teleport CAN exceed the ceiling; the line records the numbers, the reader judges.
 ---   HIT (hit watch) - one raw record per hit window, WATCH_MS after every hit landed on a nearby NPC:
 ---     health, animation-overlay count and movement type at the hit against the same reads at close,
 ---     plus the displacement over the window. No verdict in the line. It carries both open reports at
@@ -36,6 +41,7 @@ local IsStalker, time_global, level, db = IsStalker, time_global, level, db
 local math_sqrt, math_floor, math_max, pairs, tostring = math.sqrt, math.floor, math.max, pairs, tostring
 local math_deg, math_acos = math.deg, math.acos
 local string_format, table_concat = string.format, table.concat
+local ini_sys, tonumber = ini_sys, tonumber
 
 local log = xlog.get_logger("AT.WORLD", { outfile = "alifetactics_world.log" })
 local cfg = at_mcm.cfg
@@ -68,6 +74,12 @@ local WATCH_SEC   = 0.06
 local _slide = {}
 -- id -> { t0, x, z, anims0, drv0, maxd, walked }: the hit-triggered slide window (knockback catcher).
 local _watch = {}
+-- FAST (f009): per-id previous sample { x, z, t, logged } for the rate check, and the derived ceiling.
+-- The ceiling is the winning [stalker_movement_speeds] section's own maximum (ini_sys resolves the
+-- include chain, the at_noise config-read precedent) times a blend tolerance, derived once per enable.
+local SPEED_TOLERANCE = 1.25
+local _speed = {}
+local _speed_ceiling = nil
 -- Reused scratch: ids to drop from _watch after a pass - never mutate a table mid-pairs.
 local _drop = {}
 
@@ -84,16 +96,53 @@ local function _locomoting(mt)
     return mt == move.walk or mt == move.run or mt == move.steal
 end
 
+-- The max speed any stalker's config legitimately allows: the winning [stalker_movement_speeds]
+-- section's own largest value (6.0 on vanilla). 6.0 fallback when the section is unreadable.
+local function _derive_ceiling()
+    local max_v = 0
+    local n = ini_sys:line_count("stalker_movement_speeds") or 0
+    for i = 0, n - 1 do
+        local _, _, value = ini_sys:r_line("stalker_movement_speeds", i, "", "")
+        local v = tonumber(value)
+        if v and v > max_v then max_v = v end
+    end
+    if max_v <= 0 then max_v = 6.0 end
+    return max_v * SPEED_TOLERANCE
+end
+
+-- The rate check (f009), any movement type: metres per second between consecutive samples against the
+-- config ceiling. One line per over-ceiling EPISODE (the logged latch clears when the rate drops back
+-- under). Records the numbers, raises no verdict - a legitimate engine displacement (smart-cover
+-- transition) exceeds the ceiling and reads as exactly what it is.
+local function _check_speed(npc, id, tg, pos, mt)
+    local prev = _speed[id]
+    if not prev then
+        _speed[id] = { x = pos.x, z = pos.z, t = tg, logged = false }
+        return
+    end
+    local dt = tg - prev.t
+    if dt <= 0 then return end
+    local mps = math_sqrt((pos.x - prev.x) ^ 2 + (pos.z - prev.z) ^ 2) * 1000 / dt
+    if mps > _speed_ceiling then
+        if not prev.logged then
+            prev.logged = true
+            log.info("[WORLD] id=%d %s FLAGS=FAST drv=%s mps=%.1f ceiling=%.1f mt=%s dt=%dms",
+                id, npc:name() or "?", _driver(id), mps, _speed_ceiling, _mt_name(mt), dt)
+        end
+    else
+        prev.logged = false
+    end
+    prev.x, prev.z, prev.t = pos.x, pos.z, tg
+end
+
 -- The monitor slide check, position only. While movement_type is a locomotion type there is no slide
 -- (real walking). Otherwise track displacement from the start of the non-locomotion stretch and log ONCE
 -- when it crosses SLIDE_TOTAL_M - the body moved a real distance with no walk cycle, the visible glide.
-local function _check(npc, id, tg)
-    local mt = npc:movement_type()
+local function _check(npc, id, tg, pos, mt)
     if _locomoting(mt) then
         _slide[id] = nil
         return
     end
-    local pos = npc:position()
     local anchor = _slide[id]
     if not anchor then
         _slide[id] = { x = pos.x, z = pos.z, t = tg, logged = false }
@@ -124,7 +173,11 @@ local function _monitor()
     for i = 1, #db.OnlineStalkers do
         local npc = level.object_by_id(db.OnlineStalkers[i])
         if npc and npc:alive() and IsStalker(npc) and npc:best_enemy() and _near(npc, ap) then
-            _check(npc, npc:id(), tg)
+            local id = npc:id()
+            local pos = npc:position()
+            local mt = npc:movement_type()
+            _check(npc, id, tg, pos, mt)
+            _check_speed(npc, id, tg, pos, mt)
         end
     end
     return false
@@ -178,7 +231,7 @@ end
 local function _on_unregister(se_obj)
     if not se_obj then return end
     local id = se_obj.id
-    _slide[id], _watch[id] = nil, nil
+    _slide[id], _watch[id], _speed[id] = nil, nil, nil
 end
 
 -- ---------------------------------------------------------------------------
@@ -478,7 +531,8 @@ local function _apply_enabled()
     if want == _enabled then return end
     _enabled = want
     if _enabled then
-        _slide, _watch = {}, {}
+        _slide, _watch, _speed = {}, {}, {}
+        _speed_ceiling = _speed_ceiling or _derive_ceiling()
         _reset()
         RegisterScriptCallback("npc_on_hit_callback", _on_hit)
         RegisterScriptCallback("server_entity_on_unregister", _on_unregister)
