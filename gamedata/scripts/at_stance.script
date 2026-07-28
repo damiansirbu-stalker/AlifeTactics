@@ -54,16 +54,22 @@ end
 -- shape); saves a rank read + community read per engine ask. Dropped on entity unregister.
 local _eligible = {}
 
--- Stationary combat ops only (built lazily - stalker_ids is absent in the validator stub): a
--- posture override while MOVING (detour/retreat/grenade dodge) would slow the move for nothing.
+-- hold_position ONLY (built lazily - stalker_ids is absent in the validator stub). The 2026-07-28
+-- source audit of every body-state ask site (stalker_combat_actions.cpp) proved the other combat
+-- ops ask in MOVING phases, where a crouch answer slows the engine's own move:
+--   take_cover  - asks per execute ONLY while far from cover (:575-585), proposal STAND, he walks;
+--   get_ready   - asks at initialize + per execute while far (:374-380), proposal STAND, he
+--                 walks/runs to position (:362-371);
+--   look_out    - asks once at initialize with the cover's own peek property, then MOVES to the
+--                 lookout spot (:704-709);
+--   hold_position - asks once at initialize and sets movement STAND in the same breath (:843-850):
+--                 the one stationary ask, the firing-line case this module exists for.
+-- A mover keeps the engine's proposal at full speed; never slow a mover (module law, user-ruled).
 local _stationary_ops
 local function _ops()
     if not _stationary_ops then
         _stationary_ops = {
-            [stalker_ids.action_get_ready_to_kill] = true,
-            [stalker_ids.action_take_cover]        = true,
-            [stalker_ids.action_look_out]          = true,
-            [stalker_ids.action_hold_position]     = true,
+            [stalker_ids.action_hold_position] = true,
         }
     end
     return _stationary_ops
