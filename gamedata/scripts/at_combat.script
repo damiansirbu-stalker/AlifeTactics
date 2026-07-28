@@ -3,7 +3,7 @@
 --- scheduled pass (_run_monitor, a vanilla time event every MONITOR_PERIOD_SEC) over _npc_states - AT
 --- runs zero code on any per-frame path.
 
-local IsStalker, time_global, tostring, pairs = IsStalker, time_global, tostring, pairs
+local IsStalker, IsWounded, time_global, tostring, pairs = IsStalker, IsWounded, time_global, tostring, pairs
 local math_floor, math_random, RegisterScriptCallback, AC_ID = math.floor, math.random, RegisterScriptCallback, AC_ID
 local string_match, tonumber = string.match, tonumber
 
@@ -111,6 +111,10 @@ local function _can_seize(npc)
     if xcreature.community(npc) == "zombied" then return false, "zombied" end
     if not xcombat.get_weapon_kind(npc) then return false, "no_weapon" end
     if npc:in_smart_cover() then return false, "smart_cover" end
+    -- Never seize an animating body (design law, 2026-07-27): a seize writes state and starts
+    -- movement, which under a playing stagger/flinch/overlay is the glide by construction. The
+    -- tick defers; the begin check re-asks in 600ms, after the reaction released the body.
+    if xcombat.body_busy(npc) then return false, "body_busy" end
     return true
 end
 
@@ -477,6 +481,11 @@ local function _update_maneuver(npc, state, tg)
     -- maneuver STARTING mid-reload still applies its state once, with the discipline's degrade
     -- keeping the fire goal off the reloading gun).
     if xcombat.is_reloading(npc) then return end
+    -- An animating body: leave the applied state alone this pass, same shape as the reload skip -
+    -- a re-apply would fight the playing reaction. The stagger, the flinch, and a script overlay
+    -- all PAUSE here and the maneuver resumes when the animation releases the body; only the real
+    -- wounded-down state (IsWounded) ends the maneuver, on the end check.
+    if xcombat.body_busy(npc) then return end
     local enemy = xcombat.resolve_enemy(state.enemy_id)
     local tmr = xprofiler.new_if(at_trace.on()):start()
     local fire, gate = maneuver.update(npc, maneuver, enemy)
@@ -520,6 +529,14 @@ end
 -- premise names itself), arrival for begun movers, the time cap for everything - a staged-never-granted
 -- gate ends on the cap too, so it cannot wedge the NPC.
 local function _end_reason(npc, enemy, state, tg)
+    -- A wounded NPC belongs to the wounded scheme: the graft's own sidor_wounded_base precondition
+    -- already handed him over (55 op=sidor_act_wounded_base update samples while maneuvers stayed
+    -- open, 2026-07-27 session), so the transaction ends NOW instead of re-applying state onto an
+    -- NPC AT no longer drives - and the cover claim releases through the normal path (f003).
+    -- IsWounded ONLY (user ruling 2026-07-28): the crit stagger (xcombat.is_staggering) is a ~1s
+    -- hit reaction, not the wounded state - it pauses the maneuver via the body_busy skip instead
+    -- of ending it, so a rout or kite survives a heavy hit.
+    if IsWounded(npc) then return "wounded" end
     local maneuver = state.maneuver
     local begun = maneuver ~= nil and state.maneuver_at ~= nil
     local broken = begun and maneuver.should_end and maneuver.should_end(npc, enemy, state, tg)
