@@ -163,13 +163,11 @@ end
 -- scoring artifact: a seen distant target outranks the unseen man on his shoulder, enemy_manager.cpp:110-175).
 -- A HOLD on his own node: aim at the actor, the turn makes him SEEN, and seen at contact range wins the
 -- engine's own selection outright - at hand-back best_enemy IS the actor, which is what negates the need
--- (the transaction's success is the engine changing its mind). One raycast at feasibility: a wall between
--- them means facing him is theater, decline.
-local function _can_counterflank(npc, _enemy, state, _tg, memo)
-    if xcombat.has_obstacle_to_target(memo.npc_pos, memo.actor_pos) then
-        at_trace.dbg("[CMB] can_counterflank id=%s name=%s path=obstructed", show(state.id), show(state.name))
-        return nil
-    end
+-- (the transaction's success is the engine changing its mind). No feasibility geometry: the old wall
+-- raycast was structurally blind across the whole trigger radius (its clearances left it unable to
+-- report an obstacle below ~3.75m while the row fires inside 5m - f008), so the row pays for no test
+-- that cannot decline; the real close gate is the need's own floor (_should_actor_close).
+local function _can_counterflank(npc, _enemy, state, _tg, _memo)
     at_trace.dbg("[CMB] can_counterflank id=%s name=%s path=taken", show(state.id), show(state.name))
     return npc:level_vertex_id()
 end
@@ -407,6 +405,10 @@ end
 -- (the actor position resolves once per walk); the relation luabind is last and paid only inside the
 -- radius. Success is the engine's: the turn makes the actor SEEN and seen-at-contact wins his selection,
 -- so at hand-back best_enemy IS the actor and the walk's scope retires this row.
+-- OPEN DEFECT (f008): 56 of 119 counterflanks in the 2026-07-27 session ended cap-with-0-shots -
+-- the sight manager never takes the ordered look target and the turn never starts (the direction
+-- gate at state_mgr.script:318 then withholds every shot). Root cause pending the sight=/stype=
+-- trace data (user ruling 2026-07-28: no trigger suppression; diagnose first, then fix the cause).
 local function _should_actor_close(npc, _enemy, state, _tg, memo)
     local ap = memo.actor_pos
     if ap == nil then
