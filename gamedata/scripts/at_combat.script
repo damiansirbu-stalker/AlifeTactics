@@ -522,8 +522,13 @@ local function _update_maneuver(npc, state, tg)
     -- The 200ms sample of who actually holds the top-level slot while AT believes it is driving, plus the
     -- state machinery's own target and the raw geometry. op is the engine's current action id mapped to a
     -- name: any value other than "takeover" means the graft was NOT current at this sample.
+    -- sight= is the sight manager's current object (tgt = the staged target, an id = someone else, - = not
+    -- an object) and stype= its mode - the identity+mode pair the direction evaluator gates fire on
+    -- (never the body angle), so a zero-shot hold shows here whether the look order was ever accepted.
     local pos = npc:position()
     local tgt = _sm_target(state.id)
+    local sight_id, sight_mode = xcombat.get_sight_target(npc)
+    local sight_label = sight_id and (sight_id == state.enemy_id and "tgt" or tostring(sight_id)) or "-"
     -- One line per TRANSITION of the state machinery's target, not per sample: this is where our applied
     -- combat state being replaced (notably by "idle") shows up with a timestamp, instead of having to be
     -- diffed out of the 200ms samples below.
@@ -533,9 +538,10 @@ local function _update_maneuver(npc, state, tg)
             show(xcombat.get_operator(npc)), math_floor(tg - (state.tgt_at or tg)))
         state.tgt_seen, state.tgt_at = tgt, tg
     end
-    at_trace.dbg("[CMB] update id=%s name=%s maneuver=%s target=%s(%s) seen=%s aim=%ddeg fire=%s fire_gate=%s op=%s tgt=%s mt=%s vertex=%s pos=%.1f,%.1f dest_m=%.1f reenters=%d [%dus]",
+    at_trace.dbg("[CMB] update id=%s name=%s maneuver=%s target=%s(%s) seen=%s aim=%ddeg sight=%s stype=%s fire=%s fire_gate=%s op=%s tgt=%s mt=%s vertex=%s pos=%.1f,%.1f dest_m=%.1f reenters=%d [%dus]",
         show(state.id), show(state.name), show(maneuver.name), show(enemy:id()), show(xcreature.get_name(enemy:id())),
         xcombat.sees(npc, enemy) and "yes" or "no", math_floor(xcombat.get_facing_offset(npc, enemy:position())),
+        sight_label, show(sight_mode),
         show(fire), show(gate), show(xcombat.get_operator(npc)), show(tgt),
         show(npc:movement_type()), show(npc:level_vertex_id()), pos.x, pos.z,
         _dest_m(npc, state.sent or state.dest), state.reenters or 0, us)
