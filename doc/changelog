@@ -1,5 +1,14 @@
 next
-  Summary: Gear, Moving Fire defaults
+  Summary: Gear, maneuver fixes, Moving Fire defaults
+
+  Combat
+    Maneuvers
+      - Fixed cornered NPCs accepting kite paths under a metre long, the arrived-but-nothing-moved shuffle: a kite destination now counts only if standing on it
+        puts the enemy back outside the stalker's minimum weapon range, so every completed kite solves the problem it fired for; a boxed-in NPC stands and fights instead.
+        Escape paths are also obstacle-checked to the end now, so a withdrawing NPC no longer runs into a tree or crate his path routed through.
+      - Fixed a maneuver continuing to drive an NPC after he collapsed wounded: it now ends the moment he goes down, and the wounded behavior owns him cleanly.
+      - Maneuvers no longer start on, or re-apply state to, a body that is mid-animation - a hit stagger, a script pose, or (on engine builds that expose it) the hit flinch.
+        The animation always finishes first and the maneuver waits its turn, so AlifeTactics never drags a reacting body into a glide.
 
   Mechanics
     Gear
@@ -25,6 +34,10 @@ next
   Development
     - Changed the two world debug recorders into one: the Ballistics toggle is gone, and World behaviour debug now records both the slide watchdog
       and the shot outcome tables into alifetactics_world.log.
+    - Added a combat escape warning: if any other combat brain ever takes an NPC out from under an open maneuver, the log names the foreign owner once,
+      so a modpack conflict is reportable instead of invisible.
+    - Added over-speed movement to World behaviour debug: a body moving faster than its own config allows is recorded with the measured rate,
+      catching the walked-glide the slide watchdog cannot see.
 
 1.1.6
   Summary: Reload Cover, Pickoff, Cover posture, Movement and handling noise, neutral gunfire alert, cover pinning, combat-paused healing, target lead, fire discipline, world-behaviour debug
