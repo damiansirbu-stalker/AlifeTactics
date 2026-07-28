@@ -210,6 +210,7 @@ local function _end_maneuver(state, tg, reason, check_us)
     state.result = nil
     state.reenters, state.granted_at, state.released_at = nil, nil, nil
     state.tgt_seen, state.tgt_at, state.sent = nil, nil, nil
+    state.escape_warned = nil
     _drop_gate(state)
     state.maneuver = nil
     state.dest = nil
@@ -447,6 +448,14 @@ local function _try_begin_maneuver(npc, state, tg)
     -- state.rows / state.walk_us.
     local maneuver, dest = doctrine.resolve_maneuver(npc, enemy, state, tg)
     if maneuver then
+        -- Late-bind top-up (t148): a scheme can bind to this NPC AFTER install_takeover ran (a gulag
+        -- job change re-runs configure_schemes, xr_logic.script:279-295), and its action would carry
+        -- no blocking precondition for this NPC's whole life. Top up the per-NPC blocked set right
+        -- before the gate goes up - the only moment the hole matters - so every listed competitor
+        -- present on the manager NOW is blocked. Idempotent per id (the per-NPC set in xcombat
+        -- prevents the duplicate-condition THROW); costs a handful of manager:action lookups per
+        -- staging, only for ids that never bound.
+        xcombat.topup_takeover_block(npc)
         state.gate = true
         _open_count = _open_count + 1
         state.maneuver = maneuver
@@ -472,6 +481,19 @@ end
 local function _update_maneuver(npc, state, tg)
     local maneuver = state.maneuver
     if not maneuver or not state.maneuver_at then return end
+    -- Escape watchdog (LIVE, not debug-gated): the block list is a denylist against an open set, so a
+    -- scheme this install adds later - or one that bound after the graft (the t148 late-bind case) -
+    -- can hold the top-level slot under an open maneuver with no error anywhere. One WARN per maneuver
+    -- names the foreign operator so a silent escape becomes a reportable log line. The known, designed
+    -- non-takeover owners are excluded: death never reaches here (_run_npc_checks ends on dead first)
+    -- and wounded ends on this same pass via _end_reason's wounded term. Cost on the healthy path: one
+    -- current_action_id compare per update check.
+    if not state.escape_warned and not xcombat.is_takeover_current(npc)
+        and not (IsWounded(npc) or xcombat.is_staggering(npc)) then
+        state.escape_warned = true
+        at_trace.warn("[CMB] escape id=%d maneuver=%s op=%s - an unblocked action holds the slot under an open maneuver (denylist gap, t148)",
+            state.id, maneuver.name, xcombat.get_operator(npc))
+    end
     if not maneuver.update then return end
     -- A reloading weapon: leave the applied state completely alone this pass. Re-applying ANY
     -- state mid-reload costs a weapon-pose transition - the discipline's READY degrade at reload
