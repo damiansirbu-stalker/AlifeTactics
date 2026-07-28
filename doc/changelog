@@ -12,6 +12,8 @@ next
     Behaviors
       - Cover posture no longer answers for a stalker on the move: the crouch discipline now applies only while he holds a position,
         so a stalker running or walking to cover keeps the engine's own standing pace instead of crouch-walking the distance.
+      - Cover posture now crouches at any firing distance past a flat 15m floor instead of scaling by weapon reach, so stalkers hold cover at
+        20-30m as readily as a rifleman and snipers no longer wait until 45m to use it.
 
   Mechanics
     Gear

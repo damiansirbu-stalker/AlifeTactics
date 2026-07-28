@@ -83,7 +83,7 @@ Conduct:
 Conduct makes better choices at moments the engine already decides, with no takeover, for stalkers the vanilla engine drives.
 Cover posture: experienced riflemen and snipers crouch when real chest-high cover stands between them and their enemy, and stand when it does not,
   replacing vanilla's blind posture picks (crouching behind random bumps and firing into them).
-They crouch only at a range that suits the weapon, a rifleman past about 24m and a sniper past about 45m, so they never drop to a knee at your feet in a close fight.
+They crouch only past close range, staying mobile in a knife fight instead of dropping to a knee at your feet, and only while holding a position rather than on the move to cover.
 It reads the game's own cover map toward the enemy, and short-weapon carriers and green ranks keep vanilla behavior.
 
 Behaviors (planned):

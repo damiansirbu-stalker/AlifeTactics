@@ -35,13 +35,10 @@ local STANCE_EXIT  = 0.15
 -- the combat op changes; every ask during the hold answers the HELD posture, so the applied value
 -- never alternates. The same sampled-decision-with-reset shape as the doctrine's stall tracker.
 local DECIDE_MS = 3000
--- Crouching to fire over cover is a firing-line behaviour: it pays only when the shot is a ranged aimed
--- shot, where the crouch's stillness (and a scope's zoom) turn misses into hits. The close-quarters
--- ceiling scales PER WEAPON - this fraction of the weapon's effective (max) range (xcombat.WEAPON_RANGES,
--- rifle 80m / sniper 150m). A rifle crouches past ~24m; a sniper not until ~45m, since below its own
--- effective band the NPC hits standing and mobility beats a static crouch, and a point-blank crouch is
--- the feet-crouch bug. The one canonical range table, so this never drifts from the maneuver ranges.
-local CONDUCT_FLOOR_FRAC = 0.3
+-- Flat distance floor: closer than this is a close/dynamic fight - stand and stay mobile. Not
+-- exposed (the maneuvers carry on/off toggles only, so one lone slider here would read as arbitrary);
+-- an internal constant like the thresholds above.
+local CONDUCT_FLOOR_M = 15
 -- npc id -> { at, op, want } - the held decision. Dropped on entity unregister.
 local _decision = {}
 
@@ -78,12 +75,15 @@ end
 -- The measured half of the decision: sample the low-cover field toward the enemy and resolve it
 -- through the hysteresis band against the previously held posture.
 -- @cost O(1) | 3 luabind (positions, lvid) + 1 engine cover query; runs once per DECIDE_MS per NPC
-local function _decide(npc, enemy, prev_want, kind)
+local function _decide(npc, enemy, prev_want)
     local np, ep = npc:position(), enemy:position()
-    -- Distance gate, per weapon: below CONDUCT_FLOOR_FRAC of this weapon's effective range it is a close
-    -- fight - stand and stay mobile, never crouch at the enemy's feet.
-    local floor_m = CONDUCT_FLOOR_FRAC * xcombat.get_weapon_range(kind).max
-    if np:distance_to_sqr(ep) < floor_m * floor_m then return move.stand, -1 end
+    -- Flat distance floor (CONDUCT_FLOOR_M): closer than this is a close/dynamic fight - stand and
+    -- stay mobile, never crouch at the enemy's feet. Past it, WITH real cover toward the enemy (the
+    -- low_cover band below), is where the crouch pays. Flat, not a fraction of weapon range: the
+    -- mobility boundary is the same absolute distance for every weapon (a rifle's reach does not push
+    -- its close fight farther out, and the old per-weapon fraction sent the sniper floor to ~45m -
+    -- exactly where a sniper benefits from crouch most, the inversion; 2026-07-29).
+    if np:distance_to_sqr(ep) < CONDUCT_FLOOR_M * CONDUCT_FLOOR_M then return move.stand, -1 end
     local dir = vector():set(ep.x - np.x, ep.y - np.y, ep.z - np.z)
     local cov = level.low_cover_in_direction(npc:level_vertex_id(), dir) or 0
     if cov >= STANCE_ENTER then return move.crouch, cov end
@@ -124,7 +124,7 @@ local function _on_combat_body_state(npc, world_operator, _body_state, flags)
     -- DECIDE_MS is the contract.
     if not (held and (tg - held.at) < DECIDE_MS) then
         local prev_want = held and held.want
-        local want, cov = _decide(npc, enemy, prev_want, kind)
+        local want, cov = _decide(npc, enemy, prev_want)
         held = { at = tg, op = world_operator, want = want }
         _decision[id] = held
         if at_trace.on() and want ~= prev_want then
