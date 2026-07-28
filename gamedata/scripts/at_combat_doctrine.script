@@ -328,7 +328,9 @@ at_combat_doctrine.apply_state = _apply_state
 -- vector for the held position, so the predicate allocates nothing on the monitor's hot path.
 local function _eval_stalled(state, tg, npc_pos, dist)
     if not state.stall_pos then state.stall_pos = vector() end
-    local held    = state.stall_set and npc_pos:distance_to_sqr(state.stall_pos) <= STALL_MOVE_SQR
+    -- Flat, same metric as the circuit breaker (stairs do not read as movement) - the two stall
+    -- trackers measured the same concept with contradictory metrics until 2026-07-27 (f011).
+    local held    = state.stall_set and xmath.dist_flat_sqr(npc_pos, state.stall_pos) <= STALL_MOVE_SQR
     local closing = state.stall_dist and dist < state.stall_dist - STALL_CLOSE_M
     if not held or closing then
         state.stall_pos:set(npc_pos)

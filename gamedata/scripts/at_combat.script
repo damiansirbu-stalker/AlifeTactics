@@ -20,6 +20,8 @@ local BEGIN_PERIOD_MS, UPDATE_PERIOD_MS, END_PERIOD_MS, HIT_FIGHT_MS
 local MONITOR_PERIOD_SEC = 0.2
 
 local COMPANION_INFO = "npcx_is_companion"
+-- Defensive default only: every catalog row declares its own timeout, so this is unreachable today;
+-- it exists so a future row that omits one caps at a sane bound instead of nil-arithmetic (f011).
 local MANEUVER_CAP_MS = 8000
 local MAX_CONCURRENT
 
