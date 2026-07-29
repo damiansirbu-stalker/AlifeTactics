@@ -1,0 +1,102 @@
+--- at_core: the AlifeTactics foundation. Owns the effect-CHANNEL vocabulary, the per-NPC
+--- highest-wins combiner (resolve), and the shared rank tier list + rank-name lookup. It resolves
+--- VALUES only - it writes no engine call and holds no item or rank math. SOURCES register
+--- providers here (at_reaction rank curves, at_gear items); APPLIERS read resolve() at their own
+--- engine seam (spawn binds, the hit callback, npc_shot_dispersion, the self-heal tick, the panic
+--- evaluator). Every number-effect the mod applies harmonizes on one CHANNEL, combined by
+--- highest-wins - the overlapping-bonus rule: the strongest source wins, sources never sum or
+--- multiply, and there is no aggregate cap.
+---
+--- Tracing lives at the APPLIERS, not here: resolve is a hot per-shot / per-hit combiner, so it
+--- stays a pure table walk; each applier logs the channel, the resolved value, and what it wrote
+--- at its own seam through at_trace (no-op when debug is off).
+
+--- The effect channels. Every per-NPC number-effect is exactly one of these. A consumer passes a
+--- CHANNEL value to resolve(); a source registers a provider against one.
+CHANNEL = {
+    AIM_SPEED       = "aim_speed",       -- set_aim_params min_speed (tracking tightness)
+    AIM_LEAD        = "aim_lead",        -- set_aim_params predict_time (target lead)
+    VISION_SPEED    = "vision_speed",    -- set_vision_speed (acquisition rate)
+    VISION_RANGE    = "vision_range",    -- set_view_distance_factor (detection distance, n038)
+    FIRE_BURST      = "fire_burst",      -- set_fire_queue_scale size_k (burst length)
+    FIRE_INTERVAL   = "fire_interval",   -- set_fire_queue_scale interval_k (inter-burst pause)
+    SHOT_DISPERSION = "shot_dispersion", -- npc_shot_dispersion, standing cone
+    MOVE_DISPERSION = "move_dispersion", -- npc_shot_dispersion, moving-fire penalty
+    HEAL_RATE       = "heal_rate",       -- self-heal change_health rate
+    HEAL_CHANCE     = "heal_chance",     -- self-heal spawn charge roll
+    DAMAGE_DEALT    = "damage_dealt",    -- npc_on_before_hit, shooter shit.power up
+    DAMAGE_RESIST   = "damage_resist",   -- npc_on_before_hit, victim shit.power down
+    MORALE          = "morale",          -- panic evaluator, hold vs flee
+}
+
+-- channel -> ordered list of provider fns. A provider is fn(npc) -> number|nil: the per-NPC
+-- contribution, or nil when it does not contribute for this NPC. Filled at on_game_start by the
+-- source modules; a channel with no provider resolves to nil.
+local _providers = {}
+
+-- Reduction channels: a LOWER value is the STRONGER effect (less dispersion, less damage taken,
+-- tighter inter-burst interval), so highest-wins takes the MINIMUM here. Every other channel is
+-- higher-is-stronger and takes the maximum. Single-source channels are unaffected either way.
+local _REDUCE = {
+    [CHANNEL.DAMAGE_RESIST]   = true,
+    [CHANNEL.SHOT_DISPERSION] = true,
+    [CHANNEL.MOVE_DISPERSION] = true,
+    [CHANNEL.FIRE_INTERVAL]   = true,
+}
+
+--- Register a provider fn against a channel. Call from a source module's on_game_start. Order of
+--- registration does not matter - resolve takes the maximum, not the first.
+--- @param channel string one of at_core.CHANNEL
+--- @param fn function fn(npc) -> number|nil
+function register(channel, fn)
+    local list = _providers[channel]
+    if not list then
+        list = {}
+        _providers[channel] = list
+    end
+    list[#list + 1] = fn
+end
+
+--- Resolve a channel for one NPC: the STRONGEST value across every provider that contributes, or
+--- nil when none does. Highest-wins (overlapping bonus) - sources never sum or multiply. "Strongest"
+--- is the maximum for higher-is-better channels and the minimum for _REDUCE channels (less damage
+--- taken / tighter cone wins). A per-NPC penalty (a novice rank curve) survives because it is a real
+--- contributing value, not a 1.0 "absent" sentinel; a source that does not apply returns nil and
+--- drops out. Appliers use the return directly and treat nil as "no effect" (leave the engine
+--- default).
+--- @param npc game_object
+--- @param channel string one of at_core.CHANNEL
+--- @return number|nil the combined value, or nil when no provider contributes
+--- @cost O(providers) | one fn call + cached table read per provider; no luabind of its own
+function resolve(npc, channel)
+    local list = _providers[channel]
+    if not list then return nil end
+    local reduce = _REDUCE[channel]
+    local best
+    for i = 1, #list do
+        local v = list[i](npc)
+        if v then
+            if not best then
+                best = v
+            elseif reduce then
+                if v < best then best = v end
+            elseif v > best then
+                best = v
+            end
+        end
+    end
+    return best
+end
+
+-- The 8 rank tiers, low to high, shared by every rank-curve source (deduped from at_reaction and
+-- at_accuracy, which each held their own copy).
+TIERS = { "novice", "trainee", "experienced", "professional", "veteran", "expert", "master", "legend" }
+
+local _get_obj_rank_name = ranks.get_obj_rank_name
+
+--- Rank tier name for an NPC (novice..legend), or nil/"" when unresolved. One luabind read.
+--- @param npc game_object stalker
+--- @return string|nil tier name
+function rank_name(npc)
+    return _get_obj_rank_name(npc)
+end
