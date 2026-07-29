@@ -1,6 +1,6 @@
 --- at_healing: Heal-rate scaling, per-rank healing charge, limp + heal animations
 
-local math_random, tostring, pairs = math.random, tostring, pairs
+local math_random, tostring, pairs, type = math.random, tostring, pairs, type
 local se_save_var, se_load_var = se_save_var, se_load_var
 local RegisterScriptCallback, time_global = RegisterScriptCallback, time_global
 local IsStalker, IsWounded = IsStalker, IsWounded
@@ -256,6 +256,70 @@ local function _install_heal_patch()
     at_trace.info("[PATCH] xr_eat_medkit.heal_hp replaced with multiplier-aware version")
     at_trace.info("[PATCH] xr_eat_medkit.heal_bleed replaced with logged version")
     at_trace.info("[PATCH] xr_eat_medkit.consume_medkit wrapped (item-vs-charge trace)")
+end
+
+-- Install-once guard for the wounded-consume wrap. Module-local, so it resets with the Lua VM on
+-- every game start / load / level change (script-loading.md); it only matters under -keep_lua, where
+-- the VM persists across loads and on_game_start re-runs against an already-wrapped method.
+local _wounded_wrapped = false
+
+-- Hook one method on a luabind class object. Reading a method off the class returns the bound method
+-- as a plain callable; luabind's __newindex accepts re-registering it, and every instance dispatches
+-- through the class (there is no per-instance method copy), so the swap reaches instances created
+-- afterward. Returns the captured original (call it as original(self, ...)), or nil if absent.
+-- Kept local: this is AT's own mechanism, not an xlibs dependency.
+local function _hook_method(class_obj, name, wrapper)
+    if not class_obj then return nil end
+    local original = class_obj[name]
+    if type(original) ~= "function" then return nil end
+    class_obj[name] = function(...) return wrapper(original, ...) end
+    return original
+end
+
+-- The four medkit sections Cwound_manager:eat_medkit releases, in its exact fallback priority
+-- (xr_wounded.script:282-289). The wrapper reports whichever the NPC holds, or `none` for the faked
+-- heal (health set to full with no medkit in inventory).
+local WOUNDED_MEDKITS = { "medkit_script", "medkit", "medkit_army", "medkit_scientic" }
+local function _held_medkit_section(npc)
+    for i = 1, #WOUNDED_MEDKITS do
+        if npc:object(WOUNDED_MEDKITS[i]) then return WOUNDED_MEDKITS[i] end
+    end
+    return "none"
+end
+
+-- Wrapper for Cwound_manager:eat_medkit -- the wounded-DOWN recovery (xr_wounded.script:271-308),
+-- distinct from xr_eat_medkit's standing self-heal. It sets health to full and releases one medkit,
+-- firing no engine eat, so nothing else observes it: this trace is the only signal for medkits handed
+-- to a wounded NPC via the help dialog or burned by the 90s autoheal. Read the held section BEFORE the
+-- original releases it (sec is set only when tracing is on); log only on a true return (an actual
+-- consume). Always calls through; trace-off is a pure pass-through.
+local function _patched_wounded_eat(orig, self)
+    local sec
+    if at_trace.on() and self and self.npc then
+        sec = _held_medkit_section(self.npc)
+    end
+    local ret = orig(self)
+    if ret and sec then
+        at_trace.dbg("[HEAL] wounded_consume id=%d item=%s", self.npc:id(), sec)
+    end
+    return ret
+end
+
+-- Cwound_manager lives on the xr_wounded module table (not _G), so touch xr_wounded first to force
+-- its chunk (which defines the class) to load, then wrap the method. Runs at on_game_start in a fresh
+-- VM, so the captured original is always vanilla; the guard covers the -keep_lua re-run. A missing
+-- class (non-standard xr_wounded overlay) degrades to a warn + no trace, never an error.
+local function _install_wounded_trace()
+    if _wounded_wrapped then return end
+    local _ = xr_wounded and xr_wounded.unlock_medkit
+    local class_obj = xr_wounded and xr_wounded.Cwound_manager
+    local original = class_obj and _hook_method(class_obj, "eat_medkit", _patched_wounded_eat)
+    if not original then
+        at_trace.warn("[PATCH] xr_wounded.Cwound_manager.eat_medkit unavailable; wounded-consume trace off")
+        return
+    end
+    _wounded_wrapped = true
+    at_trace.info("[PATCH] xr_wounded.Cwound_manager.eat_medkit wrapped (wounded-consume trace)")
 end
 
 -- Per-rank charge override of vanilla's flat 50% roll at xr_eat_medkit.script:36-44.
@@ -530,4 +594,5 @@ function on_game_start()
     -- Installed unconditionally: the patched bodies read cfg.healing_enabled per tick, so the MCM
     -- master toggle is live mid-session (off = exact vanilla semantics through the same functions).
     _install_heal_patch()
+    _install_wounded_trace()
 end
