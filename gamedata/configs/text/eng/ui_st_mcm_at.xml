@@ -223,7 +223,7 @@
     <text>Stalker accuracy scales with rank. A master shoots tighter than a novice, each tier tunable below. The engine has a per-rank dispersion curve, but Anomaly's rank values leave it flat, so every stalker fires with the same spread. AlifeTactics drives the curve through the engine's own dispersion callback. Weapon and barrel dispersion stay untouched. This scales the stalker's skill.</text>
   </string>
   <string id="ui_mcm_at_accuracy_disp_enabled">
-    <text>Enable Dispersion Curve</text>
+    <text>Enable Dispersion</text>
   </string>
   <string id="ui_mcm_at_accuracy_disp_enabled_desc">
     <text>How tight each rank's aim cone is. Low ranks spray wide, top ranks group tight. Off leaves the engine's flat cone.</text>
@@ -235,7 +235,7 @@
     <text>How much each rank cancels the accuracy penalty for firing on the move. Top ranks stay accurate while moving. Off keeps the full penalty.</text>
   </string>
   <string id="ui_mcm_at_hdr_accuracy_curve">
-    <text>Rank Curve</text>
+    <text>Rank Accuracy</text>
   </string>
   <string id="ui_mcm_at_accuracy_acc_disp_novice">
     <text>Novice dispersion</text>
@@ -286,7 +286,7 @@
     <text>Shot cone scale for legend-rank stalkers, the highest rank. Lower is tighter.</text>
   </string>
   <string id="ui_mcm_at_hdr_accuracy_move">
-    <text>Moving Fire Curve</text>
+    <text>Moving Fire</text>
   </string>
   <string id="ui_mcm_at_accuracy_acc_move_novice">
     <text>Novice moving fire</text>
@@ -452,13 +452,13 @@
     <text>Lead error for legend rank, the highest. 1.00 leads true and hits movers.</text>
   </string>
   <string id="ui_mcm_at_hdr_reaction_vision">
-    <text>Vision Speed Curve</text>
+    <text>Vision Speed</text>
   </string>
   <string id="ui_mcm_at_reaction_vision_enabled">
     <text>Enable Vision Speed</text>
   </string>
   <string id="ui_mcm_at_reaction_vision_enabled_desc">
-    <text>How fast a stalker notices a target at range, per rank, on top of your detection setup. Top ranks spot you sooner. Off leaves the flat detection speed.</text>
+    <text>How fast a stalker turns a glimpse into a confirmed threat, per rank - reaction, not eyesight. Higher ranks notice sooner; most ranks sit just under your setup's baseline, so an average squad notices a hair slower. Point-blank detection is unaffected. Off leaves the flat detection speed.</text>
   </string>
   <string id="ui_mcm_at_hdr_reaction_trigger">
     <text>Fire Discipline (Burst Size)</text>
@@ -572,7 +572,7 @@
     <text>Novice vision speed</text>
   </string>
   <string id="ui_mcm_at_reaction_rct_vision_novice_desc">
-    <text>Detection speed factor for novice-rank stalkers. Higher notices targets faster at range; 1.00 leaves your setup's detection unchanged. Point-blank detection is unaffected.</text>
+    <text>How fast a novice-rank stalker notices a threat. Higher notices sooner; below 1.00 is slower than your setup's baseline, 1.00 is unchanged. Point-blank detection is unaffected.</text>
   </string>
   <string id="ui_mcm_at_reaction_rct_vision_trainee">
     <text>Trainee vision speed</text>
@@ -614,7 +614,7 @@
     <text>Legend vision speed</text>
   </string>
   <string id="ui_mcm_at_reaction_rct_vision_legend_desc">
-    <text>Detection speed factor for legend-rank stalkers, the highest rank. Higher notices targets faster at range. 2.00 notices targets twice as fast as your setup's baseline.</text>
+    <text>How fast a legend-rank stalker, the highest rank, notices a threat. Higher notices sooner; 1.00 is your setup's baseline. Point-blank detection is unaffected.</text>
   </string>
   <!-- ==================== COMMITMENT PAGE ==================== -->
   <string id="ui_mcm_at_commitment_commitment_cover_pin">

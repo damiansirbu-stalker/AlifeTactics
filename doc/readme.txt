@@ -116,7 +116,7 @@ It keys on their actual relation, so genuinely hostile factions still trade fire
 Reaction:
 Stalker rank now shapes gun handling, applied per stalker.
 Tracking Speed sets how tightly a barrel follows a moving target, from vanilla at the bottom rank to the game's own hardcore AI aim at the top.
-Vision Speed sets how fast each rank notices a target at range, up to twice your setup's detection speed at the top.
+Vision Speed sets how fast each rank turns a glimpse into a confirmed threat, from a touch below your setup's detection speed at the low ranks to about 15 percent faster at the top, with the middle ranks near your baseline.
 It scales the rate only: sight range, vision cone, light and darkness response, cover and occlusion, and hearing all stay exactly as your setup has them.
 Target Lead aims a stalker ahead of a moving target by the round's real flight time, computed from range and the weapon's bullet speed as it fires.
 Higher ranks lead true and hit movers, lower ranks over-lead and overshoot.

@@ -1,5 +1,5 @@
 next
-  Summary: Gear, maneuver fixes, Moving Fire defaults
+  Summary: Gear, maneuver fixes, Vision Speed retune, Moving Fire defaults
 
   Combat
     Maneuvers
@@ -35,6 +35,9 @@ next
     Accuracy
       - Changed the Moving Fire defaults to keep a clear movement penalty at every rank: legend now cuts about a third of the moving spread instead of erasing it (0.70, was 0.50),
         so planted fire keeps its edge over firing on the run.
+    Reaction
+      - Changed the per-rank Vision Speed: it is how fast a stalker turns a glimpse into a confirmed threat, and most ranks now notice slightly slower than your detection setup's baseline
+        while a legend tops out at +15% over it instead of the old +100%, so a high-rank squad no longer snap-detects you through light cover. Experienced rank sits at your baseline.
 
   Development
     - Changed the two world debug recorders into one: the Ballistics toggle is gone, and World behaviour debug now records both the slide watchdog

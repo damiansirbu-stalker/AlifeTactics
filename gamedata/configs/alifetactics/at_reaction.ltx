@@ -56,22 +56,23 @@ lead_expert       = 1.25
 lead_master       = 1.10
 lead_legend       = 1.00
 
-; vision_* multiplies detection-speed accumulation (get_visible_value, visual_memory_manager.cpp:365-379)
-; AFTER whichever detection stack the install runs (engine formula or a Lua get_visible_value
-; functor) - so the curve is a RELATIVE rank spread over the installed baseline, the only semantics
-; the seam supports. Every install is rank-blind at detection (vanilla: one [stalker_vision_*] set
-; for all stalkers, m_stalker.ltx:76-99); this adds the rank axis. Same lerp as aim_*, endpoints
-; sourced: novice 1.00 = the installed baseline, untouched; legend 2.00 = the detection grade
-; widely played modpack tuning gives every NPC by cutting visibility_threshold 150->80 (free) /
-; 75->35 (danger) vs vanilla, ~2x (latency ~ threshold / rate, so threshold-halving = rate x2).
-vision_novice       = 1.00
-vision_trainee      = 1.13
-vision_experienced  = 1.24
-vision_professional = 1.33
-vision_veteran      = 1.44
-vision_expert       = 1.54
-vision_master       = 1.65
-vision_legend       = 2.00
+; vision_* is the per-rank REACTION/detection-speed factor: it multiplies get_visible_value
+; accumulation (visual_memory_manager.cpp:365-379) AFTER whichever detection stack the install runs
+; (engine formula or a Lua get_visible_value functor), so it is a RELATIVE rank spread over the
+; installed baseline. It is reaction - how fast a stalker turns a glimpse into a confirmed threat -
+; NOT eyesight: detection TIMING only, never aim or accuracy. Every install is rank-blind at
+; detection (vanilla: one [stalker_vision_*] set for all stalkers, m_stalker.ltx:76-99); this adds
+; the rank axis, centered on vanilla-at-experienced (retuned 2026-07-29 from the old 1.00-2.00 that
+; cranked detection up everywhere): novice 0.94 (slower to notice) to legend 1.15 (+15%), six of
+; eight tiers at-or-below vanilla so the average NPC detects a hair SLOWER.
+vision_novice       = 0.94
+vision_trainee      = 0.97
+vision_experienced  = 1.00
+vision_professional = 1.03
+vision_veteran      = 1.06
+vision_expert       = 1.09
+vision_master       = 1.12
+vision_legend       = 1.15
 
 ; qsize_* / qinterval_* are the two fire-queue scales (t154), fed to npc:set_fire_queue_scale (#603) at
 ; spawn: qsize_ multiplies the combat planner's burst SIZE, qinterval_ the inter-burst PAUSE

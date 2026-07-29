@@ -34,15 +34,19 @@ local _aim = {
     legend       = 2.50,
 }
 
+-- Per-rank REACTION/detection-speed factor (kept and retuned, not eyesight): how fast a stalker
+-- turns a glimpse into a confirmed threat, an experience skill. Retuned 2026-07-29 from the old
+-- 1.00-2.00 (which sat at-or-above vanilla everywhere and fast-confirmed through weak foliage) to a
+-- band centered on vanilla-at-experienced: six of eight tiers at-or-below vanilla, legend +15%.
 local _vision = {
-    novice       = 1.00,
-    trainee      = 1.13,
-    experienced  = 1.24,
-    professional = 1.33,
-    veteran      = 1.44,
-    expert       = 1.54,
-    master       = 1.65,
-    legend       = 2.00,
+    novice       = 0.94,
+    trainee      = 0.97,
+    experienced  = 1.00,
+    professional = 1.03,
+    veteran      = 1.06,
+    expert       = 1.09,
+    master       = 1.12,
+    legend       = 1.15,
 }
 
 -- Per-rank lead ERROR (t156): the rank's multiplier on the physically-correct lead. The engine leads a
