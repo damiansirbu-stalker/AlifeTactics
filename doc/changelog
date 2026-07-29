@@ -46,6 +46,7 @@ next
       so a modpack conflict is reportable instead of invisible.
     - Added over-speed movement to World behaviour debug: a body moving faster than its own config allows is recorded with the measured rate,
       catching the walked-glide the slide watchdog cannot see.
+    - Added a Flush log every line option, which writes each log line to disk at once instead of buffering, so a crash keeps its final log lines for a bug report.
 
 1.1.6
   Summary: Reload Cover, Pickoff, Cover posture, Movement and handling noise, neutral gunfire alert, cover pinning, combat-paused healing, target lead, fire discipline, world-behaviour debug

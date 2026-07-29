@@ -106,6 +106,7 @@ local defaults = {
     gear_binoc_enabled     = true,
     gear_nvg_enabled       = true,
     log_level = "WARN",
+    log_flush = false,
     hud_position   = "off",
     world_trace_enabled = false,
 }
@@ -221,6 +222,7 @@ local _key_to_tab = {
     gear_binoc_enabled     = "mechanics/gear",
     gear_nvg_enabled       = "mechanics/gear",
     log_level     = "development",
+    log_flush     = "development",
     btn_reset_all = "development",
     hud_position   = "development",
     world_trace_enabled = "development",
@@ -671,6 +673,7 @@ function on_mcm_load()
                             {"DEBUG", "debug"},
                         },
                     },
+                    { id = "log_flush", type = "check", val = 1, def = false },
                     { id = "world_trace_enabled", type = "check", val = 1, def = false, hint = "at_development_world_trace_enabled" },
 
                     { id = "div_hud", type = "line" },

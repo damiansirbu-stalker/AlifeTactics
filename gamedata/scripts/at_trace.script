@@ -20,12 +20,16 @@ local xlog, tostring, RegisterScriptCallback = xlog, tostring, RegisterScriptCal
 local log = xlog.get_logger("AT", { outfile = "alifetactics.log" })
 local DEBUG_LEVEL = 5
 local _lvl = 0
+-- Level constants for the flush-on-emit flag: TRACE flushes every line, ERROR is the logger's own
+-- default flush threshold (xlog buffers below it). See at_trace.refresh.
+local _levels = xlog.get_levels()
 
 --- Re-read the log level from MCM - call on actor first update and on every option change. Sets the one
 --- gate every module's tracing reads, so a level change takes hold mod-wide from a single site.
 function at_trace.refresh()
     log.set_level(at_mcm.get_config("log_level") or "WARN")
     _lvl = log.get_level() or 0
+    log._logger.flush_on_level = at_mcm.get_config("log_flush") and _levels.TRACE or _levels.ERROR
 end
 
 --- True when DEBUG tracing is live - the guard a caller puts in front of an expensive trace line so the
