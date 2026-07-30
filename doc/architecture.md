@@ -37,7 +37,7 @@ Version 1.1.5.
 | `at_world_trace.script` | infra | done (the world log: slide watchdog + ballistics recorder, one toggle, driver attribution, MCM Development, zero cost off) |
 | `at_disclosure.script` | feature | done |
 | `at_crossfire.script` | feature | done |
-| `at_healing.script` | feature | done |
+| `at_healing.script` | feature | done (self-heal rate + per-rank charge + limp/heal anim; also traces the wounded-down medkit consume in `xr_wounded.Cwound_manager:eat_medkit`, the vanilla seam that fires no callback) |
 | `at_accuracy.script` | feature | done |
 | `at_reaction.script` | feature | done (per-rank aim, target lead, vision, fire discipline) |
 | `at_commitment.script` | feature | done (action-switch + cover re-pick vetoes) |
