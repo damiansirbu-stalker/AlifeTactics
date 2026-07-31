@@ -300,18 +300,10 @@ Usage and License:
   Full license in LICENSE file and on GitHub.
 
 Reporting issues and suggestions:
-Open a bug report or a suggestion at https://github.com/damiansirbu-stalker/AlifeTactics/issues/new/choose.
-Also discussed on the GAMMA, EFP, Anomaly, and Zona Discord servers.
+Open a report at https://github.com/damiansirbu-stalker/AlifeTactics/issues/new/choose, or ask on the GAMMA, EFP, Anomaly, and Zona Discord servers. Read this readme and the MCM options first.
 
-Before posting, read this readme and the MCM options.
+Combat is the hardest thing in Anomaly to diagnose, so first confirm it is this mod: reproduce, disable AlifeTactics, reproduce again. If it persists it is not this mod. The cleanest test is vanilla Anomaly plus xlibs plus AlifeTactics.
 
-AlifeTactics works deep in the engine, and combat is the hardest part of Anomaly to diagnose.
-Before reporting a combat or AI issue, confirm it is actually this mod: reproduce it, disable AlifeTactics, reproduce again.
-If it persists, it is not this mod - the source is the engine, the modpack, or another mod, and the log tells them apart.
-The cleanest test setup is vanilla Anomaly plus xlibs plus AlifeTactics.
+Include: exact repro steps (new game or named save, expected vs actual), confirmation the issue disappears with AlifeTactics off, engine build, modlist, load order, xray.log, and the mod debug log. Only the log shows whether this mod was involved.
 
-Include:
-- Exact steps to reproduce, from a new game or a named save, with expected and actual result.
-- Confirmation that the issue disappears with AlifeTactics disabled.
-- xray.log and the mod debug log (MCM log level DEBUG), plus engine build, modlist, load order.
-- Describe the behavior, because with hundreds of mods and overrides only the log shows whether this mod was involved and what caused it.
+The debug log is required: set the MCM log level to DEBUG, reproduce, then back to WARN. DEBUG is not free. It writes a timed line for every evaluation and hitches single-threaded exes, and the millisecond figures include the tracing itself, so treat them as relative.
