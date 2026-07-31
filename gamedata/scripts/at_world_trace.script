@@ -248,7 +248,7 @@ local MT_RUN = 1
 -- fired away from its target (the visible "shooting the wall").
 local WRONGWAY_DEG = 50
 
-local TIERS = { "novice", "trainee", "experienced", "professional", "veteran", "expert", "master", "legend" }
+local TIERS = xcreature.RANK_TIERS
 
 local _t0 = 0
 local _tiers = {}
