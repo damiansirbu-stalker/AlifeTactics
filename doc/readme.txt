@@ -158,9 +158,11 @@ They only go alert, never hostile, and settle down when the shooting stops. Ever
 
 Vision:
 Stalker rank shapes the eyes as well as the trigger, applied per stalker.
-Vision Speed sets how fast each rank turns a glimpse into a confirmed threat, from a touch below your setup's detection speed at the low ranks to about 15 percent faster at the top, with the middle ranks near your baseline.
+Vision Speed sets how fast each rank turns a glimpse into a confirmed threat, from a touch below your setup's detection speed at the low ranks to about 15 percent faster at the top,
+  with the middle ranks near your baseline.
 It scales the rate only: sight range, vision cone, light and darkness response, cover and occlusion, and hearing all stay exactly as your setup has them.
-Vision Range sets how far out each rank begins to notice a threat, the same tight band around your baseline, on engine builds carrying the per-stalker view-distance hook created for this mod, inactive on older exes.
+Vision Range sets how far out each rank begins to notice a threat, the same tight band around your baseline, on engine builds carrying the per-stalker view-distance hook created for this mod,
+  inactive on older exes.
 Both are per-rank MCM slider curves under one Vision toggle, on their own Vision page.
 
 Danger:
@@ -260,7 +262,8 @@ Independent of AlifeTactics (these behave the same with it or without it):
 
 Coexists:
 - xrMPE Animations and other NPC animation packs: every pose AlifeTactics plays exists in their files (verified), so its cues take on their look.
-  Their bigger, longer hit and hurt animations can make the gliding and staggering artifacts more visible, but that class is base-game hit handling and shows without any mods - see "Not AlifeTactics" below.
+  Their bigger, longer hit and hurt animations can make the gliding and staggering artifacts more visible,
+  but that class is base-game hit handling and shows without any mods - see "Not AlifeTactics" below.
 - G.A.M.M.A. AI Rework, RE:DONE Combat AI, RE:VISION, AI More Cover: the takeover blocks the combat planner only while a maneuver runs, then hands back to their combat AI;
   the danger rework patches their danger script at load and reads their ranges instead of substituting its own.
   Where one of them also ships a visibility script or rewrites the aim globals, that part is covered above - the combat half coexists.
