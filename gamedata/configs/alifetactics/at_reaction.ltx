@@ -74,6 +74,22 @@ vision_expert       = 1.09
 vision_master       = 1.12
 vision_legend       = 1.15
 
+; vrange_* is the per-rank detection-DISTANCE factor, the twin of vision_* on the other vision axis: it
+; multiplies object_visible_distance (visual_memory_manager.cpp:303-318), so it sets how far out a stalker
+; BEGINS to notice a target, where vision_ sets how FAST once in sight. at_reaction registers it as the
+; rank slice of at_effects_resolver's VISION_RANGE effect, combined highest-wins with a carried optic's
+; factor; the resolver writes it at net_spawn via set_view_distance_factor. A tight band centred on
+; vanilla, ~0.95-1.10, the same shape as vision speed. DORMANT until the n038 view-distance bind exists on
+; the exe - the setter no-ops below it, so the curve is inert but live the moment the bind arrives.
+vrange_novice       = 0.95
+vrange_trainee      = 0.97
+vrange_experienced  = 1.00
+vrange_professional = 1.02
+vrange_veteran      = 1.04
+vrange_expert       = 1.06
+vrange_master       = 1.08
+vrange_legend       = 1.10
+
 ; qsize_* / qinterval_* are the two fire-queue scales (t154), fed to npc:set_fire_queue_scale (#603) at
 ; spawn: qsize_ multiplies the combat planner's burst SIZE, qinterval_ the inter-burst PAUSE
 ; (select_queue_params, stalker_combat_action_base.cpp:246-254). Higher rank = crisper short bursts

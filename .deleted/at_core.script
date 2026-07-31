@@ -75,14 +75,8 @@ function resolve(npc, channel)
     local best
     for i = 1, #list do
         local v = list[i](npc)
-        if v then
-            if not best then
-                best = v
-            elseif reduce then
-                if v < best then best = v end
-            elseif v > best then
-                best = v
-            end
+        if v and (best == nil or (reduce and v < best) or (not reduce and v > best)) then
+            best = v
         end
     end
     return best

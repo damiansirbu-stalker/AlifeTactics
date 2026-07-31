@@ -1,4 +1,7 @@
---- at_healing: Heal-rate scaling, per-rank healing charge, limp + heal animations
+--- at_firstaid: active first-aid healing - heal-rate scaling, per-rank medkit charge, limp + heal
+--- animations. Medkit healing is an ACTION (the NPC consumes an item and runs the xr_eat_medkit chain),
+--- owned here and named apart from the passive regen at_gear writes via n039 (invariants I2, I4). It has
+--- one owner and no source clash, so it is NOT an effect and never enters at_effects_resolver.
 
 local math_random, tostring, pairs, type = math.random, tostring, pairs, type
 local se_save_var, se_load_var = se_save_var, se_load_var
@@ -174,7 +177,7 @@ local function _patched_heal_hp(id, left)
             tmr:stop()
             return false
         end
-        local mult = (enabled and cfg.heal_rate_multiplier or 1) * at_gear.factor(npc, at_gear.CH.REGEN)
+        local mult = enabled and cfg.heal_rate_multiplier or 1
         npc:change_health(0.05 * mult)
         npc.bleeding = 0.01
         if enabled and left == HEAL_TICK_FIRST then
@@ -529,7 +532,7 @@ local function _run_monitor()
     -- re-fire and re-error every frame, starving every time event in the game. Re-armed, a fault costs
     -- one aborted pass. Liveness inside the check (_try_drop_limp and the eligibility chain test alive
     -- before any engine combat read).
-    ResetTimeEvent("at_healing", "monitor", MONITOR_PERIOD_SEC)
+    ResetTimeEvent("at_firstaid", "monitor", MONITOR_PERIOD_SEC)
     if not cfg.limping_anim_enabled then return end
     local tg = time_global()
     for id, state in pairs(_npc_states) do
@@ -571,8 +574,8 @@ local function _on_actor_first_update()
     _refresh_log()
     if not _monitor_active then
         _monitor_active = true
-        RemoveTimeEvent("at_healing", "monitor")
-        CreateTimeEvent("at_healing", "monitor", MONITOR_PERIOD_SEC, _run_monitor)
+        RemoveTimeEvent("at_firstaid", "monitor")
+        CreateTimeEvent("at_firstaid", "monitor", MONITOR_PERIOD_SEC, _run_monitor)
     end
     if not _heal_active then return end
     at_trace.info("Health module initialized (heal_mult=%.2f tiers novice=%d%% experienced=%d%% veteran=%d%% master=%d%%)",

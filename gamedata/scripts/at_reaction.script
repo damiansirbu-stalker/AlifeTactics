@@ -49,6 +49,23 @@ local _vision = {
     legend       = 1.15,
 }
 
+-- Per-rank vision RANGE factor (t123 Vision page, D20): the detection-DISTANCE twin of the speed curve
+-- above, the rank slice at_reaction registers into at_effects_resolver's VISION_RANGE effect (the optic
+-- day/night factor is at_gear's slice; the resolver keeps the strongest). A tight band centred on
+-- vanilla, ~0.95-1.10, the same shape as vision speed. DORMANT until the n038 view-distance bind exists -
+-- the resolver's set_view_distance_factor no-ops below it; the provider is registered regardless so the
+-- curve is live the moment the exe carries the bind.
+local _vrange = {
+    novice       = 0.95,
+    trainee      = 0.97,
+    experienced  = 1.00,
+    professional = 1.02,
+    veteran      = 1.04,
+    expert       = 1.06,
+    master       = 1.08,
+    legend       = 1.10,
+}
+
 -- Per-rank lead ERROR (t156): the rank's multiplier on the physically-correct lead. The engine leads a
 -- moving target by aim_point += target_velocity * predict_time (sight_action.cpp:383-384); the correct
 -- predict_time is the bullet's flight time = range / bullet_speed. _on_shot_lead recomputes that live and
@@ -244,7 +261,6 @@ local function _apply_discipline(npc, tier)
     local sk = _qsize[tier]
     local ik = _qinterval[tier]
     if not (sk and ik) then return end
-    ik = ik * at_gear.factor(npc, at_gear.CH.INTERVAL)
     if sk == 1.0 and ik == 1.0 then return end
     if ik < DISC_INT_FLOOR then ik = DISC_INT_FLOOR end
     local ok = xcombat.set_fire_queue_scale(npc, sk, ik)
@@ -275,11 +291,11 @@ function apply(npc)
     local ok_aim, ok_vision
     if cfg.aim_enabled then
         local aim = _resolve_aim(tier)
-        if aim then ok_aim = xcombat.set_aim_params(npc, -1, -1, aim * at_gear.factor(npc, at_gear.CH.AIM), -1) end
+        if aim then ok_aim = xcombat.set_aim_params(npc, -1, -1, aim, -1) end
     end
     if cfg.vision_enabled then
         local vision = _vision[tier]
-        if vision then ok_vision = xcombat.set_vision_speed(npc, vision * at_gear.factor(npc, at_gear.CH.VISION)) end
+        if vision then ok_vision = xcombat.set_vision_speed(npc, vision) end
     end
     local ok_disc = _apply_discipline(npc, tier)
 
@@ -361,8 +377,20 @@ local function _on_enemy_selected(npc, new_enemy)
         id, name, tier, dist, seen and "yes" or "no", unseen_ms)
 end
 
--- The 8 rank tiers, MCM key order (mirrors the _aim/_vision tables and the at_mcm slider ids).
-local TIERS = { "novice", "trainee", "experienced", "professional", "veteran", "expert", "master", "legend" }
+-- The rank slice of VISION_RANGE (D11): the per-rank detection-DISTANCE factor, registered into
+-- at_effects_resolver where it composes highest-wins with at_gear's optic factor. at_reaction only
+-- PROVIDES it; the resolver applies it at net_spawn via set_view_distance_factor. Zombied excluded like
+-- every rank curve; shares the Vision toggle with vision speed.
+local function _vision_range_provider(npc)
+    if not cfg.vision_enabled then return nil end
+    if xcreature.community(npc) == "zombied" then return nil end
+    local tier = _get_obj_rank_name(npc)
+    if not tier or tier == "" then return nil end
+    return _vrange[tier]
+end
+
+-- The rank tiers, owned by xcreature; iterated to build the per-rank curve keys.
+local TIERS = xcreature.RANK_TIERS
 
 -- Load the LTX curves over the script fallbacks; called once at on_game_start, before any MCM read.
 local function _load_config()
@@ -372,6 +400,7 @@ local function _load_config()
         _aim[tier]       = ini:r_float_ex(CONFIG_SECTION, "aim_" .. tier)       or _aim[tier]
         _lead[tier]      = ini:r_float_ex(CONFIG_SECTION, "lead_" .. tier)      or _lead[tier]
         _vision[tier]    = ini:r_float_ex(CONFIG_SECTION, "vision_" .. tier)    or _vision[tier]
+        _vrange[tier]    = ini:r_float_ex(CONFIG_SECTION, "vrange_" .. tier)    or _vrange[tier]
         _qsize[tier]     = ini:r_float_ex(CONFIG_SECTION, "qsize_" .. tier)     or _qsize[tier]
         _qinterval[tier] = ini:r_float_ex(CONFIG_SECTION, "qinterval_" .. tier) or _qinterval[tier]
     end
@@ -384,6 +413,7 @@ local function _refresh_config()
         _aim[tier]       = at_mcm.get_config("rct_aim_" .. tier)       or _aim[tier]
         _lead[tier]      = at_mcm.get_config("rct_lead_" .. tier)      or _lead[tier]
         _vision[tier]    = at_mcm.get_config("rct_vision_" .. tier)    or _vision[tier]
+        _vrange[tier]    = at_mcm.get_config("rct_vrange_" .. tier)    or _vrange[tier]
         _qsize[tier]     = at_mcm.get_config("rct_qsize_" .. tier)     or _qsize[tier]
         _qinterval[tier] = at_mcm.get_config("rct_qinterval_" .. tier) or _qinterval[tier]
     end
@@ -401,6 +431,7 @@ end
 
 function on_game_start()
     _load_config()
+    at_effects_resolver.register(at_effects_resolver.EFFECT.VISION_RANGE, _vision_range_provider)
     RegisterScriptCallback("npc_on_net_spawn",           apply)
     RegisterScriptCallback("npc_shot_dispersion",        _on_shot_lead)
     RegisterScriptCallback("npc_on_enemy_selected",      _on_enemy_selected)

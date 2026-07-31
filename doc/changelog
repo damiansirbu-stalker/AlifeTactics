@@ -1,10 +1,10 @@
 next
-  Summary: Gear, maneuver fixes, Vision Speed retune, Moving Fire defaults, wounded-heal logging
+  Summary: Gear, Perception menu, Vision Range, maneuver fixes, Vision Speed retune, Moving Fire defaults, wounded-heal logging
 
   Combat
     Maneuvers
       - Fixed cornered NPCs accepting kite paths under a metre long, the arrived-but-nothing-moved shuffle: a kite destination now counts only if standing on it
-        puts the enemy back outside the stalker's minimum weapon range, so every completed kite solves the problem it fired for; a boxed-in NPC stands and fights instead.
+        puts the enemy back outside the stalker's minimum weapon range, so every completed kite solves the problem it fired for. A boxed-in NPC stands and fights instead.
         Escape paths are also obstacle-checked to the end now, so a withdrawing NPC no longer runs into a tree or crate his path routed through.
       - Fixed a maneuver continuing to drive an NPC after he collapsed wounded: it now ends the moment he goes down, and the wounded behavior owns him cleanly.
       - Maneuvers no longer start on, or re-apply state to, a body that is mid-animation - a hit stagger, a script pose, or (on engine builds that expose it) the hit flinch.
@@ -17,27 +17,32 @@ next
 
   Mechanics
     Gear
-      - Added Gear: items a stalker carries become live benefits read from each item's own game data, so any artefact from any mod works.
-        Armor artefacts and inserts reduce damage taken, fire artefacts raise damage dealt, electric ones sharpen aim and eyes, psy ones stop panic,
-        healing ones speed recovery, acid ones feed armor-piercing rounds, stamina ones quicken the trigger, gravity ones steady fire, and binoculars or night-vision lamps sharpen spotting.
-        Any single item tops out near 7 percent and a whole loadout near 15, and any artefact carrier warps the air around his body, so a distorting stalker is a huntable artefact drop.
+      - Added Gear: items a stalker carries become live combat edges, read from each item's own game data, so any artefact from any mod works.
+        Gravity, chemical, and armour-plate artefacts cut the damage he takes, thermal artefacts tighten his fire, and electric and quest artefacts raise the damage he deals,
+        each up to 10 percent and never stacking so the strongest source wins. Any artefact carrier warps the air around his body, so a distorting stalker is a huntable artefact drop.
+        Binoculars and night-vision extend his sight range on engine builds with the per-stalker view-distance bind, inactive on older ones.
     Healing
       - Fixed the bandaging gesture playing on a walking NPC, which froze his legs and made him glide. The gesture now waits until he stands still.
 
-  Danger
+  Perception
     Sound
       - Fixed heard noise producing no reaction on modpacks that mute NPC sound perception: the noise alert now wakes the danger scheme on its own,
         where before it only worked when the engine coincidentally perceived a danger of its own at the same time.
       - Movement and landing noise now scales with the installed pack's own NPC hearing tuning,
         so a stealth rebalance that deafens stalker hearing quiets your footsteps by the same ratio. On vanilla and GAMMA tuning nothing changes.
+    Vision
+      - Changed the per-rank Vision Speed: it is how fast a stalker turns a glimpse into a confirmed threat, and most ranks now notice slightly slower than your detection setup's baseline
+        while a legend tops out at +15% over it instead of the old +100%, so a high-rank squad no longer snap-detects you through light cover. Experienced rank sits at your baseline.
+      - Added a per-rank Vision Range curve, the twin of Vision Speed: how far out a stalker begins to notice a threat, a tight band around your setup's baseline.
+        It needs an engine build with the per-stalker view-distance bind and is inactive on older exes. Vision now has its own page holding both curves.
+    Danger
+      - Changed the menu: the old Danger tab is now Perception, the vision curves moved from Reaction into their own Vision page, and the Hit and Fixes pages
+        folded into one Danger page with the always-on crash fixes shown as locked toggles. Affected settings reset to defaults once.
 
   Effectiveness
     Accuracy
       - Changed the Moving Fire defaults to keep a clear movement penalty at every rank: legend now cuts about a third of the moving spread instead of erasing it (0.70, was 0.50),
         so planted fire keeps its edge over firing on the run.
-    Reaction
-      - Changed the per-rank Vision Speed: it is how fast a stalker turns a glimpse into a confirmed threat, and most ranks now notice slightly slower than your detection setup's baseline
-        while a legend tops out at +15% over it instead of the old +100%, so a high-rank squad no longer snap-detects you through light cover. Experienced rank sits at your baseline.
 
   Development
     - Changed the two world debug recorders into one: the Ballistics toggle is gone, and World behaviour debug now records both the slide watchdog

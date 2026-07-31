@@ -4,17 +4,17 @@ local RegisterScriptCallback = RegisterScriptCallback
 
 local cfg = at_mcm.cfg
 
--- Engine flow (ai_stalker_fire.cpp:75-142): base = PI/180; base *= m_fRankDisperison (=0.8
--- for clamped Anomaly ranks); base *= per-state factor (walk/zoom/crouch); callback fires.
--- We stack two factors on top: out = base * disp * move. disp is the flat rank curve, spread wide
--- so rank reads over positional noise (novice 1.20 sprays, legend 0.20 is the proven 52-62%-hit
--- cone; 1.0 preserves engine baseline, lower = tighter, above 1.0 loosens). move applies ONLY while
--- the shooter is moving (move_type walk/run - the same movement_type() the engine keys its walk/run
--- multipliers on, ai_stalker_fire.cpp:81-104): it cancels part of the movement penalty per rank. The
--- penalty is ~2x cone (walk 5.1+1 vs still 2.0+1, m_stalker.ltx:478-482); factor 1.00 keeps the full
--- vanilla penalty, 0.50 would erase it. Shipped legend is 0.70 (~1.8x penalty left), novice 1.00 =
--- full penalty: every rank still pays visibly for moving, so planted fire keeps its edge. Same
--- tier-floor lerp as every curve (game_relations.ltx:8 floors / 27000).
+-- Engine flow (ai_stalker_fire.cpp:72-133): base = PI/180; base *= m_fRankDisperison (=0.8 for clamped
+-- Anomaly ranks); base *= per-state factor (walk/zoom/crouch); callback fires. Two rank factors ride the
+-- cone. disp is the standing rank curve (novice 1.20 sprays, legend 0.20 the proven 52-62%-hit cone; 1.0
+-- = engine baseline, lower = tighter, above 1.0 loosens); it is MULTI-source (rank + a thermal artefact),
+-- so at_accuracy REGISTERS it as the SHOT_DISPERSION rank slice and the resolver applies min(rank,thermal)
+-- via xcombat.scale_dispersion. move is SINGLE-source (rank only) and keyed on the per-shot move_type a
+-- provider never sees, so at_accuracy writes it DIRECTLY on the shot seam: it applies only while the
+-- shooter moves (walk/run, the same move_type the engine keys its own ~2x-cone penalty on - walk 5.1+1 vs
+-- still 2.0+1, m_stalker.ltx:478-482) and cancels part of it per rank (1.00 = full vanilla penalty, legend
+-- 0.70 leaves ~1.8x). Both factors multiply temp_disp.dispersion, so they compose regardless of subscriber
+-- order. Same tier-floor lerp as every curve (game_relations.ltx:8 floors / 27000).
 
 -- Per-tier curves, filled from at_mcm at _refresh_config (single source of truth: the at_mcm defaults
 -- table + MCM sliders). Empty here on purpose - get_config never returns nil for these keys (the
@@ -25,40 +25,48 @@ local _move = {}
 -- move_type enum (ai_monster_space.h:31-33): walk = 0, run = 1, stand = 2.
 local MT_RUN = 1
 
--- The 8 rank tiers, MCM key order (mirrors the _disp/_move tables and the at_mcm slider ids).
-local TIERS = { "novice", "trainee", "experienced", "professional", "veteran", "expert", "master", "legend" }
+-- The rank tiers, owned by xcreature; iterated to build the per-rank _disp/_move keys.
+local TIERS = xcreature.RANK_TIERS
 
 local _get_obj_rank_name = ranks.get_obj_rank_name
 
--- Callback signature (obj, wpn, body_state, move_type, temp_disp) per
--- axr_main.script:126 and _g.script:1213-1217. temp_disp is a shared table;
--- subscribers read/write temp_disp.dispersion.
-local function _on_npc_shot_dispersion(obj, wpn, body_state, move_type, temp_disp)
-    if not (cfg.disp_enabled or cfg.move_enabled) then return end
-    if not obj or not temp_disp then return end
+-- The rank cone slice of SHOT_DISPERSION (D11): the per-rank standing dispersion factor, registered into
+-- at_effects_resolver where it composes highest-wins (min = tighter cone) with at_gear's thermal factor.
+-- at_accuracy only PROVIDES the cone; the resolver applies it via xcombat.scale_dispersion. Zombied
+-- excluded like every rank curve; gated by the dispersion toggle.
+local function _disp_provider(obj)
+    if not cfg.disp_enabled then return nil end
+    if xcreature.community(obj) == "zombied" then return nil end
+    local tier = _get_obj_rank_name(obj)
+    if not tier or tier == "" then return nil end
+    return _disp[tier]
+end
+
+-- The moving-fire penalty, written DIRECTLY on the shot seam because it is single-source (rank only) and
+-- keyed on the per-shot move_type a provider never receives. It multiplies temp_disp.dispersion, and the
+-- resolver's SHOT_DISPERSION multiplies the same field, so the two compose regardless of subscriber order.
+-- Applies only while the shooter moves (walk/run). Callback signature (obj, wpn, body_state, move_type,
+-- temp_disp) per axr_main.script:126 and _g.script:1213-1217; temp_disp is the shared cone table.
+local function _on_move_penalty(obj, wpn, body_state, move_type, temp_disp)
+    if not cfg.move_enabled then return end
+    if not (obj and temp_disp and temp_disp.dispersion) then return end
     if xcreature.community(obj) == "zombied" then return end
+    if not (move_type and move_type <= MT_RUN) then return end
 
     local tier = _get_obj_rank_name(obj)
     if not tier or tier == "" then return end
-
-    -- Dispersion and moving-fire are independent toggles: a disabled factor stays 1.0 (no change).
-    local disp = (cfg.disp_enabled and _disp[tier]) or 1.0
-    local move = 1.0
-    if cfg.move_enabled and move_type and move_type <= MT_RUN then
-        move = _move[tier] or 1.0
-    end
+    local move = _move[tier]
+    if not move or move == 1.0 then return end
 
     local tmr  = xprofiler.new_if(at_trace.on()):start()
     local base = temp_disp.dispersion
-    if not base then tmr:stop() return end
-    local out  = base * disp * move * at_gear.factor(obj, at_gear.CH.DISP)
-    temp_disp.dispersion = out
+    temp_disp.dispersion = base * move
     tmr:stop()
 
     if at_trace.on() then
         local sect = (wpn and wpn:section()) or "none"
-        at_trace.dbg("[ACC] id=%d tier=%s section=%s bs=%d mt=%d base=%.5f disp=%.2f move=%.2f out=%.5f [%.3fms]",
-            obj:id(), tier, sect, body_state, move_type, base, disp, move, out, tmr:get_ms())
+        at_trace.dbg("[ACC] move id=%d tier=%s section=%s bs=%d mt=%d base=%.5f move=%.2f out=%.5f [%.3fms]",
+            obj:id(), tier, sect, body_state, move_type, base, move, temp_disp.dispersion, tmr:get_ms())
     end
 end
 
@@ -78,7 +86,8 @@ local function _on_first_update()
 end
 
 function on_game_start()
-    RegisterScriptCallback("npc_shot_dispersion",       _on_npc_shot_dispersion)
+    at_effects_resolver.register(at_effects_resolver.EFFECT.SHOT_DISPERSION, _disp_provider)
+    RegisterScriptCallback("npc_shot_dispersion",       _on_move_penalty)
     RegisterScriptCallback("actor_on_first_update",     _on_first_update)
     RegisterScriptCallback("on_option_change",          _refresh_config)
     RegisterScriptCallback("mcm_option_restore_default", _refresh_config)

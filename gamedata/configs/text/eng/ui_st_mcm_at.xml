@@ -11,6 +11,9 @@
   <string id="ui_mcm_menu_effectiveness">
     <text>Effectiveness</text>
   </string>
+  <string id="ui_mcm_menu_perception">
+    <text>Perception</text>
+  </string>
   <string id="ui_mcm_menu_mechanics">
     <text>Mechanics</text>
   </string>
@@ -36,11 +39,8 @@
   <string id="ui_mcm_menu_sound">
     <text>Sound</text>
   </string>
-  <string id="ui_mcm_menu_hit">
-    <text>Hit</text>
-  </string>
-  <string id="ui_mcm_menu_fixes">
-    <text>Fixes</text>
+  <string id="ui_mcm_menu_vision">
+    <text>Vision</text>
   </string>
   <string id="ui_mcm_menu_crossfire">
     <text>Crossfire</text>
@@ -616,6 +616,57 @@
   <string id="ui_mcm_at_reaction_rct_vision_legend_desc">
     <text>How fast a legend-rank stalker, the highest rank, notices a threat. Higher notices sooner; 1.00 is your setup's baseline. Point-blank detection is unaffected.</text>
   </string>
+  <string id="ui_mcm_at_hdr_vision_range">
+    <text>Vision Range</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vrange_novice">
+    <text>Novice vision range</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vrange_novice_desc">
+    <text>How far out a novice-rank stalker begins to notice a threat. Above 1.00 sees farther at range, 1.00 is your setup's baseline. Needs a recent engine build with the per-stalker view-distance bind; inactive on older ones.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vrange_trainee">
+    <text>Trainee vision range</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vrange_trainee_desc">
+    <text>Detection distance factor for trainee-rank stalkers. Higher begins seeing targets from farther out.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vrange_experienced">
+    <text>Experienced vision range</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vrange_experienced_desc">
+    <text>Detection distance factor for experienced-rank stalkers. Higher begins seeing targets from farther out.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vrange_professional">
+    <text>Professional vision range</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vrange_professional_desc">
+    <text>Detection distance factor for professional-rank stalkers. Higher begins seeing targets from farther out.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vrange_veteran">
+    <text>Veteran vision range</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vrange_veteran_desc">
+    <text>Detection distance factor for veteran-rank stalkers. Higher begins seeing targets from farther out.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vrange_expert">
+    <text>Expert vision range</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vrange_expert_desc">
+    <text>Detection distance factor for expert-rank stalkers. Higher begins seeing targets from farther out.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vrange_master">
+    <text>Master vision range</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vrange_master_desc">
+    <text>Detection distance factor for master-rank stalkers. Higher begins seeing targets from farther out.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vrange_legend">
+    <text>Legend vision range</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vrange_legend_desc">
+    <text>How far out a legend-rank stalker, the highest rank, begins to notice a threat. Above 1.00 sees farther; 1.00 is your setup's baseline. Needs the view-distance engine bind.</text>
+  </string>
   <!-- ==================== COMMITMENT PAGE ==================== -->
   <string id="ui_mcm_at_commitment_commitment_cover_pin">
     <text>Cover pinning</text>
@@ -709,7 +760,13 @@
   <string id="ui_mcm_at_crossfire_crossfire_factor_desc">
     <text>How much damage a same-faction hit deals. 0.00 means teammates take no damage from each other. 1.00 is full vanilla damage.</text>
   </string>
-  <!-- ==================== DANGER FOLDER (SOUND / HIT / FIXES) ==================== -->
+  <!-- ==================== PERCEPTION FOLDER (SOUND / VISION / DANGER) ==================== -->
+  <string id="ui_mcm_at_vision_desc">
+    <text>How a stalker's eyes scale with rank: how fast he turns a glimpse into a confirmed threat (speed), and how far out he begins to notice one (range). Both are reaction and experience, not raw eyesight, and sit in a tight band around your setup's baseline. Range needs a recent engine build with the per-stalker view-distance bind; on older builds only the speed curve applies.</text>
+  </string>
+  <string id="ui_mcm_at_perception_danger_desc">
+    <text>How stalkers react to being hit, plus the always-on fixes to the danger check and corpse investigation. The distant-hit response and the player-range tuning toggle below; the crash and misread fixes are locked on and listed. AlifeTactics installs as a runtime patch onto whichever danger script your modpack ships.</text>
+  </string>
   <string id="ui_mcm_at_danger_sound_desc">
     <text>How stalkers react to what they hear. Gunfire reactions use your setup's danger config distances; your own noise (movement, handling) uses short built-in radii. Runtime patch onto whichever danger script your modpack ships - works with other combat AI, replaces nothing. Compatible with stealth mods: stealth is about being SEEN (light, cover, stance), and the sound system never touches vision or detection - hearing only adds the short-range sense vanilla lacks, and crouched movement is silent, so a stealth approach plays exactly as your stealth setup intends.</text>
   </string>
@@ -718,12 +775,6 @@
   </string>
   <string id="ui_mcm_at_danger_hdr_noise">
     <text>Your noise</text>
-  </string>
-  <string id="ui_mcm_at_danger_hit_desc">
-    <text>How stalkers react to being hit. Reaction distances come from your setup's danger config; AlifeTactics adds the reactions, not the tuning.</text>
-  </string>
-  <string id="ui_mcm_at_danger_fixes_desc">
-    <text>Always-on fixes to the danger check and corpse investigation, plus one tuning toggle. The fixes are not optional; they clear long-standing crashes and misreads. AlifeTactics installs as a runtime patch onto whichever danger script your modpack ships.</text>
   </string>
   <string id="ui_mcm_at_fixes_danger_danger_hit_bypass">
     <text>Distant hits</text>
@@ -770,6 +821,9 @@
   <string id="ui_mcm_at_danger_hdr_fixes">
     <text>Always-on bug fixes (not toggleable)</text>
   </string>
+  <string id="ui_mcm_at_danger_fixes_always_on">
+    <text>Crash, corpse and performance fixes</text>
+  </string>
   <string id="ui_mcm_at_danger_fixes_list">
     <text>1. Three danger categories read the wrong config rows through a name collision. Each now reads its own. \n2. A mutant corpse crashed the danger time check. \n3. A torn-down NPC reference crashed the danger evaluator. \n4. A bad danger time value crashed the evaluator. \n5. The hit callback corrupted the danger memory with a missing shooter on every hit. \n6. Danger transitions left a stale lower-body animation playing. \n7. Leaving the danger state wiped every stalker's cover reservation instead of only its own. \n8. A corpse despawning mid-investigation crashed the investigator. \n9. The corpse investigation drove the wrong squad member through its stages. \n10. The investigator walked to a cleared spot instead of the cover it had found. \n11. The danger check re-parsed the same config strings on every evaluation. They parse once now (performance). \n12. A dead stalker's scripted danger no longer lingers on its id, so a respawn reusing the id starts clean. \n13. The corpse reaction crashed the game when it fired before its investigation stage was set.</text>
   </string>
@@ -795,7 +849,7 @@
   </string>
   <!-- ==================== GEAR PAGE ==================== -->
   <string id="ui_mcm_at_gear_desc">
-    <text>Items a stalker carries become live benefits, read from each item's own game data. Armor artefacts and inserts reduce the damage he takes, fire artefacts raise the damage he deals, electric artefacts sharpen his aim and eyes, psy artefacts keep him from panicking, healing artefacts speed his recovery, acid artefacts feed him armor-piercing rounds, stamina artefacts quicken his trigger, gravity artefacts steady his fire. Binoculars and night-vision lamps sharpen his eyes. Any single item tops out around 7 percent and everything he carries together around 15, so gear tilts a fight, never decides one. A stalker with the air warping around him is carrying a real artefact, and killing him is how you get it.</text>
+    <text>Items a stalker carries become live combat edges, read from each item's own game data, so any artefact from any mod works. Gravity, chemical, and armour-plate artefacts cut the damage he takes, thermal artefacts tighten his fire, and electric and quest artefacts raise the damage he deals. Any single artefact tops out at 10 percent and never stacks, the strongest source wins, so gear tilts a fight and never decides one. Binoculars extend his sight range by day and night-vision by night, on engine builds with the per-stalker view-distance bind. A stalker with the air warping around him is carrying a real artefact, and killing him is how you get it.</text>
   </string>
   <string id="ui_mcm_at_gear_gear_enabled">
     <text>Carried items empower stalkers</text>
@@ -819,13 +873,13 @@
     <text>Binocular spotters</text>
   </string>
   <string id="ui_mcm_at_gear_gear_binoc_enabled_desc">
-    <text>On: a stalker carrying binoculars spots targets faster. Off: binoculars stay inert.</text>
+    <text>On: a stalker carrying binoculars sees farther in daylight. Needs an engine build with the per-stalker view-distance bind; inactive on older exes. Off: binoculars stay inert.</text>
   </string>
   <string id="ui_mcm_at_gear_gear_nvg_enabled">
     <text>Night-vision at night</text>
   </string>
   <string id="ui_mcm_at_gear_gear_nvg_enabled_desc">
-    <text>On: a stalker carrying a night-vision lamp spots targets faster during night hours. Off: night-vision lamps stay inert.</text>
+    <text>On: a stalker carrying a night-vision lamp sees farther during night hours. Needs an engine build with the per-stalker view-distance bind; inactive on older exes. Off: night-vision lamps stay inert.</text>
   </string>
   <!-- ==================== DEVELOPMENT PAGE ==================== -->
   <string id="ui_mcm_at_development_desc">

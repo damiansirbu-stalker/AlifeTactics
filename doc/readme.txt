@@ -116,13 +116,12 @@ It keys on their actual relation, so genuinely hostile factions still trade fire
 Reaction:
 Stalker rank now shapes gun handling, applied per stalker.
 Tracking Speed sets how tightly a barrel follows a moving target, from vanilla at the bottom rank to the game's own hardcore AI aim at the top.
-Vision Speed sets how fast each rank turns a glimpse into a confirmed threat, from a touch below your setup's detection speed at the low ranks to about 15 percent faster at the top, with the middle ranks near your baseline.
-It scales the rate only: sight range, vision cone, light and darkness response, cover and occlusion, and hearing all stay exactly as your setup has them.
 Target Lead aims a stalker ahead of a moving target by the round's real flight time, computed from range and the weapon's bullet speed as it fires.
 Higher ranks lead true and hit movers, lower ranks over-lead and overshoot.
 Fire Discipline gives higher ranks crisper short bursts at a tighter cadence while low ranks stay vanilla. Defaults keep a rank's rounds per minute at or above vanilla.
-Tracking, Vision, Target Lead, and Fire Discipline are per-rank MCM slider curves, each with its own on/off and a short note on the toggle.
-It uses per-NPC aim and vision hooks created in xray-monolith for this mod, so on older builds the page has no effect.
+Tracking, Target Lead, and Fire Discipline are per-rank MCM slider curves, each with its own on/off and a short note on the toggle.
+It uses per-NPC aim hooks created in xray-monolith for this mod, so on older builds the page has no effect.
+The two rank vision curves moved to the Perception tab below.
 
 Range (planned):
 The game stops NPC fights at a hard range cap regardless of weapon, so a sniper never fires at the distances his rifle exists for.
@@ -131,10 +130,10 @@ A stalker sniped from beyond the cap can duck, which is the Danger hit response,
 Resistance (planned):
 NPC toughness comes from what they carry: armor and equipment, damage mitigators, and artefacts.
 
-Danger
+Perception
 
-Danger is how a stalker reacts to a threat he perceives, by sound, by hit, or later by sight.
-It is a runtime patch laid onto whichever danger script your modpack ships rather than a replacement, so it works with other combat AI.
+Perception is how a stalker senses and reacts: what he hears, how his rank shapes his sight, and how he reacts to being hit.
+The Sound and Danger reactions are a runtime patch laid onto whichever danger script your modpack ships rather than a replacement, so they work with other combat AI.
 Detection distances stay owned by your setup's danger config, and AlifeTactics adds the reactions, never the tuning.
 
 Sound:
@@ -157,12 +156,17 @@ Hearing only adds the short-range sense vanilla lacks, and crouched movement is 
 Neutral and friendly stalkers get one reaction of their own: fire close to them and they go weapon-ready facing your shots instead of ignoring gunfire next to their heads.
 They only go alert, never hostile, and settle down when the shooting stops. Every reaction has its own toggle.
 
-Hit:
+Vision:
+Stalker rank shapes the eyes as well as the trigger, applied per stalker.
+Vision Speed sets how fast each rank turns a glimpse into a confirmed threat, from a touch below your setup's detection speed at the low ranks to about 15 percent faster at the top, with the middle ranks near your baseline.
+It scales the rate only: sight range, vision cone, light and darkness response, cover and occlusion, and hearing all stay exactly as your setup has them.
+Vision Range sets how far out each rank begins to notice a threat, the same tight band around your baseline, on engine builds carrying the per-stalker view-distance hook created for this mod, inactive on older exes.
+Both are per-rank MCM slider curves under one Vision toggle, on their own Vision page.
+
+Danger:
 A stalker hit from far off reacts even when vanilla would have him stand still, so sniped at 200m he turns and seeks cover.
 The reaction is the duck, and returning fire at that range is the planned Range page above.
-
-Fixes:
-A set of always-on fixes clears long-standing crashes and misreads across the danger check and the corpse investigation, and these are not optional.
+A set of always-on fixes clears long-standing crashes and misreads across the danger check and the corpse investigation, and these are not optional, shown as locked toggles.
 One tuning toggle lets danger you cause read your setup's separate player-specific ranges where the config provides them.
 One of those fixes shortens reactions instead of lengthening them.
 Vanilla's danger table gives three of its entries the same key, so two threat types are read under the wrong range: a ricochet at the 150m sight range instead of its own 4m,
@@ -191,13 +195,13 @@ That AP comes from trade and looting through the Alife Collection, so what an NP
 Rank threshold and consumption rate are tunable in configs/alifetactics/at_ammo.ltx.
 
 Gear:
-Items a stalker carries become live benefits, read from each item's own game data, so artefacts from any mod work.
-Armor artefacts and inserts reduce the damage he takes, fire artefacts raise the damage he deals, electric artefacts sharpen his aim and eyes,
-  psy artefacts keep him from panicking, healing artefacts speed his recovery, acid artefacts feed him armor-piercing rounds, stamina artefacts quicken his trigger,
-  gravity artefacts steady his fire, and binoculars or night-vision lamps sharpen his spotting.
-Any single item tops out around 7 percent and a whole loadout around 15, so gear tilts a fight, never decides one.
+Items a stalker carries become live combat edges, read from each item's own game data, so artefacts from any mod work.
+An artefact grants one edge chosen by its anomaly class, scaled by its own tier: gravity, chemical, and armour-plate artefacts cut the damage he takes,
+  thermal artefacts tighten his fire, and electric and quest artefacts raise the damage he deals.
+Any single artefact tops out at 10 percent and never stacks, the strongest source wins, so gear tilts a fight and never decides one.
 Any artefact carrier warps the air around his body, so a distorting stalker is a real, huntable artefact drop.
-Effect strengths are tunable in configs/alifetactics/at_gear.ltx.
+Binoculars extend his sight range by day and night-vision by night, on engine builds carrying the per-stalker view-distance hook created for this mod, inactive on older exes.
+Effect strengths and the artefact class tables are tunable in configs/alifetactics/at_gear.ltx.
 
 Effects (planned):
 Player-facing combat feedback, starting with concussion: tinnitus and blur.

@@ -1,621 +1,300 @@
---- at_gear: functional NPC inventory (t169). Items a stalker CARRIES become live benefits, read
---- from each item's own config so vanilla, junk, and modded items resolve without a hand table.
---- Artefacts translate per CHANNEL: the springboard armor line's fire_wound/wound/explosion/strike
---- immunities scale incoming damage; burn (fire line) scales outgoing damage; shock (electra line)
---- becomes reflexes (aim tracking + vision speed); telepatic (psy line) becomes panic immunity;
---- health/bleeding restore (soul and blood lines) scale the self-heal rate; chemical_burn (acid
---- line) grants AP affinity; power (stamina line) tightens the fire-queue interval; weight (gravi
---- line) tightens dispersion. Binoculars and night-vision torches add a vision factor (NVG at
---- night only). Any artefact carrier wears the one aura named in at_gear.ltx, whatever the
---- artefact does - a distorting stalker IS a visible, huntable artefact drop. Optics never
---- trigger it. A blank row means no aura at all, and there is no fallback to the artefact's own
---- particles key.
+--- at_gear: the functional-inventory SOURCE. It walks what a stalker CARRIES and registers per-NPC
+--- effect contributions into at_effects_resolver; it writes no multi-source engine field itself. An
+--- artefact grants one combat edge chosen by its anomaly CLASS, scaled by the section's intrinsic `tier`
+--- (tier x 2%, ladder 4/6/8% over vanilla tier 2-4, 10% ceiling at tier 5). The class -> effect map is
+--- the design assignment (D6): gravi + chemical(interim) + plates -> DAMAGE_RESIST, thermal ->
+--- SHOT_DISPERSION, electro + the quest specials -> DAMAGE_DEALT, binoculars + NVG -> VISION_RANGE, and
+--- every artefact -> the carrier AURA (a presence, applied by the resolver). Detection is by exact vanilla
+--- section name, read from at_gear.ltx; a modded section not listed grants nothing.
 ---
---- Caps (user rule): one item's effect never exceeds cap_item (7%); the SUM of an NPC's numeric
---- effects never exceeds cap_total (15%, proportional scale-down); at most MAX_EFFECTS channels
---- apply; the same channel never stacks across items - strongest wins. Effects scale by the
---- item's condition, matching the engine's belt loop (Actor.cpp:2606-2609). Player parity note:
---- the player benefits from BELT artefacts only; the NPC condition is carried-in-inventory - a
---- deliberate, documented deviation (NPCs manage no belt).
+--- The one single-source value at_gear owns and writes itself (never through the resolver, invariant I3)
+--- is PASSIVE_REGEN: the chemical line feeds the engine restore velocity via the n039
+--- set_health_restore_boost bind, applied at net_spawn. Until n039 is present on the exe, the write is
+--- inert and the chemical line folds into DAMAGE_RESIST instead (the D18 interim), decided by a one-time
+--- capability probe.
 ---
---- Mechanics: one LAZY per-id cache - the first factor()/resist read for an unknown id runs one
---- xinventory.iterate_inventory pass and stores the resolved effect set; npc_on_item_take/drop
---- re-resolve that id; server_entity_on_unregister drops it. The only new callback seams live
---- HERE (before-hit both directions, the aura, a 60s night-flip tick, the panic evaluator patch);
---- other modules read at_gear.factor() at write sites they already own. No polling, no per-frame
---- work; all tracing rides at_trace and is a no-op below DEBUG.
+--- The scan is LAZY: the first provider read (or the resolver's net_spawn apply) walks the inventory once
+--- and caches the record; later reads are table lookups, and the toggles are applied live at the provider
+--- so a record never needs re-scanning on an option change. Tracing rides at_trace, a no-op below DEBUG.
 
-local pairs, next, math_abs, math_max, math_min = pairs, next, math.abs, math.max, math.min
-local table_sort, string_find = table.sort, string.find
-local RegisterScriptCallback = RegisterScriptCallback
-local level, ini_sys, ini_file, IsStalker, AC_ID = level, ini_sys, ini_file, IsStalker, AC_ID
-local xinventory, xcreature, at_trace = xinventory, xcreature, at_trace
+local math_max, math_min, tostring = math.max, math.min, tostring
+local IsStalker, AC_ID, type = IsStalker, AC_ID, type
+local RegisterScriptCallback, ini_file, ini_sys = RegisterScriptCallback, ini_file, ini_sys
+local level = level
+local xinventory, xcreature, xprofiler = xinventory, xcreature, xprofiler
+local at_trace, at_effects_resolver, xcombat = at_trace, at_effects_resolver, xcombat
+local EFFECT = at_effects_resolver.EFFECT
 
 local cfg = at_mcm.cfg
 
 local GEAR_LTX = "alifetactics\\at_gear.ltx"
 local GEAR_SECTION = "at_gear"
-local MAX_EFFECTS = 3
-local BINARY_SCORE = 0.05
-local NIGHT_TICK_SEC = 60
-local ARTY_KIND = "i_arty"
-local BINOC_PREFIX = "wpn_binoc"
-local NVG_PREFIX = "device_torch_nv"
-local AURA_BONES = { "bip01_spine", "bip01_pelvis", "bip01_head", "link" }
-local BI_NONE = 65535
 
---- Channel ids consumers pass to factor(). AIM/VISION ride at_reaction.apply, INTERVAL rides
---- _apply_discipline, DISP rides at_accuracy's per-shot product, REGEN rides at_healing's hp tick.
-CH = {
-    AIM      = "aim",
-    VISION   = "vision",
-    REGEN    = "regen",
-    INTERVAL = "interval",
-    DISP     = "disp",
-}
+-- Tunables, loaded from at_gear.ltx over these fallbacks (the repo-wide LTX-with-script-fallback rule).
+local _tier_step   = 0.02
+local _tier_cap    = 0.10
+local _binoc_range = 1.50
+local _nvg_range   = 1.50
+local _night_start = 22
+local _night_end   = 5
+local _regen_scale = 0.003
 
--- Internal channel keys beyond CH (resist/dealt live in the hit subscriber, panic in the
--- evaluator patch, ap in at_ammo's gate).
-local CH_RESIST, CH_DEALT, CH_REFLEX, CH_PANIC, CH_AP = "resist", "dealt", "reflex", "panic", "ap"
+-- section -> kind (gravi / thermal / chemical / electro / special / plate / binoc / nvg), built from the
+-- ltx class lists at load. The class -> effect mapping is the _collect switch below (D6).
+local _kind = {}
+-- The five artefact kinds that emit the carrier aura (plates and optics do not - tools, not matter).
+local _ARTY_KINDS = { gravi = true, thermal = true, chemical = true, electro = true, special = true }
 
--- The four incoming-damage immunity keys applied directly (the channels NPC combat actually
--- delivers); the rest of the absorbation section feeds the translated channels above.
-local RESIST_KEYS = { "fire_wound", "wound", "explosion", "strike" }
-
--- Band tunables, loaded from at_gear.ltx with these code fallbacks (rct_fb convention). rmin/rmax
--- span each line's vanilla config range; bmin/bmax is the effect band the range maps onto.
-local _bands = {
-    cap_item  = 0.07,
-    cap_total = 0.15,
-    dealt_rmin = 0.00115, dealt_rmax = 0.0059,  dealt_bmin = 0.03, dealt_bmax = 0.07,
-    reflex_rmin = 0.062,  reflex_rmax = 0.42,   reflex_bmin = 0.03, reflex_bmax = 0.07,
-    regen_rmin = 0.000075, regen_rmax = 0.0003, regen_bmin = 0.03, regen_bmax = 0.07,
-    bleed_rmin = 0.0001,  bleed_rmax = 0.0044,
-    firerate_rmin = 0.00088, firerate_rmax = 0.00186, firerate_bmin = 0.03, firerate_bmax = 0.07,
-    disp_rmin = 5.23, disp_rmax = 13.3, disp_bmin = 0.03, disp_bmax = 0.07,
-    vision_binoc = 0.07,
-    vision_nvg = 0.07,
-    night_start_h = 22,
-    night_end_h = 5,
-}
-
--- The one aura, from at_gear.ltx: any artefact carrier wears it, whatever the artefact does.
--- Empty means NO GLOW at all - there is no fallback to the artefact's own particles key, so an
--- unset row can never resurface an effect nobody picked. Only config-referenced particle names are
--- valid here: a name living solely inside particles.xr can be absent from a modpack shipping its
--- own library, and a missing name is an engine fatal with no existence check from script
--- (r4.cpp:738-748).
-local _aura = ""
-local _aura_bone = ""
-
--- sec -> static item profile ({arty channels, particles} / {binoc=true} / {nvg=true} / false).
--- Config never changes in-session, so this is session-lifetime.
-local _sect_cache = {}
--- id -> resolved effect set (see _resolve) or false for a resolved non-carrier.
+-- id -> resolved record, or false (a scanned non-carrier / ineligible sentinel). nil = never scanned.
 local _resolved = {}
--- id -> the bone the aura is emitting on; the name is always _aura (stop_particles needs both).
-local _emitting = {}
--- ids whose resolved record carries panic immunity: the pure-Lua early-out for the panic
--- evaluator wrap (an existing per-frame engine Lua path; with no psy carrier alive the wrap
--- costs one empty-table read and zero luabind - the ap_ext_object_mutator _alpha_ids shape).
-local _panic_ids = {}
--- hit-type enum -> immunity key, built lazily (the hit class global is engine-registered).
-local _HIT_KEY
-local _night = false
-local _orig_panic_evaluate
 
-local function _band(value, rmin, rmax, bmin, bmax)
-    if rmax <= rmin then return bmin end
-    local pos = (value - rmin) / (rmax - rmin)
-    if pos < 0 then pos = 0 elseif pos > 1 then pos = 1 end
-    return bmin + pos * (bmax - bmin)
+-- n039 capability: nil = unprobed, then a stable per-exe boolean. Present -> chemical feeds passive regen;
+-- absent -> chemical folds into DAMAGE_RESIST (the D18 interim).
+local _n039
+
+-- One luabind method-existence probe, cached (compatibility-standards: probe, never a version compare).
+local function _has_n039(npc)
+    if _n039 == nil then _n039 = type(npc.set_health_restore_boost) == "function" end
+    return _n039
 end
 
--- Clamped incoming-resist table from an absorbation section, or nil when every key is zero.
-local function _read_resist(absorb)
-    local cap = _bands.cap_item
-    local resist, any = {}, false
-    for i = 1, #RESIST_KEYS do
-        local value = ini_sys:r_float_ex(absorb, RESIST_KEYS[i] .. "_immunity") or 0
-        if value ~= 0 then
-            resist[RESIST_KEYS[i]] = math_max(-cap, math_min(cap, value))
-            any = true
-        end
-    end
-    if any then return resist end
-    return nil
+local function _is_night()
+    if not level.present() then return false end
+    local hours = level.get_time_hours()
+    return hours >= _night_start or hours < _night_end
 end
 
--- The channel translation table: one row per artefact config key. from_absorb rows read the
--- artefact's absorbation section, the rest read the artefact section itself; binary rows grant
--- the effect on any positive value, banded rows map the key through _band using the named
--- rmin/rmax/bmin/bmax tunables.
-local ARTY_CHANNELS = {
-    { key = "burn_immunity",               from_absorb = true, ch = CH_DEALT,    band = "dealt" },
-    { key = "shock_immunity",              from_absorb = true, ch = CH_REFLEX,   band = "reflex" },
-    { key = "telepatic_immunity",          from_absorb = true, ch = CH_PANIC,    binary = true },
-    { key = "chemical_burn_immunity",      from_absorb = true, ch = CH_AP,       binary = true },
-    { key = "power_restore_speed",         from_absorb = false, ch = CH.INTERVAL, band = "firerate" },
-    { key = "additional_inventory_weight", from_absorb = false, ch = CH.DISP,     band = "disp" },
+-- Clamped tier (>= 1) from the section's `tier` field (vanilla + GAMMA); default 1 for a section without
+-- one (plates, optics), which floors the effect at one tier step.
+local function _tier(sec)
+    local tier = ini_sys:r_float_ex(sec, "tier") or 1
+    if tier < 1 then return 1 end
+    return tier
+end
+
+-- Effect strength for a section: tier x step, capped. Raw strength (0.02..0.10), not yet a multiplier.
+local function _tier_strength(sec)
+    return math_min(_tier(sec) * _tier_step, _tier_cap)
+end
+
+-- kind -> how it contributes to the scan accumulator. Tiered kinds keep the strongest strength per
+-- effect group (a channel never stacks across items); optics set a presence flag. gravi feeds the resist
+-- pool and chemical the regen route (chemical is routed after the walk).
+local _CONTRIBUTE = {
+    gravi    = function(acc, sec) acc.resist = math_max(acc.resist, _tier_strength(sec)) end,
+    chemical = function(acc, sec) acc.chem   = math_max(acc.chem,   _tier_strength(sec)) end,
+    thermal  = function(acc, sec) acc.disp   = math_max(acc.disp,   _tier_strength(sec)) end,
+    electro  = function(acc, sec) acc.dealt  = math_max(acc.dealt,  _tier_strength(sec)) end,
+    special  = function(acc, sec) acc.dealt  = math_max(acc.dealt,  _tier_strength(sec)) end,
+    plate    = function(acc, sec) acc.plate  = math_max(acc.plate,  _tier_strength(sec)) end,
+    binoc    = function(acc) acc.binoc = true end,
+    nvg      = function(acc) acc.nvg = true end,
 }
 
--- One translation row against its source section; nil below/at zero.
-local function _read_channel(row, source)
-    local value = ini_sys:r_float_ex(source, row.key) or 0
-    if value <= 0 then return nil end
-    if row.binary then return true end
-    return _band(value, _bands[row.band .. "_rmin"], _bands[row.band .. "_rmax"],
-        _bands[row.band .. "_bmin"], _bands[row.band .. "_bmax"])
+-- Accumulate one inventory item into the scan: classify by section, mark aura presence for an artefact,
+-- and route the contribution through the kind table.
+local function _collect(acc, sec)
+    local kind = _kind[sec]
+    if not kind then return end
+    if _ARTY_KINDS[kind] then acc.aura = true end
+    _CONTRIBUTE[kind](acc, sec)
 end
 
--- Soul and blood lines merge into one regen channel: the bleed lever has no NPC-side rate to
--- scale (heal_bleed hard-sets the field), so clotting reads as faster vital recovery.
-local function _read_regen(sec)
-    local regen = 0
-    local health = ini_sys:r_float_ex(sec, "health_restore_speed") or 0
-    if health > 0 then
-        regen = _band(health, _bands.regen_rmin, _bands.regen_rmax, _bands.regen_bmin, _bands.regen_bmax)
-    end
-    local bleed = ini_sys:r_float_ex(sec, "bleeding_restore_speed") or 0
-    if bleed > 0 then
-        regen = math_max(regen, _band(bleed, _bands.bleed_rmin, _bands.bleed_rmax, _bands.regen_bmin, _bands.regen_bmax))
-    end
-    if regen > 0 then return regen end
-    return nil
+local function _trace_resolve(id, record, tmr)
+    at_trace.dbg("[GEAR] resolve id=%d resist=%.3f plate=%.3f dealt=%.3f disp=%.3f regen=%.5f binoc=%s nvg=%s aura=%s combat=%s [%.3fms]",
+        id, record.resist, record.plate, record.dealt, record.disp, record.regen,
+        tostring(record.binoc), tostring(record.nvg), tostring(record.aura), tostring(record.combat), tmr:get_ms())
 end
 
--- Static artefact profile from the section's own config: the clamped resist table plus one
--- translated candidate per positive channel key. Nil-heavy on purpose; only real channels exist.
--- @cost ~12 luabind heavy on first read per section (ini parses), pure table after
-local function _read_arty(sec)
-    local profile = { channels = {} }
-    local chan = profile.channels
-    local absorb = ini_sys:r_string_ex(sec, "hit_absorbation_sect")
-    if absorb and not ini_sys:section_exist(absorb) then absorb = nil end
-    if absorb then chan[CH_RESIST] = _read_resist(absorb) end
-    for i = 1, #ARTY_CHANNELS do
-        local row = ARTY_CHANNELS[i]
-        local source = row.from_absorb and absorb or sec
-        if source then chan[row.ch] = _read_channel(row, source) end
-    end
-    chan[CH.REGEN] = _read_regen(sec)
-    return profile
-end
-
--- Static profile for any section: artefact / binoculars / NVG / false (nothing).
-local function _sect_info(sec)
-    local cached = _sect_cache[sec]
-    if cached ~= nil then return cached or nil end
-    local info = false
-    if string_find(sec, BINOC_PREFIX, 1, true) == 1 then
-        info = { binoc = true }
-    elseif string_find(sec, NVG_PREFIX, 1, true) == 1 then
-        info = { nvg = true }
-    elseif ini_sys:r_string_ex(sec, "kind") == ARTY_KIND then
-        info = _read_arty(sec)
-    end
-    _sect_cache[sec] = info
-    return info or nil
-end
-
--- Optic candidate (binoculars / NVG) into the shared vision channel; strongest source wins.
-local function _collect_optic(candidates, score, src)
-    local prev = candidates[CH.VISION]
-    if not prev or score > prev.score then
-        candidates[CH.VISION] = { score = score, src = src }
-    end
-end
-
--- Candidate score for one artefact channel: resist ranks by its strongest immunity, binaries by
--- the fixed nominal, numerics by their band value; all condition-scaled.
-local function _arty_score(ch, value, cond)
-    if ch == CH_RESIST then
-        local strongest = 0
-        for _, immunity in pairs(value) do strongest = math_max(strongest, math_abs(immunity)) end
-        return strongest * cond
-    end
-    if value == true then return BINARY_SCORE end
-    return value * cond
-end
-
--- One inventory item into the per-NPC candidate table: per channel keep the strongest score
--- (same channel never stacks); artefact scores scale by item condition.
-local function _collect(candidates, item)
-    local info = _sect_info(item:section())
-    if not info then return end
-    if info.binoc then
-        if cfg.gear_binoc_enabled then _collect_optic(candidates, _bands.vision_binoc, "binoc") end
-        return
-    end
-    if info.nvg then
-        if cfg.gear_nvg_enabled then _collect_optic(candidates, _bands.vision_nvg, "nvg") end
-        return
-    end
-    if not cfg.gear_artefacts_enabled then return end
-    local cond = item:condition() or 1
-    if cond <= 0 then return end
-    local sect = item:section()
-    for ch, value in pairs(info.channels) do
-        local score = _arty_score(ch, value, cond)
-        local prev = candidates[ch]
-        if not prev or score > prev.score then
-            candidates[ch] = { score = score, value = value, cond = cond, sect = sect }
-        end
-    end
-end
-
--- Order channels by score, keep MAX_EFFECTS, then scale the numeric survivors down proportionally
--- when their summed score exceeds cap_total. Returns the kept candidate map.
-local function _select(candidates)
-    local order = {}
-    for ch, cand in pairs(candidates) do
-        order[#order + 1] = { ch = ch, cand = cand }
-    end
-    table_sort(order, function(a, b) return a.cand.score > b.cand.score end)
-    local kept, numeric_sum = {}, 0
-    for i = 1, math_min(#order, MAX_EFFECTS) do
-        local entry = order[i]
-        kept[entry.ch] = entry.cand
-        if entry.cand.value ~= true then numeric_sum = numeric_sum + entry.cand.score end
-    end
-    if numeric_sum > _bands.cap_total then
-        local scale = _bands.cap_total / numeric_sum
-        for _, cand in pairs(kept) do
-            if cand.value ~= true then cand.score = cand.score * scale end
-        end
-    end
-    return kept
-end
-
--- Per-channel record builders: kept candidate -> the flat fields the read paths consume. resist
--- re-scales its table when the sum cap shrank the channel's score.
-local _BUILDERS = {
-    [CH_RESIST] = function(record, cand)
-        local resist, strongest = {}, 0
-        for _, immunity in pairs(cand.value) do strongest = math_max(strongest, math_abs(immunity)) end
-        local rescale = (strongest > 0) and (cand.score / (strongest * cand.cond)) or 0
-        for key, immunity in pairs(cand.value) do resist[key] = immunity * cand.cond * rescale end
-        record.resist = resist
-    end,
-    [CH_DEALT]  = function(record, cand) record.dealt = cand.score end,
-    [CH_PANIC]  = function(record) record.panic = true end,
-    [CH_AP]     = function(record) record.ap = true end,
-    [CH_REFLEX] = function(record, cand)
-        record.aim = 1 + cand.score
-        record.vision = math_max(record.vision, 1 + cand.score)
-    end,
-    [CH.VISION] = function(record, cand)
-        record.vision_src = cand.src
-        record.vision_item = 1 + cand.score
-    end,
-    [CH.REGEN]    = function(record, cand) record.regen = 1 + cand.score end,
-    [CH.INTERVAL] = function(record, cand) record.interval = 1 - cand.score end,
-    [CH.DISP]     = function(record, cand) record.disp = 1 - cand.score end,
-}
-
--- Kept candidates into the flat per-id record. The aura rule is the whole rule: carry an artefact
--- and you wear it, whatever the artefact does. cand.sect exists only on artefact candidates, so
--- binoculars and NVG - which occupy the same vision channel - never light anyone up.
-local function _build_record(kept)
-    local record = { aim = 1, vision = 1, regen = 1, interval = 1, disp = 1 }
-    for ch, cand in pairs(kept) do
-        _BUILDERS[ch](record, cand)
-        if cand.sect then record.aura_sect = cand.sect end
-    end
-    return record
-end
-
--- Attach the aura if this carrier is not already emitting it. Bone verified before attach.
-local function _try_apply_aura(id, record)
-    if not cfg.gear_aura_enabled or _aura == "" then return end
-    if not (record and record.aura_sect) then return end
-    if _emitting[id] then return end
-    local obj = level.object_by_id(id)
-    if not obj then return end
-    if not obj:alive() then return end
-    -- Configured bone first (bip01_spine, the height the effect was judged at); AURA_BONES is the
-    -- fallback order for visuals that lack it. get_bone_id is the crash guard - start_particles
-    -- asserts on an unresolved bone (script_game_object4.cpp:418).
-    local bone
-    if _aura_bone ~= "" and obj:get_bone_id(_aura_bone) ~= BI_NONE then
-        bone = _aura_bone
-    else
-        for i = 1, #AURA_BONES do
-            if obj:get_bone_id(AURA_BONES[i]) ~= BI_NONE then bone = AURA_BONES[i] break end
-        end
-    end
-    if not bone then return end
-    obj:start_particles(_aura, bone)
-    _emitting[id] = bone
-    if at_trace.on() then at_trace.dbg("[GEAR] aura id=%d sect=%s particle=%s bone=%s", id, record.aura_sect, _aura, bone) end
-end
-
--- Stop the live aura for an id; safe when the game object is already gone.
-local function _stop_aura(id)
-    local bone = _emitting[id]
-    if not bone then return end
-    local obj = level.object_by_id(id)
-    if obj then obj:stop_particles(_aura, bone) end
-    _emitting[id] = nil
-end
-
--- Eligible carrier: a live, non-zombied NPC stalker with at least one candidate effect.
--- The actor check is NOT redundant with IsStalker: that test accepts clsid.script_actor and
--- clsid.actor alongside the two stalker classes (_g.script:2838-2843), so the player passes it.
--- Without this line the player resolves like any carrier - his own inventory gets scanned, an
--- aura attaches to his bip01_spine, and _shooter_dealt multiplies his outgoing hits by the burn
--- channel. His artefacts are the engine's business (belt loop, Actor.cpp:2599-2615), never ours.
-local function _carrier_eligible(npc, candidates)
-    if npc:id() == AC_ID then return false end
-    if not IsStalker(npc) then return false end
-    if xcreature.community(npc) == "zombied" then return false end
-    return next(candidates) ~= nil
-end
-
--- Full resolve for one id: inventory pass -> per-channel candidates -> capped selection ->
--- flat record + aura. false is the resolved non-carrier sentinel (never rescans until an
--- inventory event invalidates it).
+-- One inventory pass -> record. The chemical strength is routed after the walk, once the npc is in hand:
+-- to passive regen when n039 is present, else into the resist pool (interim). nil = offline/unresolvable.
 local function _resolve(id)
     if not cfg.gear_enabled then return false end
     local tmr = xprofiler.new_if(at_trace.on()):start()
-    local candidates = {}
-    local npc = xinventory.iterate_inventory(id, function(_, item)
-        _collect(candidates, item)
+    local acc = { resist = 0, chem = 0, plate = 0, dealt = 0, disp = 0, binoc = false, nvg = false, aura = false }
+    local npc = xinventory.iterate_inventory(id, function(_owner, item)
+        _collect(acc, item:section())
     end)
-    if not npc then return nil end
-    if not _carrier_eligible(npc, candidates) then
-        _resolved[id] = false
-        return false
+    if not npc then tmr:stop() return nil end
+
+    local regen = 0
+    if _has_n039(npc) then
+        regen = acc.chem * _regen_scale
+    else
+        acc.resist = math_max(acc.resist, acc.chem)
     end
-    local record = _build_record(_select(candidates))
+    local record = {
+        resist = acc.resist, plate = acc.plate, dealt = acc.dealt, disp = acc.disp, regen = regen,
+        binoc = acc.binoc, nvg = acc.nvg, aura = acc.aura,
+        combat = xcreature.community(npc) ~= "zombied",
+    }
     _resolved[id] = record
-    _panic_ids[id] = record.panic or nil
-    _try_apply_aura(id, record)
     tmr:stop()
-    if at_trace.on() then
-        at_trace.dbg("[GEAR] resolve id=%d aim=%.3f vision=%.3f regen=%.3f interval=%.3f disp=%.3f dealt=%s resist=%s panic=%s ap=%s vision_item=%s [%.3fms]",
-            id, record.aim, record.vision, record.regen, record.interval, record.disp,
-            record.dealt and ("%.3f"):format(record.dealt) or "-",
-            record.resist and "yes" or "-",
-            record.panic and "yes" or "-", record.ap and "yes" or "-",
-            record.vision_item and ("%.3f"):format(record.vision_item) or "-", tmr:get_ms())
-    end
+    if at_trace.on() then _trace_resolve(id, record, tmr) end
     return record
 end
 
--- Cached record for an id; lazy resolve on first read. nil = offline/unresolvable (retry next read).
-local function _get(id)
+-- Cached record for a carrier, lazy-resolving on first read. The stalker / non-actor gate is the cheap
+-- pre-filter so a monster or the actor never triggers an inventory walk. Returns nil for a non-carrier.
+local function _carrier_record(npc)
+    if not (npc and IsStalker(npc) and npc:id() ~= AC_ID) then return nil end
+    local id = npc:id()
     local record = _resolved[id]
     if record ~= nil then return record or nil end
     return _resolve(id) or nil
 end
 
---- Multiplicative gear factor for one NPC and channel (at_gear.CH.*): 1.0 for a non-carrier, a
---- disabled system, or an unresolved id, so callers multiply blindly at their own write sites.
---- The NVG vision factor applies only during the night window.
---- @param npc game_object stalker
---- @param ch string one of at_gear.CH
---- @return number factor
---- @cost O(1) cached (2 table reads); one O(items) inventory pass on the first read per id
-function factor(npc, ch)
-    if not (cfg.gear_enabled and npc) then return 1 end
-    local record = _get(npc:id())
-    if not record then return 1 end
-    if ch == CH.AIM then return record.aim end
-    if ch == CH.REGEN then return record.regen end
-    if ch == CH.INTERVAL then return record.interval end
-    if ch == CH.DISP then return record.disp end
-    if ch == CH.VISION then
-        local vision = record.vision
-        local item = record.vision_item
-        if item and (record.vision_src ~= "nvg" or _night) then vision = math_max(vision, item) end
-        return vision
-    end
-    return 1
+-- =========================================================================
+-- Providers (fn(npc) -> value|nil), registered into at_effects_resolver
+-- =========================================================================
+
+local function _p_dealt(npc)
+    if not (cfg.gear_enabled and cfg.gear_artefacts_enabled) then return nil end
+    local record = _carrier_record(npc)
+    if not (record and record.combat and record.dealt > 0) then return nil end
+    return 1 + record.dealt
 end
 
---- Re-resolve one NPC's gear now: drop the record and aura, resolve fresh, refresh the
---- spawn-written engine params. For callers that grant items WITHOUT a take event (parented
---- spawn, scripted transfer) - the take/drop callbacks cover organic pickup on their own.
+local function _p_resist(npc)
+    if not cfg.gear_enabled then return nil end
+    local record = _carrier_record(npc)
+    if not (record and record.combat) then return nil end
+    local strength = record.plate
+    if cfg.gear_artefacts_enabled and record.resist > strength then strength = record.resist end
+    if strength <= 0 then return nil end
+    return 1 - strength
+end
+
+local function _p_disp(npc)
+    if not (cfg.gear_enabled and cfg.gear_artefacts_enabled) then return nil end
+    local record = _carrier_record(npc)
+    if not (record and record.combat and record.disp > 0) then return nil end
+    return 1 - record.disp
+end
+
+-- Day/night read live so a binoc/nvg carrier's range tracks the clock without a polling tick (D20):
+-- binoculars by day, NVG by night, each behind its own toggle.
+local function _p_vision_range(npc)
+    if not cfg.gear_enabled then return nil end
+    local record = _carrier_record(npc)
+    if not (record and record.combat) then return nil end
+    if _is_night() then
+        if record.nvg and cfg.gear_nvg_enabled then return _nvg_range end
+    else
+        if record.binoc and cfg.gear_binoc_enabled then return _binoc_range end
+    end
+    return nil
+end
+
+-- Aura presence: any carried artefact, gated by its own toggle only - NOT zombie-gated (a zombie still
+-- physically carries the artefact, D23) and independent of the artefact-EFFECT toggle (a carrier glows
+-- whether or not its combat edge is on, D9).
+local function _p_aura(npc)
+    if not (cfg.gear_enabled and cfg.gear_aura_enabled) then return nil end
+    local record = _carrier_record(npc)
+    return (record and record.aura) or nil
+end
+
+-- =========================================================================
+-- Passive regen (single-source, at_gear-owned, n039): the net_spawn write
+-- =========================================================================
+
+-- Set the per-NPC restore boost at spawn. Inert until n039 exists (the wrapper no-ops below the bind);
+-- writes the neutral 0 for a non-carrier or a disabled toggle so a re-online never keeps a stale boost.
+-- The engine field is not serialized, so it is re-set on every net_spawn.
+local function _apply_regen(npc)
+    if not (npc and _has_n039(npc)) then return end
+    if not (cfg.gear_enabled and cfg.gear_artefacts_enabled) then
+        xcombat.set_health_restore_boost(npc, 0)
+        return
+    end
+    local record = _carrier_record(npc)
+    local boost = (record and record.combat and record.regen) or 0
+    xcombat.set_health_restore_boost(npc, boost)
+    if at_trace.on() and boost > 0 then
+        at_trace.dbg("[GEAR] regen id=%d boost=%.5f", npc:id(), boost)
+    end
+end
+
+-- =========================================================================
+-- Cache lifecycle
+-- =========================================================================
+
+-- Re-resolve one NPC and re-push the spawn-bound effects. The gear scan cache is at_gear's own; the
+-- VISION_RANGE bind and the aura are the resolver's, so invalidate here then hand the re-apply to it.
+local function _reresolve(npc)
+    local id = npc:id()
+    _resolved[id] = nil
+    at_effects_resolver.refresh(npc)
+    _apply_regen(npc)
+end
+
+--- Re-resolve one NPC's gear now, for a caller that granted items with no take event (a parented spawn,
+--- a scripted transfer). Drops the cached record and re-pushes the binds off a fresh scan.
 --- @param npc game_object stalker
 function refresh(npc)
     if not (cfg.gear_enabled and npc and IsStalker(npc)) then return end
-    local id = npc:id()
-    _resolved[id] = nil
-    _panic_ids[id] = nil
-    _stop_aura(id)
-    if _resolve(id) ~= nil then at_reaction.apply(npc) end
+    _reresolve(npc)
 end
 
---- True when the NPC carries an acid-line artefact (chemical_burn channel): counts as AP-eligible
---- in at_ammo regardless of rank.
---- @param npc game_object stalker
---- @return boolean
-function has_ap_affinity(npc)
-    if not (cfg.gear_enabled and npc) then return false end
-    local record = _get(npc:id())
-    return (record and record.ap) or false
-end
-
--- hit-type enum -> resist key, built on first hit (the hit class global is engine-registered).
-local function _hit_key(hit_type)
-    if not _HIT_KEY then
-        _HIT_KEY = {
-            [hit.fire_wound] = "fire_wound",
-            [hit.wound]      = "wound",
-            [hit.explosion]  = "explosion",
-            [hit.strike]     = "strike",
-        }
-    end
-    return _HIT_KEY[hit_type]
-end
-
--- Both damage directions on the one seam: the victim's resist table scales the hit down by type,
--- the shooter's dealt factor scales it up. Cached ids cost 2 table reads per hit; the trace line
--- fires only when the hit was actually scaled, gated so the off path builds nothing.
--- The victim's typed resist for one hit, or nil when the victim has no matching channel.
-local function _victim_resist(npc, shit)
-    local victim = _get(npc:id())
-    if not (victim and victim.resist) then return nil end
-    local key = _hit_key(shit.type)
-    return key and victim.resist[key]
-end
-
--- The shooter's dealt boost for one hit, or nil for a non-stalker or non-carrier attacker.
-local function _shooter_dealt(shit)
-    local attacker = shit.draftsman
-    if not (attacker and IsStalker(attacker)) then return nil end
-    local shooter = _get(attacker:id())
-    return shooter and shooter.dealt
-end
-
-local function _on_npc_before_hit(npc, shit, _bone_id, _flags)
-    if not cfg.gear_enabled then return end
-    local tmr = xprofiler.new_if(at_trace.on()):start()
-    local resisted = _victim_resist(npc, shit)
-    if resisted then shit.power = shit.power * (1 - resisted) end
-    local dealt = _shooter_dealt(shit)
-    if dealt then shit.power = shit.power * (1 + dealt) end
-    tmr:stop()
-    if (resisted or dealt) and at_trace.on() then
-        at_trace.dbg("[GEAR] hit victim=%d type=%d resist=%s dealt=%s power=%.4f [%.3fms]",
-            npc:id(), shit.type, resisted and ("%.3f"):format(resisted) or "-",
-            dealt and ("%.3f"):format(dealt) or "-", shit.power, tmr:get_ms())
-    end
-end
-
--- Hits on the actor: the shooter's dealt boost only (the actor's own artefacts are engine-handled).
-local function _on_actor_before_hit(shit, _bone_id, _flags)
-    if not cfg.gear_enabled then return end
-    local attacker = shit.draftsman
-    if not (attacker and IsStalker(attacker)) then return end
-    local shooter = _get(attacker:id())
-    if not (shooter and shooter.dealt) then return end
-    shit.power = shit.power * (1 + shooter.dealt)
-    if at_trace.on() then
-        at_trace.dbg("[GEAR] actor_hit shooter=%d dealt=%.3f power=%.4f", attacker:id(), shooter.dealt, shit.power)
-    end
-end
-
--- Inventory changed: drop the record, stop the aura, re-resolve, refresh the spawn-written
--- engine params through the owning module's idempotent apply.
+-- A take/drop/transfer of a relevant item: re-resolve if this id was already cached (an untouched id
+-- lazy-resolves fresh on its next read). Fires for pickups, drops, and NPC-to-NPC transfers.
 local function _on_inventory_change(npc, item)
     if not (cfg.gear_enabled and npc and IsStalker(npc)) then return end
     local sect = item and item:section()
-    if sect and not _sect_info(sect) then return end
-    local id = npc:id()
-    if _resolved[id] == nil then return end
-    if at_trace.on() then
-        at_trace.dbg("[GEAR] inventory change id=%d item=%s -> re-resolve", id, sect or "?")
-    end
-    _resolved[id] = nil
-    _panic_ids[id] = nil
-    _stop_aura(id)
-    local record = _resolve(id)
-    if record ~= nil then at_reaction.apply(npc) end
+    if sect and not _kind[sect] then return end
+    if _resolved[npc:id()] == nil then return end
+    _reresolve(npc)
 end
 
--- Fresh game object: earlier particles died with the old one; re-attach for a known carrier.
+-- Fresh game object each online: apply the single-source passive regen (the resolver applies its own
+-- effects from its own net_spawn subscriber). Inert until n039.
 local function _on_net_spawn(npc, _se_obj)
-    local id = npc:id()
-    _emitting[id] = nil
-    local record = _resolved[id]
-    if record then _try_apply_aura(id, record) end
-end
-
-local function _on_death(victim, _who)
-    if victim then _stop_aura(victim:id()) end
+    if npc then _apply_regen(npc) end
 end
 
 local function _on_entity_unregister(se_obj)
-    if not se_obj then return end
-    local id = se_obj.id
-    _resolved[id] = nil
-    _emitting[id] = nil
-    _panic_ids[id] = nil
+    if se_obj then _resolved[se_obj.id] = nil end
 end
 
--- 60s tick: on a day/night flip, refresh the vision write for every cached NVG carrier. The tick
--- runs only while the master toggle is on; everything else in this module is event-driven.
-local function _night_tick()
-    if not cfg.gear_enabled then return true end
-    ResetTimeEvent("at_gear", "night", NIGHT_TICK_SEC)
-    if not level.present() then return false end
-    local hours = level.get_time_hours()
-    local night = hours >= _bands.night_start_h or hours < _bands.night_end_h
-    if night == _night then return false end
-    _night = night
-    for id, record in pairs(_resolved) do
-        if record and record.vision_src == "nvg" then
-            local obj = level.object_by_id(id)
-            if obj and obj:alive() then at_reaction.apply(obj) end
-        end
-    end
-    if at_trace.on() then at_trace.dbg("[GEAR] night flip -> %s", night and "night" or "day") end
-    return false
-end
-
--- Panic immunity: wrap the panic evaluator; a psy-line carrier never enters the panic action.
--- Function-level monkey-patch (no callback fires at this seam); everyone else runs the original.
-local function _install_panic_patch()
-    if _orig_panic_evaluate then return end
-    if not (axr_stalker_panic and axr_stalker_panic.evaluator_stalker_panic) then
-        at_trace.warn("[GEAR] axr_stalker_panic evaluator missing; panic immunity inactive")
-        return
-    end
-    _orig_panic_evaluate = axr_stalker_panic.evaluator_stalker_panic.evaluate
-    axr_stalker_panic.evaluator_stalker_panic.evaluate = function(self)
-        if next(_panic_ids) ~= nil and cfg.gear_enabled and _panic_ids[self.object:id()] then
-            if at_trace.on() then at_trace.dbg("[GEAR] panic denied id=%d", self.object:id()) end
-            return false
-        end
-        return _orig_panic_evaluate(self)
-    end
-end
-
--- Load the band tunables from at_gear.ltx; missing keys keep the code fallbacks.
 local function _load_config()
     local ini = ini_file(GEAR_LTX)
     if not (ini and ini:section_exist(GEAR_SECTION)) then return end
-    for key, fallback in pairs(_bands) do
-        _bands[key] = ini:r_float_ex(GEAR_SECTION, key) or fallback
+    _tier_step   = ini:r_float_ex(GEAR_SECTION, "tier_step")   or _tier_step
+    _tier_cap    = ini:r_float_ex(GEAR_SECTION, "tier_cap")    or _tier_cap
+    _binoc_range = ini:r_float_ex(GEAR_SECTION, "binoc_range") or _binoc_range
+    _nvg_range   = ini:r_float_ex(GEAR_SECTION, "nvg_range")   or _nvg_range
+    _night_start = ini:r_float_ex(GEAR_SECTION, "night_start_h") or _night_start
+    _night_end   = ini:r_float_ex(GEAR_SECTION, "night_end_h")   or _night_end
+    _regen_scale = ini:r_float_ex(GEAR_SECTION, "regen_scale") or _regen_scale
+    local groups = { "gravi", "thermal", "chemical", "electro", "special", "plate", "binoc", "nvg" }
+    for i = 1, #groups do
+        local kind = groups[i]
+        local list = ini:r_string_ex(GEAR_SECTION, kind)
+        if list then
+            for sec in list:gmatch("[^%s,]+") do _kind[sec] = kind end
+        end
     end
-    _aura = ini:r_string_ex(GEAR_SECTION, "aura") or ""
-    _aura_bone = ini:r_string_ex(GEAR_SECTION, "aura_bone") or ""
-end
-
--- Option change: caps/toggles may have moved - drop every record and aura; carriers re-resolve
--- lazily on their next read with the new values.
-local function _on_option_change()
-    for id in pairs(_emitting) do _stop_aura(id) end
-    _resolved = {}
-    _panic_ids = {}
 end
 
 local function _on_first_update()
-    _load_config()
-    _night_tick()
-    at_trace.info("Gear initialized (enabled=%s artefacts=%s aura=%s binoc=%s nvg=%s cap_item=%.2f cap_total=%.2f)",
+    at_trace.info("Gear source initialized (enabled=%s artefacts=%s aura=%s binoc=%s nvg=%s regen_bind=%s)",
         cfg.gear_enabled and "on" or "off", cfg.gear_artefacts_enabled and "on" or "off",
-        cfg.gear_aura_enabled and "on" or "off",
-        cfg.gear_binoc_enabled and "on" or "off", cfg.gear_nvg_enabled and "on" or "off",
-        _bands.cap_item, _bands.cap_total)
+        cfg.gear_aura_enabled and "on" or "off", cfg.gear_binoc_enabled and "on" or "off",
+        cfg.gear_nvg_enabled and "on" or "off", _n039 and "on" or "off/unprobed")
 end
 
 function on_game_start()
     _resolved = {}
-    _emitting = {}
-    _panic_ids = {}
-    _install_panic_patch()
-    RegisterScriptCallback("npc_on_before_hit",           _on_npc_before_hit)
-    RegisterScriptCallback("actor_on_before_hit",         _on_actor_before_hit)
+    _load_config()
+    at_effects_resolver.register(EFFECT.DAMAGE_DEALT,    _p_dealt)
+    at_effects_resolver.register(EFFECT.DAMAGE_RESIST,   _p_resist)
+    at_effects_resolver.register(EFFECT.SHOT_DISPERSION, _p_disp)
+    at_effects_resolver.register(EFFECT.VISION_RANGE,    _p_vision_range)
+    at_effects_resolver.register(EFFECT.AURA,            _p_aura)
+    RegisterScriptCallback("npc_on_net_spawn",            _on_net_spawn)
     RegisterScriptCallback("npc_on_item_take",            _on_inventory_change)
     RegisterScriptCallback("npc_on_item_drop",            _on_inventory_change)
-    RegisterScriptCallback("npc_on_net_spawn",            _on_net_spawn)
-    RegisterScriptCallback("npc_on_death_callback",       _on_death)
     RegisterScriptCallback("server_entity_on_unregister", _on_entity_unregister)
     RegisterScriptCallback("actor_on_first_update",       _on_first_update)
-    RegisterScriptCallback("on_option_change",            _on_option_change)
-    RemoveTimeEvent("at_gear", "night")
-    CreateTimeEvent("at_gear", "night", NIGHT_TICK_SEC, _night_tick)
 end

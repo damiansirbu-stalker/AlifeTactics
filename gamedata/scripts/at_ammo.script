@@ -231,7 +231,7 @@ function pick(npc, now)
         return
     end
     if not (npc and npc:alive() and IsStalker(npc)) then return end
-    if npc:character_rank() < MIN_AP_RANK and not at_gear.has_ap_affinity(npc) then return end
+    if npc:character_rank() < MIN_AP_RANK then return end
     local wpn = npc:active_item()
     if not (wpn and IsWeapon(wpn)) then return end
     local wpn_sec = wpn:section()
