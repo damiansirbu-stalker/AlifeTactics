@@ -22,7 +22,7 @@ local time_global, AC_ID = time_global, AC_ID
 at_combat_doctrine = at_combat_doctrine or {}
 
 local cfg = at_mcm.cfg
-local show = at_trace.show
+local show = at_debug.show
 
 local CONFIG_PATH    = "alifetactics\\at_combat_config.ltx"
 local CONFIG_SECTION = "at_combat"
@@ -93,11 +93,11 @@ local function _can_kite(npc, _enemy, state, _tg, memo)
     local lane_m       = vid and math_sqrt(xmath.dist_flat_sqr(level.vertex_position(vid), np)) or -1
     local dest_enemy_m = vid and math_sqrt(xmath.dist_flat_sqr(level.vertex_position(vid), ep)) or -1
     if vid and dest_enemy_m <= min_m then
-        at_trace.dbg("[CMB] can_kite id=%s name=%s dist=%.1f min_m=%.1f back_m=%.1f dest_enemy_m=%.2f lane_m=%.2f lane=%s result=short",
+        at_debug.dbg("[CMB] can_kite id=%s name=%s dist=%.1f min_m=%.1f back_m=%.1f dest_enemy_m=%.2f lane_m=%.2f lane=%s result=short",
             show(state.id), show(state.name), dist or -1, min_m, back_m, dest_enemy_m, lane_m, show(vid))
         return nil
     end
-    at_trace.dbg("[CMB] can_kite id=%s name=%s dist=%.1f min_m=%.1f back_m=%.1f dest_enemy_m=%.2f lane_m=%.2f lane=%s result=%s",
+    at_debug.dbg("[CMB] can_kite id=%s name=%s dist=%.1f min_m=%.1f back_m=%.1f dest_enemy_m=%.2f lane_m=%.2f lane=%s result=%s",
         show(state.id), show(state.name), dist or -1, min_m, back_m, dest_enemy_m, lane_m,
         show(vid or "none"), vid and "taken" or "no_lane")
     return vid
@@ -130,13 +130,13 @@ end
 local function _can_pickoff(npc, enemy, state, tg, memo)
     local blocked = _pickoff_blocked(npc, enemy, state, tg, memo.npc_pos)
     if blocked then
-        at_trace.dbg("[CMB] can_pickoff id=%s name=%s dist=%.1f enemy_max=unknown result=%s",
+        at_debug.dbg("[CMB] can_pickoff id=%s name=%s dist=%.1f enemy_max=unknown result=%s",
             show(state.id), show(state.name), state.dist or -1, show(blocked))
         return nil
     end
     local enemy_band = xcombat.get_weapon_range(xcombat.get_weapon_kind(enemy) or "w_rifle")
     local planted = state.dist > enemy_band.max * PICKOFF_ENTER_FACTOR
-    at_trace.dbg("[CMB] can_pickoff id=%s name=%s dist=%.1f enemy_max=%s result=%s",
+    at_debug.dbg("[CMB] can_pickoff id=%s name=%s dist=%.1f enemy_max=%s result=%s",
         show(state.id), show(state.name), state.dist or -1, show(enemy_band.max), planted and "plant" or "in_effective_range")
     if not planted then return nil end
     state.pickoff_exit_m = enemy_band.max
@@ -168,7 +168,7 @@ end
 -- report an obstacle below ~3.75m while the row fires inside 5m - f008), so the row pays for no test
 -- that cannot decline; the real close gate is the need's own floor (_should_actor_close).
 local function _can_counterflank(npc, _enemy, state, _tg, _memo)
-    at_trace.dbg("[CMB] can_counterflank id=%s name=%s path=taken", show(state.id), show(state.name))
+    at_debug.dbg("[CMB] can_counterflank id=%s name=%s path=taken", show(state.id), show(state.name))
     return npc:level_vertex_id()
 end
 
@@ -187,23 +187,23 @@ end
 local function _can_reload_cover(npc, _enemy, state, _tg, memo)
     if not xcombat.is_reloading(npc) then
         state.reloading = nil
-        at_trace.dbg("[CMB] can_reload_cover id=%s name=%s path=not_reloading cover=-", show(state.id), show(state.name))
+        at_debug.dbg("[CMB] can_reload_cover id=%s name=%s path=not_reloading cover=-", show(state.id), show(state.name))
         return nil
     end
     if not xcombat.actor_can_hit(npc, RELOAD_COVER_CONE_DEG) then
-        at_trace.dbg("[CMB] can_reload_cover id=%s name=%s path=actor_no_shot cover=-", show(state.id), show(state.name))
+        at_debug.dbg("[CMB] can_reload_cover id=%s name=%s path=actor_no_shot cover=-", show(state.id), show(state.name))
         return nil
     end
     local vid = xcombat.find_cover(npc, memo.enemy_pos)
     if not vid then
-        at_trace.dbg("[CMB] can_reload_cover id=%s name=%s path=no_cover cover=-", show(state.id), show(state.name))
+        at_debug.dbg("[CMB] can_reload_cover id=%s name=%s path=no_cover cover=-", show(state.id), show(state.name))
         return nil
     end
     if not xcombat.claim_cover(vid, state.id) then
-        at_trace.dbg("[CMB] can_reload_cover id=%s name=%s path=claim_lost cover=%s", show(state.id), show(state.name), show(vid))
+        at_debug.dbg("[CMB] can_reload_cover id=%s name=%s path=claim_lost cover=%s", show(state.id), show(state.name), show(vid))
         return nil
     end
-    at_trace.dbg("[CMB] can_reload_cover id=%s name=%s path=taken cover=%s", show(state.id), show(state.name), show(vid))
+    at_debug.dbg("[CMB] can_reload_cover id=%s name=%s path=taken cover=%s", show(state.id), show(state.name), show(vid))
     state.cover_lvid = vid
     return vid
 end
@@ -233,7 +233,7 @@ local function _can_retreat(npc, _enemy, state, _tg, memo)
     end
     local vid = xcombat.find_cover(npc, ep, center)
     if not vid then
-        at_trace.dbg("[CMB] can_retreat id=%s name=%s path=no_cover cover=- cover_dist=-1.0 npc_dist=-1.0",
+        at_debug.dbg("[CMB] can_retreat id=%s name=%s path=no_cover cover=- cover_dist=-1.0 npc_dist=-1.0",
             show(state.id), show(state.name))
         return nil
     end
@@ -241,16 +241,16 @@ local function _can_retreat(npc, _enemy, state, _tg, memo)
     local vdx, vdz = vp.x - ep.x, vp.z - ep.z
     local cover_dist_sqr = vdx * vdx + vdz * vdz
     if cover_dist_sqr <= dist_sqr then
-        at_trace.dbg("[CMB] can_retreat id=%s name=%s path=toward_enemy cover=%s cover_dist=%.1f npc_dist=%.1f",
+        at_debug.dbg("[CMB] can_retreat id=%s name=%s path=toward_enemy cover=%s cover_dist=%.1f npc_dist=%.1f",
             show(state.id), show(state.name), show(vid), math_sqrt(cover_dist_sqr), state.dist or -1)
         return nil
     end
     if not xcombat.claim_cover(vid, state.id) then
-        at_trace.dbg("[CMB] can_retreat id=%s name=%s path=claim_lost cover=%s cover_dist=-1.0 npc_dist=-1.0",
+        at_debug.dbg("[CMB] can_retreat id=%s name=%s path=claim_lost cover=%s cover_dist=-1.0 npc_dist=-1.0",
             show(state.id), show(state.name), show(vid))
         return nil
     end
-    at_trace.dbg("[CMB] can_retreat id=%s name=%s path=taken cover=%s cover_dist=%.1f npc_dist=%.1f",
+    at_debug.dbg("[CMB] can_retreat id=%s name=%s path=taken cover=%s cover_dist=%.1f npc_dist=%.1f",
         show(state.id), show(state.name), show(vid), math_sqrt(cover_dist_sqr), state.dist or -1)
     state.cover_lvid = vid
     return vid
@@ -281,13 +281,13 @@ end
 local function _can_flee(npc, enemy, state, _tg, memo)
     local blocked = _flee_blocked(npc, enemy, state)
     if blocked then
-        at_trace.dbg("[CMB] can_flee id=%s name=%s path=%s", show(state.id), show(state.name), show(blocked))
+        at_debug.dbg("[CMB] can_flee id=%s name=%s path=%s", show(state.id), show(state.name), show(blocked))
         return nil
     end
     -- Point-blank gate: do not flee with the shooter in your face (< flee_min_dist). Turning your back to run to a
     -- far base at point-blank range is suicide; vanilla fights it out at range instead.
     if state.dist < FLEE_MIN_DIST_M then
-        at_trace.dbg("[CMB] can_flee id=%s name=%s path=too_close", show(state.id), show(state.name))
+        at_debug.dbg("[CMB] can_flee id=%s name=%s path=too_close", show(state.id), show(state.name))
         return nil
     end
     -- Target a friendly base in the distance (a smart the enemy does not hold), biased to the rear hemisphere so the
@@ -299,12 +299,12 @@ local function _can_flee(npc, enemy, state, _tg, memo)
     local base = xsmart.find_friendly_base(memo.faction, memo.npc_pos,
         { level_id = xlevel.get_actor_level_id(), away_from_pos = memo.enemy_pos, min_distance = FLEE_BASE_MIN_DIST_M })
     if base then
-        at_trace.dbg("[CMB] can_flee id=%s name=%s path=base", show(state.id), show(state.name))
+        at_debug.dbg("[CMB] can_flee id=%s name=%s path=base", show(state.id), show(state.name))
         local vid = base.m_level_vertex_id
         if not vid or vid >= 4294967295 then vid = level.vertex_id(base.position) end
         return vid
     end
-    at_trace.dbg("[CMB] can_flee id=%s name=%s path=no_base", show(state.id), show(state.name))
+    at_debug.dbg("[CMB] can_flee id=%s name=%s path=no_base", show(state.id), show(state.name))
     return nil
 end
 
@@ -675,7 +675,7 @@ local function _circuit_tripped(state, sit, npc_pos)
     end
     state.circuit_pos:set(npc_pos)
     if state.circuit_count <= CIRCUIT_LIMIT then return false end
-    at_trace.dbg("[CMB] circuit id=%s name=%s situation=%s picks=%d - takeover suspended until the world changes",
+    at_debug.dbg("[CMB] circuit id=%s name=%s situation=%s picks=%d - takeover suspended until the world changes",
         show(state.id), show(state.name), show(sit), state.circuit_count or -1)
     return true
 end
@@ -696,7 +696,7 @@ function at_combat_doctrine.resolve_maneuver(npc, enemy, state, tg)
     local start = state.row_cursor or 1
     if start > count then start = 1 end
     local memo = _reset_memo(state, npc, enemy)
-    local tracing = at_trace.on()
+    local tracing = at_debug.on()
     local walk_timer = xprofiler.new_if(tracing)
     _seg = xprofiler.new_if(tracing)
     walk_timer:start()

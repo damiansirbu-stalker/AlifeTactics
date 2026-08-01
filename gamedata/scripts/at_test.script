@@ -1,6 +1,7 @@
 --- at_test: Console commands for AlifeTactics (squad spawn, dumps)
 
 local tostring, string_format, math_rad, math_cos, math_sin = tostring, string.format, math.rad, math.cos, math.sin
+local math_random, math_floor, math_pi = math.random, math.floor, math.pi
 local pairs, IsStalker, IsWeapon, get_object_squad = pairs, IsStalker, IsWeapon, get_object_squad
 local time_global, alife_object, level = time_global, alife_object, level
 local alife = alife
@@ -9,6 +10,11 @@ local alife = alife
 local DEFAULT_SECTION  = "bandit_sim_squad_novice"
 local DEFAULT_DISTANCE = 50
 local INVALID_VERTEX   = 4294967295
+
+-- The full effect-gear spread: one artefact of each anomaly class (gravi/chemical/thermal/electro/special),
+-- a kevlar plate, and both optics - so every effects-resolver channel (resist, dispersion, damage, vision,
+-- aura) fires on each carrier. Parented onto the server object BEFORE online (see _gear_members).
+local EFFECT_GEAR = { "af_gravi", "af_soul", "af_fireball", "af_electra_sparkler", "af_compass", "af_kevlar", "wpn_binoc", "device_torch_nv_1" }
 
 local function _tip(msg)
     if db.actor then news_manager.send_tip(db.actor, msg, nil, nil, 5000) end
@@ -32,6 +38,27 @@ local function _arm_members(squad, pos, lvid, gvid, grenades)
         for _ = 1, count do
             sim:create("grenade_f1", pos, lvid, gvid, member.id)
         end
+    end
+end
+
+-- Parent-create the effect-gear spread onto one member's SERVER object (before online).
+local function _gear_one(sim, member_id, pos, lvid, gvid)
+    for i = 1, #EFFECT_GEAR do
+        if ini_sys:section_exist(EFFECT_GEAR[i]) then
+            sim:create(EFFECT_GEAR[i], pos, lvid, gvid, member_id)
+        end
+    end
+end
+
+-- Gear every member BEFORE it onlines, the _arm_members pattern: a parented server-side create fires no
+-- take event, so the gear is simply in the inventory when net_spawn fires and the effects resolver (and
+-- every other net_spawn-evaluated system) reads it on the online transition - the real path, not a refresh
+-- of an already-online NPC.
+local function _gear_members(squad, pos, lvid, gvid)
+    if squad:npc_count() == 0 then return end
+    local sim = alife()
+    for member in squad:squad_members() do
+        _gear_one(sim, member.id, pos, lvid, gvid)
     end
 end
 
@@ -78,7 +105,7 @@ local function _spawn(section, distance, angle_deg, grenades)
     end
     if not ini_sys:section_exist(section) then
         local msg = string_format("AT.TEST: squad section '%s' not in squad_descr", section)
-        at_trace.warn(msg)
+        at_debug.warn(msg)
         _tip(msg)
         return
     end
@@ -101,6 +128,7 @@ local function _spawn(section, distance, angle_deg, grenades)
         end
     end
     _arm_members(squad, actor_pos, actor_lvid, actor_gvid, grenades)
+    _gear_members(squad, actor_pos, actor_lvid, actor_gvid)
 
     local dir         = _rotate_y(actor:direction(), angle_deg)
     local target_pos  = vector():set(
@@ -114,7 +142,7 @@ local function _spawn(section, distance, angle_deg, grenades)
         TeleportSquad(squad, target_pos, target_lvid, actor_gvid)
     end
 
-    at_trace.info("[SPAWN] section=%s squad_id=%d distance=%dm angle=%ddeg on_map=%s",
+    at_debug.info("[SPAWN] section=%s squad_id=%d distance=%dm angle=%ddeg on_map=%s",
         section, squad.id, distance, angle_deg, tostring(on_map))
     _tip(string_format("AT.TEST: %s id=%d %s",
         section, squad.id,
@@ -128,7 +156,7 @@ local function _spawn_set(label, entries)
         local entry = entries[i]
         _spawn(entry[1], entry[2], entry[3])
     end
-    at_trace.info("[SPAWN] set=%s count=%d", label, #entries)
+    at_debug.info("[SPAWN] set=%s count=%d", label, #entries)
 end
 
 --------------------------------------------------------------------------------
@@ -251,10 +279,165 @@ function at_spawn_unarmed()
     CreateTimeEvent(0, "at_unarmed_strip_" .. tostring(time_global()), 3, function()
         local sq = alife_object(squad_id)
         local removed = sq and _strip_weapons(sq) or 0
-        at_trace.info("[SPAWN] unarmed squad=%d weapons_removed=%d", squad_id, removed)
+        at_debug.info("[SPAWN] unarmed squad=%d weapons_removed=%d", squad_id, removed)
         _tip(string_format("AT.TEST: unarmed squad id=%d, %d weapons removed", squad_id, removed))
         return true
     end)
+end
+
+--------------------------------------------------------------------------------
+-- Arena: keep a CONSTANT number of geared, fighting NPCs around you - respawn the dead each tick, release
+-- corpses, so the effects resolver (and every net_spawn-evaluated system) fires continuously and the log
+-- fills on its own. Each NPC onlines carrying the full EFFECT_GEAR spread (parented before online).
+--   at_arena(n)     - n/2 army vs n/2 monolith, mutually hostile; watch from the edge (default 16)
+--   at_arena_me(n)  - n monolith hostile to everything including you
+--   at_arena_stop() - stop and release everything
+--------------------------------------------------------------------------------
+local ARENA_TICK_SEC     = 2
+local ARENA_RING_MIN     = 10
+local ARENA_RING_MAX     = 18
+local ARENA_MAX_PER_TICK = 8
+local ARENA_SPREAD_DEG   = 25
+local ARENA_SECTIONS = {
+    monolith = { "sim_default_monolith_1", "sim_default_monolith_2", "sim_default_monolith_3", "sim_default_monolith_4" },
+    army     = { "sim_default_military_1", "sim_default_military_2", "sim_default_military_3", "sim_default_military_4" },
+}
+local _arena_on = false
+local _arena_mode = nil
+local _arena_want = 0
+local _arena_center_lvid, _arena_gvid = nil, nil
+local _arena_side_dir = 0
+local _arena_spawned = {}
+
+-- Parent the full effect-gear spread onto one NPC's server object before it onlines.
+local function _arena_gear(pos, lvid, id)
+    for i = 1, #EFFECT_GEAR do
+        if ini_sys:section_exist(EFFECT_GEAR[i]) then alife():create(EFFECT_GEAR[i], pos, lvid, _arena_gvid, id) end
+    end
+end
+
+-- A navmesh spot on the ring toward `angle` from the arena center, or nil.
+local function _arena_spawn_pos(angle)
+    local dist = ARENA_RING_MIN + math_random() * (ARENA_RING_MAX - ARENA_RING_MIN)
+    local dir = vector():set(math_cos(angle), 0, math_sin(angle))
+    local lvid = level.vertex_in_direction(_arena_center_lvid, dir, dist)
+    if not lvid or lvid >= INVALID_VERTEX then return nil end
+    return level.vertex_position(lvid), lvid
+end
+
+-- Spawn one geared NPC for a side (a = army, b = monolith; me-mode = all monolith). Returns true on spawn.
+local function _arena_spawn_one(side)
+    local faction = (_arena_mode == "me" or side == "b") and "monolith" or "army"
+    local list = ARENA_SECTIONS[faction]
+    local section = list[math_random(1, #list)]
+    local base = (_arena_mode == "war" and side == "b") and (_arena_side_dir + math_pi) or _arena_side_dir
+    local angle = (_arena_mode == "me") and (math_random() * 2 * math_pi)
+        or (base + math_rad((math_random() * 2 - 1) * ARENA_SPREAD_DEG))
+    local pos, lvid = _arena_spawn_pos(angle)
+    if not pos then return false end
+    local se = alife():create(section, pos, lvid, _arena_gvid)
+    if not se then return false end
+    _arena_spawned[se.id] = { side = side, dead_seen = false }
+    _arena_gear(pos, lvid, se.id)
+    at_debug.info("[ARENA] spawned %s id=%d side=%s", section, se.id, side)
+    return true
+end
+
+-- Reap one tracked NPC: release its corpse the tick after death is first seen. Returns its side if alive,
+-- else nil (gone or dead-pending).
+local function _arena_reap(id, rec)
+    local se = alife_object(id)
+    if not se then _arena_spawned[id] = nil return nil end
+    if se:alive() then return rec.side end
+    if rec.dead_seen then
+        alife():release(se, true)
+        _arena_spawned[id] = nil
+    else
+        rec.dead_seen = true
+    end
+    return nil
+end
+
+-- Count the living per side, releasing corpses as it goes.
+local function _arena_census()
+    local alive_a, alive_b = 0, 0
+    for id, rec in pairs(_arena_spawned) do
+        local live_side = _arena_reap(id, rec)
+        if live_side == "a" then alive_a = alive_a + 1
+        elseif live_side == "b" then alive_b = alive_b + 1 end
+    end
+    return alive_a, alive_b
+end
+
+-- Top up one side (me-mode) to the deficit, budget-capped.
+local function _arena_topup_me(alive_a)
+    local budget = ARENA_MAX_PER_TICK
+    local deficit = _arena_want - alive_a
+    while deficit > 0 and budget > 0 do
+        if _arena_spawn_one("a") then deficit = deficit - 1 end
+        budget = budget - 1
+    end
+end
+
+-- Top up both sides (war-mode) toward half each, budget-capped, favouring the emptier side.
+local function _arena_topup_war(alive_a, alive_b)
+    local budget = ARENA_MAX_PER_TICK
+    local half = math_floor(_arena_want / 2)
+    local need_a, need_b = half - alive_a, half - alive_b
+    while (need_a > 0 or need_b > 0) and budget > 0 do
+        if need_a >= need_b and _arena_spawn_one("a") then need_a = need_a - 1
+        elseif need_a < need_b and _arena_spawn_one("b") then need_b = need_b - 1 end
+        budget = budget - 1
+    end
+end
+
+-- One maintenance pass: census (with corpse release) then top up to _arena_want.
+local function _arena_tick()
+    if not _arena_on then return true end
+    ResetTimeEvent("at_arena", "tick", ARENA_TICK_SEC)
+    if not db.actor then return false end
+    local alive_a, alive_b = _arena_census()
+    if _arena_mode == "me" then _arena_topup_me(alive_a) else _arena_topup_war(alive_a, alive_b) end
+    at_debug.info("[ARENA] tick alive a=%d b=%d want=%d", alive_a, alive_b, _arena_want)
+end
+
+local function _arena_start(mode, count)
+    if not db.actor then _tip("AT.ARENA: not in game") return end
+    _arena_mode = mode
+    _arena_want = count or 16
+    _arena_center_lvid = db.actor:level_vertex_id()
+    _arena_gvid = db.actor:game_vertex_id()
+    _arena_side_dir = math_random() * 2 * math_pi
+    _arena_on = true
+    RemoveTimeEvent("at_arena", "tick")
+    CreateTimeEvent("at_arena", "tick", 1, _arena_tick)
+    _tip(string_format("AT.ARENA: maintaining %d geared NPCs (%s)", _arena_want, mode))
+end
+
+--- Keep n/2 army vs n/2 monolith fighting around you, all geared (default 16). Watch from the edge.
+--- @export console
+function at_arena(count)
+    _arena_start("war", count)
+end
+
+--- Keep n monolith around you, hostile to everything including you, all geared.
+--- @export console
+function at_arena_me(count)
+    _arena_start("me", count)
+end
+
+--- Stop the arena and release every NPC it spawned.
+--- @export console
+function at_arena_stop()
+    _arena_on = false
+    RemoveTimeEvent("at_arena", "tick")
+    local released = 0
+    for id in pairs(_arena_spawned) do
+        local se = alife_object(id)
+        if se then alife():release(se, true) released = released + 1 end
+        _arena_spawned[id] = nil
+    end
+    _tip(string_format("AT.ARENA: stopped, released %d", released))
 end
 
 -- Test helper for at_ammo: arm every online stalker near the actor with AP boxes
@@ -309,7 +492,7 @@ function at_arm_ap()
             armed = armed + (_arm_ap(npc) and 1 or 0)
         end
     end
-    at_trace.info("[AMMO] arm_ap armed=%d seen=%d boxes=%d rank=%d", armed, seen, AP_BOXES, AP_RANK)
+    at_debug.info("[AMMO] arm_ap armed=%d seen=%d boxes=%d rank=%d", armed, seen, AP_BOXES, AP_RANK)
     _tip(string_format("AT.AMMO: armed %d/%d stalkers with AP (rank %d). Fight them, watch [AP] log.",
         armed, seen, AP_RANK))
 end
@@ -321,7 +504,7 @@ end
 -- healing-charge tier), and one palette weapon per squad (kind variety - a long rifle feeds pickoff, a
 -- shotgun/pistol feeds the kite range bands). Fights, hits, and heals then show in alifetactics.log
 -- under [AP] / [HEAL] / [LIMP] / [ACC] / [DISCLOSURE] / [CROSSFIRE] / [JAM] / monitor with log
--- level DEBUG.
+-- level DEBUG. Effect gear (artefacts/kevlar/optics) is spawned WITH the NPC by _gear_members, not here.
 --------------------------------------------------------------------------------
 
 local LAB_RADIUS_SQR  = 100 * 100
@@ -381,7 +564,7 @@ local function _lab_pass()
             weapons = weapons + wpn_n
         end
     end
-    at_trace.info("[LAB] pass npcs=%d items_given=%d ap_armed=%d squad_weapons=%d", seen, items, aps, weapons)
+    at_debug.info("[LAB] pass npcs=%d items_given=%d ap_armed=%d squad_weapons=%d", seen, items, aps, weapons)
     _tip(string_format("AT.LAB: %d NPCs stocked, %d items, %d AP-armed, %d squad weapons", seen, items, aps, weapons))
 end
 
@@ -405,7 +588,7 @@ function at_lab_loop()
     if _lab_loop_on then
         _lab_loop_on = false
         RemoveTimeEvent("at_lab", "loop")
-        at_trace.info("[LAB] loop stopped")
+        at_debug.info("[LAB] loop stopped")
         _tip("AT.LAB: loop stopped")
         return
     end
@@ -413,7 +596,7 @@ function at_lab_loop()
     _lab_pass()
     RemoveTimeEvent("at_lab", "loop")
     CreateTimeEvent("at_lab", "loop", LAB_PERIOD_SEC, _lab_tick)
-    at_trace.info("[LAB] loop started period=%ds", LAB_PERIOD_SEC)
+    at_debug.info("[LAB] loop started period=%ds", LAB_PERIOD_SEC)
     _tip("AT.LAB: loop started (a pass every " .. LAB_PERIOD_SEC .. "s)")
 end
 
@@ -475,7 +658,7 @@ function at_dump()
     local count = 0
     at_disclosure.iterate_disclosed(function(squad_id, shooter_count)
         count = count + 1
-        at_trace.info("[DUMP] squad=%d shooters=%d", squad_id, shooter_count)
+        at_debug.info("[DUMP] squad=%d shooters=%d", squad_id, shooter_count)
     end)
     _tip(string_format("AT.TEST: %d disclosed-squad records (see alifetactics.log)", count))
 end

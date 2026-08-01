@@ -1,7 +1,7 @@
---- at_trace: the code-tracing primitives for AlifeTactics. ONE logger, one gate, one set of formatters.
+--- at_debug: the code-tracing primitives for AlifeTactics. ONE logger, one gate, one set of formatters.
 --- Every gameplay module wires into this to record WHAT ITS OWN CODE DOES - a decision, an action, an
 --- event - and nothing more. It replaces the per-module `xlog.get_logger` boilerplate and the
---- at_combat_trace / at_perception_trace façade files: a system traces its own lines, in its own words,
+--- at_combat_debug / at_perception_trace façade files: a system traces its own lines, in its own words,
 --- at its own call sites, through these primitives. There is no logging-only middle file anymore.
 ---
 --- Code tracing (here) answers "what did the mod decide and do". WORLD tracing - whether the fight
@@ -10,23 +10,23 @@
 --- is the world's account of the code.
 ---
 --- Cost: dbg() and on() gate on one integer compare. Below DEBUG the off path writes nothing; for a line
---- whose arguments cost something to build, the CALLER guards the whole site with `if at_trace.on()` so
+--- whose arguments cost something to build, the CALLER guards the whole site with `if at_debug.on()` so
 --- the off path also marshals nothing and crosses no luabind bridge - the same discipline the old
 --- per-module `_dbg` booleans enforced, now in one place.
 
-at_trace = at_trace or {}
+at_debug = at_debug or {}
 
 local xlog, tostring, RegisterScriptCallback = xlog, tostring, RegisterScriptCallback
 local log = xlog.get_logger("AT", { outfile = "alifetactics.log" })
 local DEBUG_LEVEL = 5
 local _lvl = 0
 -- Level constants for the flush-on-emit flag: TRACE flushes every line, ERROR is the logger's own
--- default flush threshold (xlog buffers below it). See at_trace.refresh.
+-- default flush threshold (xlog buffers below it). See at_debug.refresh.
 local _levels = xlog.get_levels()
 
 --- Re-read the log level from MCM - call on actor first update and on every option change. Sets the one
 --- gate every module's tracing reads, so a level change takes hold mod-wide from a single site.
-function at_trace.refresh()
+function at_debug.refresh()
     log.set_level(at_mcm.get_config("log_level") or "WARN")
     _lvl = log.get_level() or 0
     log._logger.flush_on_level = at_mcm.get_config("log_flush") and _levels.TRACE or _levels.ERROR
@@ -34,48 +34,48 @@ end
 
 --- True when DEBUG tracing is live - the guard a caller puts in front of an expensive trace line so the
 --- off path never builds its arguments.
-function at_trace.on()
+function at_debug.on()
     return _lvl >= DEBUG_LEVEL
 end
 
 --- A DEBUG line: what the code did, verbose. Noops below DEBUG. A cheap line calls this directly; an
---- expensive one gates its whole site on at_trace.on() first.
-function at_trace.dbg(fmt, ...)
+--- expensive one gates its whole site on at_debug.on() first.
+function at_debug.dbg(fmt, ...)
     if _lvl >= DEBUG_LEVEL then log.debug(fmt, ...) end
 end
 
 --- An INFO line: a milestone the log should carry whenever tracing is on at all.
-function at_trace.info(fmt, ...)
+function at_debug.info(fmt, ...)
     log.info(fmt, ...)
 end
 
 --- A WARN line: a real problem worth surfacing above the trace noise.
-function at_trace.warn(fmt, ...)
+function at_debug.warn(fmt, ...)
     log.warn(fmt, ...)
 end
 
 --- Flush the buffered log - level transitions and teardown.
-function at_trace.flush()
+function at_debug.flush()
     log.flush()
 end
 
 -- ---- shared formatters, so every trace line reads the same way ----
 
 --- Tri-state flag: y / n / ? (nil = unknowable, e.g. no planner to ask).
-function at_trace.flag(v)
+function at_debug.flag(v)
     if v == nil then return "?" end
     return v and "y" or "n"
 end
 
 --- A value, or "unknown" when nil - never a bare nil in a line.
-function at_trace.show(v)
+function at_debug.show(v)
     return v ~= nil and tostring(v) or "unknown"
 end
 
--- at_trace owns the log level for the whole mod: one refresh on first update and on every option change,
+-- at_debug owns the log level for the whole mod: one refresh on first update and on every option change,
 -- so no gameplay module manages a logger or a _dbg boolean of its own.
 function on_game_start()
-    RegisterScriptCallback("actor_on_first_update",      at_trace.refresh)
-    RegisterScriptCallback("on_option_change",           at_trace.refresh)
-    RegisterScriptCallback("mcm_option_restore_default", at_trace.refresh)
+    RegisterScriptCallback("actor_on_first_update",      at_debug.refresh)
+    RegisterScriptCallback("on_option_change",           at_debug.refresh)
+    RegisterScriptCallback("mcm_option_restore_default", at_debug.refresh)
 end

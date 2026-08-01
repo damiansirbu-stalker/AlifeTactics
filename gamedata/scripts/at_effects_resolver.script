@@ -21,13 +21,13 @@
 --- NPC on the first call and caches in the SOURCE's cache); resolve just re-combines the cached answers,
 --- a few table reads plus max/min on the hot path. Every combat write goes through an xcombat primitive
 --- (xcombat.scale_hit_power / xcombat.scale_dispersion / xcombat.set_view_distance_factor); this module
---- makes no raw engine combat call. Tracing rides at_trace with a measured duration, a no-op below DEBUG.
+--- makes no raw engine combat call. Tracing rides at_debug with a measured duration, a no-op below DEBUG.
 
 local pairs, tostring = pairs, tostring
 local IsStalker = IsStalker
 local RegisterScriptCallback, ini_file = RegisterScriptCallback, ini_file
 local level = level
-local xcombat, xprofiler, at_trace = xcombat, xprofiler, at_trace
+local xcombat, xprofiler, at_debug = xcombat, xprofiler, at_debug
 
 -- The multi-source effects. Value strings are the registry keys; a source registers a provider against
 -- one, a consumer resolves one. Single-source values (aim, vision speed, fire, move, regen) are NOT here
@@ -150,7 +150,7 @@ local function _start_aura(id, obj)
     if not bone then return end
     obj:start_particles(_aura, bone)
     _emitting[id] = bone
-    if at_trace.on() then at_trace.dbg("[EFF] aura id=%d particle=%s bone=%s", id, _aura, bone) end
+    if at_debug.on() then at_debug.dbg("[EFF] aura id=%d particle=%s bone=%s", id, _aura, bone) end
 end
 
 -- Stop the aura on a former carrier (dropped its last artefact, died, or toggled off).
@@ -160,6 +160,7 @@ local function _stop_aura(id)
     local obj = level.object_by_id(id)
     if obj then obj:stop_particles(_aura, bone) end
     _emitting[id] = nil
+    if at_debug.on() then at_debug.dbg("[EFF] aura-stop id=%d bone=%s", id, bone) end
 end
 
 -- Resolve the aura presence and reconcile the particle: start it for a carrier, stop it otherwise.
@@ -182,13 +183,13 @@ end
 -- the source's lazy inventory walk and caches the whole record, so the before_hit / shot appliers that
 -- follow in combat read a cache and never scan mid-callback.
 local function _apply_binds(npc)
-    local tmr = xprofiler.new_if(at_trace.on()):start()
+    local tmr = xprofiler.new_if(at_debug.on()):start()
     local vrange = resolve(npc, EFFECT.VISION_RANGE)
     xcombat.set_view_distance_factor(npc, vrange or 1.0)
     _apply_aura(npc)
     tmr:stop()
-    if at_trace.on() then
-        at_trace.dbg("[EFF] spawn id=%d vrange=%s aura=%s [%.3fms]",
+    if at_debug.on() then
+        at_debug.dbg("[EFF] spawn id=%d vrange=%s aura=%s [%.3fms]",
             npc:id(), tostring(vrange), _emitting[npc:id()] and "on" or "off", tmr:get_ms())
     end
 end
@@ -216,7 +217,7 @@ end
 -- resolve returns nil for an ineligible NPC and the scale is a no-op.
 local function _on_npc_before_hit(npc, shit, _bone_id, _flags)
     if not (npc and shit) then return end
-    local tmr = xprofiler.new_if(at_trace.on()):start()
+    local tmr = xprofiler.new_if(at_debug.on()):start()
     local before = shit.power
     xcombat.scale_hit_power(shit, resolve(npc, EFFECT.DAMAGE_RESIST))
     local attacker = shit.draftsman
@@ -224,8 +225,8 @@ local function _on_npc_before_hit(npc, shit, _bone_id, _flags)
         xcombat.scale_hit_power(shit, resolve(attacker, EFFECT.DAMAGE_DEALT))
     end
     tmr:stop()
-    if at_trace.on() and before ~= shit.power then
-        at_trace.dbg("[EFF] hit victim=%d attacker=%s power=%.3f->%.3f [%.3fms]",
+    if at_debug.on() and before ~= shit.power then
+        at_debug.dbg("[EFF] hit victim=%d attacker=%s power=%.3f->%.3f [%.3fms]",
             npc:id(), attacker and attacker:id() or "none", before, shit.power, tmr:get_ms())
     end
 end
@@ -236,12 +237,12 @@ local function _on_actor_before_hit(shit, _bone_id, _flags)
     if not shit then return end
     local attacker = shit.draftsman
     if not (attacker and IsStalker(attacker)) then return end
-    local tmr = xprofiler.new_if(at_trace.on()):start()
+    local tmr = xprofiler.new_if(at_debug.on()):start()
     local before = shit.power
     xcombat.scale_hit_power(shit, resolve(attacker, EFFECT.DAMAGE_DEALT))
     tmr:stop()
-    if at_trace.on() and before ~= shit.power then
-        at_trace.dbg("[EFF] hit victim=actor attacker=%d power=%.3f->%.3f [%.3fms]",
+    if at_debug.on() and before ~= shit.power then
+        at_debug.dbg("[EFF] hit victim=actor attacker=%d power=%.3f->%.3f [%.3fms]",
             attacker:id(), before, shit.power, tmr:get_ms())
     end
 end
@@ -254,12 +255,12 @@ local function _on_shot_dispersion(obj, _wpn, _body_state, _move_type, temp_disp
     if not (obj and temp_disp) then return end
     local factor = resolve(obj, EFFECT.SHOT_DISPERSION)
     if not factor then return end
-    local tmr = xprofiler.new_if(at_trace.on()):start()
+    local tmr = xprofiler.new_if(at_debug.on()):start()
     local before = temp_disp.dispersion
     xcombat.scale_dispersion(temp_disp, factor)
     tmr:stop()
-    if at_trace.on() then
-        at_trace.dbg("[EFF] disp id=%d factor=%.3f cone=%.5f->%.5f [%.3fms]",
+    if at_debug.on() then
+        at_debug.dbg("[EFF] disp id=%d factor=%.3f cone=%.5f->%.5f [%.3fms]",
             obj:id(), factor, before or -1, temp_disp.dispersion or -1, tmr:get_ms())
     end
 end
@@ -282,8 +283,8 @@ local function _on_option_change()
 end
 
 local function _on_first_update()
-    at_trace.refresh()
-    at_trace.info("Effects resolver initialized (aura=%s)", _aura ~= "" and _aura or "none")
+    at_debug.refresh()
+    at_debug.info("Effects resolver initialized (aura=%s)", _aura ~= "" and _aura or "none")
 end
 
 function on_game_start()

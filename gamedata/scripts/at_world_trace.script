@@ -311,7 +311,7 @@ local function _on_shot(obj, wpn, body_state, move_type, temp_disp)
     local tier = ranks.get_obj_rank_name(obj)
     if not tier or tier == "" then return end
 
-    local tmr = xprofiler.new_if(at_trace.on()):start()
+    local tmr = xprofiler.new_if(at_debug.on()):start()
     local moving = move_type ~= nil and move_type <= MT_RUN
     local drive = "vanilla"
     if at_combat.get_maneuver(id) then
@@ -341,7 +341,7 @@ local function _on_shot(obj, wpn, body_state, move_type, temp_disp)
 
     _ctx[id] = { tier = tier, moving = moving, drive = drive }
     tmr:stop()
-    if at_trace.on() then
+    if at_debug.on() then
         log.debug("[BAL] shot id=%d tier=%s kind=%s moving=%s drive=%s [%.3fms]",
             id, tier, tostring(kind), tostring(moving), drive, tmr:get_ms())
     end
@@ -413,7 +413,7 @@ local function _record_wrongway(bullet, shooter, ctx)
     row.aim_off_sum = row.aim_off_sum + off
     if off <= WRONGWAY_DEG then return end
     row.wrongway = row.wrongway + 1
-    if at_trace.on() then
+    if at_debug.on() then
         log.debug("[BAL] wrongway id=%d tier=%s off=%.0fdeg enemy=%d edist=%.0f drive=%s",
             shooter:id(), ctx.tier, off, enemy:id(), edist, ctx.drive)
     end
@@ -451,7 +451,7 @@ local function _on_impact(bullet)
         if ctx.moving then row.mv_hits = row.mv_hits + 1 else row.st_hits = row.st_hits + 1 end
         _drive_row(ctx.drive).hits = _drive_row(ctx.drive).hits + 1
     end
-    if at_trace.on() then
+    if at_debug.on() then
         log.debug("[BAL] impact id=%d tier=%s hit=%s drive=%s", parent_id, ctx.tier, tostring(hit), ctx.drive)
     end
 end

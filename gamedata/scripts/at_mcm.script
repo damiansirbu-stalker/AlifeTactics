@@ -761,12 +761,12 @@ local function _log_mcm_settings()
         parts[#parts + 1] = key .. "=" .. tostring(cfg[key])
     end
     table.sort(parts)
-    at_trace.info("[MCM] %s", table.concat(parts, " "))
+    at_debug.info("[MCM] %s", table.concat(parts, " "))
 end
 
 local function _on_first_update()
-    at_trace.refresh()
-    at_trace.info("AlifeTactics MCM loaded (log_level=%s)", get_config("log_level") or "WARN")
+    at_debug.refresh()
+    at_debug.info("AlifeTactics MCM loaded (log_level=%s)", get_config("log_level") or "WARN")
     _log_mcm_settings()
 end
 

@@ -140,7 +140,7 @@ local function _try_alert(npc, id, pos, tg, source, strength)
     _alert_at[id] = tg
     _alert_strength[id] = strength
     xr_danger.set_script_danger(npc, INERTION_MS, AC_ID, pos, strength)
-    if at_trace.on() then at_trace.dbg("[NOISE] alert id=%d name=%s source=%s strength=%s", id, npc:name(), source, strength) end
+    if at_debug.on() then at_debug.dbg("[NOISE] alert id=%d name=%s source=%s strength=%s", id, npc:name(), source, strength) end
 end
 
 -- The movement scan, on the scheduled pass: hostile stalkers inside the accumulated step radius get
@@ -164,7 +164,7 @@ local function _scan_movement(tg)
             _try_alert(npc, id, actor_pos, tg, "step", strength)
         end
     end
-    at_trace.dbg("[NOISE] scan radius=%.1fm rain=%.2f", radius, rain or 0)
+    at_debug.dbg("[NOISE] scan radius=%.1fm rain=%.2f", radius, rain or 0)
 end
 
 local _pass_active = false
@@ -217,7 +217,7 @@ local function _derive_hear_scale()
 end
 
 local function _refresh_config()
-    at_trace.refresh()
+    at_debug.refresh()
     _enabled.move    = at_mcm.get_config("danger_move_noise")    ~= false
     _enabled.actions = at_mcm.get_config("danger_heard_actions") ~= false
     _mult = at_mcm.get_config("danger_noise_mult") or 1.0
@@ -235,7 +235,7 @@ local function _on_first_update()
     _hear_scale = _derive_hear_scale()
     -- Time events do not survive a save load, so the pass arms here, per session.
     _start_pass()
-    at_trace.info("Noise hearing initialized (move=%s actions=%s mult=%.2f hear_scale=%.2f)",
+    at_debug.info("Noise hearing initialized (move=%s actions=%s mult=%.2f hear_scale=%.2f)",
         tostring(_enabled.move), tostring(_enabled.actions), _mult, _hear_scale)
 end
 

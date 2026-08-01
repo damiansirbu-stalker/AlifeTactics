@@ -369,7 +369,7 @@ local function _drop_hud()
 end
 
 local function _refresh()
-    local tmr = xprofiler.new_if(at_trace.on()):start()
+    local tmr = xprofiler.new_if(at_debug.on()):start()
     if _debug_wanted() then
         local rows = _build_rows()
         if not _hud then _hud = UIDebugHUD() end
@@ -380,7 +380,7 @@ local function _refresh()
         _hud:set_rows(rows)
     end
     tmr:stop()
-    if at_trace.on() then at_trace.dbg("[HUD] refresh [%.2fms]", tmr:get_ms()) end
+    if at_debug.on() then at_debug.dbg("[HUD] refresh [%.2fms]", tmr:get_ms()) end
 end
 
 local function _is_visible()
@@ -406,7 +406,7 @@ local function _start()
     _tick_active = true
     RemoveTimeEvent("at_hud", "tick")
     CreateTimeEvent("at_hud", "tick", REFRESH_INTERVAL_SEC, _tick)
-    at_trace.info("Debug HUD enabled (position=%s, radius=%dm, show_idle=%s)",
+    at_debug.info("Debug HUD enabled (position=%s, radius=%dm, show_idle=%s)",
         cfg.hud_position or "center_right", HUD_RADIUS_M, tostring(HUD_SHOW_IDLE))
 end
 
@@ -414,11 +414,11 @@ local function _stop()
     _tick_active = false
     RemoveTimeEvent("at_hud", "tick")
     _drop_hud()
-    at_trace.info("Debug HUD disabled")
+    at_debug.info("Debug HUD disabled")
 end
 
 local function _refresh_log()
-    at_trace.refresh()
+    at_debug.refresh()
 end
 
 local function _on_option_change()

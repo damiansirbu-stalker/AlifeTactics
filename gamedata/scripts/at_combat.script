@@ -9,7 +9,7 @@ local string_match, tonumber = string.match, tonumber
 
 local cfg = at_mcm.cfg
 local doctrine = at_combat_doctrine
-local show, flag = at_trace.show, at_trace.flag
+local show, flag = at_debug.show, at_debug.flag
 
 local LTX_PATH    = "alifetactics\\at_combat_config.ltx"
 local LTX_SECTION = "at_combat"
@@ -58,7 +58,7 @@ local _orig_get_queue_params
 local function _patched_get_queue_params(npc, st, override)
     local state = npc and _npc_states[npc:id()]
     if state and state.maneuver then
-        local tmr = xprofiler.new_if(at_trace.on()):start()
+        local tmr = xprofiler.new_if(at_debug.on()):start()
         local band
         if state.maneuver.name == "pickoff" then
             band = _pickoff_band
@@ -76,8 +76,8 @@ local function _patched_get_queue_params(npc, st, override)
             override = { size, interval, 0 }
         end
         tmr:stop()
-        if at_trace.on() then
-            at_trace.dbg("[QUE] id=%d row=%s size=%s interval=%s [%.3fms]",
+        if at_debug.on() then
+            at_debug.dbg("[QUE] id=%d row=%s size=%s interval=%s [%.3fms]",
                 npc:id(), state.maneuver.name,
                 band and tostring(override[1]) or "vanilla",
                 band and tostring(override[2]) or "vanilla", tmr:get_ms())
@@ -162,7 +162,7 @@ local function _sm_combat(id)
 end
 
 -- Metres from the NPC to the maneuver's staged destination vertex, or -1 when there is no destination.
--- Trace-path only (one luabind for the vertex position), always called inside an at_trace.on() gate.
+-- Trace-path only (one luabind for the vertex position), always called inside an at_debug.on() gate.
 local function _dest_m(npc, dest)
     if not dest then return -1 end
     return npc:position():distance_to(level.vertex_position(dest))
@@ -170,7 +170,7 @@ end
 
 -- Debug-only lethality evidence per maneuver window: shots fired (npc_shot_dispersion, once per
 -- bullet, ai_stalker_fire.cpp:135-139) vs hits landed on the actor (actor_on_hit_callback carries
--- the shooter). Both handlers bail on the at_trace.on() gate; the counts ride the end trace line.
+-- the shooter). Both handlers bail on the at_debug.on() gate; the counts ride the end trace line.
 local _shots = {}
 local _hits = {}
 
@@ -205,7 +205,7 @@ local function _trace_end(state, tg, reason, check_us)
     end
     local vertex, dest_m = "gone", -1
     if npc then vertex, dest_m = npc:level_vertex_id(), _dest_m(npc, state.dest) end
-    at_trace.dbg("[CMB] end id=%s name=%s maneuver=%s reason=%s dur=%dms shots=%d hits_actor=%d result=%s" ..
+    at_debug.dbg("[CMB] end id=%s name=%s maneuver=%s reason=%s dur=%dms shots=%d hits_actor=%d result=%s" ..
         " need_cleared=%s reenters=%d vertex=%s dest=%s dest_m=%.1f tgt=%s [%dus]",
         show(state.id), show(state.name), show(row and row.name), show(reason),
         math_floor(tg - (state.begin_at or tg)), _shots[state.id] or 0, _hits[state.id] or 0,
@@ -214,7 +214,7 @@ local function _trace_end(state, tg, reason, check_us)
 end
 
 local function _end_maneuver(state, tg, reason, check_us)
-    if at_trace.on() then _trace_end(state, tg, reason, check_us) end
+    if at_debug.on() then _trace_end(state, tg, reason, check_us) end
     _shots[state.id] = nil
     _hits[state.id] = nil
     state.result = nil
@@ -237,17 +237,17 @@ end
 -- _begin_maneuver keeps one level of nesting: send_to re-targets an inaccessible vertex to
 -- accessible_nearest and falls back to the NPC's own node, and until now nothing recorded that it had.
 local function _trace_begin(npc, state, fire, gate, send_us, apply_us)
-    if not at_trace.on() then return end
+    if not at_debug.on() then return end
     local maneuver = state.maneuver
     local pos = npc:position()
-    at_trace.dbg("[CMB] begin id=%s name=%s maneuver=%s trigger=%s dest=%s sent=%s fire=%s move=%s" ..
+    at_debug.dbg("[CMB] begin id=%s name=%s maneuver=%s trigger=%s dest=%s sent=%s fire=%s move=%s" ..
         " requested=%s fire_gate=%s cover=%s op=%s tgt=%s vertex=%s pos=%.1f,%.1f dest_m=%.1f [send=%dus apply=%dus]",
         show(state.id), show(state.name), show(maneuver.name), show(state.trigger), show(state.dest),
         show(state.sent), show(fire), show(maneuver.movement), show(maneuver.fire), show(gate), show(state.cover),
         show(xcombat.get_operator(npc)), show(_sm_target(state.id)), show(npc:level_vertex_id()),
         pos.x, pos.z, _dest_m(npc, state.sent or state.dest), send_us, apply_us)
     if state.sent == state.dest then return end
-    at_trace.dbg("[CMB] dest_substituted id=%s maneuver=%s asked=%s got=%s own=%s",
+    at_debug.dbg("[CMB] dest_substituted id=%s maneuver=%s asked=%s got=%s own=%s",
         show(state.id), show(maneuver.name), show(state.dest), show(state.sent), show(npc:level_vertex_id()))
 end
 
@@ -255,8 +255,8 @@ end
 -- Extracted for the same nesting reason. away= is how long another action held the NPC, from the release
 -- stamp, which is the one interval the 200ms operator census cannot resolve.
 local function _trace_reenter(npc, state, maneuver, tg)
-    if not at_trace.on() then return end
-    at_trace.dbg("[CMB] reenter id=%s maneuver=%s n=%d op=%s tgt=%s combat=%s vertex=%s dest=%s dest_m=%.1f" ..
+    if not at_debug.on() then return end
+    at_debug.dbg("[CMB] reenter id=%s maneuver=%s n=%d op=%s tgt=%s combat=%s vertex=%s dest=%s dest_m=%.1f" ..
         " since_begin=%dms since_apply=%dms away=%dms",
         show(state.id), show(maneuver.name), state.reenters,
         show(xcombat.get_operator(npc)), show(_sm_target(state.id)), flag(_sm_combat(state.id)),
@@ -292,10 +292,10 @@ local function _begin_maneuver(npc)
     -- send_to substitutes silently: an inaccessible vertex is re-targeted to accessible_nearest, and a
     -- failure there falls back to the NPC's own node. Keep what it ACTUALLY set, so the trace and any
     -- distance read reflect where he was really sent rather than where the row asked.
-    local tmr_send = xprofiler.new_if(at_trace.on()):start()
+    local tmr_send = xprofiler.new_if(at_debug.on()):start()
     state.sent = xcombat.send_to(npc, state.dest)
     tmr_send:stop()
-    local tmr_apply = xprofiler.new_if(at_trace.on()):start()
+    local tmr_apply = xprofiler.new_if(at_debug.on()):start()
     local fire, gate = doctrine.apply_state(npc, maneuver, enemy)
     tmr_apply:stop()
     state.maneuver_at = tg
@@ -306,7 +306,7 @@ end
 
 -- Shot counter (debug only): one increment per bullet a maneuvering NPC fires.
 local function _on_shot_fired(obj)
-    if not at_trace.on() or not obj then return end
+    if not at_debug.on() or not obj then return end
     local id = obj:id()
     local state = _npc_states[id]
     if state and state.maneuver then
@@ -316,7 +316,7 @@ end
 
 -- Actor-hit counter (debug only): one increment per damaging hit a maneuvering NPC lands on the actor.
 local function _on_actor_hit(_, amount, _, who)
-    if not at_trace.on() or not who then return end
+    if not at_debug.on() or not who then return end
     if not amount or amount <= 0 then return end
     local id = who:id()
     local state = _npc_states[id]
@@ -329,7 +329,7 @@ end
 -- maneuver's result, printed on the end trace line (npc_on_enemy_wounded_or_killed cannot fire for
 -- the actor as victim, so the player-facing outcome stays the hits_actor counter).
 local function _on_enemy_downed(npc, victim)
-    if not at_trace.on() or not (npc and victim) then return end
+    if not at_debug.on() or not (npc and victim) then return end
     local state = _npc_states[npc:id()]
     if not (state and state.maneuver) then return end
     if victim:id() ~= state.enemy_id then return end
@@ -349,8 +349,8 @@ local function _on_release(npc)
     if not (state and state.maneuver_at) then return end
     local tg = time_global()
     state.released_at = tg
-    if not at_trace.on() then return end
-    at_trace.dbg("[CMB] release id=%s maneuver=%s held=%dms op=%s tgt=%s vertex=%s",
+    if not at_debug.on() then return end
+    at_debug.dbg("[CMB] release id=%s maneuver=%s held=%dms op=%s tgt=%s vertex=%s",
         show(state.id), show(state.maneuver and state.maneuver.name),
         math_floor(tg - (state.granted_at or tg)),
         show(xcombat.get_operator(npc)), show(_sm_target(state.id)), show(npc:level_vertex_id()))
@@ -382,7 +382,7 @@ end
 -- rows= is one comma-joined entry per examined catalog row in walk order ("name:situation/stage", built by
 -- doctrine.resolve_maneuver); walk= the whole walk's microseconds, check= the begin check's own cost.
 local function _trace_decision(npc, state, enemy, result)
-    if not at_trace.on() then return end
+    if not at_debug.on() then return end
     local enemy_pos = enemy:position()
     state.enemy_name = xcreature.get_name(enemy:id())
     state.operator   = xcombat.get_operator(npc)
@@ -391,7 +391,7 @@ local function _trace_decision(npc, state, enemy, result)
     local in_cover, looked_out, held = xcombat.get_cover_state(npc)
     state.cover = _cover_string(in_cover, looked_out, held,
         xcombat.has_obstacle_to_target(enemy_pos, npc:position()))
-    at_trace.dbg("[CMB] monitor id=%s name=%s target=%s(%s) distance=%.1f seen=%s aim=%ddeg operator=%s cover=%s rows=%s walk=%dus check=%dus result=%s",
+    at_debug.dbg("[CMB] monitor id=%s name=%s target=%s(%s) distance=%.1f seen=%s aim=%ddeg operator=%s cover=%s rows=%s walk=%dus check=%dus result=%s",
         show(state.id), show(state.name), show(state.enemy_id), show(state.enemy_name), state.dist or -1,
         state.seen and "yes" or "no", state.aim_off or -1, show(state.operator), show(state.cover),
         show(state.rows), state.walk_us or -1, state.check_us or -1, result or "none")
@@ -402,8 +402,8 @@ end
 -- detail (no_weapon / smart_cover), so the log says WHY, not just that it could not. The ":" concat
 -- lives inside the gate, so the off path allocates nothing.
 local function _trace_monitor_skip(state, result, detail, us)
-    if not at_trace.on() then return end
-    at_trace.dbg("[CMB] monitor id=%s name=%s target=%s result=%s%s [%dus]",
+    if not at_debug.on() then return end
+    at_debug.dbg("[CMB] monitor id=%s name=%s target=%s result=%s%s [%dus]",
         show(state.id), show(state.name), show(state.enemy_id), result,
         detail and (":" .. detail) or "", us or -1)
 end
@@ -429,12 +429,12 @@ end
 -- negates it, so the trigger itself is the throttle - a re-fired need is a real, recurred problem.
 local function _try_begin_maneuver(npc, state, tg)
     if not _manages(npc) then state.fighting = false return end
-    local tmr = xprofiler.new_if(at_trace.on()):start()
+    local tmr = xprofiler.new_if(at_debug.on()):start()
 
     local enemy = npc:best_enemy()
     state.fighting = _is_fighting(enemy, state, tg)
     if not state.fighting then state.stall_set = false state.row_cursor = 1 state.circuit_sit = nil return end
-    if at_trace.on() then state.name = npc:name() end
+    if at_debug.on() then state.name = npc:name() end
 
     if not enemy then
         state.enemy_id = nil
@@ -475,7 +475,7 @@ local function _try_begin_maneuver(npc, state, tg)
         state.begin_at = tg
     end
     tmr:stop()
-    if at_trace.on() then state.check_us = math_floor(tmr:get_us()) end
+    if at_debug.on() then state.check_us = math_floor(tmr:get_us()) end
     _trace_decision(npc, state, enemy, maneuver and maneuver.name)
     -- A vs_actor row commits to the ACTOR: its problem is the actor, not the selected enemy, so the
     -- maneuver aims at, ends on, and resolves the actor for its whole life. Staged AFTER the decision
@@ -499,7 +499,7 @@ local function _check_sight_glue(state, maneuver, sight_id)
     state.sight_glue_count = (state.sight_glue_count or 0) + 1
     if state.sight_glue_count < 3 then return end
     state.sight_warned = true
-    at_trace.warn("[CMB] sight_glue id=%d maneuver=%s staged=%d sight=%d - committed-target sight lost (f015 regression)",
+    at_debug.warn("[CMB] sight_glue id=%d maneuver=%s staged=%d sight=%d - committed-target sight lost (f015 regression)",
         state.id, maneuver.name, state.enemy_id, sight_id)
 end
 
@@ -522,7 +522,7 @@ local function _update_maneuver(npc, state, tg)
     if not state.escape_warned and not xcombat.is_takeover_current(npc)
         and not (IsWounded(npc) or xcombat.is_staggering(npc)) then
         state.escape_warned = true
-        at_trace.warn("[CMB] escape id=%d maneuver=%s op=%s - an unblocked action holds the slot under an open maneuver (denylist gap, t148)",
+        at_debug.warn("[CMB] escape id=%d maneuver=%s op=%s - an unblocked action holds the slot under an open maneuver (denylist gap, t148)",
             state.id, maneuver.name, xcombat.get_operator(npc))
     end
     if not maneuver.update then return end
@@ -541,7 +541,7 @@ local function _update_maneuver(npc, state, tg)
     -- skipped passes visible in a debug log (otherwise a paused maneuver reads as silence).
     local busy, busy_why = xcombat.body_busy(npc)
     if busy then
-        at_trace.dbg("[CMB] pause id=%s maneuver=%s why=%s", show(state.id), show(maneuver.name), show(busy_why))
+        at_debug.dbg("[CMB] pause id=%s maneuver=%s why=%s", show(state.id), show(maneuver.name), show(busy_why))
         return
     end
     local enemy = xcombat.resolve_enemy(state.enemy_id)
@@ -550,19 +550,19 @@ local function _update_maneuver(npc, state, tg)
     -- our own write and could never see a foreign owner - the sample must show what the 200ms
     -- interval LEFT in the slot. Debug-only: zero reads, zero lines when tracing is off.
     local sight_id, sight_mode
-    if at_trace.on() then
+    if at_debug.on() then
         sight_id, sight_mode = xcombat.get_sight_target(npc)
         -- Enemy-guarded at the call: with the target gone the maneuver is one end check from
         -- closing and a foreign sight is then legitimate, not glue.
         if enemy then _check_sight_glue(state, maneuver, sight_id) end
     end
-    local tmr = xprofiler.new_if(at_trace.on()):start()
+    local tmr = xprofiler.new_if(at_debug.on()):start()
     local fire, gate = maneuver.update(npc, maneuver, enemy)
     tmr:stop()
-    if not at_trace.on() then return end
+    if not at_debug.on() then return end
     local us = math_floor(tmr:get_us())
     if not enemy then
-        at_trace.dbg("[CMB] update id=%s name=%s maneuver=%s target=nil fire=%s fire_gate=%s [%dus]",
+        at_debug.dbg("[CMB] update id=%s name=%s maneuver=%s target=nil fire=%s fire_gate=%s [%dus]",
             show(state.id), show(state.name), show(maneuver.name), show(fire), show(gate), us)
         return
     end
@@ -579,12 +579,12 @@ local function _update_maneuver(npc, state, tg)
     -- combat state being replaced (notably by "idle") shows up with a timestamp, instead of having to be
     -- diffed out of the 200ms samples below.
     if tgt ~= state.tgt_seen then
-        at_trace.dbg("[CMB] tgt_change id=%s maneuver=%s from=%s to=%s op=%s held=%dms",
+        at_debug.dbg("[CMB] tgt_change id=%s maneuver=%s from=%s to=%s op=%s held=%dms",
             show(state.id), show(maneuver.name), show(state.tgt_seen), show(tgt),
             show(xcombat.get_operator(npc)), math_floor(tg - (state.tgt_at or tg)))
         state.tgt_seen, state.tgt_at = tgt, tg
     end
-    at_trace.dbg("[CMB] update id=%s name=%s maneuver=%s target=%s(%s) seen=%s aim=%ddeg sight=%s stype=%s"
+    at_debug.dbg("[CMB] update id=%s name=%s maneuver=%s target=%s(%s) seen=%s aim=%ddeg sight=%s stype=%s"
         .. " fire=%s fire_gate=%s op=%s tgt=%s mt=%s vertex=%s pos=%.1f,%.1f dest_m=%.1f reenters=%d [%dus]",
         show(state.id), show(state.name), show(maneuver.name), show(enemy:id()), show(xcreature.get_name(enemy:id())),
         xcombat.sees(npc, enemy) and "yes" or "no", math_floor(xcombat.get_facing_offset(npc, enemy:position())),
@@ -633,7 +633,7 @@ local function _try_end_maneuver(npc, state, tg)
             return
         end
     end
-    local tmr = xprofiler.new_if(at_trace.on()):start()
+    local tmr = xprofiler.new_if(at_debug.on()):start()
     local reason = _end_reason(npc, enemy, state, tg)
     tmr:stop()
     if reason then _end_maneuver(state, tg, reason, math_floor(tmr:get_us())) end
@@ -731,7 +731,7 @@ local function _install(npc)
     if _npc_states[id] then return end
     _npc_states[id] = { id = id, ran_at = {} }
     xcombat.install_takeover(npc, SPEC)
-    if at_trace.on() then at_trace.dbg("[CMB] installed id=%d name=%s", id, npc:name()) end
+    if at_debug.on() then at_debug.dbg("[CMB] installed id=%d name=%s", id, npc:name()) end
 end
 
 -- A hit stamps the fight clock so a far shooter - out of the engine's enemy-distance gate, best_enemy still nil -
@@ -758,8 +758,8 @@ local function _on_reload_start(npc, wpn)
     if not state then return end
     state.reloading = true
     state.reload_at = time_global()
-    if at_trace.on() then
-        at_trace.dbg("[RELOAD] start id=%d wpn=%s mag_left=%d fighting=%s", state.id,
+    if at_debug.on() then
+        at_debug.dbg("[RELOAD] start id=%d wpn=%s mag_left=%d fighting=%s", state.id,
             wpn and wpn:section() or "?", wpn and wpn:get_ammo_in_magazine() or -1,
             npc:best_enemy() and "yes" or "no")
     end
@@ -769,8 +769,8 @@ local function _on_reload_stop(npc)
     if not npc then return end
     local state = _npc_states[npc:id()]
     if not state then return end
-    if at_trace.on() then
-        at_trace.dbg("[RELOAD] stop id=%d held=%dms", npc:id(),
+    if at_debug.on() then
+        at_debug.dbg("[RELOAD] stop id=%d held=%dms", npc:id(),
             state.reload_at and (time_global() - state.reload_at) or -1)
     end
     state.reloading = nil
@@ -828,7 +828,7 @@ local function _load_config()
 end
 
 local function _refresh_log()
-    at_trace.refresh()
+    at_debug.refresh()
 end
 
 -- The monitor runs only while the feature is on. Turning it off mid-game first ends every open maneuver
@@ -856,8 +856,8 @@ local function _on_first_update()
     _refresh_log()
     -- Time events do not survive a save load (_g.script header), so the monitor arms here, per session.
     _apply_enabled()
-    at_trace.info("Combat monitor initialized (enabled=%s dbg=%s cap=%d queue_patch=%s)",
-        tostring(cfg.combat_enabled), tostring(at_trace.on()), MAX_CONCURRENT,
+    at_debug.info("Combat monitor initialized (enabled=%s dbg=%s cap=%d queue_patch=%s)",
+        tostring(cfg.combat_enabled), tostring(at_debug.on()), MAX_CONCURRENT,
         _orig_get_queue_params and "installed" or "missing")
 end
 
@@ -893,6 +893,6 @@ function on_game_start()
     RegisterScriptCallback("on_option_change",            _on_option_change)
     RegisterScriptCallback("mcm_option_restore_default",  _on_option_change)
     if not (xcombat.on_reload_start(_on_reload_start) and xcombat.on_reload_stop(_on_reload_stop)) then
-        at_trace.info("Reload Cover INACTIVE: exe lacks the NPC reload events (PR #611); row inert")
+        at_debug.info("Reload Cover INACTIVE: exe lacks the NPC reload events (PR #611); row inert")
     end
 end

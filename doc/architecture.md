@@ -19,7 +19,7 @@ Project-wide constraints. Every system holds all of them; a change that violates
 - **Engine truth.** Every mechanism claim in this document carries an engine source cite (file:line into xray-monolith or vanilla Anomaly). A behavior that could not be proven from source does not ship; where the engine had no seam, the seam was added upstream first (the demonized PRs: action-switch veto, per-NPC aim and vision, fire-discipline binds).
 - **The takeover is a bounded transaction that TRIES to solve its problem.** Vanilla owns every NPC by default. AT borrows one NPC for one committed, time-boxed maneuver and releases it - at most one open maneuver per NPC and at most `max_concurrent_maneuvers` open across all NPCs (a runaway failsafe), ended on arrival, a hard cap, or a broken premise, cleaned up on death and despawn. There is no reseize cooldown: every row's need states the FULL problem and the maneuver's success negates it (kite clears its own weapon minimum, flee routs past the enemy's reach, counterflank flips the engine's enemy selection, a finished pickoff hold resets the stall measurement; retreat is the one row whose need is a STANDING condition - it only grows the distance, so it legitimately re-fires while the NPC stays hurt inside a long weapon's reach), so a solved problem does not re-fire and a recurred or unsolved one legitimately does - three kites under sustained pressure are three correct transactions. Every maneuver is locked to the target it was staged against (`state.enemy_id` resolved via `xcombat.resolve_enemy`, in the shared shell so every current and future row inherits it): the staged target is what the NPC LOOKS at (`look_object`) and what every read and end condition resolves - sight, `fire_make_sense`, the `should_end` premises, `target_lost` - for the maneuver's life, and his death or despawn ends the maneuver at once with vanilla re-selecting from there; which enemy his SHOTS select remains `CEnemyManager`'s own pick, which the takeover does not touch. AT is an interrupt over vanilla, never the combat brain.
 - **xcombat boundary.** Every NPC combat command and read goes through an xcombat (xlibs) primitive; AT makes no raw engine combat call. AT owns policy (when, whom, which maneuver); xcombat owns mechanism (how to issue it to the engine).
-- **Debug is free when off.** Every trace call gates on one integer compare (`at_trace.on()` / `at_trace.dbg`). The off path builds no string, allocates nothing, and crosses no luabind bridge; an expensive line's whole site sits behind `if at_trace.on()`.
+- **Debug is free when off.** Every trace call gates on one integer compare (`at_debug.on()` / `at_debug.dbg`). The off path builds no string, allocates nothing, and crosses no luabind bridge; an expensive line's whole site sits behind `if at_debug.on()`.
 
 ---
 
@@ -33,7 +33,7 @@ Version 1.1.5.
 | `at_mcm.script` | infra | done |
 | `at_test.script` | infra | done |
 | `at_hud.script` | infra | done (live debug HUD; each row coloured by the combat system holding the NPC - maneuver green / commitment blue / conduct mauve - noop unless enabled) |
-| `at_trace.script` | infra | done (the one code-trace primitives file: logger, gate, formatters, level lifecycle; every module logs through it) |
+| `at_debug.script` | infra | done (the one code-trace primitives file: logger, gate, formatters, level lifecycle; every module logs through it) |
 | `at_world_trace.script` | infra | done (the world log: slide watchdog + ballistics recorder, one toggle, driver attribution, MCM Development, zero cost off) |
 | `at_disclosure.script` | feature | done |
 | `at_crossfire.script` | feature | done |
@@ -96,7 +96,7 @@ AlifeTactics/
 │   ├── scripts/
 │   │   ├── _at_deps.script                    # dependency gate
 │   │   ├── at_mcm.script                      # MCM configuration
-│   │   ├── at_trace.script                    # code-trace primitives (one logger -> alifetactics.log, the on() gate, formatters, level lifecycle)
+│   │   ├── at_debug.script                    # code-trace primitives (one logger -> alifetactics.log, the on() gate, formatters, level lifecycle)
 │   │   ├── at_combat.script                   # Combat > Maneuvers (engine half: GOAP takeover, gates, lifecycle)
 │   │   ├── at_combat_doctrine.script          # Combat decision half (catalog, should/can methods, arbiter)
 │   │   ├── at_commitment.script               # Combat > Commitment (action-switch + cover re-pick vetoes)
@@ -689,7 +689,7 @@ Each provider is LAZY: it walks the NPC's inventory (or reads rank) once on the 
 - **before_hit** (`npc_on_before_hit` / `actor_on_before_hit`): the victim's DAMAGE_RESIST (down) and the attacker's DAMAGE_DEALT (up), each scaling `shit.power` through `xcombat.scale_hit_power`. Both multiply, so they compose.
 - **shot** (`npc_shot_dispersion`): SHOT_DISPERSION scaling `temp_disp.dispersion` through `xcombat.scale_dispersion`. `at_accuracy` writes the single-source MOVE penalty on the same callback; both are multiplies, so subscriber order is irrelevant.
 
-The resolver owns the aura particle lifecycle (the `_emitting` map, bone resolution, stop on death/unregister) and a public `refresh(npc)` a source calls after it invalidates its own cache on a gear change, to re-push the spawn binds. Every apply carries a null-object `at_trace` timer (measured, 0.1ms avg / 2ms ceiling); a stagger returns only if a measured crowd-load first-online burst crosses it.
+The resolver owns the aura particle lifecycle (the `_emitting` map, bone resolution, stop on death/unregister) and a public `refresh(npc)` a source calls after it invalidates its own cache on a gear change, to re-push the spawn binds. Every apply carries a null-object `at_debug` timer (measured, 0.1ms avg / 2ms ceiling); a stagger returns only if a measured crowd-load first-online burst crosses it.
 
 ## Gear
 
@@ -711,7 +711,7 @@ Per bullet fired (`npc_shot_dispersion`) it records tier, weapon kind, shooter m
 
 ### Observability: measure outputs, never intent
 
-Two concerns, two modules, two log files, no logging-only middle files. CODE tracing - what the mod's code decides and does - goes to `alifetactics.log` through the one primitives file `at_trace.script` (one logger, the `at_trace.on()` gate, shared `flag`/`show` formatters, the log level refreshed mod-wide from one lifecycle); every gameplay module calls `at_trace.dbg/info/warn` at its own sites, in its own words, and no module owns a logger or a debug boolean. WORLD tracing - whether the fight physically looks right, measured from positions and bullets - goes to `alifetactics_world.log` through `at_world_trace.script` alone (the slide watchdog + the ballistics recorder, one toggle, one logger). One is the code's account of itself, the other is the world's account of the code.
+Two concerns, two modules, two log files, no logging-only middle files. CODE tracing - what the mod's code decides and does - goes to `alifetactics.log` through the one primitives file `at_debug.script` (one logger, the `at_debug.on()` gate, shared `flag`/`show` formatters, the log level refreshed mod-wide from one lifecycle); every gameplay module calls `at_debug.dbg/info/warn` at its own sites, in its own words, and no module owns a logger or a debug boolean. WORLD tracing - whether the fight physically looks right, measured from positions and bullets - goes to `alifetactics_world.log` through `at_world_trace.script` alone (the slide watchdog + the ballistics recorder, one toggle, one logger). One is the code's account of itself, the other is the world's account of the code.
 
 The 2026-07-24 lesson governs every "does it look/work right" trace: measure what the NPC actually DID (where its body moved, where its bullets went, whether a need cleared), never what the engine INTENDS (movement_type target, body_state, animation_count). Intent fields read as frozen whenever an animation plays, so a healthy vanilla NPC and a genuinely stuck one give identical reads - the earlier watchdog judged appearance from those fields and produced fake conclusions at volume. The three signals below are outputs; none is an appearance guess.
 

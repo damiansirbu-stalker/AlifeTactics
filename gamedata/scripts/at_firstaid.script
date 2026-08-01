@@ -104,23 +104,23 @@ local function _try_play_heal_anim(npc, gesture)
     if not cfg.healing_anim_enabled then return end
     if xcombat.actor_dist_sqr(npc) > ANIM_RADIUS_SQR then return end
     if npc:best_enemy() then
-        if at_trace.on() then at_trace.dbg("[HEAL] anim skipped id=%d reason=combat", npc:id()) end
+        if at_debug.on() then at_debug.dbg("[HEAL] anim skipped id=%d reason=combat", npc:id()) end
         return
     end
     if IsWounded(npc) or npc:critically_wounded() then
-        if at_trace.on() then at_trace.dbg("[HEAL] anim skipped id=%d reason=wounded", npc:id()) end
+        if at_debug.on() then at_debug.dbg("[HEAL] anim skipped id=%d reason=wounded", npc:id()) end
         return
     end
     if npc:movement_type() ~= move.stand then
-        if at_trace.on() then at_trace.dbg("[HEAL] anim skipped id=%d reason=moving", npc:id()) end
+        if at_debug.on() then at_debug.dbg("[HEAL] anim skipped id=%d reason=moving", npc:id()) end
         return
     end
     if npc:animation_count() > 0 then
-        if at_trace.on() then at_trace.dbg("[HEAL] anim skipped id=%d reason=queued", npc:id()) end
+        if at_debug.on() then at_debug.dbg("[HEAL] anim skipped id=%d reason=queued", npc:id()) end
         return
     end
     utils_obj.add_anim(npc, gesture)
-    if at_trace.on() then at_trace.dbg("[HEAL] anim id=%d gesture=%s", npc:id(), gesture) end
+    if at_debug.on() then at_debug.dbg("[HEAL] anim id=%d gesture=%s", npc:id(), gesture) end
 end
 
 -- t165: a fight must be able to end. True while the NPC is actively ENGAGED - a live enemy with
@@ -145,27 +145,27 @@ end
 -- lottery - a larger balance swing than the unwinnable-stalemate fix needs.
 local function _try_pause_hp(npc, id, name, left)
     if not _engaged(npc) then return false end
-    if at_trace.on() then at_trace.dbg("[HEAL] hp_pause id=%d left=%d engaged", id, left) end
+    if at_debug.on() then at_debug.dbg("[HEAL] hp_pause id=%d left=%d engaged", id, left) end
     ResetTimeEvent(id, name .. "_self_healing_event_hp_" .. left, level.get_time_factor())
     return true
 end
 
 -- Chain-end debug line: why this heal chain stopped (dead, despawned, or ticks spent).
 local function _log_hp_complete(tmr, npc, id, left)
-    if not at_trace.on() then return end
+    if not at_debug.on() then return end
     local reason = "ticks_exhausted"
     if npc == nil then
         reason = "no_obj"
     elseif not npc:alive() then
         reason = "dead"
     end
-    at_trace.dbg("[HEAL] complete id=%d reason=%s left=%d [%.2fms]", id, reason, left, tmr:get_ms())
+    at_debug.dbg("[HEAL] complete id=%d reason=%s left=%d [%.2fms]", id, reason, left, tmr:get_ms())
 end
 
 -- Vanilla xr_eat_medkit.heal_hp (script:188-201) with MCM rate multiplier.
 -- Reschedules via xr_eat_medkit.heal_hp lookup so the chain stays on the patched function.
 local function _patched_heal_hp(id, left)
-    local tmr = xprofiler.new_if(at_trace.on()):start()
+    local tmr = xprofiler.new_if(at_debug.on()):start()
     local nextl = left - 1
     local npc = level.object_by_id(id)
     if npc and npc:alive() and nextl > 1 then
@@ -184,8 +184,8 @@ local function _patched_heal_hp(id, left)
             _try_play_heal_anim(npc, HEAL_ANIM_MEDKIT)
         end
         tmr:stop()
-        if at_trace.on() then
-            at_trace.dbg("[HEAL] hp_tick id=%d mult=%.2f health=%.2f left=%d [%.2fms]",
+        if at_debug.on() then
+            at_debug.dbg("[HEAL] hp_tick id=%d mult=%.2f health=%.2f left=%d [%.2fms]",
                 id, mult, npc.health, nextl, tmr:get_ms())
         end
         CreateTimeEvent(id, name .. "_self_healing_event_hp_" .. nextl,
@@ -200,7 +200,7 @@ end
 -- Vanilla xr_eat_medkit.heal_bleed (script:203-215) with logging only.
 -- Engine bleeding field is a hard set per tick, not a delta -- no multiplier.
 local function _patched_heal_bleed(id, left)
-    local tmr = xprofiler.new_if(at_trace.on()):start()
+    local tmr = xprofiler.new_if(at_debug.on()):start()
     local nextl = left - 1
     local npc = level.object_by_id(id)
     if npc and npc:alive() and nextl > 1 then
@@ -211,19 +211,19 @@ local function _patched_heal_bleed(id, left)
             _try_play_heal_anim(npc, HEAL_ANIM_BANDAGE)
         end
         tmr:stop()
-        if at_trace.on() then
-            at_trace.dbg("[HEAL] bleed_tick id=%d bleeding=%.3f left=%d [%.2fms]",
+        if at_debug.on() then
+            at_debug.dbg("[HEAL] bleed_tick id=%d bleeding=%.3f left=%d [%.2fms]",
                 id, npc.bleeding, nextl, tmr:get_ms())
         end
         CreateTimeEvent(id, npc:name() .. "_self_healing_event_bleed_" .. nextl,
             level.get_time_factor(), xr_eat_medkit.heal_bleed, id, nextl)
     else
         tmr:stop()
-        if at_trace.on() then
+        if at_debug.on() then
             local reason = (not npc) and "no_obj"
                 or (not npc:alive()) and "dead"
                 or "ticks_exhausted"
-            at_trace.dbg("[HEAL] bleed_complete id=%d reason=%s left=%d [%.2fms]",
+            at_debug.dbg("[HEAL] bleed_complete id=%d reason=%s left=%d [%.2fms]",
                 id, reason, left, tmr:get_ms())
         end
     end
@@ -237,8 +237,8 @@ end
 local _orig_consume
 
 local function _patched_consume(npc, medkit, kind)
-    if at_trace.on() and npc then
-        at_trace.dbg("[HEAL] consume id=%d item=%s kind=%s",
+    if at_debug.on() and npc then
+        at_debug.dbg("[HEAL] consume id=%d item=%s kind=%s",
             npc:id(), medkit and medkit:section() or "CHARGE", tostring(kind))
     end
     return _orig_consume(npc, medkit, kind)
@@ -246,7 +246,7 @@ end
 
 local function _install_heal_patch()
     if not (xr_eat_medkit and xr_eat_medkit.heal_hp and xr_eat_medkit.heal_bleed) then
-        at_trace.warn("[PATCH] xr_eat_medkit.heal_hp or heal_bleed unavailable; module disabled")
+        at_debug.warn("[PATCH] xr_eat_medkit.heal_hp or heal_bleed unavailable; module disabled")
         return
     end
     xr_eat_medkit.heal_hp = _patched_heal_hp
@@ -256,9 +256,9 @@ local function _install_heal_patch()
         xr_eat_medkit.consume_medkit = _patched_consume
     end
     _heal_active = true
-    at_trace.info("[PATCH] xr_eat_medkit.heal_hp replaced with multiplier-aware version")
-    at_trace.info("[PATCH] xr_eat_medkit.heal_bleed replaced with logged version")
-    at_trace.info("[PATCH] xr_eat_medkit.consume_medkit wrapped (item-vs-charge trace)")
+    at_debug.info("[PATCH] xr_eat_medkit.heal_hp replaced with multiplier-aware version")
+    at_debug.info("[PATCH] xr_eat_medkit.heal_bleed replaced with logged version")
+    at_debug.info("[PATCH] xr_eat_medkit.consume_medkit wrapped (item-vs-charge trace)")
 end
 
 -- Install-once guard for the wounded-consume wrap. Module-local, so it resets with the Lua VM on
@@ -298,12 +298,12 @@ end
 -- consume). Always calls through; trace-off is a pure pass-through.
 local function _patched_wounded_eat(orig, self)
     local sec
-    if at_trace.on() and self and self.npc then
+    if at_debug.on() and self and self.npc then
         sec = _held_medkit_section(self.npc)
     end
     local ret = orig(self)
     if ret and sec then
-        at_trace.dbg("[HEAL] wounded_consume id=%d item=%s", self.npc:id(), sec)
+        at_debug.dbg("[HEAL] wounded_consume id=%d item=%s", self.npc:id(), sec)
     end
     return ret
 end
@@ -318,29 +318,29 @@ local function _install_wounded_trace()
     local class_obj = xr_wounded and xr_wounded.Cwound_manager
     local original = class_obj and _hook_method(class_obj, "eat_medkit", _patched_wounded_eat)
     if not original then
-        at_trace.warn("[PATCH] xr_wounded.Cwound_manager.eat_medkit unavailable; wounded-consume trace off")
+        at_debug.warn("[PATCH] xr_wounded.Cwound_manager.eat_medkit unavailable; wounded-consume trace off")
         return
     end
     _wounded_wrapped = true
-    at_trace.info("[PATCH] xr_wounded.Cwound_manager.eat_medkit wrapped (wounded-consume trace)")
+    at_debug.info("[PATCH] xr_wounded.Cwound_manager.eat_medkit wrapped (wounded-consume trace)")
 end
 
 -- Per-rank charge override of vanilla's flat 50% roll at xr_eat_medkit.script:36-44.
--- Vanilla's bug (re-roll on every save load) is suppressed in zzz_at_healing_patch.script.
+-- Vanilla's bug (re-roll on every save load) is suppressed in zzz_at_firstaid_patch.script.
 local function _on_net_spawn(npc, _se_obj)
     if not _heal_active then return end
     -- Live master toggle: no charge roll (and no processed marker) while off, so a later ON rolls
     -- this NPC on its next spawn. Vanilla's own roll stays unregistered either way
-    -- (zzz_at_healing_patch) - the re-roll bug must not return when the toggle is off.
+    -- (zzz_at_firstaid_patch) - the re-roll bug must not return when the toggle is off.
     if cfg.healing_enabled == false then return end
     if not npc or not IsStalker(npc) or not npc:alive() then return end
-    local tmr = xprofiler.new_if(at_trace.on()):start()
+    local tmr = xprofiler.new_if(at_debug.on()):start()
     local id = npc:id()
     local name = npc:name()
     if _safe_load(id, name, "at_charge_processed") then
         tmr:stop()
-        if at_trace.on() then
-            at_trace.dbg("[CHARGE] already_processed id=%d name=%s [%.2fms]", id, name, tmr:get_ms())
+        if at_debug.on() then
+            at_debug.dbg("[CHARGE] already_processed id=%d name=%s [%.2fms]", id, name, tmr:get_ms())
         end
         return
     end
@@ -352,8 +352,8 @@ local function _on_net_spawn(npc, _se_obj)
     local granted = rolled < chance
     _safe_save(id, name, "healing_charge", granted)
     tmr:stop()
-    if at_trace.on() then
-        at_trace.dbg("[CHARGE] id=%d tier=%s chance=%.2f rolled=%.3f granted=%s [%.2fms]",
+    if at_debug.on() then
+        at_debug.dbg("[CHARGE] id=%d tier=%s chance=%.2f rolled=%.3f granted=%s [%.2fms]",
             id, tier, chance, rolled, granted and "true" or "false", tmr:get_ms())
     end
 end
@@ -371,7 +371,7 @@ end
 local function _drop_limp(npc, id, reason, us)
     _limping[id] = nil
     if npc:alive() then npc:clear_animations() end
-    if at_trace.on() then at_trace.dbg("[LIMP] lost id=%d hp=%.2f reason=%s [%dus]", id, npc.health, reason, us or -1) end
+    if at_debug.on() then at_debug.dbg("[LIMP] lost id=%d hp=%.2f reason=%s [%dus]", id, npc.health, reason, us or -1) end
 end
 
 -- In combat = an enemy is selected OR the NPC is no longer calm (mental left free). The limp only starts
@@ -390,7 +390,7 @@ end
 -- NPC drifted off its add-time anchor; a walk/run-variant NPC stopped displacing (path ended with the
 -- command still up). Returns true when the record was dropped.
 local function _try_drop_limp(npc, id, rec, tg)
-    local tmr = xprofiler.new_if(at_trace.on()):start()
+    local tmr = xprofiler.new_if(at_debug.on()):start()
     if not npc:alive() or IsWounded(npc) or npc:critically_wounded() then
         tmr:stop()
         _drop_limp(npc, id, "wounded_or_dead", tmr:get_us())
@@ -458,7 +458,7 @@ local function _limp_note_decline(npc)
     counts[reason] = counts[reason] + 1
     counts.n = counts.n + 1
     if counts.n >= LIMP_DECLINE_WINDOW then
-        at_trace.dbg("[LIMP] declined n=%d far=%d enemy=%d mental=%d standing=%d wounded=%d smart_cover=%d zombied=%d other=%d",
+        at_debug.dbg("[LIMP] declined n=%d far=%d enemy=%d mental=%d standing=%d wounded=%d smart_cover=%d zombied=%d other=%d",
             counts.n, counts.far, counts.enemy, counts.mental, counts.standing, counts.wounded, counts.smart_cover, counts.zombied, counts.other)
         counts.n, counts.far, counts.enemy, counts.mental, counts.standing, counts.wounded, counts.smart_cover, counts.zombied, counts.other = 0, 0, 0, 0, 0, 0, 0, 0, 0
     end
@@ -472,7 +472,7 @@ local function _run_limp_check(npc, id, state, tg)
     if rec and _try_drop_limp(npc, id, rec, tg) then return end
     if state.eligibility_at and tg < state.eligibility_at then return end
     state.eligibility_at = tg + LIMP_ELIGIBILITY_CHECK_MS
-    local tmr = xprofiler.new_if(at_trace.on()):start()
+    local tmr = xprofiler.new_if(at_debug.on()):start()
     local eligible = IsStalker(npc)
         and npc:alive()
         and xcombat.actor_dist_sqr(npc) <= ANIM_RADIUS_SQR
@@ -486,7 +486,7 @@ local function _run_limp_check(npc, id, state, tg)
 
     if not eligible then
         tmr:stop()
-        if at_trace.on() and IsStalker(npc) and npc:alive() and npc.health < cfg.limping_health_threshold then
+        if at_debug.on() and IsStalker(npc) and npc:alive() and npc.health < cfg.limping_health_threshold then
             _limp_note_decline(npc)
         end
         if not _limping[id] then return end
@@ -497,7 +497,7 @@ local function _run_limp_check(npc, id, state, tg)
     if not rec then
         rec = { next_add_ms = 0 }
         _limping[id] = rec
-        if at_trace.on() then tmr:stop() at_trace.dbg("[LIMP] gained id=%d hp=%.2f [%dus]", id, npc.health, tmr:get_us()) end
+        if at_debug.on() then tmr:stop() at_debug.dbg("[LIMP] gained id=%d hp=%.2f [%dus]", id, npc.health, tmr:get_us()) end
     end
     if tg < rec.next_add_ms then return end
     if npc:animation_count() > 0 then return end
@@ -510,12 +510,12 @@ local function _run_limp_check(npc, id, state, tg)
     rec.anchor = npc:position()
     rec.last_pos = nil
     rec.sample_ms = tg
-    if at_trace.on() then
+    if at_debug.on() then
         tmr:stop()
         local slot = npc:active_slot()
         local wpn  = npc:active_item()
         local sect = wpn and wpn:section() or "none"
-        at_trace.dbg("[LIMP] anim id=%d name=%s slot=%d section=%s hp=%.2f [%dus]",
+        at_debug.dbg("[LIMP] anim id=%d name=%s slot=%d section=%s hp=%.2f [%dus]",
             id, anim_name, slot, sect, npc.health, tmr:get_us())
     end
 end
@@ -565,7 +565,7 @@ local function _on_entity_unregister(se_obj)
 end
 
 local function _refresh_log()
-    at_trace.refresh()
+    at_debug.refresh()
 end
 
 -- Time events do not survive a save load (_g.script header), so the monitor arms here, per session.
@@ -578,7 +578,7 @@ local function _on_actor_first_update()
         CreateTimeEvent("at_firstaid", "monitor", MONITOR_PERIOD_SEC, _run_monitor)
     end
     if not _heal_active then return end
-    at_trace.info("Health module initialized (heal_mult=%.2f tiers novice=%d%% experienced=%d%% veteran=%d%% master=%d%%)",
+    at_debug.info("Health module initialized (heal_mult=%.2f tiers novice=%d%% experienced=%d%% veteran=%d%% master=%d%%)",
         cfg.heal_rate_multiplier,
         cfg.charge_chance_novice,
         cfg.charge_chance_experienced,

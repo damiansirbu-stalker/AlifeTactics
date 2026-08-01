@@ -58,20 +58,20 @@ local function _on_move_penalty(obj, wpn, body_state, move_type, temp_disp)
     local move = _move[tier]
     if not move or move == 1.0 then return end
 
-    local tmr  = xprofiler.new_if(at_trace.on()):start()
+    local tmr  = xprofiler.new_if(at_debug.on()):start()
     local base = temp_disp.dispersion
     temp_disp.dispersion = base * move
     tmr:stop()
 
-    if at_trace.on() then
+    if at_debug.on() then
         local sect = (wpn and wpn:section()) or "none"
-        at_trace.dbg("[ACC] move id=%d tier=%s section=%s bs=%d mt=%d base=%.5f move=%.2f out=%.5f [%.3fms]",
+        at_debug.dbg("[ACC] move id=%d tier=%s section=%s bs=%d mt=%d base=%.5f move=%.2f out=%.5f [%.3fms]",
             obj:id(), tier, sect, body_state, move_type, base, move, temp_disp.dispersion, tmr:get_ms())
     end
 end
 
 local function _refresh_config()
-    at_trace.refresh()
+    at_debug.refresh()
     for i = 1, #TIERS do
         local tier = TIERS[i]
         _disp[tier] = at_mcm.get_config("acc_disp_" .. tier)
@@ -81,8 +81,8 @@ end
 
 local function _on_first_update()
     _refresh_config()
-    at_trace.info("Accuracy hook initialized (dispersion=%s, moving=%s, dbg=%s)",
-        cfg.disp_enabled and "on" or "off", cfg.move_enabled and "on" or "off", at_trace.on() and "true" or "false")
+    at_debug.info("Accuracy hook initialized (dispersion=%s, moving=%s, dbg=%s)",
+        cfg.disp_enabled and "on" or "off", cfg.move_enabled and "on" or "off", at_debug.on() and "true" or "false")
 end
 
 function on_game_start()

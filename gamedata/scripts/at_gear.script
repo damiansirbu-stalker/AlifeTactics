@@ -15,14 +15,14 @@
 ---
 --- The scan is LAZY: the first provider read (or the resolver's net_spawn apply) walks the inventory once
 --- and caches the record; later reads are table lookups, and the toggles are applied live at the provider
---- so a record never needs re-scanning on an option change. Tracing rides at_trace, a no-op below DEBUG.
+--- so a record never needs re-scanning on an option change. Tracing rides at_debug, a no-op below DEBUG.
 
 local math_max, math_min, tostring = math.max, math.min, tostring
 local IsStalker, AC_ID, type = IsStalker, AC_ID, type
 local RegisterScriptCallback, ini_file, ini_sys = RegisterScriptCallback, ini_file, ini_sys
 local level = level
 local xinventory, xcreature, xprofiler = xinventory, xcreature, xprofiler
-local at_trace, at_effects_resolver, xcombat = at_trace, at_effects_resolver, xcombat
+local at_debug, at_effects_resolver, xcombat = at_debug, at_effects_resolver, xcombat
 local EFFECT = at_effects_resolver.EFFECT
 
 local cfg = at_mcm.cfg
@@ -101,7 +101,7 @@ local function _collect(acc, sec)
 end
 
 local function _trace_resolve(id, record, tmr)
-    at_trace.dbg("[GEAR] resolve id=%d resist=%.3f plate=%.3f dealt=%.3f disp=%.3f regen=%.5f binoc=%s nvg=%s aura=%s combat=%s [%.3fms]",
+    at_debug.dbg("[GEAR] resolve id=%d resist=%.3f plate=%.3f dealt=%.3f disp=%.3f regen=%.5f binoc=%s nvg=%s aura=%s combat=%s [%.3fms]",
         id, record.resist, record.plate, record.dealt, record.disp, record.regen,
         tostring(record.binoc), tostring(record.nvg), tostring(record.aura), tostring(record.combat), tmr:get_ms())
 end
@@ -110,7 +110,7 @@ end
 -- to passive regen when n039 is present, else into the resist pool (interim). nil = offline/unresolvable.
 local function _resolve(id)
     if not cfg.gear_enabled then return false end
-    local tmr = xprofiler.new_if(at_trace.on()):start()
+    local tmr = xprofiler.new_if(at_debug.on()):start()
     local acc = { resist = 0, chem = 0, plate = 0, dealt = 0, disp = 0, binoc = false, nvg = false, aura = false }
     local npc = xinventory.iterate_inventory(id, function(_owner, item)
         _collect(acc, item:section())
@@ -130,7 +130,7 @@ local function _resolve(id)
     }
     _resolved[id] = record
     tmr:stop()
-    if at_trace.on() then _trace_resolve(id, record, tmr) end
+    if at_debug.on() then _trace_resolve(id, record, tmr) end
     return record
 end
 
@@ -211,8 +211,8 @@ local function _apply_regen(npc)
     local record = _carrier_record(npc)
     local boost = (record and record.combat and record.regen) or 0
     xcombat.set_health_restore_boost(npc, boost)
-    if at_trace.on() and boost > 0 then
-        at_trace.dbg("[GEAR] regen id=%d boost=%.5f", npc:id(), boost)
+    if at_debug.on() and boost > 0 then
+        at_debug.dbg("[GEAR] regen id=%d boost=%.5f", npc:id(), boost)
     end
 end
 
@@ -278,7 +278,7 @@ local function _load_config()
 end
 
 local function _on_first_update()
-    at_trace.info("Gear source initialized (enabled=%s artefacts=%s aura=%s binoc=%s nvg=%s regen_bind=%s)",
+    at_debug.info("Gear source initialized (enabled=%s artefacts=%s aura=%s binoc=%s nvg=%s regen_bind=%s)",
         cfg.gear_enabled and "on" or "off", cfg.gear_artefacts_enabled and "on" or "off",
         cfg.gear_aura_enabled and "on" or "off", cfg.gear_binoc_enabled and "on" or "off",
         cfg.gear_nvg_enabled and "on" or "off", _n039 and "on" or "off/unprobed")

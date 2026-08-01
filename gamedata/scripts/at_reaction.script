@@ -111,10 +111,10 @@ local function _log_binds_once(ok_aim, ok_vision, ok_disc)
     if _bind_logged then return end
     _bind_logged = true
     if ok_aim or ok_vision or ok_disc then
-        at_trace.info("Reaction spawn binds active (aim=%s vision=%s discipline=%s)",
+        at_debug.info("Reaction spawn binds active (aim=%s vision=%s discipline=%s)",
             ok_aim and "on" or "off", ok_vision and "on" or "off", ok_disc and "on" or "off")
     else
-        at_trace.info("Reaction INACTIVE: exe lacks the per-NPC spawn binds (PR #594/#603); vanilla behavior applies")
+        at_debug.info("Reaction INACTIVE: exe lacks the per-NPC spawn binds (PR #594/#603); vanilla behavior applies")
     end
 end
 
@@ -127,9 +127,9 @@ local function _log_lead_once(ok, bs, src, predict)
     if _lead_logged then return end
     _lead_logged = true
     if ok then
-        at_trace.info("Target lead active: first write bs=%.0f (%s) predict=%.3fs", bs, src, predict)
+        at_debug.info("Target lead active: first write bs=%.0f (%s) predict=%.3fs", bs, src, predict)
     else
-        at_trace.info("Target lead INACTIVE: set_aim_params is a no-op (exe lacks the bind); global lead applies")
+        at_debug.info("Target lead INACTIVE: set_aim_params is a no-op (exe lacks the bind); global lead applies")
     end
 end
 
@@ -264,8 +264,8 @@ local function _apply_discipline(npc, tier)
     if sk == 1.0 and ik == 1.0 then return end
     if ik < DISC_INT_FLOOR then ik = DISC_INT_FLOOR end
     local ok = xcombat.set_fire_queue_scale(npc, sk, ik)
-    if at_trace.on() then
-        at_trace.dbg("[RCT] disc id=%d tier=%s size_k=%.2f interval_k=%.2f applied=%s",
+    if at_debug.on() then
+        at_debug.dbg("[RCT] disc id=%d tier=%s size_k=%.2f interval_k=%.2f applied=%s",
             npc:id(), tier, sk, ik, ok and "yes" or "no")
     end
     return ok
@@ -301,8 +301,8 @@ function apply(npc)
 
     _log_binds_once(ok_aim, ok_vision, ok_disc)
 
-    if at_trace.on() then
-        at_trace.dbg("[RCT] id=%d tier=%s applied_aim=%s applied_vision=%s",
+    if at_debug.on() then
+        at_debug.dbg("[RCT] id=%d tier=%s applied_aim=%s applied_vision=%s",
             npc:id(), tier, ok_aim and "yes" or "no", ok_vision and "yes" or "no")
     end
 end
@@ -344,8 +344,8 @@ local function _on_shot_lead(obj, wpn, body_state, move_type, temp_disp)
     local ok = xcombat.set_aim_params(obj, -1, -1, aim, predict)
     _log_lead_once(ok, bs, src, predict)
 
-    if at_trace.on() then
-        at_trace.dbg("[RCT] lead id=%d tier=%s range=%.1f bs=%.0f src=%s err=%.2f predict=%.3f applied=%s",
+    if at_debug.on() then
+        at_debug.dbg("[RCT] lead id=%d tier=%s range=%.1f bs=%.0f src=%s err=%.2f predict=%.3f applied=%s",
             id, tier, range, bs, src, err, predict, ok and "yes" or "no")
     end
 end
@@ -359,12 +359,12 @@ end
 -- reset it, and a Disclosure within its retention keeps the whole squad in this state). Large
 -- unseen_ms + seen=yes = a FRESH visual detection (the case Reaction's vision factor shapes).
 local function _on_enemy_selected(npc, new_enemy)
-    if not at_trace.on() or not npc then return end
+    if not at_debug.on() or not npc then return end
 
     local id = npc:id()
     local name = npc:name()
     if not new_enemy then
-        at_trace.dbg("[VIS] drop id=%d name=%s", id, name)
+        at_debug.dbg("[VIS] drop id=%d name=%s", id, name)
         return
     end
     if new_enemy:id() ~= AC_ID then return end
@@ -373,7 +373,7 @@ local function _on_enemy_selected(npc, new_enemy)
     local dist = npc:position():distance_to(new_enemy:position())
     local seen = xcombat.sees(npc, new_enemy)
     local unseen_ms = xcombat.get_unseen_ms(npc, new_enemy, time_global())
-    at_trace.dbg("[VIS] select id=%d name=%s tier=%s dist=%.0fm seen=%s unseen_ms=%d",
+    at_debug.dbg("[VIS] select id=%d name=%s tier=%s dist=%.0fm seen=%s unseen_ms=%d",
         id, name, tier, dist, seen and "yes" or "no", unseen_ms)
 end
 
@@ -407,7 +407,7 @@ local function _load_config()
 end
 
 local function _refresh_config()
-    at_trace.refresh()
+    at_debug.refresh()
     for i = 1, #TIERS do
         local tier = TIERS[i]
         _aim[tier]       = at_mcm.get_config("rct_aim_" .. tier)       or _aim[tier]
@@ -424,7 +424,7 @@ local function _on_first_update()
     -- record is stale (the at_commitment _on_first_update shape).
     _tier_cache, _next_lead = {}, {}
     _refresh_config()
-    at_trace.info("Reaction hook initialized (aim=%s vision=%s lead=%s discipline=%s)",
+    at_debug.info("Reaction hook initialized (aim=%s vision=%s lead=%s discipline=%s)",
         cfg.aim_enabled and "on" or "off", cfg.vision_enabled and "on" or "off",
         cfg.lead_enabled and "on" or "off", cfg.discipline_enabled and "on" or "off")
 end
