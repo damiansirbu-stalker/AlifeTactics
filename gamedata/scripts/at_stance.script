@@ -1,7 +1,8 @@
---- at_stance: combat conduct posture (t138 lever 1) - crouch behind REAL low cover toward the
---- enemy, stand otherwise. The 1.0.0 at_stance crouched blindly on planner ops for sniper carriers
+--- at_stance: combat conduct posture (t138 lever 1) - crouch to steady the shot when a crouch keeps
+--- the line to the enemy clear, stand to fire over low cover that would block a crouched shot. The
+--- 1.0.0 at_stance crouched blindly on planner ops for sniper carriers
 --- and fired into random bumps (dropped, commit 591b6e0); this form gates on the engine's own
---- low-cover field (level.low_cover_in_direction toward the enemy) resolved through a hysteresis
+--- low-cover field (xcombat.low_cover_in_direction toward the enemy) resolved through a hysteresis
 --- band, and HOLDS each decision for DECIDE_MS - the engine re-asks posture several times a second,
 --- and a stateless per-ask decision over the noisy field flapped crouch/stand continuously
 --- (1658 overrides in one session, 2026-07-23, the "up-down shuffle"). Scope: the engine
@@ -78,14 +79,14 @@ end
 local function _decide(npc, enemy, prev_want)
     local np, ep = npc:position(), enemy:position()
     -- Flat distance floor (CONDUCT_FLOOR_M): closer than this is a close/dynamic fight - stand and
-    -- stay mobile, never crouch at the enemy's feet. Past it, WITH real cover toward the enemy (the
-    -- low_cover band below), is where the crouch pays. Flat, not a fraction of weapon range: the
+    -- stay mobile, never crouch at the enemy's feet. Past it, where a crouch still clears the line to
+    -- the enemy (the low_cover band below reads open), the crouch steadies the aim. Flat, not a fraction of weapon range: the
     -- mobility boundary is the same absolute distance for every weapon (a rifle's reach does not push
     -- its close fight farther out, and the old per-weapon fraction sent the sniper floor to ~45m -
     -- exactly where a sniper benefits from crouch most, the inversion; 2026-07-29).
     if np:distance_to_sqr(ep) < CONDUCT_FLOOR_M * CONDUCT_FLOOR_M then return move.stand, -1 end
     local dir = vector():set(ep.x - np.x, ep.y - np.y, ep.z - np.z)
-    local cov = level.low_cover_in_direction(npc:level_vertex_id(), dir) or 0
+    local cov = xcombat.low_cover_in_direction(npc:level_vertex_id(), dir)
     if cov >= STANCE_ENTER then return move.crouch, cov end
     if cov < STANCE_EXIT then return move.stand, cov end
     return prev_want or move.stand, cov

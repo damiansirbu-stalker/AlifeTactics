@@ -81,8 +81,8 @@ It uses action-switch and cover-repick hooks created in xray-monolith for this m
 
 Conduct:
 Conduct makes better choices at moments the engine already decides, with no takeover, for stalkers the vanilla engine drives.
-Cover posture: experienced riflemen and snipers crouch when real chest-high cover stands between them and their enemy, and stand when it does not,
-  replacing vanilla's blind posture picks (crouching behind random bumps and firing into them).
+Cover posture: experienced riflemen and snipers crouch to steady the shot when the line to the enemy is clear, and stand to fire over low cover that would block a crouched shot,
+  replacing vanilla's blind posture picks (crouching behind random bumps and firing into them, or standing tall where a crouch would steady the aim).
 They crouch only past close range, staying mobile in a knife fight instead of dropping to a knee at your feet, and only while holding a position rather than on the move to cover.
 It reads the game's own cover map toward the enemy, and short-weapon carriers and green ranks keep vanilla behavior.
 
