@@ -671,6 +671,27 @@ end
 -- 2026-07-11 frozen-HUD loop); re-armed, a fault costs one aborted pass and the queue heals itself.
 local _monitor_active = false
 
+-- Tier-1 coarse perf span (todo-all-mods-tracing t05): ONE timer around the WHOLE maneuver pass, never
+-- per-NPC or per-check - the per-check detail stays in the [CMB] lines (Tier-2). Accumulates over a
+-- window and emits a single [MON] summary (tick avg/max + NPCs per pass). Noop below DEBUG.
+local MON_FLUSH_MS = 5000
+local _mon = { ms = 0, max = 0, ticks = 0, last = 0 }
+
+-- Fold one maneuver pass into the coarse window, flushing a single [MON] summary per window. The pass
+-- fires every MONITOR_PERIOD_SEC; the 600ms begin check folds into every 3rd pass, so tick_max captures
+-- the begin-included heavy pass while tick_avg blends all passes. Called only under the DEBUG gate.
+local function _record_pass(ms, tg)
+    if _mon.last == 0 then _mon.last = tg end
+    _mon.ms = _mon.ms + ms
+    if ms > _mon.max then _mon.max = ms end
+    _mon.ticks = _mon.ticks + 1
+    if tg - _mon.last >= MON_FLUSH_MS then
+        at_debug.dbg("[MON] window=%.0fs ticks=%d tick_avg=%.3fms tick_max=%.3fms",
+            (tg - _mon.last) / 1000, _mon.ticks, _mon.ms / _mon.ticks, _mon.max)
+        _mon.ms, _mon.max, _mon.ticks, _mon.last = 0, 0, 0, tg
+    end
+end
+
 -- One NPC's slice of the pass: run whichever checks match its open/closed state and are due.
 -- ALIVE only - the engine combat binds (see, fire_make_sense, best_enemy) fault on a dead stalker's
 -- torn-down AI state (the smart_cast guards type, not liveness). A tracked NPC found dead ends its
@@ -695,10 +716,13 @@ local function _run_monitor()
     if not _monitor_active then return true end
     ResetTimeEvent("at_combat", "monitor", MONITOR_PERIOD_SEC)
     local tg = time_global()
+    local tmr = xprofiler.new_if(at_debug.on()):start()
     for id, state in pairs(_npc_states) do
         local npc = level.object_by_id(id)
         if npc then _run_npc_checks(npc, state, tg) end
     end
+    tmr:stop()
+    if at_debug.on() then _record_pass(tmr:get_ms(), tg) end
 end
 
 local function _start_monitor()
