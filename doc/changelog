@@ -21,6 +21,8 @@ next
         Gravity, chemical, and armour-plate artefacts cut the damage he takes, thermal artefacts tighten his fire, and electric and quest artefacts raise the damage he deals,
         each up to 10 percent and never stacking so the strongest source wins. Any artefact carrier warps the air around his body, so a distorting stalker is a huntable artefact drop.
         Binoculars and night-vision extend his sight range on engine builds with the per-stalker view-distance bind, inactive on older ones.
+      - Added chemical-artefact health regeneration on engine builds with the per-stalker health-restore bind: a chemical carrier slowly heals its wounds over time there,
+        taking the place of the damage cut it gives on older exes.
     Healing
       - Fixed the bandaging gesture playing on a walking NPC, which froze his legs and made him glide. The gesture now waits until he stands still.
 
@@ -51,6 +53,8 @@ next
       so a modpack conflict is reportable instead of invisible.
     - Added over-speed movement to World behaviour debug: a body moving faster than its own config allows is recorded with the measured rate,
       catching the walked-glide the slide watchdog cannot see.
+    - Added a maneuver-pass timing line: with debug on, the combat monitor times each full pass over the tracked NPCs and logs a periodic average and peak,
+      so a slowdown in the maneuver pass reads as a measured cost instead of a guess.
     - Added a Flush log every line option, which writes each log line to disk at once instead of buffering, so a crash keeps its final log lines for a bug report.
     - Added wounded medkit use to the log: when a downed stalker consumes a medkit to get back up - one you gave it, a rescuer's, or the automatic one - the log now names which medkit it spent, so a heal vanilla does silently is no longer invisible in a bug report.
 
