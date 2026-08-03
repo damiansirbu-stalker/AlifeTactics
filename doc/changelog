@@ -1,5 +1,5 @@
 next
-  Summary: Gear, Perception menu, Vision Range, maneuver fixes, Vision Speed retune, Moving Fire defaults, wounded-heal logging
+  Summary: Gear, Perception menu, Vision Range, reload cover concealment, maneuver fixes, Vision Speed retune, Moving Fire defaults, wounded-heal logging
 
   Combat
     Maneuvers
@@ -9,6 +9,8 @@ next
       - Fixed a maneuver continuing to drive an NPC after he collapsed wounded: it now ends the moment he goes down, and the wounded behavior owns him cleanly.
       - Maneuvers no longer start on, or re-apply state to, a body that is mid-animation - a hit stagger, a script pose, or (on engine builds that expose it) the hit flinch.
         The animation always finishes first and the maneuver waits its turn, so AlifeTactics never drags a reacting body into a glide.
+      - Reload Cover now sends the reloading stalker to nearby concealment instead of an exposed firing spot, since he cannot shoot while his gun is down.
+        It also fires when the player has him in view with a gun, not only when precisely aimed.
     Behaviors
       - Cover posture no longer answers for a stalker on the move: the crouch discipline now applies only while he holds a position,
         so a stalker running or walking to cover keeps the engine's own standing pace instead of crouch-walking the distance.

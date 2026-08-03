@@ -182,7 +182,7 @@ end
 -- counted fire from ANY source - third-party crossfire fed a player-scoped decision - and reacted
 -- only after the danger had materialized). Reloading out of the player's line declines: vanilla
 -- reloads in place, per the t135 spec. Then the cover search at
--- his own position (nearest cover, no rear bias - the point is out of the open, not gaining distance)
+-- his own position (concealment via best_cover, no firing sweep and no rear bias - out of the open, not a firing spot)
 -- with the claim/release pairing retreat uses (state.cover_lvid, released on every exit).
 local function _can_reload_cover(npc, _enemy, state, _tg, memo)
     if not xcombat.is_reloading(npc) then
@@ -194,7 +194,7 @@ local function _can_reload_cover(npc, _enemy, state, _tg, memo)
         at_debug.dbg("[CMB] can_reload_cover id=%s name=%s path=actor_no_shot cover=-", show(state.id), show(state.name))
         return nil
     end
-    local vid = xcombat.find_cover(npc, memo.enemy_pos)
+    local vid = xcombat.find_cover(npc, memo.enemy_pos, { selection = "nearest", firing = false, radius = 5, search_pos = npc:position() })
     if not vid then
         at_debug.dbg("[CMB] can_reload_cover id=%s name=%s path=no_cover cover=-", show(state.id), show(state.name))
         return nil
@@ -231,7 +231,7 @@ local function _can_retreat(npc, _enemy, state, _tg, memo)
         local inv = RETREAT_REAR_M / state.dist
         center = vector():set(np.x + dx * inv, np.y, np.z + dz * inv)
     end
-    local vid = xcombat.find_cover(npc, ep, center)
+    local vid = xcombat.find_cover(npc, ep, { selection = "best", firing = true, radius = 7, search_pos = center })
     if not vid then
         at_debug.dbg("[CMB] can_retreat id=%s name=%s path=no_cover cover=- cover_dist=-1.0 npc_dist=-1.0",
             show(state.id), show(state.name))
@@ -566,7 +566,7 @@ function at_combat_doctrine.load_config()
     COUNTERFLANK_ACTOR_DIST_SQR  = counterflank_dist_m * counterflank_dist_m
     PICKOFF_TARGETED_DEG = read_float("pickoff_targeted_deg", 10)
     PICKOFF_ENTER_FACTOR = read_float("pickoff_enter_factor", 1.2)
-    RELOAD_COVER_CONE_DEG = read_float("reload_cover_cone_deg", 30)
+    RELOAD_COVER_CONE_DEG = read_float("reload_cover_cone_deg", 60)
     CIRCUIT_LIMIT        = read_int("circuit_limit", 3)
     RELOAD_STALE_MS      = read_int("reload_stale_ms", 6000)
     CATALOG = _build_catalog(read_int)
