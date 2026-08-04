@@ -1,9 +1,9 @@
 --- at_combat_doctrine: the decision half of the v2 takeover - the maneuver catalog and its ordered checks.
 --- No engine class, no per-NPC store, no callbacks - the shell (at_combat) owns the monitor pass, the state
 --- store, and the graft. This file answers one question: which catalog row (if any) should make AT seize this
---- NPC now. A maneuver is a catalog row with two methods - should_maneuver, the need: a cheap compare over
+--- NPC now. A maneuver is a catalog row with two methods - check_need, the need: a cheap compare over
 --- memoized reads that returns the situation name when the row's moment is here (never a raycast, a path
---- build or a search); and can_maneuver, the feasibility: owns the geometry and returns the destination
+--- build or a search); and find_destination, the feasibility: owns the geometry and returns the destination
 --- vertex when the maneuver is doable here (nil = not doable) - plus a faction/weapon palette and an update,
 --- the periodic re-application the shell runs while the maneuver is open. The design law every row obeys:
 --- the need states the FULL problem and the maneuver's success negates it, so a solved problem does not
@@ -11,7 +11,7 @@
 --- exists. resolve_maneuver arbitrates: it walks the catalog in priority order from state.row_cursor, skips
 --- rows out of scope (each row declares whose problem it answers - vs_actor rows fire when the actor is the
 --- ignored close threat, the rest when he is the selected enemy), falls through a row whose need is absent
---- in the SAME tick, and spends at most ONE can_maneuver per tick - decline or pick, the cursor moves past
+--- in the SAME tick, and spends at most ONE find_destination per tick - decline or pick, the cursor moves past
 --- that row, so a blocked row defers to the next candidate and a picked one hands the next decision to the
 --- row below it (retreat first, then flee).
 
@@ -44,10 +44,10 @@ local CATALOG = {}
 
 
 -- =========================================================================
--- can_maneuver methods (feasibility). Each owns its geometry and returns a destination level vertex, or nil
+-- find_destination methods (feasibility). Each owns its geometry and returns a destination level vertex, or nil
 -- when the maneuver is not doable here - the return IS the gate, no separate predicate, and the vertex
 -- feasibility validated is the vertex the engine executes (resolve once, never re-resolve). Run only after
--- the row's need and palette pass, and at most ONE runs per begin tick (the walk ends when a can_maneuver
+-- the row's need and palette pass, and at most ONE runs per begin tick (the walk ends when a find_destination
 -- runs). All of them read the walk's shared geometry (memo.npc_pos / memo.enemy_pos / state.dist) instead
 -- of re-probing.
 -- =========================================================================
@@ -70,9 +70,9 @@ local KITE_BACK = {
 -- trigger is strongest; 52 of 222 accepts under 2m, the 50-kite ping-pong class) and 0.4 x back_m
 -- (a real withdrawal, but its endpoint could still be inside the minimum). A failing destination
 -- declines instead; with every other row declining too, AT leaves the cornered NPC to vanilla,
--- which stands and fights (user-ruled 2026-07-26). memo.kind is set by _should_too_close, the only
+-- which stands and fights (user-ruled 2026-07-26). memo.kind is set by _check_too_close, the only
 -- need that opens this row.
-local function _can_kite(npc, _enemy, state, _tg, memo)
+local function _find_kite_lane(npc, _enemy, state, _tg, memo)
     local np, ep = memo.npc_pos, memo.enemy_pos
     local dist = state.dist
     local dir
@@ -81,7 +81,7 @@ local function _can_kite(npc, _enemy, state, _tg, memo)
     else
         -- Zero separation: "away from the enemy" is undefined, so back out OPPOSITE the facing - a
         -- fighting NPC faces his enemy, and the old raw-facing fallback kited INTO him (f011).
-        local fwd = npc:direction()
+        local fwd = xcombat.get_facing(npc)
         dir = vector():set(-fwd.x, 0, -fwd.z)
     end
     local back_m = KITE_BACK[memo.kind] or KITE_BACK.w_rifle
@@ -108,7 +108,7 @@ end
 -- "targeted" - the actor's aim is on him (facing offset under PICKOFF_TARGETED_DEG; a motionless head under
 -- a player's crosshair is a gift regardless of range). Checked at feasibility (the luabind reads live off
 -- the cascade path, the same placement as flee's _flee_blocked) and re-checked while the hold runs (the
--- row's should_end) - a broken premise ends the hold now, not at the cap. Returns the reason, or nil.
+-- row's check_end) - a broken premise ends the hold now, not at the cap. Returns the reason, or nil.
 local function _pickoff_blocked(npc, enemy, state, tg, npc_pos)
     if state.hit_at and (tg - state.hit_at) < UNDER_FIRE_MS then return "under_fire" end
     if xcombat.is_under_fire(npc, enemy, tg, UNDER_FIRE_MS) then return "under_fire" end
@@ -120,14 +120,14 @@ end
 -- range - the distance where his weapon is still genuinely dangerous, not where bullets stop existing
 -- (a shotgun blast at 25m still arrives, spread thin), so the advantage is statistical, never immunity,
 -- and the break-offs stay strict. Range hysteresis, 2 thresholds: ENTER only past effective range x
--- PICKOFF_ENTER_FACTOR; the should_end re-check ENDS the hold when the enemy closes inside 1.0x (his
+-- PICKOFF_ENTER_FACTOR; the check_end re-check ENDS the hold when the enemy closes inside 1.0x (his
 -- weapon is dangerous again). Between the two nothing flaps. Declines while its premise is broken
 -- (_pickoff_blocked: under fire or under the actor's aim). ends_on=time runs it to the hold timeout.
 -- fire=FIRE at STILL, and set_combat's fire discipline downgrades it to READY when a shot makes no
 -- sense (occluded / no LOS), so a holder without a lane stands weapon-up instead of firing at a wall.
 -- A weaponless enemy (a mutant) has no kind and reads as the rifle band, so pickoff only plants on it
 -- past 80m x factor - conservative, and a melee mutant that far away is no threat to a standing shooter.
-local function _can_pickoff(npc, enemy, state, tg, memo)
+local function _find_pickoff_spot(npc, enemy, state, tg, memo)
     local blocked = _pickoff_blocked(npc, enemy, state, tg, memo.npc_pos)
     if blocked then
         at_debug.dbg("[CMB] can_pickoff id=%s name=%s dist=%.1f enemy_max=unknown result=%s",
@@ -139,20 +139,20 @@ local function _can_pickoff(npc, enemy, state, tg, memo)
     at_debug.dbg("[CMB] can_pickoff id=%s name=%s dist=%.1f enemy_max=%s result=%s",
         show(state.id), show(state.name), state.dist or -1, show(enemy_band.max), planted and "plant" or "in_effective_range")
     if not planted then return nil end
-    state.pickoff_exit_m = enemy_band.max
+    state.pickoff_exit_sqr = enemy_band.max * enemy_band.max
     return npc:level_vertex_id()
 end
 
--- The pickoff premise re-check while the hold runs (the catalog row's should_end, on the 200ms end check):
--- the same terms _can_pickoff gated on, plus the hysteresis exit - the enemy closing inside his own
+-- The pickoff premise re-check while the hold runs (the catalog row's check_end, on the 200ms end check):
+-- the same terms _find_pickoff_spot gated on, plus the hysteresis exit - the enemy closing inside his own
 -- EFFECTIVE range (stashed at feasibility) makes his weapon dangerous again and ends the hold now.
 -- A hit landing or the actor's crosshair arriving mid-hold ends it with that reason - a standing
 -- shooter does not sit through being shot at.
-local function _should_end_pickoff(npc, enemy, state, tg)
+local function _check_end_pickoff(npc, enemy, state, tg)
     local pos = npc:position()
     local blocked = _pickoff_blocked(npc, enemy, state, tg, pos)
     if blocked then return blocked end
-    if state.pickoff_exit_m and enemy and pos:distance_to(enemy:position()) < state.pickoff_exit_m then
+    if state.pickoff_exit_sqr and enemy and xmath.dist_flat_sqr(pos, enemy:position()) < state.pickoff_exit_sqr then
         return "in_effective_range"
     end
     return nil
@@ -166,8 +166,8 @@ end
 -- (the transaction's success is the engine changing its mind). No feasibility geometry: the old wall
 -- raycast was structurally blind across the whole trigger radius (its clearances left it unable to
 -- report an obstacle below ~3.75m while the row fires inside 5m - f008), so the row pays for no test
--- that cannot decline; the real close gate is the need's own floor (_should_actor_close).
-local function _can_counterflank(npc, _enemy, state, _tg, _memo)
+-- that cannot decline; the real close gate is the need's own floor (_check_actor_close).
+local function _find_counterflank_spot(npc, _enemy, state, _tg, _memo)
     at_debug.dbg("[CMB] can_counterflank id=%s name=%s path=taken", show(state.id), show(state.name))
     return npc:level_vertex_id()
 end
@@ -184,7 +184,7 @@ end
 -- reloads in place, per the t135 spec. Then the cover search at
 -- his own position (concealment via best_cover, no firing sweep and no rear bias - out of the open, not a firing spot)
 -- with the claim/release pairing retreat uses (state.cover_lvid, released on every exit).
-local function _can_reload_cover(npc, _enemy, state, _tg, memo)
+local function _find_reload_cover(npc, _enemy, state, _tg, memo)
     if not xcombat.is_reloading(npc) then
         state.reloading = nil
         at_debug.dbg("[CMB] can_reload_cover id=%s name=%s path=not_reloading cover=-", show(state.id), show(state.name))
@@ -211,7 +211,7 @@ end
 -- The reload_cover premise while it runs: the reload ending (the stop edge clears state.reloading) hands
 -- the NPC back NOW - his gun is up again and vanilla's own fire is better than finishing our walk at
 -- READY. A missed stop edge leaves a stale stamp; the arrival/cap ends those.
-local function _should_end_reload_cover(_npc, _enemy, state, _tg)
+local function _check_end_reload_cover(_npc, _enemy, state, _tg)
     if state.reloading then return nil end
     return "reload_done"
 end
@@ -221,8 +221,8 @@ end
 -- only when it is farther from the enemy than he stands - a retreat always grows the distance, toward-the-shooter
 -- cover declines. find_cover returns a free firing vertex; claim it so no other AT NPC picks the same spot, and
 -- record it on state so _end_maneuver releases the reservation on EVERY exit (t136). nil when no rear cover is
--- reachable or the claim loses a race - the can_maneuver return IS the viability gate.
-local function _can_retreat(npc, _enemy, state, _tg, memo)
+-- reachable or the claim loses a race - the find_destination return IS the viability gate.
+local function _find_retreat_cover(npc, _enemy, state, _tg, memo)
     local np, ep = memo.npc_pos, memo.enemy_pos
     local dx, dz = np.x - ep.x, np.z - ep.z
     local dist_sqr = dx * dx + dz * dz
@@ -278,7 +278,7 @@ local function _flee_blocked(npc, enemy, state)
 end
 
 -- memo.faction is set by the flee row's palette check, which always runs before this method.
-local function _can_flee(npc, enemy, state, _tg, memo)
+local function _find_flee_base(npc, enemy, state, _tg, memo)
     local blocked = _flee_blocked(npc, enemy, state)
     if blocked then
         at_debug.dbg("[CMB] can_flee id=%s name=%s path=%s", show(state.id), show(state.name), show(blocked))
@@ -344,9 +344,9 @@ end
 
 
 -- =========================================================================
--- should_maneuver methods (need) - the cheap compares that open a row. Allowed reads: the walk memo and
+-- check_need methods (need) - the cheap compares that open a row. Allowed reads: the walk memo and
 -- O(1) state (positions, distance, health, weapon kind, relation) - never a raycast, a path build or a
--- cover/base search; can_maneuver owns those. Each states the row's FULL problem and returns the situation
+-- cover/base search; find_destination owns those. Each states the row's FULL problem and returns the situation
 -- NAME that holds (the begin trace's trigger field, the rows= walk) or nil - and a nil falls through to
 -- the NEXT row in the SAME tick, so a row whose need is absent never consumes a decision slot. Shared
 -- reads come off the walk memo: my kind, the enemy's kind, faction, and the actor reads resolve once per
@@ -357,7 +357,7 @@ end
 
 -- too_close: the enemy is inside the NPC's own weapon minimum. Complete as-is - the need IS a proximity
 -- statement on my own weapon, and the kite's back-off ends well outside the minimum by construction.
-local function _should_too_close(npc, _enemy, state, _tg, memo)
+local function _check_too_close(npc, _enemy, state, _tg, memo)
     if memo.kind == nil then memo.kind = xcombat.get_weapon_kind(npc) or "w_rifle" end
     if state.dist < xcombat.get_weapon_range(memo.kind).min then return "too_close" end
     return nil
@@ -371,7 +371,7 @@ end
 -- cannot re-fire until a NEW reload starts. On an exe without the events the stamp never sets and the
 -- row is inert. The under-fire half of the full problem (reloading in the OPEN) is the feasibility's
 -- first gate - its reads cost luabind, which the need path is forbidden.
-local function _should_reloading(_npc, _enemy, state, tg, _memo)
+local function _check_reloading(_npc, _enemy, state, tg, _memo)
     if not state.reloading then return nil end
     if (tg - (state.reload_at or 0)) > RELOAD_STALE_MS then return nil end
     return "reloading"
@@ -382,8 +382,8 @@ end
 -- retreat or flee negate the need (the accepted cover/base is farther by construction), so a solved
 -- pressure does not re-fire and a re-closing enemy legitimately does. A weaponless enemy (a mutant)
 -- reads as the rifle band, the standing convention.
-local function _should_pressure(npc, enemy, state, _tg, memo)
-    if memo.hurt == nil then memo.hurt = npc.health < HURT_FRAC end
+local function _check_hurt(npc, enemy, state, _tg, memo)
+    if memo.hurt == nil then memo.hurt = xcombat.get_health_frac(npc) < HURT_FRAC end
     if not memo.hurt then return nil end
     if memo.enemy_kind == nil then memo.enemy_kind = xcombat.get_weapon_kind(enemy) or "w_rifle" end
     if state.dist <= xcombat.get_weapon_range(memo.enemy_kind).max then return "hurt" end
@@ -394,7 +394,7 @@ end
 -- (a transaction resets the tracker, so a finished hold negates its own need), AND the enemy inside MY
 -- weapon's EFFECTIVE range - a standoff my weapon can exploit. The tracker runs on every walk that
 -- reaches the pickoff row, so the stall memory stays warm across declined walks.
-local function _should_stalled(npc, _enemy, state, tg, memo)
+local function _check_stalled(npc, _enemy, state, tg, memo)
     if not _eval_stalled(state, tg, memo.npc_pos, state.dist) then return nil end
     if memo.kind == nil then memo.kind = xcombat.get_weapon_kind(npc) or "w_rifle" end
     local band = xcombat.get_weapon_range(memo.kind)
@@ -411,7 +411,7 @@ end
 -- the sight manager never takes the ordered look target and the turn never starts (the direction
 -- gate at state_mgr.script:318 then withholds every shot). Root cause pending the sight=/stype=
 -- trace data (user ruling 2026-07-28: no trigger suppression; diagnose first, then fix the cause).
-local function _should_actor_close(npc, _enemy, state, _tg, memo)
+local function _check_actor_close(npc, _enemy, state, _tg, memo)
     local ap = memo.actor_pos
     if ap == nil then
         if not db.actor then return nil end
@@ -441,7 +441,7 @@ end
 -- factions/weapons nil = match any. vs_actor marks
 -- the row whose problem is the ACTOR (walked only when he is NOT the selected enemy; the shell stages
 -- him as the committed target). update = the row's periodic re-application; every row re-applies its
--- combat state (a firing row re-checks its shot, flee re-asserts its holster). should_end = the row's
+-- combat state (a firing row re-checks its shot, flee re-asserts its holster). check_end = the row's
 -- premise re-check while it runs (pickoff only).
 local function _build_catalog(read_int)
     return {
@@ -451,10 +451,10 @@ local function _build_catalog(read_int)
             name           = "counterflank",
             toggle         = "maneuver_counterflank",
             vs_actor       = true,
-            should_maneuver = _should_actor_close,
+            check_need = _check_actor_close,
             factions       = nil,
             weapons        = nil,
-            can_maneuver   = _can_counterflank,
+            find_destination   = _find_counterflank_spot,
             update         = _apply_state,
             fire           = xcombat.FIRE, posture = xcombat.STAND, movement = xcombat.STILL,
             ends_on        = "time",
@@ -464,16 +464,16 @@ local function _build_catalog(read_int)
             -- reload_cover: a reloading NPC under fire runs to the nearest cover instead of standing in
             -- the open; the engine finishes the reload on its own timer during the move. fire=READY (he
             -- cannot shoot mid-reload; the weapon comes up at hand-back), movement=RUN (the window is
-            -- ~2s). should_end hands back the moment the reload finishes; not under fire declines at
+            -- ~2s). check_end hands back the moment the reload finishes; not under fire declines at
             -- feasibility and vanilla reloads in place. Inert on exes without the n031 reload events.
             name           = "reload_cover",
             toggle         = "maneuver_reload_cover",
-            should_maneuver = _should_reloading,
+            check_need = _check_reloading,
             factions       = nil,
             weapons        = nil,
-            can_maneuver   = _can_reload_cover,
+            find_destination   = _find_reload_cover,
             update         = _apply_state,
-            should_end     = _should_end_reload_cover,
+            check_end     = _check_end_reload_cover,
             fire           = xcombat.READY, posture = xcombat.STAND, movement = xcombat.RUN,
             ends_on        = "arrival",
             timeout        = read_int("maneuver_max_ms", 8000),
@@ -487,10 +487,10 @@ local function _build_catalog(read_int)
             -- mover stuck-cap.
             name           = "flee",
             toggle         = "maneuver_flee",
-            should_maneuver = _should_pressure,
+            check_need = _check_hurt,
             factions       = { ecolog = true, csky = true, renegade = true },
             weapons        = nil,
-            can_maneuver   = _can_flee,
+            find_destination   = _find_flee_base,
             update         = _apply_state,
             fire           = xcombat.STOW, posture = xcombat.STAND, movement = xcombat.RUN,
             ends_on        = "arrival",
@@ -503,10 +503,10 @@ local function _build_catalog(read_int)
             -- retreat nor flee - fanatics do not break.
             name           = "retreat",
             toggle         = "maneuver_retreat",
-            should_maneuver = _should_pressure,
+            check_need = _check_hurt,
             factions       = { army = true, dolg = true, freedom = true, killer = true, isg = true, stalker = true, bandit = true, greh = true, ecolog = true, csky = true, renegade = true },
             weapons        = nil,
-            can_maneuver   = _can_retreat,
+            find_destination   = _find_retreat_cover,
             update         = _apply_state,
             fire           = xcombat.FIRE, posture = xcombat.STAND, movement = xcombat.WALK,
             ends_on        = "arrival",
@@ -515,10 +515,10 @@ local function _build_catalog(read_int)
         {
             name           = "kite",
             toggle         = "maneuver_kite",
-            should_maneuver = _should_too_close,
+            check_need = _check_too_close,
             factions       = nil,
             weapons        = nil,
-            can_maneuver   = _can_kite,
+            find_destination   = _find_kite_lane,
             update         = _apply_state,
             fire           = xcombat.FIRE, posture = xcombat.STAND, movement = xcombat.WALK,
             ends_on        = "arrival",
@@ -526,18 +526,18 @@ local function _build_catalog(read_int)
         },
         {
             -- pickoff: any-firearm HOLD: ends_on=time (dest = own node, no arrival), runs to the hold
-            -- timeout; should_end re-checks the premise (under fire / targeted / enemy back in range),
+            -- timeout; check_end re-checks the premise (under fire / targeted / enemy back in range),
             -- ending a broken hold now, not at the cap. need_recheck=false: this row's success IS the
             -- stall-tracker reset, so a recheck reads pre-reset state - _trace_end prints "-" instead.
             name           = "pickoff",
             toggle         = "maneuver_pickoff",
             need_recheck   = false,
-            should_maneuver = _should_stalled,
+            check_need = _check_stalled,
             factions       = nil,
             weapons        = nil,
-            can_maneuver   = _can_pickoff,
+            find_destination   = _find_pickoff_spot,
             update         = _apply_state,
-            should_end     = _should_end_pickoff,
+            check_end     = _check_end_pickoff,
             fire           = xcombat.FIRE, posture = xcombat.STAND, movement = xcombat.STILL,
             ends_on        = "time",
             timeout        = read_int("pickoff_hold_ms", 8000),
@@ -587,32 +587,32 @@ local function _palette_matches(row, npc, memo)
 end
 
 -- The per-layer segment timer _check_row reads: the null object live (zero cost), swapped for a real
--- profiler by resolve_maneuver when tracing is on, so should= and can= time separately.
+-- profiler by resolve_maneuver when tracing is on, so need= and dest= time separately.
 local _seg = xprofiler.new_if(false)
 
 -- One row's ordered check: scope first (one compare - the row walks only in the fight class whose problem
 -- it answers: vs_actor rows when the actor is NOT the selected enemy, every other row when he IS; AT
 -- seizes only problems the actor is party to, as row data) -> MCM toggle (one table read; live, so a
--- mid-fight flip holds from the next walk) -> should_maneuver (need) -> palette -> can_maneuver
--- (feasibility geometry). Returns (dest, situation, stage, should_us, can_us): dest non-nil = picked.
+-- mid-fight flip holds from the next walk) -> check_need (need) -> palette -> find_destination
+-- (feasibility geometry). Returns (dest, situation, stage, need_us, dest_us): dest non-nil = picked.
 -- stage is the trace word for how far the row got ("scope" out of scope, "off" toggled off, "-" need
--- absent, "palette", "declined", "picked"). can_us is non-nil exactly when can_maneuver RAN - the walk's
+-- absent, "palette", "declined", "picked"). dest_us is non-nil exactly when find_destination RAN - the walk's
 -- tick-over marker.
 local function _check_row(row, npc, enemy, state, tg, memo)
     if (row.vs_actor or false) == memo.actor_fight then return nil, nil, "scope" end
     if cfg[row.toggle] == false then return nil, nil, "off" end
     _seg:reset() _seg:start()
-    local sit = row.should_maneuver(npc, enemy, state, tg, memo)
+    local sit = row.check_need(npc, enemy, state, tg, memo)
     _seg:stop()
-    local should_us = _seg:get_us()
-    if not sit then return nil, nil, "-", should_us end
-    if not _palette_matches(row, npc, memo) then return nil, sit, "palette", should_us end
+    local need_us = _seg:get_us()
+    if not sit then return nil, nil, "-", need_us end
+    if not _palette_matches(row, npc, memo) then return nil, sit, "palette", need_us end
     _seg:reset() _seg:start()
-    local dest = row.can_maneuver(npc, enemy, state, tg, memo)
+    local dest = row.find_destination(npc, enemy, state, tg, memo)
     _seg:stop()
-    local can_us = _seg:get_us()
-    if dest then return dest, sit, "picked", should_us, can_us end
-    return nil, sit, "declined", should_us, can_us
+    local dest_us = _seg:get_us()
+    if dest then return dest, sit, "picked", need_us, dest_us end
+    return nil, sit, "declined", need_us, dest_us
 end
 
 -- Reset the per-walk memo on the state record: wipe the lazy reads (faction, my/enemy weapon kind, hurt,
@@ -634,25 +634,25 @@ local function _reset_memo(state, npc, enemy)
 end
 
 --- Arbitrate the catalog: walk the rows in priority order starting at state.row_cursor (per-NPC). A row
---- whose need is absent - out of scope (vs_actor vs the walk's fight class), should_maneuver nil, toggle
+--- whose need is absent - out of scope (vs_actor vs the walk's fight class), check_need nil, toggle
 --- off, palette mismatch - falls through to the NEXT row in the SAME tick, so a row that does not apply
 --- never consumes a decision slot. The first row whose
---- need holds runs its can_maneuver - the ONE geometry probe this tick - and ends the walk either way: a
+--- need holds runs its find_destination - the ONE geometry probe this tick - and ends the walk either way: a
 --- vertex stages the row, a nil declines the tick. In BOTH cases the cursor moves past that row, so a
 --- declined row defers to the next candidate and retries after at most one lap (~catalog size x begin
 --- period), and a picked row hands the NEXT decision to the row below it - a timid NPC whose flee
 --- declined falls to retreat with no escalation state. The cursor resets to the top when the NPC leaves
 --- the fight (at_combat). Cost per tick is bounded by construction: at most one lap of need compares
---- (microseconds) plus at most one can_maneuver. Positions and shared reads memoize on state.memo per
+--- (microseconds) plus at most one find_destination. Positions and shared reads memoize on state.memo per
 --- tick. When tracing is on, state.rows carries every examined row as "name:situation/stage" with
---- per-layer timings ("/should=Xus/can=Yus") on the row whose can_maneuver ran, and state.walk_us the
+--- per-layer timings ("/need=Xus/dest=Yus") on the row whose find_destination ran, and state.walk_us the
 --- whole walk's microseconds; the timers are null objects when tracing is off, zero cost live.
 -- Format one examined row for the rows= trace: "name:situation/stage", plus the per-layer timings on the
--- one row whose can_maneuver ran (can_us non-nil).
-local function _row_trace(row, sit, stage, should_us, can_us)
+-- one row whose find_destination ran (dest_us non-nil).
+local function _row_trace(row, sit, stage, need_us, dest_us)
     local head = row.name .. ":" .. (sit and (sit .. "/" .. stage) or stage)
-    if can_us == nil then return head end
-    return head .. "/should=" .. math_floor(should_us) .. "us/can=" .. math_floor(can_us) .. "us"
+    if dest_us == nil then return head end
+    return head .. "/need=" .. math_floor(need_us) .. "us/dest=" .. math_floor(dest_us) .. "us"
 end
 
 -- The short circuit: a pick of the SAME situation with the NPC still within CIRCUIT_MOVE_M of the
@@ -685,9 +685,9 @@ end
 --- on. A row whose need still holds at hand-back is the churn signal: the maneuver ran but did not negate
 --- its own trigger.
 function at_combat_doctrine.recheck_need(row, npc, enemy, state, tg)
-    if not (row and npc and enemy and row.should_maneuver) then return nil end
+    if not (row and npc and enemy and row.check_need) then return nil end
     local memo = _reset_memo(state, npc, enemy)
-    return row.should_maneuver(npc, enemy, state, tg, memo)
+    return row.check_need(npc, enemy, state, tg, memo)
 end
 
 function at_combat_doctrine.resolve_maneuver(npc, enemy, state, tg)
@@ -705,10 +705,10 @@ function at_combat_doctrine.resolve_maneuver(npc, enemy, state, tg)
     for i = 0, count - 1 do
         local idx = (start + i - 1) % count + 1
         local row = CATALOG[idx]
-        local vid, sit, stage, should_us, can_us = _check_row(row, npc, enemy, state, tg, memo)
-        if tracing then rows_trace[#rows_trace + 1] = _row_trace(row, sit, stage, should_us, can_us) end
-        if can_us ~= nil then
-            -- The row's can_maneuver ran: pick or decline, the tick is spent and the cursor moves past it.
+        local vid, sit, stage, need_us, dest_us = _check_row(row, npc, enemy, state, tg, memo)
+        if tracing then rows_trace[#rows_trace + 1] = _row_trace(row, sit, stage, need_us, dest_us) end
+        if dest_us ~= nil then
+            -- The row's find_destination ran: pick or decline, the tick is spent and the cursor moves past it.
             state.row_cursor = idx % count + 1
             spent_row, spent_vid, spent_sit = row, vid, sit
             break
@@ -721,7 +721,7 @@ function at_combat_doctrine.resolve_maneuver(npc, enemy, state, tg)
     end
     if not spent_vid then return nil end
     if _circuit_tripped(state, spent_sit, memo.npc_pos) then
-        -- The refused pick's can_maneuver may have claimed a cover vertex (retreat, reload_cover); no
+        -- The refused pick's find_destination may have claimed a cover vertex (retreat, reload_cover); no
         -- maneuver opens, so _end_maneuver never releases it - release here or the claim outlives the walk.
         if state.cover_lvid then
             xcombat.release_cover(state.cover_lvid, state.id)
