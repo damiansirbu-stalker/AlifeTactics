@@ -28,7 +28,7 @@ Effects:
 - Creatures make emergent decisions from environment, own state, enemy state, squad state, weapons, and faction doctrine.
 - Nothing is player-centric, and no side gets an advantage or a handicap.
 - Creatures use the items they acquired themselves: medkits, ammo, props.
-- Rank scales accuracy, weapon spread, and aim speed, which vanilla clamps flat.
+- Rank scales accuracy, weapon spread, aim speed, and how tightly a stalker tracks you, which vanilla clamps flat.
 - AP ammo is fired from its owner's inventory and consumed, where vanilla gives NPCs infinite cheap rounds and modpacks give infinite AP by rank and map.
 - Bugs disguised as features are gone, like fake weapon jamming and random tactical reloading.
 
@@ -115,11 +115,12 @@ It keys on their actual relation, so genuinely hostile factions still trade fire
 
 Reaction:
 Stalker rank now shapes gun handling, applied per stalker.
-Tracking Speed sets how tightly a barrel follows a moving target, from vanilla at the bottom rank to the game's own hardcore AI aim at the top.
+Tracking Speed sets how fast a barrel moves while tracking, from vanilla at the bottom rank to a decent step above it at the top, well short of the game's hardcore AI aim.
+Tracking Lock sets how tightly a barrel holds a strafing target: a novice's aim lags and can be juked exactly like vanilla, a legend holds you across the firing window without becoming an aimbot.
 Target Lead aims a stalker ahead of a moving target by the round's real flight time, computed from range and the weapon's bullet speed as it fires.
 Higher ranks lead true and hit movers, lower ranks over-lead and overshoot.
 Fire Discipline gives higher ranks crisper short bursts at a tighter cadence while low ranks stay vanilla. Defaults keep a rank's rounds per minute at or above vanilla.
-Tracking, Target Lead, and Fire Discipline are per-rank MCM slider curves, each with its own on/off and a short note on the toggle.
+Tracking Speed, Tracking Lock, Target Lead, and Fire Discipline are per-rank MCM slider curves; Speed and Lock share one on/off, Lead and Discipline each carry their own.
 It uses per-NPC aim hooks created in xray-monolith for this mod, so on older builds the page has no effect.
 The two rank vision curves moved to the Perception tab below.
 
@@ -158,10 +159,10 @@ They only go alert, never hostile, and settle down when the shooting stops. Ever
 
 Vision:
 Stalker rank shapes the eyes as well as the trigger, applied per stalker.
-Vision Speed sets how fast each rank turns a glimpse into a confirmed threat, from a touch below your setup's detection speed at the low ranks to about 15 percent faster at the top,
-  with the middle ranks near your baseline.
+Vision Speed sets how fast each rank turns a glimpse into a confirmed threat, from your setup's own detection speed at the bottom rank (a novice matches it) to about 21 percent faster at the top,
+  so no rank notices slower than your baseline.
 It scales the rate only: sight range, vision cone, light and darkness response, cover and occlusion, and hearing all stay exactly as your setup has them.
-Vision Range sets how far out each rank begins to notice a threat, the same tight band around your baseline, on engine builds carrying the per-stalker view-distance hook created for this mod,
+Vision Range sets how far out each rank begins to notice a threat, the same band, from your baseline at novice to about 15 percent farther at the top, on engine builds carrying the per-stalker view-distance hook created for this mod,
   inactive on older exes.
 Both are per-rank MCM slider curves under one Vision toggle, on their own Vision page.
 
@@ -272,7 +273,7 @@ Coexists:
 - Tougher Important NPCs and Companions: damage reduction on the same callback, composes.
 - Dynamic AI Aim Settings: perception tweaks that compose with the dispersion fix.
 - The game's Hardcore AI aim option and any ai_aim console tuning: Reaction writes per-stalker fields and never below the global baseline, so raising difficulty is always respected.
-- GAMMA Stealth Overhaul and detection threshold mods: Vision Speed multiplies your setup's own detection result as a rank curve (rookie unchanged, legend up to twice as fast).
+- GAMMA Stealth Overhaul and detection threshold mods: Vision Speed multiplies your setup's own detection result as a rank curve (rookie unchanged, legend about 21 percent faster).
   Set every rank to 1.00, or clear the toggle, to hand acquisition back entirely.
 - g_ai_unlimited_ammo set to 0 (newer engine builds): the Ammo system detects it and goes inert so carried AP is not drained twice; at the default 1 it runs normally.
 

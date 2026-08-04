@@ -341,7 +341,7 @@
     <text>Enable Tracking Speed</text>
   </string>
   <string id="ui_mcm_at_reaction_aim_enabled_desc">
-    <text>How tightly a stalker's barrel follows a moving target, per rank. Low ranks lag a strafing target, top ranks stay locked on. Off leaves the engine's flat speed.</text>
+    <text>How fast a stalker's barrel moves while tracking, per rank. This is speed only; how tightly it holds a strafing target is Tracking Lock below, which this toggle also gates. Off leaves the engine's flat aim.</text>
   </string>
   <string id="ui_mcm_at_hdr_reaction_aim">
     <text>Tracking Speed</text>
@@ -392,7 +392,58 @@
     <text>Legend tracking speed</text>
   </string>
   <string id="ui_mcm_at_reaction_rct_aim_legend_desc">
-    <text>How tightly a legend-rank barrel follows a moving target, the highest rank. 2.50 matches the game's hardcore AI aim option.</text>
+    <text>Tracking speed for legend rank, the highest. 1.50 is a decent step above vanilla, well below the game's 2.50 hardcore aim.</text>
+  </string>
+  <string id="ui_mcm_at_hdr_reaction_track">
+    <text>Tracking Lock</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_track_novice">
+    <text>Novice tracking lock</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_track_novice_desc">
+    <text>How tightly a novice-rank barrel holds a strafing target - the width of the lock band, radians. 0.196 matches vanilla, where a strafer can juke the aim.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_track_trainee">
+    <text>Trainee tracking lock</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_track_trainee_desc">
+    <text>How tightly a trainee-rank barrel holds a strafing target. Higher holds tighter and is harder to dodge.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_track_experienced">
+    <text>Experienced tracking lock</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_track_experienced_desc">
+    <text>How tightly an experienced-rank barrel holds a strafing target. Higher holds tighter and is harder to dodge.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_track_professional">
+    <text>Professional tracking lock</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_track_professional_desc">
+    <text>How tightly a professional-rank barrel holds a strafing target. Higher holds tighter and is harder to dodge.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_track_veteran">
+    <text>Veteran tracking lock</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_track_veteran_desc">
+    <text>How tightly a veteran-rank barrel holds a strafing target. Higher holds tighter and is harder to dodge.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_track_expert">
+    <text>Expert tracking lock</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_track_expert_desc">
+    <text>How tightly an expert-rank barrel holds a strafing target. Higher holds tighter and is harder to dodge.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_track_master">
+    <text>Master tracking lock</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_track_master_desc">
+    <text>How tightly a master-rank barrel holds a strafing target. Higher holds tighter and is harder to dodge.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_track_legend">
+    <text>Legend tracking lock</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_track_legend_desc">
+    <text>How tightly a legend-rank barrel holds a strafing target, the highest rank. 0.40 locks across the firing window, far below the game's 17 hardcore aimbot.</text>
   </string>
   <string id="ui_mcm_at_hdr_reaction_lead">
     <text>Target Lead</text>
@@ -461,7 +512,7 @@
     <text>How fast a stalker turns a glimpse into a confirmed threat, per rank - reaction, not eyesight. Higher ranks notice sooner; most ranks sit just under your setup's baseline, so an average squad notices a hair slower. Point-blank detection is unaffected. Off leaves the flat detection speed.</text>
   </string>
   <string id="ui_mcm_at_hdr_reaction_trigger">
-    <text>Fire Discipline (Burst Size)</text>
+    <text>Burst Size</text>
   </string>
   <string id="ui_mcm_at_reaction_discipline_enabled">
     <text>Enable Fire Discipline</text>
@@ -518,7 +569,7 @@
     <text>Multiplier on the legend-rank burst length, the highest rank. Below 1 = crisp short bursts. Keep at or above the interval multiplier so volume holds.</text>
   </string>
   <string id="ui_mcm_at_hdr_reaction_qinterval">
-    <text>Fire Cadence (Interval)</text>
+    <text>Fire Cadence</text>
   </string>
   <string id="ui_mcm_at_reaction_rct_qinterval_novice">
     <text>Novice fire cadence</text>

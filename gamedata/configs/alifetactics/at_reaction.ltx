@@ -3,39 +3,52 @@
 ; The MCM Reaction sliders read their defaults from this file; a slider the player moved
 ; overrides that key, and MCM "reset to defaults" returns to these values.
 ;
-; DERIVATION - every number is a formula over sourced constants, nothing hand-picked:
+; DIFFICULTY PARADIGM (2026-08-05): novice = the flat vanilla value on every curve (nothing sits
+; below the base game, so low ranks never compound into a pushover), legend = a DECENT bump chosen
+; per curve and kept well short of the game's own hardcore-aim preset (harder, not aimbot), linear
+; by rank between. Vanilla rank scaling is non-functional - ai_stalker.cpp:761 clamps Rank() to
+; [0,100] but Anomaly/GAMMA ranks are in the thousands, so m_fRankDisperison collapses to a constant
+; and immunities/visibility ship 1.0/1.0 (game_relations.ltx) - so every curve here is a script-side
+; rank axis over a FLAT baseline, not a retune of a working one.
 ;
-;   value(tier) = vanilla + t(tier) * (hardcore - vanilla),  t(tier) = tier_floor / 27000
+;   value(tier) = novice + t(tier) * (legend - novice),  t(tier) = tier_floor / 27000
 ;
-; src (endpoints, aim): xray-monolith sight_manager.cpp:75 "float g_ai_aim_min_speed = 0.24f"
-;   (the vanilla default, confirmed live: user.ltx "ai_aim_min_speed 0.24" on both installs);
-;   anomaly ui_options.script:1001 exec_console_cmd("ai_aim_min_speed 2.5") - the game's own
-;   hardcore-AI-aim preset.
-; src (endpoints, lead): xray-monolith console_commands.cpp:118 "float g_aim_predict_time = 0.40f"
-;   (live: user.ltx "ai_aim_predict_time 0.4"); anomaly ui_options.script:1002
-;   exec_console_cmd("ai_aim_predict_time 0.28") - the same hardcore preset.
-; src (linear form): xray-monolith ai_stalker.cpp:756-766 - the engine's only rank scaling
-;   (m_fRankDisperison) lerps LINEARLY in rank value between two endpoints; same form here.
 ; src (tier positions): anomaly game_relations.ltx:8 rating = novice 0, trainee 3500,
 ;   experienced 6500, professional 9000, veteran 12000, expert 14500, master 17500, legend 27000.
+; src (vanilla aim endpoints): xray-monolith sight_manager.cpp:75-76 g_ai_aim_min_speed 0.24,
+;   g_ai_aim_min_angle PI/16 = 0.196; the game's hardcore-aim option (ui_options.script) sets
+;   min_speed 2.5 / min_angle 17 - our legends stay far below that.
 ;
-; aim_* is rad/s, the sight's fine-tracking speed cap (select_speed, sight_manager.cpp:80-101) -
-; TRACKING TIGHTNESS on a moving target, nothing else. Tested (forced A/B, 10x spread): no effect
-; on first-shot latency (the fine band, min_angle 0.196 rad, sits inside the trigger cone,
-; fire_angle 0.3927 rad - the first shot never waits for it) and none on strafing hit%; the effect
-; is how tightly the barrel visibly follows a mover during fire.
-; Novice = exactly vanilla: no rank ever tracks worse than the base game. Legend = exactly the
-; game's own hardcore preset.
+; aim_* is rad/s, the sight fine-tracking SPEED cap (select_speed, sight_manager.cpp:80-101): how
+; fast the barrel moves inside the min_angle lock band. Novice 0.24 = vanilla, legend 1.50 (decent,
+; not the 2.5 hardcore). Paired with track_* below - speed alone (at the vanilla 0.196 lock band)
+; barely touches hit% (forced A/B, 10x spread: no first-shot or strafing-hit% change); it matters
+; once track_ widens the lock band.
 
 [at_reaction]
 aim_novice       = 0.24
-aim_trainee      = 0.53
-aim_experienced  = 0.78
-aim_professional = 0.99
-aim_veteran      = 1.24
-aim_expert       = 1.45
-aim_master       = 1.70
-aim_legend       = 2.50
+aim_trainee      = 0.40
+aim_experienced  = 0.54
+aim_professional = 0.66
+aim_veteran      = 0.80
+aim_expert       = 0.92
+aim_master       = 1.06
+aim_legend       = 1.50
+
+; track_* is rad/s the min_angle band (ai_aim_min_angle, sight_manager.cpp:76): the gap size below
+; which the barrel tracks at min_speed with no deceleration. Vanilla 0.196 is half the fire cone, so
+; the barrel eases off at the cone edge and a strafer can juke it; raising it toward the fire cone
+; (0.3927) and past keeps the barrel locked across the whole firing window - the real "hard to dodge"
+; dial (Tracking Lock). Novice = exactly vanilla 0.196, legend 0.40 (a bit past the fire cone, decent);
+; kept under max_angle 0.785 so the natural fast swing-in survives (select_speed VERIFY(max>min)).
+track_novice       = 0.196
+track_trainee      = 0.222
+track_experienced  = 0.245
+track_professional = 0.264
+track_veteran      = 0.287
+track_expert       = 0.306
+track_master       = 0.328
+track_legend       = 0.400
 
 ; lead_* is the per-rank lead ERROR (t156): the rank's multiplier on the physically-correct lead. The
 ; engine leads a moving target by aim_point += target_velocity * predict_time (sight_action.cpp:383-384);
@@ -62,33 +75,33 @@ lead_legend       = 1.00
 ; installed baseline. It is reaction - how fast a stalker turns a glimpse into a confirmed threat -
 ; NOT eyesight: detection TIMING only, never aim or accuracy. Every install is rank-blind at
 ; detection (vanilla: one [stalker_vision_*] set for all stalkers, m_stalker.ltx:76-99); this adds
-; the rank axis, centered on vanilla-at-experienced (retuned 2026-07-29 from the old 1.00-2.00 that
-; cranked detection up everywhere): novice 0.94 (slower to notice) to legend 1.15 (+15%), six of
-; eight tiers at-or-below vanilla so the average NPC detects a hair SLOWER.
-vision_novice       = 0.94
-vision_trainee      = 0.97
-vision_experienced  = 1.00
-vision_professional = 1.03
-vision_veteran      = 1.06
-vision_expert       = 1.09
-vision_master       = 1.12
-vision_legend       = 1.15
+; the rank axis over that baseline: novice 1.00 = vanilla (retuned 2026-08-05 so NO rank detects
+; slower than the base game) to legend 1.21 (+21%), the same rank spread as the prior tuning shifted
+; up to sit at-or-above vanilla instead of dipping below it.
+vision_novice       = 1.00
+vision_trainee      = 1.03
+vision_experienced  = 1.06
+vision_professional = 1.09
+vision_veteran      = 1.12
+vision_expert       = 1.15
+vision_master       = 1.18
+vision_legend       = 1.21
 
 ; vrange_* is the per-rank detection-DISTANCE factor, the twin of vision_* on the other vision axis: it
 ; multiplies object_visible_distance (visual_memory_manager.cpp:303-318), so it sets how far out a stalker
 ; BEGINS to notice a target, where vision_ sets how FAST once in sight. at_reaction registers it as the
 ; rank slice of at_effects_resolver's VISION_RANGE effect, combined highest-wins with a carried optic's
 ; factor; the resolver writes it at net_spawn via set_view_distance_factor. A tight band centred on
-; vanilla, ~0.95-1.10, the same shape as vision speed. DORMANT until the n038 view-distance bind exists on
+; vanilla: novice 1.00 = vanilla to legend 1.15, the same shape as vision speed. DORMANT until the n038 view-distance bind exists on
 ; the exe - the setter no-ops below it, so the curve is inert but live the moment the bind arrives.
-vrange_novice       = 0.95
-vrange_trainee      = 0.97
-vrange_experienced  = 1.00
-vrange_professional = 1.02
-vrange_veteran      = 1.04
-vrange_expert       = 1.06
-vrange_master       = 1.08
-vrange_legend       = 1.10
+vrange_novice       = 1.00
+vrange_trainee      = 1.02
+vrange_experienced  = 1.05
+vrange_professional = 1.07
+vrange_veteran      = 1.09
+vrange_expert       = 1.11
+vrange_master       = 1.13
+vrange_legend       = 1.15
 
 ; qsize_* / qinterval_* are the two fire-queue scales (t154), fed to npc:set_fire_queue_scale (#603) at
 ; spawn: qsize_ multiplies the combat planner's burst SIZE, qinterval_ the inter-burst PAUSE
@@ -100,13 +113,13 @@ vrange_legend       = 1.10
 ; >= vanilla (doc/library/modding/npc-combat-effectiveness.md, the queue section). Novice 1.00/1.00 =
 ; exact vanilla. Small spans on purpose: this is a visible fire-behavior variation, not a lethality jump.
 qsize_novice       = 1.00
-qsize_trainee      = 0.98
-qsize_experienced  = 0.96
-qsize_professional = 0.94
-qsize_veteran      = 0.92
-qsize_expert       = 0.90
-qsize_master       = 0.88
-qsize_legend       = 0.85
+qsize_trainee      = 0.97
+qsize_experienced  = 0.95
+qsize_professional = 0.93
+qsize_veteran      = 0.91
+qsize_expert       = 0.89
+qsize_master       = 0.87
+qsize_legend       = 0.80
 qinterval_novice       = 1.00
 qinterval_trainee      = 0.96
 qinterval_experienced  = 0.93
