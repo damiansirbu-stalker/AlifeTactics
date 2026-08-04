@@ -13,7 +13,7 @@
 --- the callback never fires and the module is inert.
 
 local RegisterScriptCallback = RegisterScriptCallback
-local tostring, time_global = tostring, time_global
+local tostring, time_global, math_random = tostring, time_global, math.random
 
 local cfg = at_mcm.cfg
 
@@ -89,7 +89,7 @@ local function _is_eligible(npc, id)
     if ok == nil then
         ok = xcreature.community(npc) ~= "zombied"
             and POSTURE_TIERS[ranks.get_obj_rank_name(npc) or ""] == true
-            and math.random() < CROUCH_CHANCE
+            and math_random() < CROUCH_CHANCE
         _eligible[id] = ok
     end
     return ok
