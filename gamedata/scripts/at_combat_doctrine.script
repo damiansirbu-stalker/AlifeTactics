@@ -56,11 +56,11 @@ local CATALOG = {}
 -- fighting withdrawal that always ends well outside his weapon minimum. Replaces the
 -- minimum-minus-distance arithmetic that produced 2m hops (2026-07-09).
 local KITE_BACK = {
-    w_melee = 4, w_shotgun = 4, w_pistol = 5, w_smg = 6, w_rifle = 8, w_sniper = 10, w_explosive = 8,
+    w_melee = 4, w_shotgun = 4, w_pistol = 5, w_smg = 6, w_rifle = 8, w_sniper = 15, w_explosive = 8,
 }
 
 -- kite: back off a weapon-set distance, still firing - the shotgunner takes 4m, the rifleman 8, the
--- sniper 10. find_flee_lane runs the two-phase search: straight-back -> +-45 -> +-90 at the full
+-- sniper 15. find_flee_lane runs the two-phase search: straight-back -> +-45 -> +-90 at the full
 -- distance, the same fan at half distance, then the longest CLEAR straight stub; nil only when fully
 -- boxed in. THE GUARANTEE (user ruling 2026-07-28): the destination is accepted only if standing on
 -- it puts the enemy back OUTSIDE my weapon's minimum - the trigger's own quantity, measured
