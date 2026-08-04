@@ -1,11 +1,11 @@
---- at_stance: combat conduct posture (t138 lever 1) - crouch to steady the shot when a crouch keeps
---- the line to the enemy clear, stand to fire over low cover that would block a crouched shot. The
---- 1.0.0 at_stance crouched blindly on planner ops for sniper carriers
---- and fired into random bumps (dropped, commit 591b6e0); this form gates on the engine's own
---- low-cover field (xcombat.get_crouch_openness toward the enemy) resolved through a hysteresis
---- band, and HOLDS each decision for DECIDE_MS - the engine re-asks posture several times a second,
---- and a stateless per-ask decision over the noisy field flapped crouch/stand continuously
---- (1658 overrides in one session, 2026-07-23, the "up-down shuffle"). Scope: the engine
+--- at_stance: combat conduct posture (t138 lever 1) - crouch to steady the shot when the NPC can STILL
+--- hit the enemy from a crouch, stand to fire over a low wall that would eat a crouched shot. The 1.0.0
+--- at_stance crouched blindly on planner ops and fired into random bumps (dropped, commit 591b6e0); this
+--- form casts a crouch-eye shot ray to the enemy (xcombat.has_obstacle_to_target at BODY_Y.CROUCH_EYE) -
+--- the real line-of-fire test, NOT the baked cover field, which never confirmed a shot. It HOLDS each
+--- decision for DECIDE_MS - the engine re-asks posture several times a second, and a stateless per-ask
+--- decision flapped crouch/stand continuously (1658 overrides in one session, 2026-07-23, the "up-down
+--- shuffle"). Scope: the engine
 --- fires npc_on_combat_set_body_state only from the vanilla combat planner's actions
 --- (callbacks_gameobject.script COMBAT_BODY_STATE_OVERRIDE forwarder); a maneuver-held NPC never
 --- reaches it (the takeover blocks that planner) and gets posture from his row instead - this is
@@ -23,14 +23,6 @@ local LONG_KINDS = { w_rifle = true, w_sniper = true }
 -- Tiers that use it - posture discipline is trained behavior; the green tiers keep vanilla.
 local POSTURE_TIERS = { experienced = true, professional = true, veteran = true,
                         expert = true, master = true, legend = true }
--- Range hysteresis on the low-cover field toward the enemy, the pickoff-enter/exit shape (2
--- thresholds, nothing flaps between them): ENTER crouch at or above STANCE_ENTER, LEAVE it below
--- STANCE_EXIT, keep the held posture in the band. The raw read jitters 0.0-0.3 second to second as
--- both sides move - a single 0.2 cutoff produced 1658 posture flips in one session (2026-07-23);
--- 0.2 center = vanilla's 0.2 threshold on the adjacent high-cover field
--- (level.high_cover_in_direction, axr_npc_vs_heli.script:259).
-local STANCE_ENTER = 0.25
-local STANCE_EXIT  = 0.15
 -- The engine re-asks its combat body state several times a second while an action runs; deciding
 -- fresh per ask is what flapped. One decision per NPC, held DECIDE_MS, re-decided early only when
 -- the combat op changes; every ask during the hold answers the HELD posture, so the applied value
@@ -39,7 +31,9 @@ local DECIDE_MS = 3000
 -- Flat distance floor: closer than this is a close/dynamic fight - stand and stay mobile. Not
 -- exposed (the maneuvers carry on/off toggles only, so one lone slider here would read as arbitrary);
 -- an internal constant like the thresholds above.
-local CONDUCT_FLOOR_M = 15
+local CONDUCT_FLOOR_M = 20
+-- Fraction of eligible NPCs that crouch, rolled once per NPC (cached in _eligible) so the line is a mix.
+local CROUCH_CHANCE = 0.30
 -- npc id -> { at, op, want } - the held decision. Dropped on entity unregister.
 local _decision = {}
 
@@ -73,32 +67,29 @@ local function _ops()
     return _stationary_ops
 end
 
--- The measured half of the decision: sample the low-cover field toward the enemy and resolve it
--- through the hysteresis band against the previously held posture.
--- @cost O(1) | 3 luabind (positions, lvid) + 1 engine cover query; runs once per DECIDE_MS per NPC
-local function _decide(npc, enemy, prev_want)
+-- The measured half: cast a crouch-eye shot ray to the enemy. Crouch only if it is CLEAR - he can hit
+-- the enemy from a crouch, so the low stance just steadies the aim; a blocked crouch line means a low
+-- wall would eat his own shot, so stand and fire over it. Returns (posture, crouch_shot_clear for trace).
+-- @cost O(1) | 2 luabind (positions) + 1 raycast; runs once per DECIDE_MS per NPC
+local function _decide(npc, enemy)
     local np, ep = npc:position(), enemy:position()
-    -- Flat distance floor (CONDUCT_FLOOR_M): closer than this is a close/dynamic fight - stand and
-    -- stay mobile, never crouch at the enemy's feet. Past it, where a crouch still clears the line to
-    -- the enemy (the low_cover band below reads open), the crouch steadies the aim. Flat, not a fraction of weapon range: the
-    -- mobility boundary is the same absolute distance for every weapon (a rifle's reach does not push
-    -- its close fight farther out, and the old per-weapon fraction sent the sniper floor to ~45m -
-    -- exactly where a sniper benefits from crouch most, the inversion; 2026-07-29).
-    if np:distance_to_sqr(ep) < CONDUCT_FLOOR_M * CONDUCT_FLOOR_M then return move.stand, -1 end
-    local dir = vector():set(ep.x - np.x, ep.y - np.y, ep.z - np.z)
-    local cov = xcombat.get_crouch_openness(npc:level_vertex_id(), dir)
-    if cov >= STANCE_ENTER then return move.crouch, cov end
-    if cov < STANCE_EXIT then return move.stand, cov end
-    return prev_want or move.stand, cov
+    -- Flat distance floor (CONDUCT_FLOOR_M): closer than this is a close/dynamic fight - stand and stay
+    -- mobile, never crouch at the enemy's feet. Flat, not a fraction of weapon range (a rifle's reach does
+    -- not push its close fight farther out; the old per-weapon fraction sent the sniper floor to ~45m,
+    -- exactly where a sniper benefits from crouch most - the inversion, 2026-07-29).
+    if np:distance_to_sqr(ep) < CONDUCT_FLOOR_M * CONDUCT_FLOOR_M then return move.stand, false end
+    if xcombat.has_obstacle_to_target(np, ep, xcombat.BODY_Y.CROUCH_EYE) then return move.stand, false end
+    return move.crouch, true
 end
 
--- Tier + community eligibility, computed once per NPC life.
+-- Tier, community, and the crouch-disposition roll, cached once per NPC.
 -- @cost O(1) after the first call per id
 local function _is_eligible(npc, id)
     local ok = _eligible[id]
     if ok == nil then
         ok = xcreature.community(npc) ~= "zombied"
             and POSTURE_TIERS[ranks.get_obj_rank_name(npc) or ""] == true
+            and math.random() < CROUCH_CHANCE
         _eligible[id] = ok
     end
     return ok
@@ -141,12 +132,12 @@ local function _on_combat_body_state(npc, world_operator, _body_state, flags)
     -- DECIDE_MS is the contract.
     if not (held and (tg - held.at) < DECIDE_MS) then
         local prev_want = held and held.want
-        local want, cov = _decide(npc, enemy, prev_want)
+        local want, crouch_clear = _decide(npc, enemy)
         held = { at = tg, op = world_operator, want = want }
         _decision[id] = held
         if at_debug.on() and want ~= prev_want then
-            at_debug.dbg("[STANCE] id=%d op=%s cov=%.2f -> %s", id, tostring(world_operator),
-                cov, want == move.crouch and "crouch" or "stand")
+            at_debug.dbg("[STANCE] id=%d op=%s crouch_shot=%s -> %s", id, tostring(world_operator),
+                tostring(crouch_clear), want == move.crouch and "crouch" or "stand")
         end
     end
     flags.body_state = held.want
