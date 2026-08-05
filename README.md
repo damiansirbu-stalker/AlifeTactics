@@ -18,6 +18,8 @@ Requires: Anomaly 1.5.3, modded exes (themrdemonized or AOEngine), [xlibs](https
 - [AlifeBalance](https://www.moddb.com/mods/stalker-anomaly/addons/alifebalance)
 - [AlifeGuard](https://www.moddb.com/mods/stalker-anomaly/addons/alifeguard-1001)
 - [AlifeTactics](https://www.moddb.com/mods/stalker-anomaly/addons/alifetactics)
+- [AlifeDiegetic](https://www.moddb.com/mods/stalker-anomaly/addons/diegetic-audio-control-100)
+- [AlifeSpooks](https://github.com/damiansirbu-stalker/AlifeSpooks)
 
 ## License
 
