@@ -40,7 +40,7 @@ Everything is canon, engine-pure, safe, and fast:
 - Where the engine had no seam, the seam was added upstream first: per-NPC hooks created in xray-monolith specifically for this mod, merged into the official modded exes.
 - It never replaces a vanilla script file. Takeovers block the planner only for their seconds and then hand back, and patches lay onto whichever script your setup ships.
 - Every value ships as a formula over the engine's own constants, never an invented number.
-- Zero per-frame Lua. Everything runs on engine callbacks and scheduled passes, and the whole mod costs 5 timer compares per frame, whatever the NPC count.
+- No per-frame Lua. Everything runs on engine callbacks and scheduled passes, and the whole mod costs 5 timer compares per frame, whatever the NPC count.
 - AlifeTactics never wraps the engine's visibility function, so no sight test gains a cost or a behavior it did not already have. Your stealth setup computes being seen exactly as before.
 - Perception is written as a per-stalker engine field once at spawn, so it multiplies onto whatever detection system is installed instead of replacing it.
 - It fixes dozens of vanilla Anomaly bugs: dead branches, wrong calculations, and plain crashes in original code.
@@ -202,6 +202,7 @@ Items a stalker carries become live combat edges, read from each item's own game
 An artefact grants one edge chosen by its anomaly class, scaled by its own tier: gravity, chemical, and armour-plate artefacts cut the damage he takes,
   thermal artefacts tighten his fire, and electric and quest artefacts raise the damage he deals.
 Any single artefact tops out at 10 percent and never stacks, the strongest source wins, so gear tilts a fight and never decides one.
+On engine builds carrying the per-stalker health-restore hook, a chemical artefact instead heals its carrier slowly over time, in place of the damage cut above.
 Any artefact carrier warps the air around his body, so a distorting stalker is a real, huntable artefact drop.
 Binoculars extend his sight range by day and night-vision by night, on engine builds carrying the per-stalker view-distance hook created for this mod, inactive on older exes.
 Effect strengths and the artefact class tables are tunable in configs/alifetactics/at_gear.ltx.
