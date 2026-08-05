@@ -1,140 +1,134 @@
 next
-  Summary: Tracking Lock, difficulty rebalance, Gear, Perception menu, Vision Range, reload cover concealment, maneuver fixes, cover posture rework, Moving Fire defaults, wounded-heal logging
+  Summary: Difficulty rebalance, Tracking Lock, Gear, Vision Range, Reload Cover, cover posture, Perception menu, maneuver fixes
 
   Combat
     Maneuvers
-      - Fixed cornered NPCs accepting kite paths under a metre long, the arrived-but-nothing-moved shuffle: a kite destination now counts only if standing on it
-        puts the enemy back outside the stalker's minimum weapon range, so every completed kite solves the problem it fired for. A boxed-in NPC stands and fights instead.
-        Escape paths are also obstacle-checked to the end now, so a withdrawing NPC no longer runs into a tree or crate his path routed through.
-      - Fixed a maneuver continuing to drive an NPC after he collapsed wounded: it now ends the moment he goes down, and the wounded behavior owns him cleanly.
-      - Maneuvers no longer start on, or re-apply state to, a body that is mid-animation - a hit stagger, a script pose, or (on engine builds that expose it) the hit flinch.
-        The animation always finishes first and the maneuver waits its turn, so AlifeTactics never drags a reacting body into a glide.
-      - Reload Cover now sends the reloading stalker to nearby concealment instead of an exposed firing spot, since he cannot shoot while his gun is down.
-        It also fires when the player has him in view with a gun, not only when precisely aimed.
-      - Stalkers now judge a firing spot from eye height, where they actually shoot from, so a stalker recognises he can fire over a waist-high wall
-        instead of reading it as a blocked lane and passing up the position.
+      - Changed Reload Cover to send the reloading stalker to the nearest cover that breaks your line, not the best-hidden spot anywhere in reach, so he clears your sights fast while his gun is down.
+        It now triggers whenever you have him in view with a raised weapon, not only when your aim sits dead on him.
+      - Fixed stalkers passing up a firing spot behind a waist-high wall they could shoot over. The clear-shot check now casts from eye height, where the engine fires from,
+        instead of a chest-height guess that read the wall as a blocked lane.
+      - Fixed a cornered stalker taking a kite path under a metre long that gained him nothing. A kite counts only when standing on its end puts the enemy back outside his minimum weapon range,
+        so every kite opens real distance and a boxed-in stalker holds and fights instead. Withdrawal lanes are obstacle-checked to the end, so a kiting stalker no longer routes into a tree or crate.
+      - Fixed a maneuver driving a stalker after he collapsed wounded. It ends the instant he goes down, and the wounded behavior takes him over cleanly.
+      - Fixed maneuvers starting on, or re-applying to, a body mid-animation: a hit stagger, a script pose, or the hit flinch where the exe exposes it.
+        The animation finishes first and the maneuver waits its turn, so AlifeTactics never drags a reacting body into a glide.
     Conduct
-      - Cover posture no longer answers for a stalker on the move: the crouch discipline now applies only while he holds a position,
-        so a stalker running or walking to cover keeps the engine's own standing pace instead of crouch-walking the distance.
-      - Reworked cover posture into a real line-of-fire decision: a stalker crouches only when he can still hit the enemy from that crouch, checked against
-        the actual firing line rather than a rough cover reading that could leave him firing into the wall he ducked behind. He crouches past a flat 20m floor,
-        and only some stalkers crouch by disposition, so a firing line is a mix of standing and crouched instead of the whole squad dropping at once.
+      - Fixed cover posture crouching a stalker while he moved to cover. The crouch decision now applies only when he holds position, so a stalker walking or running keeps the engine's standing pace
+        instead of crouch-walking the distance.
+      - Changed cover posture into a line-of-fire decision: a stalker crouches only when he can still hit the enemy from that crouch, tested against the real shot line rather than a rough cover reading
+        that could leave him firing into the wall he ducked behind. He crouches past a flat 20m, and only some stalkers crouch by disposition, so a firing line mixes standing and crouched shooters
+        instead of the whole squad dropping at once.
 
   Effectiveness
     Accuracy
-      - Changed the per-rank aim spread so a novice now shoots exactly like a vanilla stalker instead of spraying wider than one, and a legend is tight but no longer pinpoint.
-        Aim spread only bites against an exposed or still target, so this rewards not standing in the open without punishing a player who keeps moving.
-      - Changed the Moving Fire defaults to keep a clear movement penalty at every rank: legend now cuts about a third of the moving spread instead of erasing it (0.70, was 0.50),
-        so planted fire keeps its edge over firing on the run.
+      - Changed the per-rank aim spread so a novice shoots exactly like a vanilla stalker instead of spraying wider, and a legend is tight but not pinpoint.
+        Aim spread bites only against an exposed or still target, so it rewards holding cover without punishing a player who keeps moving.
+      - Changed the Moving Fire defaults to keep a visible movement penalty at every rank. A legend now sheds about a third of the moving spread instead of erasing it,
+        so firing from a plant keeps its edge over firing on the run.
     Reaction
-      - Added Tracking Lock, a per-rank control for how tightly a stalker holds a strafing target: a novice's aim still lags and can be juked exactly like vanilla,
-        while a legend keeps the barrel on you across the firing window. It never reaches the glued snap of the game's hardcore aim option, so movement always matters.
-      - Changed Tracking Speed to barrel move-speed only, now paired with Tracking Lock: every rank starts at the vanilla speed and a legend tops out well below the game's hardcore aim
-        instead of matching it, so no stalker tracks worse than the base game and none turns into an aimbot.
-      - Changed Burst Size so a high rank fires a slightly shorter, tighter burst, since only a burst's opening rounds land accurately.
+      - Added Tracking Lock, a per-rank control for how tightly a stalker holds a strafing target. A novice's aim still lags and a juke works exactly like vanilla.
+        A legend keeps the barrel on you across the firing window, without reaching the glued snap of the game's hardcore aim option, so movement always matters.
+      - Changed Tracking Speed to control barrel move-speed alone, now paired with Tracking Lock. Every rank starts at the vanilla speed and a legend tops out well below the game's hardcore aim,
+        so no stalker tracks worse than the base game and none becomes an aimbot.
+      - Changed Burst Size so a high rank fires a shorter, tighter burst, since only a burst's opening rounds hit true and the rest spray.
 
   Perception
     Sound
-      - Fixed heard noise producing no reaction on modpacks that mute NPC sound perception: the noise alert now wakes the danger scheme on its own,
-        where before it only worked when the engine coincidentally perceived a danger of its own at the same time.
-      - Movement and landing noise now scales with the installed pack's own NPC hearing tuning,
-        so a stealth rebalance that deafens stalker hearing quiets your footsteps by the same ratio. On vanilla and GAMMA tuning nothing changes.
+      - Fixed heard noise producing no reaction on modpacks that mute NPC sound perception. The alert now wakes the danger scheme on its own, where before it fired only when the engine happened
+        to perceive a danger of its own at the same moment.
+      - Changed movement and landing noise to scale with the installed pack's own NPC hearing tuning, so a stealth rebalance that deafens stalkers quiets your footsteps by the same ratio.
+        Vanilla and GAMMA tuning are unchanged.
     Vision
-      - Changed the per-rank Vision Speed: it is how fast a stalker turns a glimpse into a confirmed threat, and every rank now notices at least as fast as the base game - a novice matches vanilla -
-        while a legend tops out at +21%, so a high-rank squad is more alert without any rank detecting slower than vanilla. Point-blank detection is unaffected.
-      - Added a per-rank Vision Range curve, the twin of Vision Speed: how far out a stalker begins to notice a threat, from vanilla at novice to +15% at legend.
-        It needs an engine build with the per-stalker view-distance bind and is inactive on older exes. Vision now has its own page holding both curves.
+      - Changed Vision Speed, how fast a stalker turns a glimpse into a confirmed threat. Every rank now confirms at least as fast as the base game, a novice matching vanilla and a legend at +21%,
+        so a high-rank squad is more alert with no rank detecting slower than vanilla. Point-blank detection is unaffected.
+      - Added Vision Range, the twin of Vision Speed: how far out a stalker begins to notice a threat, a novice at vanilla and a legend at +15%. It needs an engine build with the per-stalker
+        view-distance bind and stays inactive on older exes. Vision now has its own page holding both curves.
     Danger
-      - Changed the menu: the old Danger tab is now Perception, the vision curves moved from Reaction into their own Vision page, and the Hit and Fixes pages
-        folded into one Danger page with the always-on crash fixes shown as locked toggles. Affected settings reset to defaults once.
+      - Changed the menu. The old Danger tab is now Perception, the vision curves moved out of Reaction into their own Vision page, and the Hit and Fixes pages folded into one Danger page
+        with the always-on crash fixes shown as locked toggles. Affected settings reset to defaults once.
 
   Mechanics
     Healing
-      - Fixed the bandaging gesture playing on a walking NPC, which froze his legs and made him glide. The gesture now waits until he stands still.
+      - Fixed the bandaging gesture playing on a walking stalker, which froze his legs and made him glide. The gesture now waits until he stands still.
     Gear
-      - Added Gear: items a stalker carries become live combat edges, read from each item's own game data, so any artefact from any mod works.
-        Gravity, chemical, and armour-plate artefacts cut the damage he takes, thermal artefacts tighten his fire, and electric and quest artefacts raise the damage he deals,
-        each up to 10 percent and never stacking so the strongest source wins. Any artefact carrier warps the air around his body, so a distorting stalker is a huntable artefact drop.
-        Binoculars and night-vision extend his sight range on engine builds with the per-stalker view-distance bind, inactive on older ones.
-      - Added chemical-artefact health regeneration on engine builds with the per-stalker health-restore bind: a chemical carrier slowly heals its wounds over time there,
-        taking the place of the damage cut it gives on older exes.
+      - Added Gear: the items a stalker carries become live combat edges, each read from its own game data so any artefact from any mod works. Gravity, chemical, and armour-plate artefacts cut
+        the damage he takes, thermal artefacts tighten his fire, and electric and quest artefacts raise the damage he deals, each up to 10 percent and never stacking so the strongest source wins.
+        Any artefact carrier warps the air around his body, so a distorting stalker is a huntable artefact drop. Binoculars and night-vision extend his sight range on builds with the per-stalker
+        view-distance bind, inactive on older ones.
+      - Added chemical-artefact regeneration on builds with the per-stalker health-restore bind: a chemical carrier slowly heals its wounds over time there,
+        in place of the damage cut it gives on older exes.
 
   Development
-    - Changed the two world debug recorders into one: the Ballistics toggle is gone, and World behaviour debug now records both the slide watchdog
-      and the shot outcome tables into alifetactics_world.log.
-    - Added a combat escape warning: if any other combat brain ever takes an NPC out from under an open maneuver, the log names the foreign owner once,
+    - Changed the two world recorders into one. The Ballistics toggle is gone, and World behaviour debug now records both the slide watchdog and the shot-outcome tables into alifetactics_world.log.
+    - Added a combat-escape warning: if another combat brain takes a stalker out from under an open maneuver, the log names the foreign owner once,
       so a modpack conflict is reportable instead of invisible.
-    - Added over-speed movement to World behaviour debug: a body moving faster than its own config allows is recorded with the measured rate,
-      catching the walked-glide the slide watchdog cannot see.
-    - Added a maneuver-pass timing line: with debug on, the combat monitor times each full pass over the tracked NPCs and logs a periodic average and peak,
-      so a slowdown in the maneuver pass reads as a measured cost instead of a guess.
-    - Added a Flush log every line option, which writes each log line to disk at once instead of buffering, so a crash keeps its final log lines for a bug report.
-    - Added wounded medkit use to the log: when a downed stalker consumes a medkit to get back up - one you gave it, a rescuer's, or the automatic one - the log now names which medkit it spent, so a heal vanilla does silently is no longer invisible in a bug report.
+    - Added over-speed detection to World behaviour debug: a body moving faster than its own config allows is logged with the measured rate, catching a walked glide the slide watchdog cannot see.
+    - Added a maneuver-pass timing line: with debug on, the combat monitor times each full pass over the tracked stalkers and logs a periodic average and peak, so a slowdown reads as a measured cost
+      instead of a guess.
+    - Added a flush-every-line log option that writes each line to disk at once instead of buffering, so a crash keeps its final log lines for a report.
+    - Added wounded-medkit logging: when a downed stalker spends a medkit to get back up, one you gave him, a rescuer's, or the automatic one, the log names which medkit it was,
+      so a heal vanilla does silently is no longer invisible in a report.
 
 1.1.6
-  Summary: Reload Cover, Pickoff, Cover posture, Movement and handling noise, neutral gunfire alert, cover pinning, combat-paused healing, target lead, fire discipline, world-behaviour debug
+  Summary: Reload Cover, Pickoff, Cover posture, Movement noise, Neutral gunfire, Cover pinning, Target Lead, Fire Discipline, combat-paused healing
 
   Combat
     Maneuvers
-      - Added Reload Cover: a stalker caught reloading in your line of fire runs to the nearest cover, and his weapon finishes reloading on the way.
-        It fires when you could actually hit him - you hold a weapon, face him, and nothing blocks the shot. Reloading out of your line stays put. Needs demonized 20260722 or newer, inactive on older exes.
-      - Fixed maneuvers interrupting reloads: a maneuver's fire order no longer cancels an NPC's reload in progress,
-        ending the rack-restart-rack loop visible when pressing a reloading NPC at close range. He walks weapon-up until the reload finishes, then fires.
-      - Changed Snipe into Pickoff, now for any weapon: a stalker who has his enemy outranged in a standoff stands his ground
-        and picks him off with deliberate single shots, 1 aimed round every 1.5-2 seconds, tighter at high rank.
-        He plants only comfortably beyond his enemy's effective range and breaks off the moment the enemy closes back in, takes fire, or lands under your crosshair.
-        Shots follow where his weapon actually points, with recoil, and his accuracy comes from the rank curve alone.
-      - Changed maneuver fire to vary like the engine's own: burst length and pauses roll fresh each burst inside the per-weapon ranges
-        and follow the Fire Discipline rank curve, so a maneuver-held master fires tighter than a rookie.
+      - Added Reload Cover: a stalker caught reloading in your line runs to the nearest cover, and the engine finishes his reload on the way. It triggers when you could actually hit him,
+        you hold a weapon, face him, and nothing blocks the shot. Reloading out of your line, he stays put. Needs demonized 20260722 or newer, inactive on older exes.
+      - Fixed a maneuver's fire order cancelling a reload in progress, the loop of racking the bolt, restarting, and racking again when you pressed a reloading stalker up close.
+        He now walks weapon-up until the reload finishes, then fires.
+      - Changed Snipe into Pickoff, now for any weapon: a stalker who outranges his enemy in a standoff holds his ground and picks him off with deliberate single shots, 1 aimed round every 1.5 to 2 seconds,
+        tighter at high rank. He plants only well beyond the enemy's effective range and breaks off the moment the enemy closes back in, takes fire, or comes under your crosshair.
+        His shots follow where the weapon actually points, with recoil, and his accuracy comes from the rank curve alone.
+      - Changed maneuver fire to vary like the engine's own: burst length and pauses roll fresh each burst inside the per-weapon ranges and follow the Fire Discipline rank curve,
+        so a maneuver-held master fires tighter than a rookie.
     Commitment
       - Added cover pinning: a stalker firing with a clear shot keeps his cover instead of sliding to a marginally better one, ending the mid-fight cover strafe.
         Its own toggle. Needs demonized 20260722 or newer, inactive on older exes.
     Conduct
-      - Added Cover posture: experienced riflemen and snipers crouch when real chest-high cover stands toward their enemy and stand when it does not,
-        replacing vanilla's blind posture picks (crouching behind random bumps and firing into them). Reads the game's own cover map.
-        They crouch only at a range that suits the weapon - a rifleman past about 24m, a sniper past about 45m - so they never drop to a knee at your feet in a close fight.
-        Needs demonized 20260722 or newer, inactive on older exes.
+      - Added cover posture: experienced riflemen and snipers crouch when real chest-high cover stands toward the enemy and stand when it does not, replacing vanilla's blind picks
+        that crouched behind random bumps and fired into them. It reads the game's own cover map. They crouch only at a range that suits the weapon, a rifleman past about 24m and a sniper past about 45m,
+        so they never drop to a knee at your feet. Needs demonized 20260722 or newer, inactive on older exes.
 
   Effectiveness
     Accuracy
       - Changed the Accuracy page to independent switches for the Dispersion and Moving Fire curves, replacing the single master.
     Disclosure
-      - Changed disclosure so the squad turns on the shooter: he enters their seen memory, the class target selection ranks first.
-        Before, a distant visible enemy always outranked him. A toggle keeps the softer disclosure. Needs demonized 20260722 or newer, previous behavior on older exes.
+      - Changed disclosure so the squad turns on the shooter: he enters their seen memory, which the engine's target selection ranks first, where before a distant visible enemy always outranked him.
+        A toggle keeps the softer disclosure. Needs demonized 20260722 or newer, previous behavior on older exes.
     Reaction
-      - Added Target Lead: NPCs lead a moving target by the round's real flight time, computed from range and bullet speed as they fire.
-        Top ranks lead on the mark and hit movers, low ranks over-lead and overshoot, and the error scales with range instead of the old fixed overshoot.
-      - Added Fire Discipline: higher ranks fire crisper short bursts at a tighter cadence, low ranks stay vanilla.
-        Defaults keep every rank's rounds per minute at or above vanilla. Needs demonized 20260722 or newer, inactive on older exes.
+      - Added Target Lead: stalkers lead a moving target by the round's real flight time, computed from range and bullet speed as they fire. Top ranks lead on the mark and hit movers,
+        low ranks over-lead and overshoot, and the error scales with range instead of a fixed overshoot.
+      - Added Fire Discipline: higher ranks fire crisper short bursts at a tighter cadence, low ranks stay vanilla. Defaults keep every rank's rounds per minute at or above vanilla.
+        Needs demonized 20260722 or newer, inactive on older exes.
       - Changed the Reaction page to independent switches with per-rank curves for Tracking Speed, Vision Speed, Target Lead, and Fire Discipline.
 
   Danger
     Sound
-      - Added Movement noise: hostile stalkers hear you move. Footsteps carry by stance, surface, and weather.
-        Crouched movement is silent. A 5m walking base, x1.6 sprinting, a 10m jump landing. Surfaces: metal x1.25, wood x1.15, water x1.35, grass x0.7, dirt and sand x0.8. Rain cuts carry by up to 40 percent.
-        Reaction follows the evidence: a heard walk turns him weapon-ready toward the sound, a sprint or a landing sends him walking over to check the spot.
-        A sound never reads as a confirmed enemy: he investigates at a walk, never charges, does not learn where you are, and combat is untouched.
-      - Added Handling noise: a reload racked nearby or an empty click sends a hostile checking the spot, an item used turns him weapon-ready, all at shorter reach than movement.
-      - Added Neutral gunfire alert: neutral and friendly stalkers go weapon-ready facing shots you fire close to them.
-        They never turn hostile and settle down when the shooting stops.
-      - Added a carry distance slider scaling all noise.
+      - Added Movement noise: hostile stalkers hear you move. Footsteps carry by stance, surface, and weather, from a 5m walking base up to 1.6 times that at a sprint and a 10m jump landing,
+        louder on metal and water and quieter on grass and dirt, with rain cutting the reach by up to 40 percent. Crouched movement is silent.
+        A heard walk turns him weapon-ready toward the sound. A sprint or a landing sends him over to check the spot.
+        He investigates at a walk, never charges, never learns where you are, and combat is untouched.
+      - Added Handling noise: a reload racked nearby or an empty click sends a hostile to check the spot, an item used turns him weapon-ready, all at shorter reach than movement.
+      - Added Neutral gunfire alert: neutral and friendly stalkers go weapon-ready facing shots you fire close to them. They never turn hostile and settle when the shooting stops.
+      - Added a carry-distance slider scaling all noise.
     Fixes
-      - Changed Player ranges to apply only when the installed danger script itself uses the separate actor tables,
-        so a config that ships the section unused keeps its own tuning.
+      - Changed Player ranges to apply only when the installed danger script itself uses the separate actor tables, so a config that carries the section unused keeps its own tuning.
 
   Mechanics
     Healing
-      - Changed self-healing to pause while a stalker is actively fighting - weapon in hand on a live enemy, or an enemy at contact range.
-        Healing resumes when the fight lets go and no charge is lost. A fight can no longer be healed through faster than the damage arrives.
-      - Fixed limping in combat: a hurt stalker's limp is dropped the instant a fight starts, so one pulled into a fight while limping no longer keeps the hurt pose or slides when shot mid-limp.
+      - Changed self-healing to pause while a stalker is actively fighting, weapon in hand on a live enemy or an enemy at contact range. Healing resumes when the fight lets go, with no charge lost,
+        so a fight can no longer be healed through faster than the damage arrives.
+      - Fixed limping in combat: a hurt stalker drops his limp the instant a fight starts, so one pulled into a fight while limping no longer keeps the hurt pose or slides when shot mid-limp.
 
   Development
     World behaviour
-      - Added World behaviour debug: a toggle that watches the combat NPCs near you and logs anything visibly wrong -
-        a body sliding without a walk, crouch and stand flickering, aiming off the target it sees, a reload that never finishes, or an animation pinning the body during a hit.
-        Each line names the system driving that NPC (maneuver, Commitment, or vanilla). Its own log, off by default, free while off.
+      - Added World behaviour debug: a toggle that watches the combat stalkers near you and logs anything visibly wrong, a body sliding without a walk, crouch and stand flickering,
+        aim off the target it sees, a reload that never finishes, or an animation pinning the body through a hit. Each line names the system driving that stalker: maneuver, Commitment, or vanilla.
+        Its own log, off by default, free while off.
     Debug HUD
-      - Changed the debug HUD to colour every row by which combat system holds the NPC: green a maneuver, blue Commitment, mauve Conduct, plain vanilla,
+      - Changed the debug HUD to colour every row by which combat system holds the stalker: green a maneuver, blue Commitment, mauve Conduct, plain vanilla,
         with the active state named in its own cell.
 
 1.1.5
@@ -143,43 +137,42 @@ next
   Combat
     Maneuvers
       - Added Counterflank: a stalker firing at a distant target wheels around when you close to contact range instead of giving you his back.
-      - Added per-weapon-kind fire: pistol and rifle bursts, single sniper shots, in place of the uniform 5-round burst.
-      - Changed targeting: maneuvers now weigh range, angle, line of sight, and cover, run only in fights you are in, and drop those that would change nothing.
+      - Added per-weapon fire: pistol and rifle bursts and single sniper shots, in place of the uniform 5-round burst.
+      - Changed maneuver targeting to weigh range, angle, line of sight, and cover, run only in fights you are part of, and drop any maneuver that would change nothing.
       - Changed retreat and flee: retreats reach real cover behind the stalker, cornered stalkers hold their ground, and cowardly factions flee before they fight.
     Commitment
-      - Added Commitment: stalkers see a fight through instead of twitchy strafing and cover-hopping.
-        A stalker keeps his fire, presses a flank, or finishes a reload rather than dropping a good action for a marginally better one, breaking off only when it stops making sense.
-        Needs a recent engine build.
+      - Added Commitment: stalkers see a fight through instead of twitchy strafing and cover-hopping. A stalker keeps his fire, presses a flank, or finishes a reload rather than dropping
+        a good action for a marginally better one, breaking off only when it stops making sense. Needs a recent engine build.
 
   Effectiveness
     Accuracy
       - Added Moving Fire, a per-rank curve: fire on the move scales by rank, so low ranks spray while repositioning and top ranks stay steady.
     Danger
       - Changed detection to read from your installed config instead of overriding its tuning.
-      - Fixed enemy gunfire to alert stalkers even when not aimed at them.
+      - Fixed enemy gunfire not alerting stalkers it was not aimed at.
       - Fixed scripted danger carrying over to a reused id on respawn.
-      - Fixed a corpse-investigation crash when its reaction fired before its stage was set.
+      - Fixed a corpse-investigation crash when the reaction fired before its stage was set.
     Reaction
       - Added Tracking Speed, a per-rank curve for how tightly the barrel follows a moving target.
-      - Added Vision Speed, a per-rank curve for detection speed at range.
-      Both are set per stalker at spawn and need a recent engine build.
+      - Added Vision Speed, a per-rank curve for detection speed at range. Both are set per stalker at spawn and need a recent engine build.
 
   Mechanics
     Healing
-      - Fixed the master toggle only applying after a game restart.
+      - Fixed the master toggle applying only after a game restart.
     Jamming
       - Fixed it to stay inert on engines without the misfire hook instead of failing when disabled.
     Ammo
       - Fixed armor-piercing rounds reverting on the wrong weapon after a mid-fight switch.
 
   Performance
-    - Changed all combat, healing, and ammo monitoring to run on scheduled passes instead of per-frame callbacks. The whole mod now costs 3 timer compares per frame, whatever the NPC count.
-    - Fixed a rare freeze of every timed system on mid-maneuver deaths.
+    - Changed all combat, healing, and ammo monitoring off per-frame engine callbacks onto scheduled passes on the vanilla time-event queue. The whole mod now costs 3 timer compares per frame,
+      whatever the stalker count on screen.
+    - Fixed a rare freeze of every timed system when a stalker died mid-maneuver.
 
   Development
     Ballistics
-      - Added a toggleable recorder of shot outcomes near you, off by default and free while off.
-        It logs per-rank hit rates split by shooter motion, damage dealt, burst lengths per weapon, and per-bullet aim error including lead over/undershoot against a moving target.
+      - Added a toggleable shot-outcome recorder, off by default and free while off. It logs per-rank hit rates split by shooter motion, damage dealt, burst lengths per weapon,
+        and per-bullet aim error including lead over and undershoot against a moving target.
     Debug HUD
       - Changed the HUD to headline the active maneuver in green for the takeover's whole life, with wider name columns and a twice-per-second refresh.
 
@@ -187,54 +180,57 @@ next
   Summary: startup fix
 
   Fixed
-    - An outdated xlibs no longer crashes AlifeTactics on load. The dependency check now shows the
-      "update xlibs" message instead of a raw script error from the MCM platform footer.
+    - An outdated xlibs no longer crashes AlifeTactics on load. The dependency check now shows the update-xlibs message instead of a raw script error from the MCM platform footer.
 
 1.1.0
   Summary: Maneuvers, Crossfire, Danger, Disclosure, Ammo, Jamming, Healing, AOEngine, platform status
 
   Combat
-    - Maneuvers: an intermittent combat takeover that borrows a stalker for a committed maneuver.
-      Stalkers kite when crowded, hold sniper aim when stalled, take cover then flee when badly hurt.
-      Borrowed stalkers hold fire when they have no clear shot instead of firing into cover.
-      Companions are excluded by default. Replaces the old Stance Switch system.
+    - Added Maneuvers: an intermittent combat takeover that borrows a stalker for one committed maneuver. Stalkers kite when crowded, hold sniper aim when stalled, and take cover then flee when badly hurt.
+      A borrowed stalker holds fire when he has no clear shot instead of firing into cover. Companions are excluded by default. Replaces the old Stance Switch system.
 
   Effectiveness
-    - Crossfire: a same-faction friendly-fire damage block, default on.
-      Same-faction hits deal no damage, tunable back up to full vanilla.
-    - Danger: an xr_danger rework, always-on bug fixes plus 3 toggleable improvements.
-      Hits, ricochets, and gunshots read separate config rows, with weather-scaled detection range.
-      Sniped or shot-at NPCs react at any range, even to gunfire vanilla left unanswered.
-      Corpse investigation survives despawned corpses, drives the right stalker, takes its cover.
-    - Disclosure: a new survivor gate, default on.
-      An outright kill no longer discloses the shooter, so stealth kills stay quiet.
-    - Fixed lone NPCs never being alerted to their shooter (disclosure was squad-only).
+    - Added Crossfire: a same-faction friendly-fire damage block, default on. Same-faction hits deal no damage, tunable back up to full vanilla.
+    - Added Danger: an xr_danger rework, always-on bug fixes plus 3 toggleable improvements. Hits, ricochets, and gunshots read separate config rows, with weather-scaled detection range.
+      A sniped or shot-at stalker reacts at any range, even to gunfire vanilla left unanswered. Corpse investigation survives despawned corpses, drives the right stalker, and takes its cover.
+    - Added Disclosure: a survivor gate, default on. An outright kill no longer discloses the shooter, so stealth kills stay quiet.
+    - Fixed lone stalkers never being alerted to their shooter, disclosure was squad-only.
 
   Mechanics
-    - Ammo: NPC armor-piercing ammo drawn from the boxes NPCs carry, default on.
-      Veteran-rank and higher NPCs fire AP with real ballistics until their carried supply runs out.
-      Each engagement rolls a rank- and fire-rate-weighted chance to burn a carried AP box.
-    - Jamming: NPC weapon-jam suppression that stops the demonized per-rank jam-and-reload loop.
-      Actor jams stay vanilla. Default on, needs demonized 2026.6.1+.
-    - Healing: limping now matches the NPC's weapon and clears after HP recovers or in combat.
-      Healing NPCs no longer freeze in place or ignore enemies that appear mid-gesture.
+    - Added Ammo: NPC armor-piercing ammo drawn from the boxes stalkers carry, default on. Veteran rank and higher fire AP with real ballistics until their carried supply runs out.
+      Each engagement rolls a rank- and fire-rate-weighted chance to spend a carried AP box.
+    - Added Jamming: NPC weapon-jam suppression that stops the demonized per-rank jam-and-reload loop. Actor jams stay vanilla. Default on, needs demonized 2026.6.1 or newer.
+    - Changed Healing: limping now matches the stalker's weapon and clears after HP recovers or in combat. Healing stalkers no longer freeze in place or ignore enemies that appear mid-gesture.
 
   MCM
-    - Renamed the Disclosure, Crossfire, and Healing internals to match their page names.
-      Saved settings on those 3 pages reset to defaults on update (the reset warning covers it).
+    - Renamed the Disclosure, Crossfire, and Healing internals to match their page names. Saved settings on those 3 pages reset to defaults on update, the reset warning covers it.
 
   Compatibility
-    - AOEngine v0.55+ support.
-    - Added dynamic checking of xlibs and xray-monolith/AOEngine versions with a compatibility verdict.
-    - The Danger rework is a runtime patch, so it coexists with GAMMA AI Rework and REDONE.
-    - Ammo goes inert while the engine cvar g_ai_unlimited_ammo is 0, so NPC ammo is not drained twice.
+    - Added AOEngine v0.55+ support.
+    - Added dynamic checking of xlibs and xray-monolith or AOEngine versions with a compatibility verdict.
+    - Changed the Danger rework to a runtime patch, so it coexists with GAMMA AI Rework and REDONE.
+    - Changed Ammo to go inert while the engine's unlimited-NPC-ammo cvar is off, so NPC ammo is not drained twice.
 
 1.0.0
-  Summary: First release, hit sharing, NPC self-healing fix, per-rank accuracy, long-range rifle crouch
-  First release. Four independent systems on top of one internal core. Full MCM configuration.
-  Added: Hit Sharing - on first faction-enemy hit, force-disclose shooter to every online squadmate (force_set_goodwill, enable_memory_object, register_in_combat). Distant patrols and suppressor victims now engage on hit 1. Disclosure decays after the configured retention (default 2 game minutes of no further hits from that shooter), then re-fires on the next hit. New squad members inherit existing disclosures on spawn. Previously-offline shooters coming back online replay disclosure to every member of the squads tracking them.
-  Added: NPC Self-Healing - DLTX overlay restores vanilla medkit and bandage item lists in xr_eat_medkit. Heal rate multiplier, per-rank healing-charge probability (novice, experienced, veteran, master), limping overlay, heal animation.
-  Added: Accuracy - per-shot, per-rank NPC dispersion curve replacing the engine's broken rank curve. 8 per-tier dispersion sliders (novice 1.00 to legend 0.38).
-  Added: Stance Switch - long-range rifle carriers (DMRs, battle rifles, bolt-actions: SVD, Mosin, SVT40, SKS, M82 and the rest of the kind=w_sniper LTX class) crouch when engine selects LookOut or HoldPosition. Crouch carries forward into KillEnemy, WaitInCover, HoldAmbushLocation through body_state inheritance.
-  Added: MCM reset-to-defaults button (Development tab).
-  Added: console test commands at_spawn, at_spawn_veteran, at_spawn_master, at_spawn_far, at_dump.
+  Summary: First release, hit sharing, self-healing, per-rank accuracy, rifle crouch
+
+  First release. The core combat systems on one internal substrate, fully configurable through MCM.
+
+  Effectiveness
+    Disclosure
+      - Added Hit Sharing: on the first faction-enemy hit, the shooter is force-disclosed to every online squadmate, so distant patrols and the victims of a suppressed weapon engage on hit 1.
+        The disclosure decays after a retention window of no further hits, then re-fires on the next one. New squad members inherit live disclosures on spawn,
+        and a previously-offline shooter returning replays disclosure to every squad tracking him.
+    Accuracy
+      - Added Accuracy: a per-shot, per-rank dispersion curve replacing the engine's broken rank scaling, so a novice sprays wide and a legend fires tight.
+
+  Combat
+    - Added Stance Switch: long-range rifle carriers crouch when the engine picks LookOut or HoldPosition, and the crouch carries forward into the firing states. Replaced by Maneuvers in 1.1.0.
+
+  Mechanics
+    Healing
+      - Added NPC self-healing: restores the vanilla medkit and bandage item lists the engine dropped,
+        with a heal-rate multiplier, a per-rank chance to carry a healing charge, and a limp and heal animation.
+
+  Development
+    - Added a reset-to-defaults button and the console test commands at_spawn, at_spawn_veteran, at_spawn_master, at_spawn_far, and at_dump.
