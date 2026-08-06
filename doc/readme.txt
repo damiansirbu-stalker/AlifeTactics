@@ -289,6 +289,8 @@ Not AlifeTactics (base-game behavior):
 - Stalkers who see across open ground: sight range from your setup's creature config, not acquisition speed - see NPCs Faster Reactions above.
 - Stalkers who react to danger from across the map: vanilla fills its danger reaction-distance table with duration values, so a corpse, a ricochet or a shot counts as danger out past 300m.
   AlifeTactics reads whatever your setup ships; GAMMA's Stealth Overhaul rewrites the band to 75-125m, the scale it was meant to be.
+- Stalkers who lose interest oddly, or whose pursuit persistence differs run to run: GAMMA's Stealth Overhaul also carries an older xr_combat_ignore that wins the script slot in every GAMMA install and overrides the modded-exe version, removing its enemy-id validation and randomizing the combat-memory window each session.
+  AlifeTactics reads whichever xr_combat_ignore won and never replaces it.
 
 FAQ:
 Do I need modded exes?
