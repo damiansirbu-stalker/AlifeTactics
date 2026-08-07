@@ -235,6 +235,9 @@ Install (MO2):
 Uninstall (MO2):
 Disable or remove in MO2.
 
+Performance:
+Performance comes first, ahead of any feature. Every combat command goes through xcombat into the engine's own mechanisms, nothing runs per frame, and every flow is timed with a hard 2ms ceiling; when a feature cannot fit the budget it is reworked, replaced, or removed with an X-Ray engine modification rather than allowed to slow the game. It is measured on the engine built from the latest source with no multithreading and no optimizations, so the timings are worst-case; the optimized multithreaded build you run is always faster.
+
 Compatibility:
 Tested with vanilla Anomaly 1.5.3 and GAMMA, and installing or uninstalling mid-save works.
 The takeover leaves combat scripts vanilla, and the danger rework patches at runtime, so AlifeTactics layers cleanly onto other combat and AI mods.
