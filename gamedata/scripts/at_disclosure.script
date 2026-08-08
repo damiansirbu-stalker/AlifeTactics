@@ -42,7 +42,7 @@ local function _disclose(squad, who)
     if squad:npc_count() == 0 then return 0 end
     local count = 0
     for member in squad:squad_members() do
-        if _disclose_to_member(level.object_by_id(member.id), who) then
+        if _disclose_to_member(xobject.go(member.id), who) then
             count = count + 1
         end
     end
@@ -122,7 +122,7 @@ end
 -- killed the victim, drops the disclosure. Registration moves into the resolver so
 -- a suppressed kill does NOT block a later real disclosure from the same shooter.
 local function _resolve_pending(key_id, who_id, victim_id, gate_ms, total_ms)
-    local victim = level.object_by_id(victim_id)
+    local victim = xobject.go(victim_id)
     if not victim or not victim:alive() then
         if at_debug.on() then
             at_debug.dbg("[HIT] suppressed reason=victim_died key=%d shooter=%d victim=%d [gate=%.2fms total=%.2fms]",

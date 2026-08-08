@@ -423,7 +423,7 @@ local function _check_actor_close(npc, _enemy, state, _tg, memo)
     local actor_dist_sqr = dx * dx + dz * dz
     if actor_dist_sqr > COUNTERFLANK_ACTOR_DIST_SQR then return nil end
     if state.dist * state.dist <= actor_dist_sqr then return nil end
-    if memo.actor_enemy == nil then memo.actor_enemy = npc:relation(db.actor) == game_object.enemy end
+    if memo.actor_enemy == nil then memo.actor_enemy = xcreature.is_enemy_to_actor(npc) end
     if not memo.actor_enemy then return nil end
     return "actor_close"
 end
