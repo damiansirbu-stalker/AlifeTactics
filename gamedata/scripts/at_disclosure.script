@@ -143,7 +143,7 @@ local function _resolve_pending(key_id, who_id, victim_id, gate_ms, total_ms)
         return
     end
 
-    local who = level.object_by_id(who_id)
+    local who = xobject.go(who_id)
     if not who then return end
 
     local tmr_disclose = xprofiler.new_if(at_debug.on()):start()
@@ -233,7 +233,7 @@ end
 
 local function _inherit_one(npc, shooter_id, npc_id)
     if shooter_id == npc_id then return false end
-    local who = level.object_by_id(shooter_id)
+    local who = xobject.go(shooter_id)
     if not who then return false end
     _disclose_to_member(npc, who)
     return true
@@ -263,7 +263,7 @@ local function _redisclose_squad(squad_id, who, shooter_id)
     if sq:npc_count() == 0 then return 0 end
     local count = 0
     for member in sq:squad_members() do
-        if _redisclose_member(level.object_by_id(member.id), who, shooter_id) then
+        if _redisclose_member(xobject.go(member.id), who, shooter_id) then
             count = count + 1
         end
     end

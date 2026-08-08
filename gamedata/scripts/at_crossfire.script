@@ -22,7 +22,7 @@ local function _on_before_hit(npc, shit, _bone_id, _flags)
     if not (IsStalker(attacker) and IsStalker(npc)) then return end
     if xcreature.community(npc) == "zombied" then return end
     local tmr = xprofiler.new_if(at_debug.on()):start()
-    if attacker:relation(npc) == game_object.enemy then tmr:stop() return end
+    if xcreature.is_enemy(attacker, npc) then tmr:stop() return end
     local before = shit.power
     shit.power = before * cfg.crossfire_factor
     tmr:stop()

@@ -133,7 +133,7 @@ end
 -- @cost O(1) | 2-3 luabind on the stamped path (alive, relation)
 local function _try_alert(npc, id, pos, tg, source, strength)
     if not npc:alive() then return end
-    if npc:relation(db.actor) ~= game_object.enemy then return end
+    if not xcreature.is_enemy_to_actor(npc) then return end
     local last = _alert_at[id]
     local escalates = strength == "solid" and _alert_strength[id] == "faint"
     if last and (tg - last) < REALERT_MS and not escalates then return end
