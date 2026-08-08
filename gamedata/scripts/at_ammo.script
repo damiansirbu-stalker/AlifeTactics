@@ -253,7 +253,7 @@ end
 -- The monitor pass, a vanilla time event every MONITOR_PERIOD_SEC: run the state machine on each
 -- tracked stalker. Per frame the whole module costs one timer compare inside vanilla's own
 -- ProcessEventQueue walk; a disabled feature costs one boolean per pass (pick's own guard covers
--- test-driven calls). level.object_by_id is nil for a gone id - the roster entry dies with the NPC.
+-- test-driven calls). xobject.go returns nil for a gone id - the roster entry dies with the NPC.
 local _monitor_active = false
 
 local function _run_monitor()
@@ -265,7 +265,7 @@ local function _run_monitor()
     if not _enabled then return end
     local now = time_global()
     for id in pairs(_npc_ids) do
-        local npc = level.object_by_id(id)
+        local npc = xobject.go(id)
         if npc then pick(npc, now) end
     end
 end

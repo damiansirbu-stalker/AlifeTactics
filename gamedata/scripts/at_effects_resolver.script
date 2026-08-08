@@ -26,7 +26,6 @@
 local pairs, tostring = pairs, tostring
 local IsStalker = IsStalker
 local RegisterScriptCallback, ini_file = RegisterScriptCallback, ini_file
-local level = level
 local xcombat, xprofiler, at_debug = xcombat, xprofiler, at_debug
 
 -- The multi-source effects. Value strings are the registry keys; a source registers a provider against
@@ -157,7 +156,7 @@ end
 local function _stop_aura(id)
     local bone = _emitting[id]
     if not bone then return end
-    local obj = level.object_by_id(id)
+    local obj = xobject.go(id)
     if obj then obj:stop_particles(_aura, bone) end
     _emitting[id] = nil
     if at_debug.on() then at_debug.dbg("[EFF] aura-stop id=%d bone=%s", id, bone) end

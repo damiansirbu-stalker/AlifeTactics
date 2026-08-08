@@ -177,7 +177,7 @@ end
 -- capped visible set, so a huge crowd costs MAX_ROWS derivations, not one per NPC in radius.
 local function _candidate(id, st, ax, r2, actor_id, show_idle)
     if id == actor_id then return nil end
-    local npc = st.object or level.object_by_id(id)
+    local npc = st.object or xobject.go(id)
     if not npc then return nil end
     if not IsStalker(npc) then return nil end
     if not npc:alive() then return nil end

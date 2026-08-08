@@ -197,7 +197,7 @@ end
 local function _trace_end(state, tg, reason, check_us)
     local check = check_us or -1
     local row = state.maneuver
-    local npc = level.object_by_id(state.id)
+    local npc = xobject.go(state.id)
     local need_cleared
     if row and row.need_recheck ~= false and state.trigger and npc then
         local enemy = xcombat.resolve_enemy(state.enemy_id)
@@ -665,7 +665,7 @@ end
 -- object and run whichever checks are due. The per-frame cost of the whole monitor is ONE timer compare
 -- inside vanilla's own ProcessEventQueue walk (_g.script:364, driven from the actor update at
 -- bind_stalker_ext.script:26); the real work runs 5 times a second total, never per frame, never per NPC
--- per frame. level.object_by_id is a hash net_Find returning nil for a gone id (level_script.cpp:131-138).
+-- per frame. xobject.go returns nil for a gone id (nil-guarded level.object_by_id, a net_Find hash; level_script.cpp:131-138).
 -- The pass re-arms FIRST: ProcessEventQueue has no error protection, so an error mid-pass with the event
 -- still expired would re-fire and re-error every frame, starving every time event in the game (the
 -- 2026-07-11 frozen-HUD loop); re-armed, a fault costs one aborted pass and the queue heals itself.
@@ -718,7 +718,7 @@ local function _run_monitor()
     local tg = time_global()
     local tmr = xprofiler.new_if(at_debug.on()):start()
     for id, state in pairs(_npc_states) do
-        local npc = level.object_by_id(id)
+        local npc = xobject.go(id)
         if npc then _run_npc_checks(npc, state, tg) end
     end
     tmr:stop()

@@ -37,7 +37,7 @@
 --- accumulate while the toggle is on; per-bullet lines need log level DEBUG, the minute tables INFO.
 
 local RegisterScriptCallback, UnregisterScriptCallback = RegisterScriptCallback, UnregisterScriptCallback
-local IsStalker, time_global, level, db = IsStalker, time_global, level, db
+local IsStalker, time_global, db = IsStalker, time_global, db
 local math_sqrt, math_floor, math_max, pairs, tostring = math.sqrt, math.floor, math.max, pairs, tostring
 local math_deg, math_acos = math.deg, math.acos
 local string_format, table_concat = string.format, table.concat
@@ -171,7 +171,7 @@ local function _monitor()
     if not ac then return false end
     local ap, tg = ac:position(), time_global()
     for i = 1, #db.OnlineStalkers do
-        local npc = level.object_by_id(db.OnlineStalkers[i])
+        local npc = xobject.go(db.OnlineStalkers[i])
         if npc and npc:alive() and IsStalker(npc) and npc:best_enemy() and _near(npc, ap) then
             local id = npc:id()
             local pos = npc:position()
@@ -219,7 +219,7 @@ local function _watch_poll()
     local tg = time_global()
     local dropped = 0
     for id, w in pairs(_watch) do
-        local npc = level.object_by_id(id)
+        local npc = xobject.go(id)
         local drop = true
         if npc and npc:alive() then drop = _watch_step(npc, id, w, tg) end
         if drop then dropped = dropped + 1; _drop[dropped] = id end
@@ -427,7 +427,7 @@ local function _on_impact(bullet)
     local ctx = _ctx[parent_id]
     if not ctx then return end
 
-    local shooter = level.object_by_id(parent_id)
+    local shooter = xobject.go(parent_id)
     if shooter then
         _record_angle(bullet, shooter, _tier_row(ctx.tier))
         _record_wrongway(bullet, shooter, ctx)
