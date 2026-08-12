@@ -1,5 +1,5 @@
 next
-  Summary: Difficulty rebalance, Tracking Lock, Gear, Vision Range, Reload Cover, cover posture, Perception menu, maneuver fixes
+  Summary: Difficulty rebalance, Tracking Lock, Gear, Vision Range, Reload Cover, cover posture, Perception menu, maneuver fixes, Useful Idiots compatibility
 
   Combat
     Maneuvers
@@ -12,6 +12,8 @@ next
       - Fixed a maneuver driving a stalker after he collapsed wounded. It ends the instant he goes down, and the wounded behavior takes him over cleanly.
       - Fixed maneuvers starting on, or re-applying to, a body mid-animation: a hit stagger, a script pose, or the hit flinch where the exe exposes it.
         The animation finishes first and the maneuver waits its turn, so AlifeTactics never drags a reacting body into a glide.
+      - Fixed the combat takeover freezing companions in place during emissions when Useful Idiots is installed, so a companion caught in a surge runs for cover again.
+        The takeover's planner graft shared a reserved id with that mod's emission-shelter scheme and starved it, so the graft moved to a free id and no longer installs on companions it never drives.
     Conduct
       - Fixed cover posture crouching a stalker while he moved to cover. The crouch decision now applies only when he holds position, so a stalker walking or running keeps the engine's standing pace
         instead of crouch-walking the distance.

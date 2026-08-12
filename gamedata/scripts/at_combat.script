@@ -751,6 +751,12 @@ end
 
 local function _install(npc)
     if not npc or not IsStalker(npc) then return end
+    -- A companion is never seized (combat_ignore_companions gates the seize), so grafting the takeover
+    -- onto one is pure waste: a permanent evaluator + action and a block precondition sitting on its
+    -- action manager for a maneuver that can never run. Skip the install for it - the seize gate already
+    -- excludes it, so the only thing the graft did on a companion was occupy the manager. A companion
+    -- recruited after spawn keeps whatever graft it had; harmless, since the reserved id no longer clashes.
+    if cfg.combat_ignore_companions and npc:has_info(COMPANION_INFO) then return end
     local id = npc:id()
     if _npc_states[id] then return end
     _npc_states[id] = { id = id, ran_at = {} }

@@ -277,6 +277,7 @@ Coexists:
 - Wuut AI Extension, NPC_Fleeing, Mora's AI More Covered: add planner actions; suppressed only for the seconds a maneuver runs, then they resume. Disable Combat in MCM to leave them fully in charge.
 - No More Companion Friendly Fire: a different axis (actor-to-companion damage); AlifeTactics never touches your shots.
 - Tougher Important NPCs and Companions: damage reduction on the same callback, composes.
+- Useful Idiots and any companion mod with a GOAP surge or shelter scheme: AlifeTactics reserves GOAP id 188347 for its combat-takeover graft, grafted on every NPC and dormant until a maneuver runs; other schemes on the stalker planner must not reuse that id. It was moved off 188200, which Useful Idiots uses for its emission-shelter scheme - the clash left companions unable to take cover during emissions.
 - Dynamic AI Aim Settings: perception tweaks that compose with the dispersion fix.
 - The game's Hardcore AI aim option and any ai_aim console tuning: Reaction writes per-stalker fields and never below the global baseline, so raising difficulty is always respected.
 - GAMMA Stealth Overhaul and detection threshold mods: Vision Speed multiplies your setup's own detection result as a rank curve (rookie unchanged, legend about 21 percent faster).
