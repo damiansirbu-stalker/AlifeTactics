@@ -67,8 +67,8 @@ These maneuvers cover the moments vanilla fumbles:
 Maneuvers run only in fights the player is part of, and NPC-only fights stay vanilla.
 A maneuver fires when its problem is real and ends when it is solved. Keep creating the problem, such as pressing a shotgunner's minimum range, and the answer keeps coming.
 The decisions come out looking human. Nobody turns his back on a shooter, two men never take the same cover, nobody plants under your crosshair.
-Maneuver fire bursts by weapon and by skill: burst length and pauses vary shot to shot inside the game's own per-weapon ranges and tighten with rank,
-  in place of the uniform burst the game's script machinery applies to every weapon it drives.
+Maneuver fire bursts by weapon and by skill: burst length and pauses vary shot to shot inside the game's own per-weapon ranges and tighten with rank.
+That replaces the uniform burst the game's script machinery applies to every weapon it drives.
 The takeover overrides no combat scripts, so it fights side by side with vanilla and works with other combat AI instead of replacing it. Companions are excluded by default.
 
 Commitment:
@@ -83,8 +83,8 @@ It uses action-switch and cover-repick hooks created in xray-monolith for this m
 
 Conduct:
 Conduct makes better choices at moments the engine already decides, with no takeover, for stalkers the vanilla engine drives.
-Cover posture: experienced riflemen and snipers crouch to steady the shot when the line to the enemy is clear, and stand to fire over low cover that would block a crouched shot,
-  replacing vanilla's blind posture picks (crouching behind random bumps and firing into them, or standing tall where a crouch would steady the aim).
+Cover posture: experienced riflemen and snipers crouch to steady the shot when the line to the enemy is clear, and stand to fire over low cover that would block a crouched shot.
+It replaces vanilla's blind posture picks (crouching behind random bumps and firing into them, or standing tall where a crouch would steady the aim).
 They crouch only past close range, staying mobile in a knife fight instead of dropping to a knee at your feet, and only while holding a position rather than on the move to cover.
 It reads the game's own cover map toward the enemy, and short-weapon carriers and green ranks keep vanilla behavior.
 
@@ -102,8 +102,8 @@ The engine has several dispersion variables, including barrel and weapon, and th
 Disclosure:
 When a faction enemy wounds any squad member, the whole squad learns the shooter at once, even patrol members out of earshot and even against a silenced weapon.
 Vanilla only shares a shooter the squadmates actually heard, so distant or suppressed attackers stay unknown.
-It works through the engine's own memory rather than by faking relations: the shooter is enabled in each member's memory and registered into the squad's combat,
-  and the engine's normal propagation carries it from there.
+It works through the engine's own memory rather than by faking relations: the shooter is enabled in each member's memory and registered into the squad's combat.
+The engine's normal propagation carries it from there.
 On demonized 20260722 or newer the shooter also enters their seen memory, which target selection ranks first, so the squad turns on the shooter instead of staying locked on a distant visible enemy.
 A stalker with no squad discloses the shooter to himself.
 New members inherit the fight when they spawn, and a shooter who went offline and returns is flagged again.
@@ -150,8 +150,8 @@ Walking carries 5m as the base, sprinting multiplies it by 1.6, a jump landing c
 Surfaces scale it: metal x1.25, wood x1.15, water x1.35, grass x0.7, dirt and sand x0.8, and rain cuts carry by up to 40 percent.
 They react to handling noise too, at shorter reach: a racked reload carries 8m, an empty click 6m, an item used 5m.
 Handling noise goes through each stalker's own ears, so a setup that deafens NPC hearing quiets these sounds with it.
-Reaction follows the evidence: a heard walk or an item used turns him weapon-ready toward the sound, while a sprint, a landing, a racked reload,
-  or an empty click sends him walking over to check the spot.
+Reaction follows the evidence: a heard walk or an item used turns him weapon-ready toward the sound.
+A sprint, a landing, a racked reload, or an empty click sends him walking over to check the spot.
 A sound is never treated as a confirmed enemy: he investigates at a walk, never charges, and does not know where you are.
 Nothing changes in combat, and a carry-distance slider scales it, so stealth stays a game of distance and stance instead of NPCs being deaf.
 Compatible with stealth mods: stealth in Anomaly is about being seen, through light, cover, and stance, and the sound system never touches vision or detection.
@@ -161,11 +161,11 @@ They only go alert, never hostile, and settle down when the shooting stops. Ever
 
 Vision:
 Stalker rank shapes the eyes as well as the trigger, applied per stalker.
-Vision Speed sets how fast each rank turns a glimpse into a confirmed threat, from your setup's own detection speed at the bottom rank (a novice matches it) to about 21 percent faster at the top,
-  so no rank notices slower than your baseline.
+Vision Speed sets how fast each rank turns a glimpse into a confirmed threat, from your setup's own detection speed at the bottom rank (a novice matches it) to about 21 percent faster at the top.
+No rank notices slower than your baseline.
 It scales the rate only: sight range, vision cone, light and darkness response, cover and occlusion, and hearing all stay exactly as your setup has them.
-Vision Range sets how far out each rank begins to notice a threat, the same band, from your baseline at novice to about 15 percent farther at the top,
-  on engine builds carrying the per-stalker view-distance hook created for this mod, inactive on older exes.
+Vision Range sets how far out each rank begins to notice a threat, the same band, from your baseline at novice to about 15 percent farther at the top.
+It runs on engine builds carrying the per-stalker view-distance hook created for this mod, and is inactive on older exes.
 Both are per-rank MCM slider curves under one Vision toggle, on their own Vision page.
 
 Danger:
@@ -174,8 +174,8 @@ The reaction is the duck, and returning fire at that range is the planned Range 
 A set of always-on fixes clears long-standing crashes and misreads across the danger check and the corpse investigation, and these are not optional, shown as locked toggles.
 One tuning toggle lets danger you cause read your setup's separate player-specific ranges where the config provides them.
 One of those fixes shortens reactions instead of lengthening them.
-Vanilla's danger table gives three of its entries the same key, so two threat types are read under the wrong range: a ricochet at the 150m sight range instead of its own 4m,
-  and an attacked ally at 150m instead of 50m.
+Vanilla's danger table gives three of its entries the same key, so two threat types are read under the wrong range.
+A ricochet reads at the 150m sight range instead of its own 4m, and an attacked ally at 150m instead of 50m.
 That is why a vanilla stalker can wheel around at a spark off a wall halfway across the map.
 AlifeTactics separates the keys, so both reactions happen at the distance they were written for. A modpack that already corrected this sees no change.
 
@@ -201,8 +201,8 @@ Rank threshold and consumption rate are tunable in configs/alifetactics/at_ammo.
 
 Gear:
 Items a stalker carries become live combat edges, read from each item's own game data, so artefacts from any mod work.
-An artefact grants one edge chosen by its anomaly class, scaled by its own tier: gravity, chemical, and armour-plate artefacts cut the damage he takes, thermal artefacts tighten his fire,
-  and electric and quest artefacts raise the damage he deals.
+An artefact grants one edge chosen by its anomaly class, scaled by its own tier: gravity, chemical, and armour-plate artefacts cut the damage he takes.
+Thermal artefacts tighten his fire, and electric and quest artefacts raise the damage he deals.
 Any single artefact tops out at 10 percent and never stacks, the strongest source wins, so gear tilts a fight and never decides one.
 On engine builds carrying the per-stalker health-restore hook, a chemical artefact instead heals its carrier slowly over time, in place of the damage cut above.
 Any artefact carrier warps the air around his body, so a distorting stalker is a real, huntable artefact drop.
