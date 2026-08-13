@@ -1,0 +1,68 @@
+--- at_compat: third-party hit-pipeline compatibility, kept out of the systems it repairs.
+---
+--- G.A.M.M.A.'s grok_bo hit system (Ballistics Overhaul, or the Close Quarter Combat variant that
+--- overrides it) owns a hit the player lands on an NPC: grok_bo.npc_on_before_hit recomputes shit.power
+--- from the weapon and self-applies the damage, discarding the DAMAGE_RESIST scale at_effects_resolver
+--- wrote on that seam. So a geared NPC loses its artefact resistance against the player's shots (and only
+--- that cell - NPC-vs-NPC hits early-return inside grok_bo, and the actor's own resistance is engine-handled).
+---
+--- The repair does not fight for shit.power (grok_bo overwrites it). At actor first-update it takes over the
+--- registered npc_on_before_hit: it captures grok_bo's current handler, UnregisterScriptCallback's it, and
+--- RegisterScriptCallback's a wrapper that calls the captured handler with ALL its args - flags included, since
+--- a chained handler like momo_multihit_fix reads flags.ret_value (dropping it there is a crash). In that one
+--- synchronous call it measures the damage grok_bo actually dealt (the victim's health delta) and heals back
+--- the resisted fraction through xcombat. First-update timing lands after every module's own wrap of grok_bo is
+--- in place, so it takes over the final chained handler; inert when grok_bo is absent, so a non-G.A.M.M.A.
+--- install is untouched. (Reassigning the module field does NOT work - grok's callback runs the registered
+--- reference, not the field, so the wrapper must go through Unregister/Register to enter the call path.)
+---
+--- ADB (grok_actor_damage_balancer) needs no shim: it READS shit.power before applying, so the effects
+--- resolver's actor-side scale reaches it as long as at_ loads before grok_, which it does by name.
+---
+--- The grok_bo coupling lives ONLY here, by design: a foreign-mod dependency is quarantined to this
+--- compat file, never reaching into the effects resolver or any system module.
+
+local RegisterScriptCallback, UnregisterScriptCallback, type = RegisterScriptCallback, UnregisterScriptCallback, type
+local at_effects_resolver, xcombat, at_debug, db = at_effects_resolver, xcombat, at_debug, db
+local RESIST = at_effects_resolver.EFFECT.DAMAGE_RESIST
+
+-- The [COMPAT] gbo_resist trace: before/applied/factor and the corrected health, so a run confirms
+-- hp == before - applied*factor. Guarded so the off path builds nothing at the default log level.
+local function _trace_result(npc, before, applied, factor)
+    if not at_debug.on() then return end
+    at_debug.dbg("[COMPAT] gbo_resist id=%d before=%.3f applied=%.4f factor=%.3f hp=%.3f",
+        npc:id(), before, applied, factor, xcombat.get_health_frac(npc))
+end
+
+local function _wrap_gbo_npc_hit()
+    if type(grok_bo) ~= "table" or type(grok_bo.npc_on_before_hit) ~= "function" then return false end
+    local orig = grok_bo.npc_on_before_hit
+    local function wrapper(npc, shit, bone_id, flags)
+        local who = shit and shit.draftsman
+        if not (npc and who and db.actor and who:id() == db.actor:id() and npc:alive()) then
+            return orig(npc, shit, bone_id, flags)
+        end
+        local factor = at_effects_resolver.resolve(npc, RESIST)
+        if not factor then return orig(npc, shit, bone_id, flags) end
+        local before = xcombat.get_health_frac(npc)
+        orig(npc, shit, bone_id, flags)
+        local applied = before - xcombat.get_health_frac(npc)
+        if applied > 0 and npc:alive() then xcombat.add_health_frac(npc, applied * (1 - factor)) end
+        _trace_result(npc, before, applied, factor)
+    end
+    UnregisterScriptCallback("npc_on_before_hit", orig)
+    RegisterScriptCallback("npc_on_before_hit", wrapper)
+    return true
+end
+
+-- First update: every module's on_game_start wrap of grok_bo (momo_multihit_fix, etc.) is in place, so we
+-- take over the final chained handler deterministically.
+local function _on_actor_first_update()
+    if _wrap_gbo_npc_hit() then
+        at_debug.info("[COMPAT] grok_bo npc_on_before_hit wrapped: NPC artefact resistance restored for player hits")
+    end
+end
+
+function on_game_start()
+    RegisterScriptCallback("actor_on_first_update", _on_actor_first_update)
+end

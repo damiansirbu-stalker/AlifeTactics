@@ -1,5 +1,5 @@
 next
-  Summary: Difficulty rebalance, Tracking Lock, Gear, Vision Range, Reload Cover, cover posture, Perception menu, maneuver fixes, Useful Idiots compatibility
+  Summary: Difficulty rebalance, Tracking Lock, Gear, Vision Range, Reload Cover, cover posture, Perception menu, maneuver fixes, Useful Idiots compatibility, Ballistics Overhaul compatibility
 
   Combat
     Maneuvers
@@ -59,6 +59,8 @@ next
         view-distance bind, inactive on older ones.
       - Added chemical-artefact regeneration on builds with the per-stalker health-restore bind: a chemical carrier slowly heals its wounds over time there,
         in place of the damage cut it gives on older exes.
+      - Added Ballistics Overhaul and Close Quarter Combat compatibility for Gear: their shared grok_bo hit system recomputes a hit you land on an NPC from the weapon and applies it itself, which cancelled the NPC's artefact damage resistance.
+        AlifeTactics now reapplies the resistance to the damage grok_bo dealt, so a geared NPC resists your shots there as it does anywhere. It hooks whichever of the two is live, and is inactive when neither is installed.
 
   Development
     - Changed the two world recorders into one. The Ballistics toggle is gone, and World behaviour debug now records both the slide watchdog and the shot-outcome tables into alifetactics_world.log.

@@ -280,6 +280,8 @@ Composes with a caveat - it works, but know this or set that:
   Their larger, longer hit and hurt animations can make the base-game gliding and staggering more visible, which is base-game hit handling (see "Not AlifeTactics" below),
   not anything AlifeTactics adds.
 - g_ai_unlimited_ammo set to 0 (newer engine builds): the Ammo system detects it and goes inert, so carried AP is not drained twice. At the default 1 it runs normally.
+- G.A.M.M.A. Ballistics Overhaul and Close Quarter Combat (both ship the grok_bo hit system): a hit you land on an NPC is recomputed from the weapon's own values and applied by grok_bo itself, which cancels that NPC's artefact damage resistance. AlifeTactics restores it: it takes over the grok_bo NPC hit and reapplies the resistance to the damage grok_bo actually dealt, so a geared NPC still resists your shots. It hooks whichever of the two wins load order, is inactive when neither is installed, and changes nothing for hits between NPCs.
+- G.A.M.M.A. Actor Damage Balancer: finalizes damage the player takes, reading the hit's power and then applying the damage itself. A modifier this mod makes to a hit against the player still reaches final damage, because the balancer reads that power before applying it and this mod's scripts (at_, ap_) load ahead of grok_ by name. That order is fixed by the file names, so it holds on any standard install; only a damage mod whose scripts sort ahead of both could take it over.
 
 Composes cleanly - no change either way:
 - G.A.M.M.A. AI Rework, RE:DONE Combat AI, RE:VISION, AI More Cover: the takeover blocks the combat planner only while a maneuver runs, then hands back to their combat AI.
