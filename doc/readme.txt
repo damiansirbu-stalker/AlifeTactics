@@ -237,7 +237,7 @@ Disable or remove in MO2.
 
 Performance:
 Performance comes first, ahead of any feature. Every combat command goes through xcombat into the engine's own mechanisms, nothing runs per frame, and every flow is timed with a hard 2ms ceiling;
-when a feature cannot fit the budget it is reworked, replaced, or removed with an X-Ray engine modification rather than allowed to slow the game.
+  when a feature cannot fit the budget it is reworked, replaced, or removed with an X-Ray engine modification rather than allowed to slow the game.
 It is measured on the engine built from the latest source with no multithreading and no optimizations, so the timings are worst-case; the optimized multithreaded build you run is always faster.
 
 Compatibility:
@@ -328,4 +328,4 @@ Include: exact repro steps (new game or named save, expected vs actual), confirm
 Only the log shows whether this mod was involved.
 
 The debug log is required: set the MCM log level to DEBUG, reproduce, then back to WARN. DEBUG is not free. It writes a timed line for every evaluation and hitches single-threaded exes,
-and the millisecond figures include the tracing itself, so treat them as relative.
+  and the millisecond figures include the tracing itself, so treat them as relative.
