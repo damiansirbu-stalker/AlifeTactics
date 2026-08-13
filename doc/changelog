@@ -231,8 +231,8 @@ next
 
   Mechanics
     Healing
-      - Added NPC self-healing: restores the vanilla medkit and bandage item lists the engine dropped,
-        with a heal-rate multiplier, a per-rank chance to carry a healing charge, and a limp and heal animation.
+      - Added NPC self-healing: restores the vanilla medkit and bandage item lists the engine dropped, with a heal-rate multiplier, a per-rank chance to carry a healing charge,
+        and a limp and heal animation.
 
   Development
     - Added a reset-to-defaults button and the console test commands at_spawn, at_spawn_veteran, at_spawn_master, at_spawn_far, and at_dump.
