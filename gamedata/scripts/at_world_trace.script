@@ -172,7 +172,7 @@ local function _monitor()
     local ap, tg = ac:position(), time_global()
     for i = 1, #db.OnlineStalkers do
         local npc = xobject.go(db.OnlineStalkers[i])
-        if npc and npc:alive() and IsStalker(npc) and npc:best_enemy() and _near(npc, ap) then
+        if npc and IsStalker(npc) and npc:alive() and npc:best_enemy() and _near(npc, ap) then
             local id = npc:id()
             local pos = npc:position()
             local mt = npc:movement_type()
@@ -188,7 +188,7 @@ end
 -- WATCH_SEC for WATCH_MS and one raw record is written at close. Captured at the hit: health, overlay
 -- count, movement type, damage amount, bone, and who was driving.
 local function _on_hit(npc, amount, _local_direction, _who, bone_index)
-    if not (npc and npc:alive() and IsStalker(npc) and db.actor) then return end
+    if not (npc and IsStalker(npc) and npc:alive() and db.actor) then return end
     local id = npc:id()
     if _watch[id] then return end
     local pos = npc:position()
@@ -221,7 +221,7 @@ local function _watch_poll()
     for id, w in pairs(_watch) do
         local npc = xobject.go(id)
         local drop = true
-        if npc and npc:alive() then drop = _watch_step(npc, id, w, tg) end
+        if npc and IsStalker(npc) and npc:alive() then drop = _watch_step(npc, id, w, tg) end
         if drop then dropped = dropped + 1; _drop[dropped] = id end
     end
     for i = 1, dropped do _watch[_drop[i]] = nil; _drop[i] = nil end
