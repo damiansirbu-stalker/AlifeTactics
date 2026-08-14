@@ -46,6 +46,9 @@ regen_scale = 0.003
 ; VFX library. anomaly2\burer_prepare passes that rule - vanilla m_burer.ltx:272 names it as
 ; Particle_Gravi_Prepare, so every library ships it or its own burers stop telegraphing their gravi
 ; attack; present in GAMMA's Particles Cinematic VFX 3.5 and the Boomsticks and Sharpsticks library.
+; aura_bone is the single torso bone the carrier glow attaches to (at_effects_resolver, bone-verified,
+; with a default-bone fallback if it is absent). One bone on purpose - burer_prepare is a wide effect,
+; so a second emitter overlaps into a smoke cloud.
 aura      = anomaly2\burer_prepare
 aura_bone = bip01_spine
 
