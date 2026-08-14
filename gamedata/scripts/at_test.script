@@ -289,7 +289,7 @@ end
 -- Arena: keep a CONSTANT number of geared, fighting NPCs around you - respawn the dead each tick, release
 -- corpses, so the effects resolver (and every net_spawn-evaluated system) fires continuously and the log
 -- fills on its own. Each NPC onlines carrying the full EFFECT_GEAR spread (parented before online).
---   at_arena(n)     - n/2 army vs n/2 monolith, mutually hostile; watch from the edge (default 16)
+--   at_arena(n)     - n/2 side-a (army + the cowardly ecolog/csky/renegade) vs n/2 monolith; watch from the edge (default 16)
 --   at_arena_me(n)  - n monolith hostile to everything including you
 --   at_arena_stop() - stop and release everything
 --------------------------------------------------------------------------------
@@ -301,7 +301,14 @@ local ARENA_SPREAD_DEG   = 25
 local ARENA_SECTIONS = {
     monolith = { "sim_default_monolith_1", "sim_default_monolith_2", "sim_default_monolith_3", "sim_default_monolith_4" },
     army     = { "sim_default_military_1", "sim_default_military_2", "sim_default_military_3", "sim_default_military_4" },
+    ecolog   = { "sim_default_ecolog_0", "sim_default_ecolog_1", "sim_default_ecolog_2", "sim_default_ecolog_3", "sim_default_ecolog_4" },
+    csky     = { "sim_default_csky_0", "sim_default_csky_1", "sim_default_csky_2", "sim_default_csky_3", "sim_default_csky_4" },
+    renegade = { "sim_default_renegade_0", "sim_default_renegade_1", "sim_default_renegade_2" },
 }
+-- Side "a" faction roster: brave army (exercises retreat) plus the three cowardly flee-palette factions
+-- (ecolog, clear sky, renegade). Monolith on side "b" is hostile to all of them - the universal
+-- aggressor property at_arena_me relies on - so retreat AND flee both exercise in one arena.
+local ARENA_SIDE_A = { "army", "ecolog", "csky", "renegade" }
 local _arena_on = false
 local _arena_mode = nil
 local _arena_want = 0
@@ -325,9 +332,11 @@ local function _arena_spawn_pos(angle)
     return level.vertex_position(lvid), lvid
 end
 
--- Spawn one geared NPC for a side (a = army, b = monolith; me-mode = all monolith). Returns true on spawn.
+-- Spawn one geared NPC for a side (a = army/ecolog/csky/renegade, b = monolith; me-mode = all monolith).
+-- Returns true on spawn.
 local function _arena_spawn_one(side)
-    local faction = (_arena_mode == "me" or side == "b") and "monolith" or "army"
+    local faction = (_arena_mode == "me" or side == "b") and "monolith"
+        or ARENA_SIDE_A[math_random(1, #ARENA_SIDE_A)]
     local list = ARENA_SECTIONS[faction]
     local section = list[math_random(1, #list)]
     local base = (_arena_mode == "war" and side == "b") and (_arena_side_dir + math_pi) or _arena_side_dir
@@ -414,7 +423,8 @@ local function _arena_start(mode, count)
     _tip(string_format("AT.ARENA: maintaining %d geared NPCs (%s)", _arena_want, mode))
 end
 
---- Keep n/2 army vs n/2 monolith fighting around you, all geared (default 16). Watch from the edge.
+--- Keep n/2 side-a (army + cowardly ecolog/csky/renegade) vs n/2 monolith fighting around you, all geared
+--- (default 16). The cowardly factions exercise flee, army exercises retreat. Watch from the edge.
 --- @export console
 function at_arena(count)
     _arena_start("war", count)
