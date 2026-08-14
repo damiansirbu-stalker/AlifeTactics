@@ -23,10 +23,11 @@
 --- (xcombat.scale_hit_power / xcombat.scale_dispersion / xcombat.set_view_distance_factor); this module
 --- makes no raw engine combat call. Tracing rides at_debug with a measured duration, a no-op below DEBUG.
 
-local pairs, tostring = pairs, tostring
+local tostring = tostring
 local IsStalker = IsStalker
 local RegisterScriptCallback, ini_file = RegisterScriptCallback, ini_file
 local xcombat, xprofiler, at_debug = xcombat, xprofiler, at_debug
+local xcreature, table_concat, parse_list = xcreature, table.concat, parse_list
 
 -- The multi-source effects. Value strings are the registry keys; a source registers a provider against
 -- one, a consumer resolves one. Single-source values (aim, vision speed, fire, move, regen) are NOT here
@@ -107,9 +108,7 @@ end
 -- Aura: the carrier presence effect (start_particles at net_spawn)
 -- =========================================================================
 
--- u16 bone sentinel (BI_NONE); get_bone_id returns it when the skeleton lacks the bone.
-local BI_NONE = 65535
--- Bone fallback chain when the configured aura_bone is absent on a skeleton.
+-- Bone fallback chain when none of the configured aura bones are on a skeleton.
 local AURA_BONES = { "bip01_spine", "bip01_pelvis", "bip01_head", "link" }
 
 -- The one carrier glow. The particle NAME and the preferred bone are carrier data, so they live in
@@ -119,7 +118,7 @@ local AURA_BONES = { "bip01_spine", "bip01_pelvis", "bip01_head", "link" }
 local GEAR_LTX = "alifetactics\\at_gear.ltx"
 local GEAR_SECTION = "at_gear"
 local _aura = ""
-local _aura_bone = ""
+local _aura_bones = {}
 
 -- id -> the emitting bone (present == aura live on this game object). The resolver's only per-NPC state.
 local _emitting = {}
@@ -128,48 +127,46 @@ local function _load_config()
     local ini = ini_file(GEAR_LTX)
     if not (ini and ini:section_exist(GEAR_SECTION)) then return end
     _aura = ini:r_string_ex(GEAR_SECTION, "aura") or ""
-    _aura_bone = ini:r_string_ex(GEAR_SECTION, "aura_bone") or ""
+    _aura_bones = parse_list(ini, GEAR_SECTION, "aura_bone") or {}
 end
 
--- The first bone the skeleton actually has: the configured one, then the fallback chain, or nil.
-local function _aura_bone_for(obj)
-    if _aura_bone ~= "" and obj:get_bone_id(_aura_bone) ~= BI_NONE then return _aura_bone end
-    for i = 1, #AURA_BONES do
-        if obj:get_bone_id(AURA_BONES[i]) ~= BI_NONE then return AURA_BONES[i] end
+-- Attach the aura on each bone from `list` the skeleton has, appending it to `out`. With first_only it
+-- stops at the first success (the fallback wants a single emitter, not one per default bone).
+local function _attach_bones(obj, out, list, first_only)
+    for i = 1, #list do
+        if not xcreature.attach_particle(obj, _aura, list[i]) then goto next end
+        out[#out + 1] = list[i]
+        if first_only then return end
+        ::next::
     end
-    return nil
 end
 
--- Attach the aura to a carrier that is not already emitting it. Bone verified before attach; the
--- particle dies with the game object, so it is re-attached at each net_spawn.
+-- Attach the aura on every configured bone the skeleton has (aura_bone is a bone LIST). If none of the
+-- configured bones exist, fall back to the first available default bone so a nonstandard skeleton still
+-- shows one. Each attach goes through the xcreature primitive (bone-guarded); the particle dies with the
+-- game object, so it is re-attached at each net_spawn. The emitting mark is the list of bones attached.
 local function _start_aura(id, obj)
     if _aura == "" or _emitting[id] then return end
     if not obj:alive() then return end
-    local bone = _aura_bone_for(obj)
-    if not bone then return end
-    obj:start_particles(_aura, bone)
-    _emitting[id] = bone
-    if at_debug.on() then at_debug.dbg("[EFF] aura id=%d particle=%s bone=%s", id, _aura, bone) end
-end
-
--- Stop the aura on a former carrier (dropped its last artefact, died, or toggled off).
-local function _stop_aura(id)
-    local bone = _emitting[id]
-    if not bone then return end
-    local obj = xobject.go(id)
-    if obj then obj:stop_particles(_aura, bone) end
-    _emitting[id] = nil
-    if at_debug.on() then at_debug.dbg("[EFF] aura-stop id=%d bone=%s", id, bone) end
-end
-
--- Resolve the aura presence and reconcile the particle: start it for a carrier, stop it otherwise.
-local function _apply_aura(npc)
-    local id = npc:id()
-    if resolve(npc, EFFECT.AURA) then
-        _start_aura(id, npc)
-    else
-        _stop_aura(id)
+    local bones = {}
+    _attach_bones(obj, bones, _aura_bones, false)
+    if #bones == 0 then _attach_bones(obj, bones, AURA_BONES, true) end
+    if #bones == 0 then return end
+    _emitting[id] = bones
+    if at_debug.on() then
+        at_debug.dbg("[EFF] aura id=%d particle=%s bones=%s", id, _aura, table_concat(bones, ","))
     end
+end
+
+-- Resolve the aura presence and START it for a carrier. There is deliberately NO stop path. Stopping a
+-- particle on a creature trips the engine bone assert whenever the bone is not renderable at that instant
+-- - a hit, an animation, a death or offline transition - and bone visibility flips constantly, so neither
+-- an alive() nor a get_bone_id guard can see that state (proven live 2026-08-14: stop asserted on a LIVE
+-- NPC with a valid bone). So the aura has no lifecycle: it attaches once and dies with the game object,
+-- the way creature particles are meant to work (doc/library/modding/particles.md). A carrier that drops
+-- its artefact keeps the glow until it despawns; the numeric effects still resolve live at their own seams.
+local function _apply_aura(npc)
+    if resolve(npc, EFFECT.AURA) then _start_aura(npc:id(), npc) end
 end
 
 -- =========================================================================
@@ -264,21 +261,17 @@ local function _on_shot_dispersion(obj, _wpn, _body_state, _move_type, temp_disp
     end
 end
 
--- The aura dies with the game object, but the emitting mark and any persistent bind are the resolver's
--- to clear on death and on unregister so nothing outlives its carrier.
+-- At death the carrier's visual (and the aura bone) is already gone, so the particle died with it;
+-- stop_particles would trip the engine bone assert (R_ASSERT play_bone != BI_NONE, script_game_object4.cpp:438,
+-- surfaced as a BusyHandsDebug non-crash error on demonized). Death only needs the emitting mark cleared,
+-- like _on_entity_unregister; id() is a raw accessor (not SAFE_WRAP), safe on the corpse. The live
+-- drop / toggle-off path keeps _stop_aura, where the bone is still intact.
 local function _on_death(victim, _who)
-    if victim then _stop_aura(victim:id()) end
+    if victim then _emitting[victim:id()] = nil end
 end
 
 local function _on_entity_unregister(se_obj)
     if se_obj then _emitting[se_obj.id] = nil end
-end
-
--- A toggle may have moved (an effect's master switch): drop every live aura so a switch-off clears at
--- once. Carriers re-attach on their next net_spawn; the numeric effects are resolved live at their seam,
--- so they need nothing here.
-local function _on_option_change()
-    for id in pairs(_emitting) do _stop_aura(id) end
 end
 
 local function _on_first_update()
@@ -296,6 +289,4 @@ function on_game_start()
     RegisterScriptCallback("npc_on_death_callback",       _on_death)
     RegisterScriptCallback("server_entity_on_unregister", _on_entity_unregister)
     RegisterScriptCallback("actor_on_first_update",       _on_first_update)
-    RegisterScriptCallback("on_option_change",            _on_option_change)
-    RegisterScriptCallback("mcm_option_restore_default",  _on_option_change)
 end
