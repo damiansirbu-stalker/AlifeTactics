@@ -25,7 +25,7 @@
 
 local tostring, IsStalker = tostring, IsStalker
 local RegisterScriptCallback, ini_file = RegisterScriptCallback, ini_file
-local xcombat, xprofiler, at_debug = xcombat, xprofiler, at_debug
+local xcombat, xprofiler, at_debug, xcreature = xcombat, xprofiler, at_debug, xcreature
 
 -- The multi-source effects. Value strings are the registry keys; a source registers a provider against
 -- one, a consumer resolves one. Single-source values (aim, vision speed, fire, move, regen) are NOT here
@@ -103,11 +103,9 @@ function resolve(npc, effect)
 end
 
 -- =========================================================================
--- Aura: the carrier presence effect (start_particles at net_spawn)
+-- Aura: the carrier presence effect (attached at net_spawn)
 -- =========================================================================
 
--- u16 bone sentinel (BI_NONE); get_bone_id returns it when the skeleton lacks the bone.
-local BI_NONE = 65535
 -- Bone fallback chain when the configured aura_bone is absent on a skeleton.
 local AURA_BONES = { "bip01_spine", "bip01_pelvis", "bip01_head", "link" }
 
@@ -130,23 +128,20 @@ local function _load_config()
     _aura_bone = ini:r_string_ex(GEAR_SECTION, "aura_bone") or ""
 end
 
--- The first bone the skeleton actually has: the configured one, then the fallback chain, or nil.
-local function _aura_bone_for(obj)
-    if _aura_bone ~= "" and obj:get_bone_id(_aura_bone) ~= BI_NONE then return _aura_bone end
-    for i = 1, #AURA_BONES do
-        if obj:get_bone_id(AURA_BONES[i]) ~= BI_NONE then return AURA_BONES[i] end
+-- Attach the aura on the first bone in the list the skeleton has, return that bone or nil.
+local function _attach_first(obj, bones)
+    for i = 1, #bones do
+        if xcreature.attach_particle(obj, _aura, bones[i]) then return bones[i] end
     end
     return nil
 end
 
--- Attach the aura to a carrier not already emitting it. Bone verified before attach; the particle dies
--- with the game object, so it re-attaches at each net_spawn.
+-- Attach the aura on the configured bone or a fallback, through the bone-guarded xcreature primitive.
 local function _start_aura(id, obj)
     if _aura == "" or _emitting[id] then return end
     if not obj:alive() then return end
-    local bone = _aura_bone_for(obj)
+    local bone = xcreature.attach_particle(obj, _aura, _aura_bone) and _aura_bone or _attach_first(obj, AURA_BONES)
     if not bone then return end
-    obj:start_particles(_aura, bone)
     _emitting[id] = bone
     if at_debug.on() then at_debug.dbg("[EFF] aura id=%d particle=%s bone=%s", id, _aura, bone) end
 end
