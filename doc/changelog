@@ -4,34 +4,35 @@
   Combat
     Maneuvers
       - Changed Reload Cover to send the reloading stalker to the nearest cover that breaks your line, not the best-hidden spot anywhere in reach, so he clears your sights fast while his gun is down.
-        It now triggers whenever you have him in view with a raised weapon, not only when your aim sits dead on him.
-      - Fixed stalkers passing up a firing spot behind a waist-high wall they could shoot over. The clear-shot check now casts from eye height, where the engine fires from,
-        instead of a chest-height guess that read the wall as a blocked lane.
-      - Fixed a cornered stalker taking a kite path under a metre long that gained him nothing. A kite counts only when standing on its end puts the enemy back outside his minimum weapon range,
-        so every kite opens real distance and a boxed-in stalker holds and fights instead. Withdrawal lanes are obstacle-checked to the end, so a kiting stalker no longer routes into a tree or crate.
+        It now triggers whenever you have him in view with a raised weapon, not only when you aim straight at him.
+      - Fixed stalkers not using low cover they could shoot over. The shot check now uses eye height, where the gun fires from, instead of chest height,
+        so a low wall no longer reads as blocking the shot.
+      - Fixed a cornered stalker taking a kite step under a metre that did nothing. A kite now runs only when its end puts the enemy back outside his minimum weapon range,
+        so a cornered stalker holds and fights instead. The kite path is checked for obstacles, so he no longer runs into a tree or crate.
       - Fixed a maneuver driving a stalker after he collapsed wounded. It ends the instant he goes down, and the wounded behavior takes him over cleanly.
       - Fixed maneuvers starting on, or re-applying to, a body mid-animation: a hit stagger, a script pose, or the hit flinch where the exe exposes it.
-        The animation finishes first and the maneuver waits its turn, so AlifeTactics never drags a reacting body into a glide.
+        The animation finishes first and the maneuver waits, so AlifeTactics never moves a body that is still animating.
       - Fixed the combat takeover freezing companions in place during emissions when Useful Idiots is installed, so a companion caught in a surge runs for cover again.
-        The takeover's planner graft shared a reserved id with that mod's emission-shelter scheme and starved it, so the graft moved to a free id and no longer installs on companions it never drives.
+        The takeover used a reserved planner id that mod also uses for its emission-shelter scheme, so it moved to a free id and no longer installs on companions it never drives.
     Conduct
-      - Fixed cover posture crouching a stalker while he moved to cover. The crouch decision now applies only when he holds position, so a stalker walking or running keeps the engine's standing pace
-        instead of crouch-walking the distance.
-      - Changed cover posture into a line-of-fire decision: a stalker crouches only when he can still hit the enemy from that crouch, tested against the real shot line rather than a rough cover reading
-        that could leave him firing into the wall he ducked behind. He crouches past a flat 20m, and only some stalkers crouch by disposition, so a firing line mixes standing and crouched shooters
-        instead of the whole squad dropping at once.
+      - Fixed cover posture crouching a stalker while he moved to cover. The crouch now applies only when he holds position, so a stalker walking or running stays standing
+        instead of crouching the whole way.
+      - Changed cover posture so a stalker crouches only when he can still hit the enemy from the crouch, checked against the real shot line instead of a rough reading that could leave him firing
+        into the wall he ducked behind. He crouches only past 20m, and only some stalkers crouch by nature, so a firing line mixes standing and crouched shooters instead of the whole squad dropping at once.
 
   Effectiveness
     Accuracy
+      - Rebalanced every per-rank curve, accuracy, aim tracking, and vision, using data collected from players. NPCs are calmer and less jumpy: the whole range now sits in a tight band around the base game,
+        with the top ranks a small step above it instead of the old aggressive spikes.
       - Changed the per-rank aim spread so a novice shoots exactly like a vanilla stalker instead of spraying wider, and a legend is tight but not pinpoint.
-        Aim spread bites only against an exposed or still target, so it rewards holding cover without punishing a player who keeps moving.
-      - Changed the Moving Fire defaults to keep a visible movement penalty at every rank. A legend now sheds about a third of the moving spread instead of erasing it,
-        so firing from a plant keeps its edge over firing on the run.
+        Aim spread applies only against an exposed or still target, so it rewards holding cover and does not penalize a player who keeps moving.
+      - Changed the Moving Fire defaults to keep a visible movement penalty at every rank. A legend now keeps about a third of the moving spread instead of removing it,
+        so firing from a fixed position is more accurate than firing on the run.
     Reaction
-      - Added Tracking Lock, a per-rank control for how tightly a stalker holds a strafing target. A novice's aim still lags and a juke works exactly like vanilla.
-        A legend keeps the barrel on you across the firing window, without reaching the glued snap of the game's hardcore aim option, so movement always matters.
-      - Changed Tracking Speed to control barrel move-speed alone, now paired with Tracking Lock. Every rank starts at the vanilla speed and a legend tops out well below the game's hardcore aim,
-        so no stalker tracks worse than the base game and none becomes an aimbot.
+      - Added Tracking Lock, a per-rank control for how tightly a stalker holds a moving target. A novice's aim still lags and you can dodge it exactly like vanilla.
+        A legend keeps the barrel on you across the firing window, without the locked-on aim of the game's hardcore option, so movement always matters.
+      - Changed Tracking Speed to control barrel move speed alone, now paired with Tracking Lock. Every rank starts at the vanilla speed and a legend tops out well below the game's hardcore aim,
+        so no stalker tracks worse than the base game and none tracks perfectly. (xray-dependent)
       - Changed Burst Size so a high rank fires a shorter, tighter burst, since only a burst's opening rounds hit true and the rest spray.
 
   Perception
@@ -43,22 +44,20 @@
     Vision
       - Changed Vision Speed, how fast a stalker turns a glimpse into a confirmed threat. Every rank now confirms at least as fast as the base game, a novice matching vanilla and a legend at +21%,
         so a high-rank squad is more alert with no rank detecting slower than vanilla. Point-blank detection is unaffected.
-      - Added Vision Range, the twin of Vision Speed: how far out a stalker begins to notice a threat, a novice at vanilla and a legend at +15%. It needs an engine build with the per-stalker
-        view-distance bind and stays inactive on older exes. Vision now has its own page holding both curves.
+      - Added Vision Range, alongside Vision Speed: how far out a stalker begins to notice a threat, a novice at vanilla and a legend at +15%. Vision now has its own page holding both curves.
+        (xray-dependent, inactive on older exes)
     Danger
       - Changed the menu. The old Danger tab is now Perception, the vision curves moved out of Reaction into their own Vision page, and the Hit and Fixes pages folded into one Danger page
         with the always-on crash fixes shown as locked toggles. Affected settings reset to defaults once.
 
   Mechanics
     Healing
-      - Fixed the bandaging gesture playing on a walking stalker, which froze his legs and made him glide. The gesture now waits until he stands still.
+      - Fixed the bandaging gesture playing on a walking stalker, which froze his legs and made him slide. The gesture now waits until he stands still.
     Gear
-      - Added Gear: the items a stalker carries become live combat edges, each read from its own game data so any artefact from any mod works. Gravity, chemical, and armour-plate artefacts cut
+      - Added Gear: the items a stalker carries give him combat bonuses, each read from its own game data so any artefact from any mod works. Gravity, chemical, and armour-plate artefacts cut
         the damage he takes, thermal artefacts tighten his fire, and electric and quest artefacts raise the damage he deals, each up to 10 percent and never stacking so the strongest source wins.
-        Any artefact carrier warps the air around his body, so a distorting stalker is a huntable artefact drop. Binoculars and night-vision extend his sight range on builds with the per-stalker
-        view-distance bind, inactive on older ones.
-      - Added chemical-artefact regeneration on builds with the per-stalker health-restore bind: a chemical carrier slowly heals its wounds over time there,
-        in place of the damage cut it gives on older exes.
+        An artefact carrier distorts the air around his body, so you can spot one and kill him for the artefact. Binoculars and night-vision extend his sight range (xray-dependent, inactive on older exes).
+      - Added chemical-artefact regeneration (xray-dependent): a chemical carrier slowly heals over time, in place of the damage cut it gives on older exes.
       - Added Ballistics Overhaul and Close Quarter Combat compatibility for Gear: their shared grok_bo hit system recomputes a hit you land on an NPC from the weapon and applies it itself, which cancelled the NPC's artefact damage resistance.
         AlifeTactics now reapplies the resistance to the damage grok_bo dealt, so a geared NPC resists your shots there as it does anywhere. It hooks whichever of the two is live, and is inactive when neither is installed.
 
@@ -66,7 +65,7 @@
     - Changed the two world recorders into one. The Ballistics toggle is gone, and World behaviour debug now records both the slide watchdog and the shot-outcome tables into alifetactics_world.log.
     - Added a combat-escape warning: if another combat brain takes a stalker out from under an open maneuver, the log names the foreign owner once,
       so a modpack conflict is reportable instead of invisible.
-    - Added over-speed detection to World behaviour debug: a body moving faster than its own config allows is logged with the measured rate, catching a walked glide the slide watchdog cannot see.
+    - Added over-speed detection to World behaviour debug: a body moving faster than its own config allows is logged with the measured rate, catching a slide while walking that the slide watchdog cannot see.
     - Added a maneuver-pass timing line: with debug on, the combat monitor times each full pass over the tracked stalkers and logs a periodic average and peak, so a slowdown reads as a measured cost
       instead of a guess.
     - Added a flush-every-line log option that writes each line to disk at once instead of buffering, so a crash keeps its final log lines for a report.
