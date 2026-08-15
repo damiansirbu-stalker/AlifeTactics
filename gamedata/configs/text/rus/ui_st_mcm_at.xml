@@ -859,4 +859,238 @@
   <string id="ui_mcm_menu_conduct">
     <text>Поведение</text>
   </string>
+  <string id="ui_mcm_at_danger_fix_anim_cleanup">
+    <text>Очистка анимации опасности</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_anim_cleanup_desc">
+    <text>Переходы состояния опасности больше не оставляют застрявшую анимацию нижней части тела.</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_config_cache">
+    <text>Кэширование конфига опасности</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_config_cache_desc">
+    <text>Проверка опасности разбирает строки конфига один раз, а не заново при каждой оценке.</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_config_isolation">
+    <text>Изоляция конфига опасности</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_config_isolation_desc">
+    <text>Три категории опасности раньше читали не те строки конфига из-за конфликта имён. Теперь каждая читает свои строки.</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_corpse_despawn">
+    <text>Безопасность исчезновения трупа</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_corpse_despawn_desc">
+    <text>Труп, исчезающий во время осмотра, больше не вызывает вылет у осматривающего.</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_corpse_order">
+    <text>Порядок реакции на труп</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_corpse_order_desc">
+    <text>Реакция на труп больше не вызывает вылет, когда срабатывает до установки стадии осмотра.</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_corpse_time">
+    <text>Проверка времени трупа мутанта</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_corpse_time_desc">
+    <text>Труп мутанта больше не вызывает вылет в проверке времени опасности.</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_cover_scope">
+    <text>Область резервирования укрытия</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_cover_scope_desc">
+    <text>Выход из состояния опасности снимает только своё резервирование укрытия, а не стирает его у всех сталкеров.</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_hit_memory">
+    <text>Целостность памяти о попадании</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_hit_memory_desc">
+    <text>Колбэк попадания больше не портит память об опасности отсутствующим стрелком при каждом попадании.</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_id_reuse">
+    <text>Повторное использование id опасности</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_id_reuse_desc">
+    <text>Скриптовая опасность мёртвого сталкера больше не остаётся на его id, поэтому возрождение с тем же id начинается чисто.</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_investigate_target">
+    <text>Цель осмотра</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_investigate_target_desc">
+    <text>Осматривающий идёт к найденному укрытию, а не к очищенной точке.</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_investigator_select">
+    <text>Выбор осматривающего</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_investigator_select_desc">
+    <text>Осмотр трупа ведёт тот член отряда, который нашёл труп, а не другой.</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_npc_teardown">
+    <text>Защита от разрушенного NPC</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_npc_teardown_desc">
+    <text>Ссылка на разрушенного NPC больше не вызывает вылет в оценщике опасности.</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_time_value">
+    <text>Проверка значения времени опасности</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_time_value_desc">
+    <text>Неверное значение времени опасности больше не вызывает вылет оценщика.</text>
+  </string>
+  <string id="ui_mcm_at_development_log_flush">
+    <text>Сброс лога на каждой строке</text>
+  </string>
+  <string id="ui_mcm_at_development_log_flush_desc">
+    <text>Записывать каждую строку лога на диск сразу, без буферизации. Включите при диагностике вылета, чтобы последние строки уцелели при жёстком зависании, которое не доходит до периодического сброса. Медленнее, для обычной игры оставьте выключенным.</text>
+  </string>
+  <string id="ui_mcm_at_gear_desc">
+    <text>Предметы, которые несёт сталкер, становятся живыми боевыми преимуществами, считанными из игровых данных каждого предмета, поэтому работает любой артефакт из любого мода. Гравитационные, химические и бронепластинчатые артефакты снижают получаемый им урон, термические артефакты сужают его стрельбу, а электрические и квестовые артефакты повышают наносимый им урон. Любой отдельный артефакт даёт максимум 10 процентов и не складывается, побеждает сильнейший источник, поэтому снаряжение склоняет бой, но не решает его. Бинокль увеличивает его дальность зрения днём, а ночное видение ночью, на сборках движка с привязкой дальности зрения для каждого сталкера. Сталкер, вокруг которого искривляется воздух, несёт настоящий артефакт, и убить его есть способ его получить.</text>
+  </string>
+  <string id="ui_mcm_at_gear_gear_artefacts_enabled">
+    <text>Эффекты артефактов</text>
+  </string>
+  <string id="ui_mcm_at_gear_gear_artefacts_enabled_desc">
+    <text>Вкл: переносимые артефакты и бронепластины дают сталкеру боевые эффекты, описанные выше. Выкл: артефакты остаются инертными, бинокль и ночное видение сохраняют свои переключатели.</text>
+  </string>
+  <string id="ui_mcm_at_gear_gear_aura_enabled">
+    <text>Искажение от артефакта</text>
+  </string>
+  <string id="ui_mcm_at_gear_gear_aura_enabled_desc">
+    <text>Вкл: сталкер, несущий любой артефакт, искривляет воздух вокруг тела, поэтому носитель заметен и на него можно охотиться. Выкл: эффекты применяются без визуального признака.</text>
+  </string>
+  <string id="ui_mcm_at_gear_gear_binoc_enabled">
+    <text>Наблюдатели с биноклем</text>
+  </string>
+  <string id="ui_mcm_at_gear_gear_binoc_enabled_desc">
+    <text>Вкл: сталкер с биноклем видит дальше при дневном свете. Требуется сборка движка с привязкой дальности зрения для каждого сталкера, на старых exe неактивно. Выкл: бинокль остаётся инертным.</text>
+  </string>
+  <string id="ui_mcm_at_gear_gear_enabled">
+    <text>Переносимые предметы усиливают сталкеров</text>
+  </string>
+  <string id="ui_mcm_at_gear_gear_enabled_desc">
+    <text>Вкл: переносимые артефакты и снаряжение дают сталкеру эффекты, описанные выше. Выкл: предметы инвентаря остаются инертным лутом, точно как в ванили.</text>
+  </string>
+  <string id="ui_mcm_at_gear_gear_nvg_enabled">
+    <text>Ночное видение ночью</text>
+  </string>
+  <string id="ui_mcm_at_gear_gear_nvg_enabled_desc">
+    <text>Вкл: сталкер с прибором ночного видения видит дальше в ночные часы. Требуется сборка движка с привязкой дальности зрения для каждого сталкера, на старых exe неактивно. Выкл: приборы ночного видения остаются инертными.</text>
+  </string>
+  <string id="ui_mcm_at_hdr_reaction_track">
+    <text>Захват цели</text>
+  </string>
+  <string id="ui_mcm_at_hdr_vision_range">
+    <text>Дальность зрения</text>
+  </string>
+  <string id="ui_mcm_at_perception_danger_desc">
+    <text>Как сталкеры реагируют на попадание по ним, плюс всегда включённые исправления проверки опасности и осмотра трупов. Реакция на дальнее попадание и настройка дистанции до игрока переключаются ниже, исправления вылетов и ошибок чтения зафиксированы включёнными и перечислены. AlifeTactics устанавливается как runtime-патч поверх того скрипта опасности, который поставляет ваш модпак.</text>
+  </string>
+  <string id="ui_mcm_at_vision_desc">
+    <text>Как зрение сталкера растёт с рангом: как быстро он превращает мельком увиденное в подтверждённую угрозу (скорость) и с какого расстояния начинает её замечать (дальность). И то, и другое это реакция и опыт, а не сырое зрение, и держится в узкой полосе вокруг базовой линии вашей сборки. Дальность требует свежей сборки движка с привязкой дальности зрения для каждого сталкера, на старых сборках работает только кривая скорости.</text>
+  </string>
+  <string id="ui_mcm_menu_gear">
+    <text>Снаряжение</text>
+  </string>
+  <string id="ui_mcm_menu_perception">
+    <text>Восприятие</text>
+  </string>
+  <string id="ui_mcm_menu_vision">
+    <text>Зрение</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_track_experienced">
+    <text>Захват цели: опытный</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_track_experienced_desc">
+    <text>Насколько плотно ствол опытного ранга удерживает движущуюся цель. Выше значение удерживает плотнее, труднее уклониться.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_track_expert">
+    <text>Захват цели: эксперт</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_track_expert_desc">
+    <text>Насколько плотно ствол ранга эксперт удерживает движущуюся цель. Выше значение удерживает плотнее, труднее уклониться.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_track_legend">
+    <text>Захват цели: легенда</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_track_legend_desc">
+    <text>Насколько плотно ствол ранга легенды, высшего ранга, удерживает движущуюся цель. 0.40 удерживает на протяжении всего окна стрельбы, намного ниже хардкорного аимбота игры 17.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_track_master">
+    <text>Захват цели: мастер</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_track_master_desc">
+    <text>Насколько плотно ствол ранга мастер удерживает движущуюся цель. Выше значение удерживает плотнее, труднее уклониться.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_track_novice">
+    <text>Захват цели: новичок</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_track_novice_desc">
+    <text>Насколько плотно ствол новичка удерживает движущуюся цель, ширина полосы захвата в радианах. 0.196 соответствует ванили, где движущийся может сбить прицел.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_track_professional">
+    <text>Захват цели: профессионал</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_track_professional_desc">
+    <text>Насколько плотно ствол ранга профессионал удерживает движущуюся цель. Выше значение удерживает плотнее, труднее уклониться.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_track_trainee">
+    <text>Захват цели: стажёр</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_track_trainee_desc">
+    <text>Насколько плотно ствол стажёра удерживает движущуюся цель. Выше значение удерживает плотнее, труднее уклониться.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_track_veteran">
+    <text>Захват цели: ветеран</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_track_veteran_desc">
+    <text>Насколько плотно ствол ранга ветеран удерживает движущуюся цель. Выше значение удерживает плотнее, труднее уклониться.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vrange_experienced">
+    <text>Дальность зрения: опытный</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vrange_experienced_desc">
+    <text>Коэффициент дальности обнаружения для сталкеров опытного ранга. Выше начинает видеть цели с большего расстояния.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vrange_expert">
+    <text>Дальность зрения: эксперт</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vrange_expert_desc">
+    <text>Коэффициент дальности обнаружения для сталкеров ранга эксперт. Выше начинает видеть цели с большего расстояния.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vrange_legend">
+    <text>Дальность зрения: легенда</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vrange_legend_desc">
+    <text>Насколько далеко сталкер ранга легенды, высшего ранга, начинает замечать угрозу. Выше 1.00 видит дальше, 1.00 базовая линия вашей сборки. Требуется движковая привязка дальности зрения.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vrange_master">
+    <text>Дальность зрения: мастер</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vrange_master_desc">
+    <text>Коэффициент дальности обнаружения для сталкеров ранга мастер. Выше начинает видеть цели с большего расстояния.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vrange_novice">
+    <text>Дальность зрения: новичок</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vrange_novice_desc">
+    <text>Насколько далеко сталкер-новичок начинает замечать угрозу. Выше 1.00 видит дальше, 1.00 базовая линия вашей сборки. Требуется свежая сборка движка с привязкой дальности зрения для каждого сталкера, на старых неактивно.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vrange_professional">
+    <text>Дальность зрения: профессионал</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vrange_professional_desc">
+    <text>Коэффициент дальности обнаружения для сталкеров ранга профессионал. Выше начинает видеть цели с большего расстояния.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vrange_trainee">
+    <text>Дальность зрения: стажёр</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vrange_trainee_desc">
+    <text>Коэффициент дальности обнаружения для сталкеров ранга стажёр. Выше начинает видеть цели с большего расстояния.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vrange_veteran">
+    <text>Дальность зрения: ветеран</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vrange_veteran_desc">
+    <text>Коэффициент дальности обнаружения для сталкеров ранга ветеран. Выше начинает видеть цели с большего расстояния.</text>
+  </string>
 </string_table>

@@ -1,0 +1,34 @@
+=== VALIDATE (1 mods) ===
+
+AlifeTactics
+  luacheck... OK
+  selene... OK
+  contract... 1 pts (S+)
+    standards-nesting-depth LUA-LOW (1x1=1)
+        gamedata\scripts\at_world_trace.script:201: Nesting depth 3; max 2 
+(code-standards.md:125)
+    standards-single-letter-var LUA-STYLE (1x0.1=0.1)
+        gamedata\scripts\at_world_trace.script:172: Single-letter variable "d";
+use descriptive name
+    standards-inline-comment LUA-STYLE (1x0.1=0.1)
+        gamedata\scripts\at_world_trace.script:200: Inline comment; use good 
+naming instead
+  load... OK
+  redlint (docs)... 916 findings / 3 docs (3 pts: 3 style-capped)
+    regex.semicolon (232)
+    regex.non-ascii (232)
+    structure.long-line (164)
+    spacy.passive (94)
+    spacy.multi-clause (81)
+    spacy.rule-of-three (36)
+    regex.mechanism-jargon (24)
+    spacy.verbless (13)
+    regex.ing-opener (12)
+    regex.code-internal (11)
+    regex.punctuation (8)
+    regex.fluff (6)
+    regex.hedge (2)
+    spacy.early-wrap (1)
+
+========================================
+Grade: S+ - Score: 4
