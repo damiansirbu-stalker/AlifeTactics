@@ -134,6 +134,11 @@ local bd_types = {
 	[danger_object.enemy_sound]     = "enemy_sound",
 }
 
+-- Public name for a danger enum value, for the at_world_trace [DANGER-HELD] readout.
+function type_name(t)
+	return bd_types[t] or tostring(t)
+end
+
 -----------------------------------------------------------------------------
 -- 																PUBLIC
 -----------------------------------------------------------------------------

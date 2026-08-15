@@ -74,6 +74,8 @@ local WATCH_SEC   = 0.06
 local _slide = {}
 -- id -> { t0, x, z, anims0, drv0, maxd, walked }: the hit-triggered slide window (knockback catcher).
 local _watch = {}
+-- id -> { bt, src } last held danger, change-throttle for the [DANGER-HELD] line.
+local _dtrace = {}
 -- FAST (f009): per-id previous sample { x, z, t, logged } for the rate check, and the derived ceiling.
 -- The ceiling is the winning [stalker_movement_speeds] section's own maximum (ini_sys resolves the
 -- include chain, the at_noise config-read precedent) times a blend tolerance, derived once per enable.
@@ -163,6 +165,27 @@ local function _near(npc, ap)
     return (pos.x - ap.x) ^ 2 + (pos.z - ap.z) ^ 2 <= RADIUS_SQR
 end
 
+-- Log a near-actor NPC's currently held danger on change, so the alert NPC the player is looking at
+-- names its reason (corpse / grenade / sound) - including the alert-with-no-enemy case the combat
+-- census cannot see (it needs best_enemy). One line per new (type, source) per id; best_danger read live.
+local function _log_held_danger(npc, id, tg)
+    local d = npc:best_danger()
+    if not d then
+        _dtrace[id] = nil
+        return
+    end
+    local src = d:object()
+    local src_id = src and src:id() or -1
+    local bt = d:type()
+    local prev = _dtrace[id]
+    if prev and prev.bt == bt and prev.src == src_id then return end
+    _dtrace[id] = { bt = bt, src = src_id }
+    local dp, np = d:position(), npc:position()
+    log.debug("[DANGER-HELD] npc=%d name=%s bd=%s src=%d dist=%.0f age=%dms",
+        id, npc:name() or "?", at_danger.type_name(bt), src_id,
+        math_sqrt((dp.x - np.x) ^ 2 + (dp.z - np.z) ^ 2), tg - d:time())
+end
+
 -- The monitor pass: walk the combat NPCs near the actor, run the slide check, log only a real slide.
 local function _monitor()
     if not _enabled then return true end
@@ -172,12 +195,15 @@ local function _monitor()
     local ap, tg = ac:position(), time_global()
     for i = 1, #db.OnlineStalkers do
         local npc = xobject.go(db.OnlineStalkers[i])
-        if npc and IsStalker(npc) and npc:alive() and npc:best_enemy() and _near(npc, ap) then
+        if npc and IsStalker(npc) and npc:alive() and _near(npc, ap) then
             local id = npc:id()
-            local pos = npc:position()
-            local mt = npc:movement_type()
-            _check(npc, id, tg, pos, mt)
-            _check_speed(npc, id, tg, pos, mt)
+            _log_held_danger(npc, id, tg)  -- danger readout, also covers no-enemy alert NPCs
+            if npc:best_enemy() then
+                local pos = npc:position()
+                local mt = npc:movement_type()
+                _check(npc, id, tg, pos, mt)
+                _check_speed(npc, id, tg, pos, mt)
+            end
         end
     end
     return false
@@ -232,6 +258,7 @@ local function _on_unregister(se_obj)
     if not se_obj then return end
     local id = se_obj.id
     _slide[id], _watch[id], _speed[id] = nil, nil, nil
+    _dtrace[id] = nil
 end
 
 -- ---------------------------------------------------------------------------
