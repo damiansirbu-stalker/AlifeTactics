@@ -1,3 +1,10 @@
+next
+  Summary: Danger fix
+
+  Perception
+    Danger
+      - Fixed the danger scheme still evaluating a stalker after he died, which made the engine log a repeated visibility-check error until his body despawned.
+
 1.2.0
   Summary: Difficulty rebalance, Tracking Lock, Gear, Vision Range, Reload Cover, cover posture, Perception menu, maneuver fixes, Useful Idiots compatibility, Ballistics Overhaul compatibility
 
