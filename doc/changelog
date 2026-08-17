@@ -1,9 +1,21 @@
 next
-  Summary: Danger fix
+  Summary: Zombie stance, Gear toggles, Discipline menu, Danger fix
+
+  Combat
+    Conduct
+      - Zombied stalkers no longer take a tactical cover crouch on the firing line. They still duck from incoming fire.
+
+  Effectiveness
+    Discipline
+      - The fire discipline controls, burst size and fire cadence, now live on their own Discipline page under Effectiveness instead of the Reaction page.
 
   Perception
     Danger
       - Fixed the danger scheme still evaluating a stalker after he died, which made the engine log a repeated visibility-check error until his body despawned.
+
+  Mechanics
+    Gear
+      - Added a separate toggle for each gear effect: damage resistance, outgoing damage, aim steadiness, and health regeneration, each switchable on its own.
 
 1.2.0
   Summary: Difficulty rebalance, Tracking Lock, Gear, Vision Range, Reload Cover, cover posture, Perception menu, maneuver fixes, Useful Idiots compatibility, Ballistics Overhaul compatibility

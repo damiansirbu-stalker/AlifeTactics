@@ -73,11 +73,11 @@
   <string id="ui_mcm_menu_reaction">
     <text>Reaction</text>
   </string>
+  <string id="ui_mcm_menu_discipline">
+    <text>Discipline</text>
+  </string>
   <string id="ui_mcm_menu_range">
     <text>Range</text>
-  </string>
-  <string id="ui_mcm_menu_resistance">
-    <text>Resistance</text>
   </string>
   <!-- ==================== PLANNED PAGE DESCRIPTIONS ==================== -->
   <string id="ui_mcm_at_behaviors_desc">
@@ -93,16 +93,16 @@
     <text>Cover posture</text>
   </string>
   <string id="ui_mcm_at_conduct_conduct_posture_desc">
-    <text>Experienced riflemen and snipers crouch to steady the shot when the line to the enemy is clear, and stand to fire over low cover that would block a crouched shot. Vanilla picks its combat posture blind, so stalkers crouch behind bumps and fire into them, or stand tall in the open where a crouch would steady the aim. The decision reads the game's own cover map toward the enemy. Short-weapon carriers and green ranks keep vanilla behavior.</text>
+    <text>Experienced riflemen and snipers crouch to steady the shot when the line to the enemy is clear, and stand to fire over low cover that would block a crouched shot. Vanilla picks its combat posture blind, so stalkers crouch behind bumps and fire into them, or stand tall in the open where a crouch would steady the aim. The decision reads the game's own cover map toward the enemy. Short-weapon carriers and green ranks keep vanilla behavior. Zombified stalkers are held upright and never take a deliberate firing-line crouch.</text>
   </string>
   <string id="ui_mcm_at_reaction_desc">
-    <text>Stalker rank decides how tightly a stalker's gun tracks a moving target and how fast it spots a target at range. Tracking speed changes gun handling on a moving target; it does not make the first shot come sooner. Target lead and a per-rank trigger curve are planned. Requires a recent engine build with the per-stalker aim and vision binds; on older builds the page has no effect and vanilla behavior applies.</text>
+    <text>Stalker rank decides how tightly a stalker's gun tracks a moving target and how far ahead of a running one it aims. Tracking changes gun handling on a moving target; it does not make the first shot come sooner. Target lead sets how far ahead of a runner the shots fall, tightening with rank. Requires a recent engine build with the per-stalker aim binds; on older builds the page has no effect and vanilla behavior applies.</text>
+  </string>
+  <string id="ui_mcm_at_discipline_desc">
+    <text>Stalker rank decides how a stalker works the trigger: how long each burst runs and how often it fires. Higher ranks fire crisper short bursts more often; low ranks stay vanilla. The defaults keep hits per minute at or above vanilla at every rank. Requires a recent engine build with the per-stalker fire-queue bind; on older builds the page has no effect and vanilla behavior applies.</text>
   </string>
   <string id="ui_mcm_at_range_desc">
     <text>Planned: engagement distance. The game stops NPC fights at a hard range cap regardless of weapon, so a sniper never fires at the distances his rifle exists for, and a stalker sniped from beyond the cap can duck (the Danger hit response) but never answer. This page will let long-range NPCs answer and initiate at their weapon's real reach. Nothing to configure yet.</text>
-  </string>
-  <string id="ui_mcm_at_resistance_desc">
-    <text>Planned: NPC toughness from what they carry - armor and equipment, damage mitigators, and artefacts. Nothing to configure yet.</text>
   </string>
   <string id="ui_mcm_at_effects_desc">
     <text>Planned: player-facing combat feedback, concussion first. Nothing to configure yet.</text>
@@ -980,11 +980,29 @@
   <string id="ui_mcm_at_gear_gear_enabled_desc">
     <text>On: carried artefacts and equipment give their stalker the effects described above. Off: inventory items stay inert loot, exact vanilla.</text>
   </string>
-  <string id="ui_mcm_at_gear_gear_artefacts_enabled">
-    <text>Artefact effects</text>
+  <string id="ui_mcm_at_gear_gear_resist_enabled">
+    <text>Damage resistance</text>
   </string>
-  <string id="ui_mcm_at_gear_gear_artefacts_enabled_desc">
-    <text>On: carried artefacts and armor inserts give their stalker the combat effects described above. Off: artefacts stay inert; binoculars and night-vision keep their own toggles.</text>
+  <string id="ui_mcm_at_gear_gear_resist_enabled_desc">
+    <text>On: carried armor inserts and shielding artefacts reduce the incoming damage their stalker takes. Off: no gear resistance.</text>
+  </string>
+  <string id="ui_mcm_at_gear_gear_dealt_enabled">
+    <text>Outgoing damage</text>
+  </string>
+  <string id="ui_mcm_at_gear_gear_dealt_enabled_desc">
+    <text>On: charged and special artefacts raise the damage their carrier's shots deal. Off: no gear damage bonus.</text>
+  </string>
+  <string id="ui_mcm_at_gear_gear_disp_enabled">
+    <text>Aim steadiness</text>
+  </string>
+  <string id="ui_mcm_at_gear_gear_disp_enabled_desc">
+    <text>On: thermal artefacts tighten their carrier's shot grouping. Off: no gear accuracy bonus.</text>
+  </string>
+  <string id="ui_mcm_at_gear_gear_regen_enabled">
+    <text>Health regeneration</text>
+  </string>
+  <string id="ui_mcm_at_gear_gear_regen_enabled_desc">
+    <text>On: chemical artefacts feed their carrier a passive health restore. Off: no gear regeneration.</text>
   </string>
   <string id="ui_mcm_at_gear_gear_aura_enabled">
     <text>Artefact distortion</text>

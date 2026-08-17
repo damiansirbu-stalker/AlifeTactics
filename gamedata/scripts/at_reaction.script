@@ -18,7 +18,9 @@ local cfg = at_mcm.cfg
 -- the hardcore-aim option bound the aim/lead curves, the installed-baseline rule bounds vision).
 -- Resolution order per key (aim, lead, and vision alike): MCM slider (when the player moved it,
 -- defaults fed from the same LTX) -> LTX -> the script fallbacks below (missing key/file only, the
--- repo-wide LTX convention). Each curve has its own rct_* slider set and its own enable toggle.
+-- repo-wide LTX convention). Each curve has its own rct_* slider set; the enable toggles are grouped:
+-- aim_enabled covers aim speed and tracking lock (one set_aim_params call), lead_enabled the lead,
+-- vision_enabled vision, discipline_enabled burst and cadence.
 local CONFIG_PATH    = "alifetactics\\at_reaction.ltx"
 local CONFIG_SECTION = "at_reaction"
 

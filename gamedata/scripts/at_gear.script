@@ -149,24 +149,23 @@ end
 -- =========================================================================
 
 local function _p_dealt(npc)
-    if not (cfg.gear_enabled and cfg.gear_artefacts_enabled) then return nil end
+    if not (cfg.gear_enabled and cfg.gear_dealt_enabled) then return nil end
     local record = _carrier_record(npc)
     if not (record and record.combat and record.dealt > 0) then return nil end
     return 1 + record.dealt
 end
 
 local function _p_resist(npc)
-    if not cfg.gear_enabled then return nil end
+    if not (cfg.gear_enabled and cfg.gear_resist_enabled) then return nil end
     local record = _carrier_record(npc)
     if not (record and record.combat) then return nil end
-    local strength = record.plate
-    if cfg.gear_artefacts_enabled and record.resist > strength then strength = record.resist end
+    local strength = math_max(record.plate, record.resist)
     if strength <= 0 then return nil end
     return 1 - strength
 end
 
 local function _p_disp(npc)
-    if not (cfg.gear_enabled and cfg.gear_artefacts_enabled) then return nil end
+    if not (cfg.gear_enabled and cfg.gear_disp_enabled) then return nil end
     local record = _carrier_record(npc)
     if not (record and record.combat and record.disp > 0) then return nil end
     return 1 - record.disp
@@ -204,7 +203,7 @@ end
 -- The engine field is not serialized, so it is re-set on every net_spawn.
 local function _apply_regen(npc)
     if not (npc and _has_n039(npc)) then return end
-    if not (cfg.gear_enabled and cfg.gear_artefacts_enabled) then
+    if not (cfg.gear_enabled and cfg.gear_regen_enabled) then
         xcombat.set_health_restore_boost(npc, 0)
         return
     end
@@ -278,10 +277,11 @@ local function _load_config()
 end
 
 local function _on_first_update()
-    at_debug.info("Gear source initialized (enabled=%s artefacts=%s aura=%s binoc=%s nvg=%s regen_bind=%s)",
-        cfg.gear_enabled and "on" or "off", cfg.gear_artefacts_enabled and "on" or "off",
-        cfg.gear_aura_enabled and "on" or "off", cfg.gear_binoc_enabled and "on" or "off",
-        cfg.gear_nvg_enabled and "on" or "off", _n039 and "on" or "off/unprobed")
+    local function s(b) return b and "on" or "off" end
+    at_debug.info("Gear source initialized (enabled=%s resist=%s dealt=%s disp=%s regen=%s aura=%s binoc=%s nvg=%s regen_bind=%s)",
+        s(cfg.gear_enabled), s(cfg.gear_resist_enabled), s(cfg.gear_dealt_enabled),
+        s(cfg.gear_disp_enabled), s(cfg.gear_regen_enabled), s(cfg.gear_aura_enabled),
+        s(cfg.gear_binoc_enabled), s(cfg.gear_nvg_enabled), _n039 and "on" or "off/unprobed")
 end
 
 function on_game_start()

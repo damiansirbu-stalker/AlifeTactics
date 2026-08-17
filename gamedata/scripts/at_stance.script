@@ -42,8 +42,8 @@ function crouched(id)
     local dec = _decision[id]
     return dec ~= nil and dec.want == move.crouch
 end
--- npc id -> tier-and-community eligibility, static per NPC life (the at_reaction _tier_cache
--- shape); saves a rank read + community read per engine ask. Dropped on entity unregister.
+-- npc id -> tier-and-roll eligibility, static per NPC life (the at_reaction _tier_cache
+-- shape); saves a rank read per engine ask. Dropped on entity unregister.
 local _eligible = {}
 
 -- hold_position ONLY (built lazily - stalker_ids is absent in the validator stub). The 2026-07-28
@@ -82,30 +82,39 @@ local function _decide(npc, enemy)
     return move.crouch, true
 end
 
--- Tier, community, and the crouch-disposition roll, cached once per NPC.
+-- Tier and the crouch-disposition roll, cached once per NPC. Community is decided by the caller
+-- (zombied are controlled to a forced STAND on a separate branch), so it is not re-checked here.
 -- @cost O(1) after the first call per id
 local function _is_eligible(npc, id)
     local ok = _eligible[id]
     if ok == nil then
-        ok = xcreature.community(npc) ~= "zombied"
-            and POSTURE_TIERS[ranks.get_obj_rank_name(npc) or ""] == true
+        ok = POSTURE_TIERS[ranks.get_obj_rank_name(npc) or ""] == true
             and math_random() < CROUCH_CHANCE
         _eligible[id] = ok
     end
     return ok
 end
 
--- Answer one engine body-state ask with the HELD posture, re-deciding at most once per DECIDE_MS
--- (early on a combat-op change). Overrides vanilla's pick in BOTH directions: its blind crouch on
--- a bump is the 1.0.0 bug; its stand next to chest-high cover wastes the stillness accuracy gain.
--- @cost O(1) | per ask: 1 cached kind read + table reads; the geometry runs only on re-decides
+-- Answer one engine body-state ask with the HELD posture, re-deciding at most once per DECIDE_MS.
+-- Overrides vanilla's pick in BOTH directions: its blind crouch on a bump is the 1.0.0 bug; its stand
+-- next to chest-high cover wastes the stillness accuracy gain. Zombied are controlled too, to a forced
+-- STAND, through this SAME held/freeze/trace path - a decision, not a bypass.
+-- @cost O(1) | per ask: 1 community read + (non-zombied) 1 kind read + table reads; geometry runs only on re-decides
 local function _on_combat_body_state(npc, world_operator, _body_state, flags)
     if not cfg.conduct_posture then return end
     if not _ops()[world_operator] then return end
-    local kind = xcombat.get_weapon_kind(npc)
-    if not (kind and LONG_KINDS[kind]) then return end
+    -- Two control policies at the stationary op, one shared decision path below. A zombie is forced
+    -- upright: a mindless shambler never holds a deliberate firing-line crouch (any weapon; the crouch
+    -- path is long-weapon only). An eligible long-weapon veteran crouches or stands by the crouch-shot
+    -- ray. Everyone else is left to vanilla. The danger-duck (at_danger, a direct set_body_state on a
+    -- startle) is a reaction, not deliberate posture, and is untouched here.
     local id = npc:id()
-    if not _is_eligible(npc, id) then return end
+    local zombied = xcreature.community(npc) == "zombied"
+    if not zombied then
+        local kind = xcombat.get_weapon_kind(npc)
+        if not (kind and LONG_KINDS[kind]) then return end
+        if not _is_eligible(npc, id) then return end
+    end
     local enemy = npc:best_enemy()
     if not (enemy and enemy:alive()) then return end
     local tg = time_global()
@@ -132,12 +141,19 @@ local function _on_combat_body_state(npc, world_operator, _body_state, flags)
     -- DECIDE_MS is the contract.
     if not (held and (tg - held.at) < DECIDE_MS) then
         local prev_want = held and held.want
-        local want, crouch_clear = _decide(npc, enemy)
+        -- Zombied are forced upright; everyone else is decided by the crouch-shot ray.
+        local want, crouch_clear
+        if zombied then
+            want, crouch_clear = move.stand, false
+        else
+            want, crouch_clear = _decide(npc, enemy)
+        end
         held = { at = tg, op = world_operator, want = want }
         _decision[id] = held
         if at_debug.on() and want ~= prev_want then
-            at_debug.dbg("[STANCE] id=%d op=%s crouch_shot=%s -> %s", id, tostring(world_operator),
-                tostring(crouch_clear), want == move.crouch and "crouch" or "stand")
+            at_debug.dbg("[STANCE] id=%d op=%s zombied=%s crouch_shot=%s -> %s", id,
+                tostring(world_operator), tostring(zombied), tostring(crouch_clear),
+                want == move.crouch and "crouch" or "stand")
         end
     end
     flags.body_state = held.want

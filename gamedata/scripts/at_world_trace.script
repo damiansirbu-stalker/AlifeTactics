@@ -169,21 +169,34 @@ end
 -- names its reason (corpse / grenade / sound) - including the alert-with-no-enemy case the combat
 -- census cannot see (it needs best_enemy). One line per new (type, source) per id; best_danger read live.
 local function _log_held_danger(npc, id, tg)
-    local d = npc:best_danger()
-    if not d then
+    local danger = npc:best_danger()
+    if not danger then
         _dtrace[id] = nil
         return
     end
-    local src = d:object()
+    local src = danger:object()
     local src_id = src and src:id() or -1
-    local bt = d:type()
+    local bt = danger:type()
     local prev = _dtrace[id]
     if prev and prev.bt == bt and prev.src == src_id then return end
     _dtrace[id] = { bt = bt, src = src_id }
-    local dp, np = d:position(), npc:position()
+    local dp, np = danger:position(), npc:position()
     log.debug("[DANGER-HELD] npc=%d name=%s bd=%s src=%d dist=%.0f age=%dms",
         id, npc:name() or "?", at_danger.type_name(bt), src_id,
-        math_sqrt((dp.x - np.x) ^ 2 + (dp.z - np.z) ^ 2), tg - d:time())
+        math_sqrt((dp.x - np.x) ^ 2 + (dp.z - np.z) ^ 2), tg - danger:time())
+end
+
+-- Per-NPC monitor body: guard, log held danger (also covers no-enemy alert NPCs), and run the slide
+-- checks only when the NPC has a live enemy. Guard-clause returns keep this flat.
+local function _monitor_one(npc, ap, tg)
+    if not (npc and IsStalker(npc) and npc:alive() and _near(npc, ap)) then return end
+    local id = npc:id()
+    _log_held_danger(npc, id, tg)
+    if not npc:best_enemy() then return end
+    local pos = npc:position()
+    local mt = npc:movement_type()
+    _check(npc, id, tg, pos, mt)
+    _check_speed(npc, id, tg, pos, mt)
 end
 
 -- The monitor pass: walk the combat NPCs near the actor, run the slide check, log only a real slide.
@@ -194,17 +207,7 @@ local function _monitor()
     if not ac then return false end
     local ap, tg = ac:position(), time_global()
     for i = 1, #db.OnlineStalkers do
-        local npc = xobject.go(db.OnlineStalkers[i])
-        if npc and IsStalker(npc) and npc:alive() and _near(npc, ap) then
-            local id = npc:id()
-            _log_held_danger(npc, id, tg)  -- danger readout, also covers no-enemy alert NPCs
-            if npc:best_enemy() then
-                local pos = npc:position()
-                local mt = npc:movement_type()
-                _check(npc, id, tg, pos, mt)
-                _check_speed(npc, id, tg, pos, mt)
-            end
-        end
+        _monitor_one(xobject.go(db.OnlineStalkers[i]), ap, tg)
     end
     return false
 end

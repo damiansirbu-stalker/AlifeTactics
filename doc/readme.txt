@@ -122,14 +122,11 @@ Target Lead aims a stalker ahead of a moving target by the round's real flight t
 Higher ranks lead true and hit movers, lower ranks over-lead and overshoot.
 Fire Discipline gives higher ranks crisper short bursts at a tighter cadence while low ranks stay vanilla. Defaults keep a rank's rounds per minute at or above vanilla.
 Tracking Speed, Tracking Lock, Target Lead, and Fire Discipline are per-rank MCM slider curves. Speed and Lock share one on/off, Lead and Discipline each carry their own.
-The two rank vision curves moved to the Perception tab below.
+The two rank vision curves moved to the Perception tab below. Fire Discipline is on its own Discipline tab.
 
 Range (planned):
 The game stops NPC fights at a hard range cap regardless of weapon, so a sniper never fires at the distances his rifle exists for.
 A stalker sniped from beyond the cap can duck, which is the Danger hit response, but never answer. This page will let long-range NPCs answer and initiate at their weapon's real reach.
-
-Resistance (planned):
-NPC toughness comes from what they carry: armor and equipment, damage mitigators, and artefacts.
 
 Perception
 
