@@ -529,6 +529,7 @@ local function script_action_danger_scripted(npc,st)
 	-- up) instead of "assault". Absent strength (foreign set_script_danger callers): the original
 	-- assault path, byte-identical.
 	local strength = script_danger[id].strength
+	if at_debug.on() then at_debug.dbg("scripted danger reaction npc=%s strength=%s", npc:name(), tostring(strength)) end
 	if (strength == "faint") then
 		state_mgr.set_state(npc,"threat_na",nil,nil,{look_position = bdo_pos},{fast_set = true})
 		return

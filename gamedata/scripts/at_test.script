@@ -665,12 +665,11 @@ end
 --- @export console
 function at_dump()
     if not db.actor then return end
-    local count = 0
-    at_disclosure.iterate_disclosed(function(squad_id, shooter_count)
-        count = count + 1
-        at_debug.info("[DUMP] squad=%d shooters=%d", squad_id, shooter_count)
-    end)
-    _tip(string_format("AT.TEST: %d disclosed-squad records (see alifetactics.log)", count))
+    local stats = at_disclosure.get_stats()
+    at_debug.info("[DUMP] disclosure hits=%d loud=%d stamps=%d victim_seeds=%d redirect=%s",
+        stats.hits, stats.loud, stats.stamps, stats.victim_seeds, tostring(stats.has_redirect))
+    _tip(string_format("AT.TEST: hits=%d loud=%d stamps=%d redirect=%s (see alifetactics.log)",
+        stats.hits, stats.loud, stats.stamps, tostring(stats.has_redirect)))
 end
 
 -- Combat telemetry dump removed: the DEBUG alifetactics.log already carries the per-decision

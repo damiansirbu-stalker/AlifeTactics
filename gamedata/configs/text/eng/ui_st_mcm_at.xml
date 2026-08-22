@@ -116,37 +116,28 @@
   </string>
   <!-- ==================== DISCLOSURE PAGE ==================== -->
   <string id="ui_mcm_at_disclosure_desc">
-    <text>Wound one member of a squad and the whole squad learns the shooter at once, including patrol members out of earshot and against a suppressed weapon. Vanilla shares only a shooter the squadmates heard. AlifeTactics enables the shooter in every member's memory and registers the squad into combat, then the engine's own propagation carries it. On a recent engine build the shooter also enters their seen memory, the class their target selection ranks first, so the squad actually turns on you instead of staying locked on a distant visible enemy. No relations are faked. The survivor gate below keeps a clean instant kill quiet, and the squad can still find the body.</text>
+    <text>A suppressed hit is a signal, not a broadcast. The victim turns on the shooter through the engine's own target selection, and only squadmates close enough to hear the impact walk over to investigate the position, opening fire when they actually spot him. A loud shot needs no script: the whole area hears it on its own. A clean instant kill tells no one, and the squad can still find the body. No relations are faked, no memory is injected.</text>
   </string>
   <string id="ui_mcm_at_disclosure_disclosure_enabled">
     <text>Enable Disclosure</text>
   </string>
   <string id="ui_mcm_at_disclosure_disclosure_enabled_desc">
-    <text>When off, vanilla behavior runs unmodified: squadmates learn about a shooter only within earshot, and distant patrol members never do.</text>
+    <text>When off, vanilla behavior runs unmodified: no victim turn, no squad investigate; NPCs react only to what the engine lets them hear and see.</text>
   </string>
   <string id="ui_mcm_at_disclosure_disclosure_turn">
     <text>Turn on the shooter</text>
   </string>
   <string id="ui_mcm_at_disclosure_disclosure_turn_desc">
-    <text>The disclosed shooter enters each member's seen memory, the class their target selection ranks first, so the squad actually turns on him instead of staying locked on a distant visible enemy. Off keeps the softer disclosure: they know the shooter and can engage, but a seen enemy still outranks him. Needs a recent engine build; inactive on older ones.</text>
+    <text>A hit victim prioritizes a close attacker in his target selection: the real "he hit me" signal outweighs a distant visible enemy, so he turns and returns fire the moment he has line of sight. Nothing is revealed through walls. Needs a recent engine build; inactive on older ones.</text>
   </string>
-  <string id="ui_mcm_at_disclosure_hdr_survivor">
-    <text>Stealth</text>
+  <string id="ui_mcm_at_disclosure_hdr_selection">
+    <text>Target priority</text>
   </string>
-  <string id="ui_mcm_at_disclosure_disclosure_survivor_gate">
-    <text>Suppress disclosure on kill</text>
+  <string id="ui_mcm_at_disclosure_selection_actor_bias">
+    <text>Player target pull</text>
   </string>
-  <string id="ui_mcm_at_disclosure_disclosure_survivor_gate_desc">
-    <text>When the hit kills the victim outright, the shooter is not disclosed. The dying man never gets to radio it in, so silenced shots and backstabs stay quiet. The squad can still find you the hard way: by sound, by sight, or by the body. A hit that only wounds discloses as usual.</text>
-  </string>
-  <string id="ui_mcm_at_hdr_retention">
-    <text>Retention</text>
-  </string>
-  <string id="ui_mcm_at_disclosure_disclosure_retention_min">
-    <text>Forget shooter after (game min)</text>
-  </string>
-  <string id="ui_mcm_at_disclosure_disclosure_retention_min_desc">
-    <text>Game minutes without new hits before a squad forgets a shooter. The next hit re-fires the full-squad alert. Game time, not real time.</text>
+  <string id="ui_mcm_at_disclosure_selection_actor_bias_desc">
+    <text>How strongly an NPC prioritizes you as a target once you can see him, against the weaker pull other NPCs get. Lower values treat you like any other combatant; 0 removes the pull entirely. Needs a recent engine build; inactive on older ones.</text>
   </string>
   <!-- ==================== HEALING PAGE ==================== -->
   <string id="ui_mcm_at_healing_desc">

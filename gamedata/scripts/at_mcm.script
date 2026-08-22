@@ -3,8 +3,7 @@
 local defaults = {
     disclosure_enabled        = true,
     disclosure_turn           = true,
-    disclosure_retention_min  = 2,
-    disclosure_survivor_gate  = true,
+    selection_actor_bias      = 900,
     healing_enabled           = true,
     heal_rate_multiplier      = 1.0,
     charge_chance_novice      = 50,
@@ -152,8 +151,7 @@ local RegisterScriptCallback = RegisterScriptCallback
 local _key_to_tab = {
     disclosure_enabled        = "effectiveness/disclosure",
     disclosure_turn           = "effectiveness/disclosure",
-    disclosure_retention_min  = "effectiveness/disclosure",
-    disclosure_survivor_gate  = "effectiveness/disclosure",
+    selection_actor_bias      = "effectiveness/disclosure",
     healing_enabled           = "mechanics/healing",
     heal_rate_multiplier      = "mechanics/healing",
     charge_chance_novice      = "mechanics/healing",
@@ -502,13 +500,9 @@ function on_mcm_load()
                             { id = "disclosure_enabled", type = "check", val = 1, def = true, hint = "at_disclosure_disclosure_enabled" },
                             { id = "disclosure_turn", type = "check", val = 1, def = true, hint = "at_disclosure_disclosure_turn" },
 
-                            { id = "div_survivor", type = "line" },
-                            { id = "hdr_survivor", type = "desc", text = "ui_mcm_at_disclosure_hdr_survivor", clr = {255, 200, 200, 200} },
-                            { id = "disclosure_survivor_gate", type = "check", val = 1, def = true, hint = "at_disclosure_disclosure_survivor_gate" },
-
-                            { id = "div_retention", type = "line" },
-                            { id = "hdr_retention", type = "desc", text = "ui_mcm_at_hdr_retention", clr = {255, 200, 200, 200} },
-                            { id = "disclosure_retention_min", type = "track", val = 2, min = 1, max = 30, step = 1, def = 2, hint = "at_disclosure_disclosure_retention_min" },
+                            { id = "div_selection", type = "line" },
+                            { id = "hdr_selection", type = "desc", text = "ui_mcm_at_disclosure_hdr_selection", clr = {255, 200, 200, 200} },
+                            { id = "selection_actor_bias", type = "track", val = 2, min = 0, max = 900, step = 50, def = 900, hint = "at_disclosure_selection_actor_bias" },
                         },
                     },
                     {

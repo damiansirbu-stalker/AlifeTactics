@@ -1,6 +1,6 @@
 # AlifeTactics Architecture
 
-Combat AI mod for STALKER Anomaly. Every system works the same way: it reads the real state of the game (combat events, NPC and player stats, the world, squad, faction, weapons, range, angle, cover) and makes an intelligent decision from it, in the combatant's favor, instead of a script or a die roll. The user-facing systems: a hit-share force-disclosure, a self-heal data + animation layer, a per-rank weapon accuracy curve plus reaction (aim and vision) curves, a danger scheme that layers bug fixes and toggleable improvements onto whichever xr_danger a modpack ships (a runtime patch, not a file override), an intermittent combat takeover that borrows a stalker for one authoritative maneuver the vanilla engine has no mechanism for, and Commitment, a veto that keeps a stalker on a decision that still makes sense instead of the engine's constant re-planning. The takeover overrides zero vanilla combat files, so it works with other combat AI, not against it. The direction is that every layer hooks into the engine and decides intelligently. Where more than one source feeds a single per-NPC value the engine writes once - the damage on a hit, the dispersion on a shot, the vision range at spawn, the carrier aura - a deliberate shared substrate, the effects resolver (`at_effects_resolver.script`), combines those sources highest-wins so they never clash; a value only one source feeds stays in its owning module and writes itself, never touching the resolver.
+Combat AI mod for STALKER Anomaly. Every system works the same way: it reads the real state of the game (combat events, NPC and player stats, the world, squad, faction, weapons, range, angle, cover) and makes an intelligent decision from it, in the combatant's favor, instead of a script or a die roll. The user-facing systems: a hit-victim turn with a bounded squad investigate (disclosure), a self-heal data + animation layer, a per-rank weapon accuracy curve plus reaction (aim and vision) curves, a danger scheme that layers bug fixes and toggleable improvements onto whichever xr_danger a modpack ships (a runtime patch, not a file override), an intermittent combat takeover that borrows a stalker for one authoritative maneuver the vanilla engine has no mechanism for, and Commitment, a veto that keeps a stalker on a decision that still makes sense instead of the engine's constant re-planning. The takeover overrides zero vanilla combat files, so it works with other combat AI, not against it. The direction is that every layer hooks into the engine and decides intelligently. Where more than one source feeds a single per-NPC value the engine writes once - the damage on a hit, the dispersion on a shot, the vision range at spawn, the carrier aura - a deliberate shared substrate, the effects resolver (`at_effects_resolver.script`), combines those sources highest-wins so they never clash; a value only one source feeds stays in its owning module and writes itself, never touching the resolver.
 
 Built on xlibs (xsquad, xttltable, xtime, xprofiler, xlog, xmcm, xslice, xcreature).
 
@@ -105,7 +105,7 @@ AlifeTactics/
 │   │   ├── at_stance.script                   # Combat > Conduct (cover posture)
 │   │   ├── at_accuracy.script                 # Effectiveness > Accuracy
 │   │   ├── at_reaction.script                 # Effectiveness > Reaction (aim, lead) + Discipline (fire discipline); vision curves -> Perception > Vision
-│   │   ├── at_disclosure.script               # Effectiveness > Disclosure (hit-share force-disclosure)
+│   │   ├── at_disclosure.script               # Effectiveness > Disclosure (victim turn + squad investigate)
 │   │   ├── at_danger.script                   # Effectiveness > Danger (danger scheme fn-patch)
 │   │   ├── at_noise.script                    # Danger > Sound (movement + handling noise hearing)
 │   │   ├── at_crossfire.script                # Effectiveness > Crossfire (friendly-fire damage block)
@@ -384,75 +384,51 @@ On an exe without the binds both wrappers return false and Reaction logs INACTIV
 
 ## Disclosure
 
-MCM page: Effectiveness > Disclosure (`at_disclosure.script`). Hooks `npc_on_hit_callback`. When a faction-enemy hits any squad member, the entire squad is force-disclosed to the shooter on hit #1. Extends the engine's audio-range squad disclosure to distant patrol members and suppressed-weapon victims.
+MCM page: Effectiveness > Disclosure (`at_disclosure.script`). The hit-victim turn plus a bounded squad investigate on suppressed attacks, all through engine perception and selection - no relation writes, no memory injection, no squad-wide combat-mask forcing. The earlier force-disclosure model (squad-wide `disclose_enemy` on hit #1, retention map, spawn inherit, shooter re-disclose) is retired: it force-ENGAGED distant patrol members with no perceptual basis, and its victim-turn leg (`make_enemy_visible`) was disproven at source - `make_object_visible_somewhen` saves and RESTORES the prior visible bit (`memory_manager.cpp:355,361`), so for an unseen shooter the "seen" promotion was a no-op and selection still ranked him ~1000 behind any seen enemy. The module also hosts the target-priority fairness dial (the player-magnet bias).
 
 ### The flow
 
 ```
-npc_on_hit_callback (a faction enemy hits a stalker)
-  -> gate: amount > 0, shooter exists, not a self-hit, is_factions_enemies
-  -> key = squad id, or the victim's own id when squadless
-  -> survivor gate on: defer one frame, drop the disclosure if the hit killed
-  -> first hit for (key, shooter): xcombat.disclose_enemy per online member
-         enable_memory_object + register_in_combat
-         (the engine's own memory propagation carries it from there)
-     repeat hit: refresh the timestamp, nothing else
-  -> decay tick (5s): prune shooters idle past the retention window
-spawn: a new member inherits the squad's live disclosures;
-       a returning offline shooter is re-disclosed to every tracking squad
+npc_on_net_spawn (stalker, non-zombied)
+  -> xcombat.set_hit_redirect(npc, 900, 60)      when Disclosure + Turn are on, else (-1) = vanilla
+  -> xcombat.set_visible_enemy_bias(npc, dial, -1)   the player-pull dial, npc side vanilla
+
+npc_on_hit_callback (any hit on a stalker)
+  -> gate: enabled, not from_death_callback, amount > 0, not self, victim not zombied,
+           npc:relation(who) >= 2 (per-NPC hostility, not community)
+  -> loud shot (unsuppressed stalker/actor weapon): return - engine gunfire hearing owns it
+  -> defer one frame: victim dead -> nothing (native death sound / corpse discovery own it)
+     victim alive:
+       floor exe + Turn on -> scripted danger at the KNOWN shooter position + register_in_combat
+                              (victim only - the S1 fallback turn)
+       squadmates within earshot of the victim -> xr_danger.set_script_danger(member, ..., "solid")
+                              (walk-investigate the shooter position; engage only on real perception)
 ```
 
-### What the engine does natively on hit
+### The victim turn: a standing selection lever, not a memory write
 
-1. Hit registered → `CHitMemoryManager::add` creates a hit_memory entry on the victim (`hit_memory_manager.cpp:95-163`).
-2. Friendly-fire filter: returns early if `tfGetRelationType(who) == eRelationTypeFriend` (`hit_memory_manager.cpp:127`).
-3. Victim plays hurt sound → `eStalkerSoundCry` / `eStalkerSoundAlarm`.
-4. Audio-range squadmates hear the sound → their `sound_memory_manager` promotes the source into their hit_memory (`sound_memory_manager.cpp:188`).
-5. `enemy_manager` picks the shooter as a selected enemy → combat planner activates → `register_in_combat()` flips the member's squad_mask bit (`stalker_combat_planner.cpp:172`).
-6. `agent_memory_manager` propagates memory entries across all combat-active squadmates each tick (`agent_memory_manager.cpp:33-42`), gated by combat_mask intersection.
+`npc:set_hit_redirect(max, falloff)` (PR #636, merged; `enemy_manager.cpp:149-167`) scales the engine's own "this object hit me" term in `CEnemyManager::evaluate`: the last attacker (`memory().hit().last_hit_object_id()`) within `falloff` metres gets up to `max` subtracted from its cost, decaying to zero at `falloff`. At 900/60 (probe-proven) a close attacker outranks a fully-visible distant enemy, so the victim flips SELECTION on the real hit signal - even a victim already committed to another enemy, which no script-side seed can reach. Nothing stamps a sighting: `fire_make_sense` still requires real line of sight or a genuine last-seen, so there is no through-cover fire and no wallhack. The lever is standing per-NPC engine state, written once per online at `npc_on_net_spawn` (not serialized, the enemy manager is rebuilt on re-online); MCM off writes the -1 sentinel = the vanilla -5/-100 hit step. Zombied keep vanilla selection.
 
-**The engine's native squad disclosure is bounded by audible reach.** Distant patrol squadmates outside sound range, or squadmates against a suppressed weapon, never enter combat_mask and never receive the propagated memory.
+**Floor exes** (no bind): the S1 fallback runs per admitted hit - `xr_danger.set_script_danger` at the KNOWN shooter position (the danger action's look order wins because the danger action is the selected action - an ordered `set_sight` would lose arbitration to the committed enemy's sight) plus `xcombat.register_in_combat`. Ceiling, documented: a victim already fighting another enemy stays on his fight (the danger scheme yields to combat); only the selection lever reaches him.
 
-### What we add on top
+### The squad half: investigate, not engage
 
-1. Sanity guards: `amount > 0`, `who` exists, not self-hit.
-2. **Faction-relation gate** via `game_relations.is_factions_enemies(npc_community, shooter_community)`. Same-community hits rejected. Mirrors the engine's friendly-fire skip at our hook entry.
-3. Resolve the disclosure key: the squad id via `get_object_squad(npc)`, or the victim's own id when squadless - a solo victim discloses to himself (squad and NPC server ids share one id space, so the map never collides).
-4. Write/refresh timestamp: `_disclosed[key][shooter_id] = xtime.game_sec()`. Every hit refreshes.
-5. If the entry existed before the write (idempotency hit): return. This audience already engaged this shooter in this fight.
-6. Otherwise (first hit, or first hit since decay): `xcombat.disclose_enemy` per online squadmate (or the solo victim). Relation-clean - no goodwill or community write; the enemy_manager engages the injected object because faction enmity already holds (`is_relation_enemy` via the faction-dominated summed attitude). Two engine APIs per receiver:
+A suppressed hit on a surviving victim stamps his squadmates within earshot of the VICTIM (~15m, tunable) with the graded scripted danger at the SHOOTER's position - the same `set_script_danger` idiom the noise system uses, grade "solid", so the reaction walks the position weapon-up (t163 "raid") and never runs. The stamp expires on its own inertion; a member who actually perceives the shooter escalates to combat natively. A member already fighting is untouched by construction - the danger scheme does not run for an NPC with a combat enemy. Per-member re-stamp throttle; zombied skipped.
 
-   - **`enable_memory_object(who, true)`**: toggles `m_enabled` on existing visual/sound/hit memory entries (`memory_manager.cpp:151-156`). Its teeth: re-enables memory a combat-ignore suppressed, so an "ignored" shooter becomes engageable again. Receiver must be `CCustomMonster` (`script_game_object2.cpp:262`).
-   - **`register_in_combat()`**: sets the member's squad_mask bit in `CAgentMemberManager::m_combat_mask` (`agent_member_manager.cpp:114-132`) - the unlock for engine-native squad memory propagation across every member including distant patrols. Requires `CAI_Stalker` receiver; safe because `npc_on_hit_callback` is dispatched only by `motivator_binder` (stalker squads). Routed through the alive-guarded `xcombat.register_in_combat`.
+**The silent/loud gate.** An unsuppressed shot from a human (stalker or actor) seeds nothing - the engine's own gunfire perception covers it twice: per-listener `attack_sound` danger entries, and the ally-relay (`CStalkerSoundDataVisitor` - a listener adopts the enemy a fighting ally has selected, `stalker_sound_data_visitor.cpp:30-60`). Suppressed-now is the `utils_item.has_attached_silencer` shape (`utils_item.script:414-420`): an integral silencer (`weapon_silencer_status() == 1`) or an attachable one currently mounted (`== 2` + `weapon_is_silencer()`). A shooter without a ranged weapon in hand - a mutant, a knife - is silent by definition.
 
-   - **`make_enemy_visible(who)`** (the n027 bind, PR #613, unmerged; probed inside `xcombat.disclose_enemy`, never called raw; MCM `disclosure_turn` "Turn on the shooter" - off passes `memory_only` and keeps the softer pre-promotion disclosure): promotes the shooter into VISIBLE memory (`CMemoryManager::make_object_visible_somewhen`, `memory_manager.cpp:345` - the engine's own squad wounded-target distribution call). This is the ranking fix: selection pays "currently seen" ~1000 points against ~5-100 for "hit me" (`enemy_manager.cpp:110-175`), so without it a disclosed-but-unseen shooter still loses to any seen enemy. With the promotion the shooter enters the seen class and the engine's own nearest-seen logic selects him - the victim and squad actually TURN on the shooter. On an exe without the bind the probe skips it and disclosure keeps the memory-only behavior above, unchanged.
+**Survivor semantics.** A hit that killed the victim seeds nothing (checked one frame deferred - `alive()` is still true inside the killing hit's callback). A clean suppressed kill tells no one; the squad can still find the body through the engine's native death sound and corpse discovery.
 
-### Decay and re-engagement
+### The target-priority dial
 
-A periodic decay tick walks every `_disclosed[key][shooter_id]` entry and prunes any older than the retention window (MCM-tunable). Pruning clears only the idempotency entry; no relation state was written, so nothing else needs unwinding.
-
-After decay, the next hit from that shooter against that squad triggers a fresh `_disclose` call. Distant patrol squadmates get re-pinned into combat_mask for the new engagement.
-
-### Spawn handler (mid-engagement replenishment + offline-shooter return)
-
-`npc_on_net_spawn` fires for every stalker spawn (dispatched by `motivator_binder`). Two paths run for each spawned NPC:
-
-1. **Inherit from squad** (case 1): if the spawning NPC's squad has active disclosures, apply `_disclose_to_member` for each disclosed shooter that resolves online. The replacement inherits the squad's combat state without waiting for the next hit.
-2. **Re-disclose on shooter return** (case 2): walk every tracked squad's disclosed map. If the spawning NPC's id is present (the NPC is a previously-offline shooter coming back online), replay `_disclose_to_member` for every online squadmate of those squads. Covers members who joined while the shooter was offline.
-
-Both paths short-circuit quickly when no entries match. Most spawn events trigger zero work.
-
-**Mutant-shooter return is not re-disclosed by this handler.** Mutants dispatch `monster_on_net_spawn` (`bind_monster.script:298`) which AT does not subscribe to. Sustained engagement is not lost: combat_mask bits set at original hit time persist on squad members, and mutant-vs-stalker faction enmity drives target acquisition independently. The only gap is a stalker member who joins the tracking squad while the mutant shooter is offline: that member never gets disclosed to the returning mutant.
+`npc:set_visible_enemy_bias(actor_bias, npc_bias)` (PR #637, merged; `enemy_manager.cpp:175-184`) replaces the hardcoded "prefers whoever sees me" terms: vanilla subtracts 900 when the ACTOR sees the NPC but only 300 for another NPC - a ~3x baked player magnet. The MCM dial (0-900, default 900 = vanilla) writes the actor side per-NPC at the same net_spawn seam; the npc side stays vanilla. Lower values treat the player like any other combatant.
 
 ### Net behavior
 
-- Engine handles audio-range squadmates on hit #1 (free, automatic).
-- Our hook handles distant patrol squadmates on hit #1 by forcing them into combat_mask, letting the engine's own propagation pipe carry the memory; a squadless victim gets the same pair himself.
-- No relation is written: faction enmity already makes the disclosed shooter engageable, and the direct memory injection defeats a combat-ignore suppression.
-- Sustained engagement: subsequent hits refresh the timestamp and return early via idempotency.
-- After the retention window of no hits from a given shooter, the squad's pin on that shooter expires; the next hit re-fires the full pipeline.
-- Mid-fight replenishment: new squad members inherit existing disclosures on spawn.
-- Offline-shooter return: when a previously-offline tracked shooter comes back online, the spawn handler replays disclosure to every member of the squads tracking them. Members who joined while the shooter was offline get pinned at this moment.
+- The victim turns on a close attacker through the engine's own selection; fire needs real line of sight.
+- Only squadmates who could plausibly have noticed (earshot of the victim, suppressed case) investigate the shooter's position; engagement requires real perception. Distant patrols are never told.
+- Loud shots are the engine's business end to end - no script double-fire.
+- No relation writes (the original goodwill-write era corrupted saved relations and is long gone), no memory injection, no forced combat-mask, no retention state: the module keeps only a per-member stamp throttle and counters (`get_stats` for `at_test.at_dump`).
 
 ---
 
@@ -736,7 +712,7 @@ The architecture principle is to feed engine memory and state, not fight it. Per
 
 | System | Engine state we write | Engine APIs called |
 |---|---|---|
-| Disclosure | memory entry m_enabled, agent_member_manager m_combat_mask | `enable_memory_object`, `register_in_combat` |
+| Disclosure | Per-NPC CEnemyManager selection fields at net_spawn (hit-redirect, visible-enemy bias); per-hit `script_danger` investigate stamps on earshot squadmates; floor fallback only: victim combat registration | `xcombat.set_hit_redirect`, `xcombat.set_visible_enemy_bias`, `xr_danger.set_script_danger`; floor: `xcombat.register_in_combat` |
 | Healing | NPC health field, bleeding field, `healing_charge` se_var | `change_health`, direct `bleeding =` write, `se_save_var` |
 | Accuracy | Per-shot dispersion radius via callback return: the single-source MOVE penalty written directly, the rank cone registered as a SHOT_DISPERSION provider | (subscribes to `npc_shot_dispersion`; `at_effects_resolver.register`) |
 | Reaction | Per-NPC aim (min_speed + min_angle + predict), vision speed, fire-queue scales at net_spawn; the rank VISION_RANGE slice registered as a provider | `xcombat.set_aim_params`, `set_vision_speed`, `set_fire_queue_scale`; `at_effects_resolver.register` |

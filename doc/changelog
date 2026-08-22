@@ -1,11 +1,18 @@
 next
-  Summary: Zombie stance, Gear toggles, Discipline menu, Danger fix
+  Summary: Disclosure rework, target priority dial, Zombie stance, Gear toggles, Discipline menu, Danger fix
 
   Combat
     Conduct
       - Zombied stalkers no longer take a tactical cover crouch on the firing line. They still duck from incoming fire.
 
   Effectiveness
+    Disclosure
+      - Disclosure is reworked from forced squad awareness to engine perception. A hit victim now turns on a close attacker through the engine's own target selection and returns fire on real line of sight,
+          with nothing revealed through walls. Only squadmates within earshot of a suppressed hit walk over to investigate the shooter's position, and they engage when they actually spot him.
+          Distant patrol members are never told, a loud shot is left to the engine's own gunfire hearing, and a clean instant kill tells no one.
+          The victim turn needs a modded exes build carrying PR #636, older builds keep a scripted orient toward the shooter instead.
+      - Added a Player target pull dial: how strongly NPCs prioritize you over other combatants once you are seen, down to treating you like anyone else. Needs a build carrying PR #637.
+      - Removed the retention and survivor gate settings. A clean kill staying quiet is now built into the model, and there is no longer a squad-wide pin to retain.
     Discipline
       - The fire discipline controls, burst size and fire cadence, now live on their own Discipline page under Effectiveness instead of the Reaction page.
 
