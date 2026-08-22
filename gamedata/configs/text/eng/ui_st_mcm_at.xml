@@ -716,6 +716,12 @@
   <string id="ui_mcm_at_commitment_commitment_cover_pin_desc">
     <text>A stalker firing with a clear shot keeps his cover instead of sliding to a slightly better spot. It stops the mid-fight strafe one step earlier than Commitment alone, at the cover re-pick that starts it. A compromised spot still releases, when the enemy is on top of it or the shot is blocked. Requires a recent engine build. It stays inactive on older ones.</text>
   </string>
+  <string id="ui_mcm_at_commitment_commitment_liquidate">
+    <text>Liquidate vulnerable targets</text>
+  </string>
+  <string id="ui_mcm_at_commitment_commitment_liquidate_desc">
+    <text>A stalker whose enemy is caught reloading, staggered, or with no weapon up keeps firing through that window instead of breaking off to reposition, and moves once the enemy can answer again. The extra hold is bounded, so nobody stays planted for long. Shows as LIQUIDATE on the debug HUD.</text>
+  </string>
   <string id="ui_mcm_at_commitment_commitment_enabled">
     <text>Enable Commitment</text>
   </string>
@@ -746,6 +752,12 @@
   </string>
   <string id="ui_mcm_at_combat_combat_ignore_companions_desc">
     <text>When on, AlifeTactics never takes over your companions, so their follow and combat AI and your commands stay in control. Turn off to let it maneuver them too.</text>
+  </string>
+  <string id="ui_mcm_at_combat_combat_hit_hold">
+    <text>Hit reaction hold</text>
+  </string>
+  <string id="ui_mcm_at_combat_combat_hit_hold_desc">
+    <text>A standing stalker hit mid reaction is held planted while the hit animation plays, instead of sliding across the ground with his feet still, and moves again the moment it ends. Needs a modded exes build carrying engine PR 645. Older builds keep vanilla movement.</text>
   </string>
   <string id="ui_mcm_at_combat_hdr_maneuvers">
     <text>Maneuvers</text>

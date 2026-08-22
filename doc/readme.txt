@@ -69,6 +69,8 @@ A maneuver fires when its problem is real and ends when it is solved. Keep creat
 The decisions come out looking human. Nobody turns his back on a shooter, two men never take the same cover, nobody plants under your crosshair.
 Maneuver fire bursts by weapon and by skill: burst length and pauses vary shot to shot inside the game's own per-weapon ranges and tighten with rank.
 That replaces the uniform burst the game's script machinery applies to every weapon it drives.
+Stalkers keep their footing under fire: a hit mid reaction no longer slides a standing stalker across the ground, he stays planted while the animation plays and moves the moment it ends.
+The footing hold ships ahead of its engine half and needs a modded exes build carrying engine PR 645. Older builds keep vanilla movement.
 The takeover overrides no combat scripts, so it fights side by side with vanilla and works with other combat AI instead of replacing it. Companions are excluded by default.
 
 Commitment:
@@ -78,6 +80,7 @@ Many mods answer this by switching the stalker to a camper scheme that pins him 
 AlifeTactics keeps the engine's full combat AI and instead stops a stalker throwing away a decision that still makes sense.
 While what he is doing still works he stays with it, and he switches the instant it stops: he loses sight, the shot is blocked, or the enemy is gone.
 It also pins his cover: a stalker firing with a clear shot keeps his spot instead of sliding to a marginally better one, stopping the mid-fight strafe at its source.
+When his enemy is caught reloading, staggered, or with no weapon up, he liquidates: fire held on the window instead of breaking off, repositioning once the enemy can answer again.
 He sees a decision through, keeping up his fire, pressing a flank, or finishing a reload, instead of second-guessing himself every frame.
 
 Conduct:

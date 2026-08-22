@@ -110,6 +110,32 @@ end
 -- unconditionally (never relent) and the NPC holds his firing spot indefinitely.
 local _hold_cap_ms = 6000
 
+-- The liquidate bound (t197): while the current enemy cannot return fire (xcombat.is_vulnerable -
+-- reloading / disarmed / staggered), the relent valve defers up to this much past _hold_cap_ms,
+-- so a hold finishes the helpless window instead of relenting into a cover move in the middle of
+-- it. Sized to the windows it rides (a reload 2-4s, a stagger ~1s). The hold still relents at the
+-- bound regardless - vulnerability extends a refusal, never makes it unconditional. Consulted only
+-- at the relent moment, so the deny stream under the base cap never pays the read.
+local LIQUIDATE_EXTEND_MS = 4000
+
+-- The relent decision at the cap, shared by the switch hold and the cover pin: true = the hold
+-- keeps refusing past the base cap because the enemy cannot answer right now. Traces the deferral
+-- once per hold window with the term that tripped; label tells the two seams apart.
+local function _try_defer_relent(hold, enemy, tg, id, label)
+    if not cfg.commitment_liquidate then return false end
+    if tg - hold.since > _hold_cap_ms + LIQUIDATE_EXTEND_MS then return false end
+    local vuln, why = xcombat.is_vulnerable(enemy)
+    if not vuln then return false end
+    -- The HUD fact, stamped regardless of the log level (the LIQUIDATE token reads it live and from
+    -- the afterglow record); the trace-once stays behind the debug gate.
+    hold.vuln = true
+    if at_debug.on() and not hold.vuln_logged then
+        hold.vuln_logged = true
+        at_debug.dbg("[CMT] %s id=%d why=%s held=%dms", label, id, why, tg - hold.since)
+    end
+    return true
+end
+
 -- npc id -> { op, since, denies }, the running refusal window
 local _hold = {}
 -- npc id -> the last CLOSED window { op, held_ms, denies, at } - display afterglow only. Holds run
@@ -133,8 +159,12 @@ local _cur_op = {}
 local _cover_hold = {}
 
 --- True while Commitment is pinning this NPC's cover (the cover-pin hold is open; HUD read).
+--- Second return: true when that pin is currently deferred past its cap by target vulnerability
+--- (the HUD's LIQUIDATE token); nil when no pin or no deferral.
 function cover_held(id)
-    return _cover_hold[id] ~= nil
+    local hold = _cover_hold[id]
+    if not hold then return false end
+    return true, hold.vuln
 end
 
 --- The open hold window for `id` ({ op, since, denies }) or nil - the debug HUD's headline read.
@@ -155,7 +185,7 @@ function get_recent_hold(id)
 end
 
 local function _close_hold(id, hold, tg)
-    _last[id] = { op = hold.op, held_ms = tg - hold.since, denies = hold.denies, at = tg }
+    _last[id] = { op = hold.op, held_ms = tg - hold.since, denies = hold.denies, at = tg, vuln = hold.vuln }
     _hold[id] = nil
 end
 
@@ -269,7 +299,7 @@ local function _on_action_switch(npc, from_op, to_op, flags)
                 xcombat.can_kill_enemy(npc, enemy) and "yes" or "no")
         end
     end
-    if tg - hold.since > _hold_cap_ms then
+    if tg - hold.since > _hold_cap_ms and not _try_defer_relent(hold, enemy, tg, id, "vuln-defer") then
         if at_debug.on() then
             at_debug.dbg("[CMT] cap id=%d op=%s after=%dms denies=%d refused=%s",
                 id, _op_name(hold.op), tg - hold.since, hold.denies, _refused_str(hold.refused))
@@ -370,7 +400,7 @@ local function _on_cover_repick(npc, flags)
                 id, npc:name(), _op_name(_cur_op[id]), enemy:id())
         end
     end
-    if tg - hold.since > _hold_cap_ms then
+    if tg - hold.since > _hold_cap_ms and not _try_defer_relent(hold, enemy, tg, id, "cover-vuln-defer") then
         if at_debug.on() then
             at_debug.dbg("[CMT] cover-cap id=%d after=%dms denies=%d", id, tg - hold.since, hold.denies)
         end

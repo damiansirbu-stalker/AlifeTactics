@@ -122,14 +122,27 @@ local function _systems(id, maneuver)
     local tokens, driver = {}, nil
     -- Commitment is one system with two vetoes (MCM Combat > Commitment): the action-switch hold
     -- (COMMIT) and the cover-pin (PIN, commitment_cover_pin).
+    -- One state word at a time, never a compound: a hold deferred on a helpless target (t197) shows
+    -- LIQUIDATE in place of COMMIT (same window, the stronger statement), and a deferred pin shows
+    -- LIQUIDATE in place of PIN unless the hold already says it.
     local hold = at_commitment.get_hold(id)
-    if hold then tokens[#tokens + 1] = string_format("COMMIT %ds", math_floor((time_global() - hold.since) / 1000)) end
-    if at_commitment.cover_held(id) then tokens[#tokens + 1] = "PIN" end
+    local pinned, pin_vuln = at_commitment.cover_held(id)
+    if hold then
+        tokens[#tokens + 1] = string_format(hold.vuln and "LIQUIDATE %ds" or "COMMIT %ds",
+            math_floor((time_global() - hold.since) / 1000))
+    end
+    if pinned then
+        tokens[#tokens + 1] = (pin_vuln and not (hold and hold.vuln)) and "LIQUIDATE" or "PIN"
+    end
     if #tokens == 0 then
         -- Afterglow: commitments run sub-second (deny-only, no imposed delay), invisible at the refresh
-        -- cadence - the row stays blue for a few seconds showing what was just committed.
+        -- cadence - the row stays blue for a few seconds showing what was just committed. A deferred
+        -- hold glows as LIQUIDATED for the same reason.
         local recent = at_commitment.get_recent_hold(id)
-        if recent then tokens[#tokens + 1] = string_format("COMMITTED %.1fs x%d", recent.held_ms / 1000, recent.denies) end
+        if recent then
+            tokens[#tokens + 1] = string_format(recent.vuln and "LIQUIDATED %.1fs x%d" or "COMMITTED %.1fs x%d",
+                recent.held_ms / 1000, recent.denies)
+        end
     end
     if #tokens > 0 then driver = "HOLD" end
     -- Conduct posture (at_stance, Combat > Conduct): crouches an experienced rifleman behind real cover.

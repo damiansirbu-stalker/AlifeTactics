@@ -676,8 +676,13 @@ local function _apply_hold(npc, state, hold, why)
 end
 
 -- The per-pass maintenance, called for every alive tracked NPC: inert until a hit lands, then
--- re-asks the condition each pass and releases the moment it fails.
+-- re-asks the condition each pass and releases the moment it fails. The toggle-off branch clears a
+-- standing hold within one pass, so the switch can never strand a planted NPC (the stale-flag rule).
 local function _update_hold(npc, state, tg)
+    if not cfg.combat_hit_hold then
+        if state.move_hold then _apply_hold(npc, state, false, "disabled") end
+        return
+    end
     if not state.move_hold and (not state.hit_at or (tg - state.hit_at) >= HOLD_WINDOW_MS) then return end
     local hold, why = _check_hold(npc)
     _apply_hold(npc, state, hold, why or "released")
@@ -821,7 +826,7 @@ local function _on_hit(npc, amount)
     -- monitor pass is up to 200ms away - exactly the window the glide needs. A standing NPC is held
     -- now even before the flinch reader stamps ("hit"); the monitor releases within a pass if no
     -- reaction follows.
-    if cfg.combat_enabled then
+    if cfg.combat_enabled and cfg.combat_hit_hold then
         local hold, why = _check_hold(npc)
         if not hold and npc:movement_type() == move.stand then hold, why = true, "hit" end
         if hold then _apply_hold(npc, state, true, why) end
