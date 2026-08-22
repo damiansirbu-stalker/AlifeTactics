@@ -1,7 +1,10 @@
 next
-  Summary: Disclosure rework, target priority dial, Zombie stance, Gear toggles, Discipline menu, Danger fix
+  Summary: Glide stop, Disclosure rework, target priority dial, Zombie stance, Gear toggles, Discipline menu, Danger fix
 
   Combat
+    Maneuvers
+      - Stalkers hit mid reaction no longer slide across the ground with their feet still. A standing stalker is held planted while the hit animation plays
+          and resumes his route the moment it ends. Needs a modded exes build carrying PR #645, older builds keep vanilla movement.
     Conduct
       - Zombied stalkers no longer take a tactical cover crouch on the firing line. They still duck from incoming fire.
 

@@ -640,6 +640,50 @@ local function _try_end_maneuver(npc, state, tg)
 end
 
 
+-- The glide-stop (n040): a standing NPC whose body is playing a hit reaction must not be started
+-- running by the engine mover - the animation owns the legs, so the start is a footless slide. The
+-- engine side is one neutral lever (xcombat.set_movement_hold): while true, parse_velocity_mask
+-- routes into its Stand branch and the path survives; every decision lives here. Set on the hit
+-- callback (the reaction begins that frame; waiting for the next pass leaves up to 200ms of glide),
+-- maintained and released on the monitor pass. A moving NPC is never held - freezing a runner
+-- mid-stride is the same artifact from the other side; movement_type is the standing proxy, since
+-- Lua cannot read NPC speed (GetMovementSpeed is actor-only).
+-- STUCK-FLAG OWNERSHIP: the engine flag persists while the NPC is online and has no decay, so every
+-- path that stops maintaining it clears it first - the monitor release, death, net_destroy,
+-- unregister, and the feature toggle-off. A stale true plants the NPC forever.
+
+-- Hit reactions run ~1s; this far past the last hit the wanted-read never runs, so the steady-state
+-- cost per NPC per pass is one table read and one subtraction.
+local HOLD_WINDOW_MS = 2000
+
+-- Should the NPC be planted right now: the crit stagger (it forces Stand regardless), or the
+-- additive flinch on a body already standing.
+local function _check_hold(npc)
+    if xcombat.is_staggering(npc) then return true, "stagger" end
+    if xcombat.is_flinching(npc) and npc:movement_type() == move.stand then return true, "flinch" end
+    return false
+end
+
+-- Write the lever only on a transition. state.move_hold mirrors the engine flag and is set only when
+-- the engine write applied, so a floor exe never tracks a hold it could not set.
+local function _apply_hold(npc, state, hold, why)
+    if (state.move_hold or false) == hold then return end
+    if not xcombat.set_movement_hold(npc, hold) then return end
+    state.move_hold = hold or nil
+    if at_debug.on() then
+        at_debug.dbg("[CMB] hold id=%s on=%s why=%s", show(state.id), flag(hold), show(why))
+    end
+end
+
+-- The per-pass maintenance, called for every alive tracked NPC: inert until a hit lands, then
+-- re-asks the condition each pass and releases the moment it fails.
+local function _update_hold(npc, state, tg)
+    if not state.move_hold and (not state.hit_at or (tg - state.hit_at) >= HOLD_WINDOW_MS) then return end
+    local hold, why = _check_hold(npc)
+    _apply_hold(npc, state, hold, why or "released")
+end
+
+
 -- The check catalog: every timed operation is one row { name, period, open, run }; open is the state.gate
 -- value the check requires (false = no maneuver open, true = one running). Built in _load_config, after
 -- the periods are read.
@@ -700,11 +744,13 @@ end
 -- net_destroy/unregister.
 local function _run_npc_checks(npc, state, tg)
     if not npc:alive() then
+        if state.move_hold then _apply_hold(npc, state, false, "died") end
         if state.maneuver then _end_maneuver(state, tg, "died") end
         _drop_gate(state)
         _release_cover(state)
         return
     end
+    _update_hold(npc, state, tg)
     local open = state.gate == true
     for i = 1, #CHECKS do
         local check = CHECKS[i]
@@ -771,6 +817,15 @@ local function _on_hit(npc, amount)
     local state = _npc_states[npc:id()]
     if not state then return end
     state.hit_at = time_global()
+    -- The immediate hold (the 200ms-precision risk): the hit reaction starts this frame and the next
+    -- monitor pass is up to 200ms away - exactly the window the glide needs. A standing NPC is held
+    -- now even before the flinch reader stamps ("hit"); the monitor releases within a pass if no
+    -- reaction follows.
+    if cfg.combat_enabled then
+        local hold, why = _check_hold(npc)
+        if not hold and npc:movement_type() == move.stand then hold, why = true, "hit" end
+        if hold then _apply_hold(npc, state, true, why) end
+    end
 end
 
 -- Reload edges (npc_on_weapon_reload_start/stop, the n031 engine events): stamp the NPC's reload state
@@ -809,6 +864,8 @@ end
 local function _on_net_destroy(npc)
     if not npc then return end
     local id = npc:id()
+    local state = _npc_states[id]
+    if state and state.move_hold then _apply_hold(npc, state, false, "destroy") end
     xcombat.release_takeover(npc)
     _drop_gate(_npc_states[id])
     _release_cover(_npc_states[id])
@@ -820,6 +877,11 @@ end
 local function _on_entity_unregister(se_obj)
     if not se_obj then return end
     local id = se_obj.id
+    local state = _npc_states[id]
+    if state and state.move_hold then
+        local npc = xobject.go(id)
+        if npc then _apply_hold(npc, state, false, "unregister") else state.move_hold = nil end
+    end
     -- Clear xcombat's install guard too: an id unregistered WITHOUT a prior net_destroy would leave a stale
     -- guard there and the recycled id would silently skip its next graft.
     xcombat.release_takeover_id(id)
@@ -872,6 +934,12 @@ local function _apply_enabled()
     local tg = time_global()
     for _, state in pairs(_npc_states) do
         if state.maneuver then _end_maneuver(state, tg, "disabled") end
+        -- Feature off = maintenance off: a hold left set would plant the NPC forever, so every one
+        -- clears before the monitor stops.
+        if state.move_hold then
+            local npc = xobject.go(state.id)
+            if npc then _apply_hold(npc, state, false, "disabled") else state.move_hold = nil end
+        end
     end
     _stop_monitor()
 end
