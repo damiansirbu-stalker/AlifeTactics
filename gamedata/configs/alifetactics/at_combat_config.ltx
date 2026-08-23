@@ -37,6 +37,39 @@ counterflank_actor_dist_m = 5  ; counterflank fires when an enemy actor is insid
 pickoff_interval_min_ms = 1500
 pickoff_interval_max_ms = 2000
 
+; The Push window (Combat > Behaviors): stalkers fighting the actor punish his vulnerable window.
+; Opened by the actor weapon edges (reload / dry / jam) or the standing finisher condition (actor
+; weak); closed when he answers, recovers, or the press cap runs out. Two effectors on the NPCs
+; whose selected enemy is the actor: the fire bump (range-gated - inside push_close_m bursts grow
+; AND the pause shrinks, out to push_far_m only the pause shrinks; farther a longer burst would
+; only spray its dispersed tail) and the band bump (with an advantage - target weak / bleeding /
+; back turned - his accepted cover-to-enemy maximum caps at push_band_k x his current distance, so
+; his own re-picks close in).
+push_close_m       = 15    ; fire bump close band: burst size x push_size_k AND interval x push_interval_k
+push_far_m         = 45    ; fire bump far band: interval x push_interval_k only; beyond = untouched
+push_size_k        = 1.5   ; burst-size scale on the rank discipline value inside the close band
+push_interval_k    = 0.6   ; inter-burst-pause scale on the rank discipline value inside both bands
+push_weak_frac     = 0.35  ; finisher opens with the actor's health at or below this fraction (closes 0.10 above it)
+push_self_frac     = 0.5   ; finisher band bump only for pushers at or above this health fraction themselves
+push_band_k        = 0.6   ; band bump: cover maximum caps at this fraction of the NPC's current distance
+push_band_floor_m  = 8     ; the band cap never drops below this
+push_back_deg      = 135   ; back-turned advantage: actor facing at least this far off the NPC (135 = genuinely turned away, not a flank)
+push_window_max_ms = 8000  ; hard cap on a press window (reload / dry / jam); a mid-window cause change stays on the original clock; the finisher has none, it closes on recovery
+push_press_cooldown_ms = 15000 ; after a press window closes, no new one opens for this long - the window is the exception, not the fight's steady state
+
+; The Pull window, the push's mirror: a stalker caught in his OWN vulnerable window (reloading via
+; the engine reload events, or badly hurt with fresh incoming hits) while the actor is strong falls
+; back - his accepted cover-to-enemy minimum rises past his current distance so his own re-picks
+; land farther. No fire side. Per-NPC windows with a per-NPC cooldown; pull outranks push per NPC.
+pull_weak_frac    = 0.35  ; hurt cause: the NPC's own health at or below this fraction (closes 0.10 above it)
+pull_strong_frac  = 0.5   ; pull only while the actor's health is at or above this fraction (a dying enemy scares nobody back)
+pull_band_k       = 1.2   ; his cover minimum rises to this fraction of his current distance
+pull_band_floor_m = 8     ; the raised minimum never drops below this - a point-blank pull is a real fallback, not a 3m shuffle
+pull_band_cap_m   = 45    ; the raised minimum never exceeds this
+pull_band_depth_m = 12    ; the band stays open this far past the raised minimum
+pull_cooldown_ms  = 15000 ; per NPC: after his pull clears, no new one for this long
+pull_hold_min_ms  = 8000  ; a pull outlives its cause at least this long - a ~3s reload ends before the engine re-picks cover, so the band stands to catch the next re-pick
+
 ; Maneuvers (kite backs off a fixed per-weapon distance - no key, KITE_BACK in at_combat_doctrine is the source)
 kite_arc_deg    = 45       ; back-lane fan step: try straight-back, then +-45, then +-90 for a clear lane
 kite_spread_deg = 90       ; max fan to either side when the straight-back lane is blocked by a wall or obstacle

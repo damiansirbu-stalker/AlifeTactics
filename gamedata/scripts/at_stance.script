@@ -1,4 +1,7 @@
---- at_stance: combat conduct posture (t138 lever 1) - crouch to steady the shot when the NPC can STILL
+--- at_stance: the Conduct habits (Combat > Conduct) - small habits applied to VANILLA-driven NPCs at
+--- moments the engine already decides. Two habits: cover POSTURE (below) and weapon SPACING (t198, the
+--- per-NPC cover-distance band answered through the engine's combat-distance asks; its section sits
+--- after the posture code). Posture: crouch to steady the shot when the NPC can STILL
 --- hit the enemy from a crouch, stand to fire over a low wall that would eat a crouched shot. The 1.0.0
 --- at_stance crouched blindly on planner ops and fired into random bumps (dropped, commit 591b6e0); this
 --- form casts a crouch-eye shot ray to the enemy (xcombat.has_obstacle_to_target at BODY_Y.CROUCH_EYE) -
@@ -159,20 +162,184 @@ local function _on_combat_body_state(npc, world_operator, _body_state, flags)
     flags.body_state = held.want
 end
 
+-- Weapon spacing (t198), the second Conduct habit: a standing per-NPC cover-distance band answered
+-- through the engine's own combat-distance asks (npc_on_get_min_combat_dist / _max, #563), so every
+-- cover re-pick keeps the NPC's gun useful. SCALES the handed base, never replaces it - the engine's
+-- weapon-type semantics (ai_stalker_cover.cpp:96-119) survive underneath. The engine already places
+-- shotgun max 5m / pistol max 10m / sniper min 20m via its own cvars; the disposition adds the two
+-- reads the engine lacks: the SMG (falls to the 20m default, tightened close) and the sniper minimum
+-- raised by rank (a skilled sniper holds range). The handlers fire only on a cover re-search
+-- (invalidation cadence; the cached best_cover() read runs zero Lua, ai_stalker_cover.cpp:282-294).
+-- A seized NPC never reaches them (blocked planner, no find_best_cover) - exempt by construction.
+local SPACING_MAX_K = { w_smg = 0.6 }
+local SPACING_SNIPER_MIN_K = { novice = 1.0, trainee = 1.0, experienced = 1.15, professional = 1.15,
+                               veteran = 1.3, expert = 1.3, master = 1.5, legend = 1.5 }
+-- Disposition rows re-derive on this staleness, so a mid-life weapon change re-keys within one TTL
+-- (the lazy re-read option of the two recorded at grooming; an item-take event would re-key exactly
+-- but pays a callback on every pickup for a value only consulted at re-pick cadence).
+local SPACING_TTL_MS = 5000
+-- npc id -> { at, min_k, max_k } or { at, skip = true }; lazily derived, TTL-bounded, dropped on
+-- entity unregister. eff_min/eff_max stash the last answered band under debug for the pick trace.
+local _spacing = {}
+-- npc id -> absolute max metres, the Behaviors push overlay (t199): while set it CAPS the answered
+-- maximum so the NPC's own re-picks close on the target; at_combat owns set/clear, the disposition
+-- entry stays untouched underneath (clearing IS the restore).
+local _push_max = {}
+-- npc id -> { min, max_floor }, the Behaviors pull overlay (t202, the mirror): while set it RAISES
+-- the answered minimum (and floors the maximum past it) so the NPC's own re-picks fall back. Applied
+-- AFTER the push cap in both handlers - a vulnerable NPC's self-preservation outranks his push.
+local _pull = {}
+-- Debug counter, [MON]-style: calls + handler us over a window, flushed from inside the handler.
+local SPACING_FLUSH_MS = 5000
+local _spacing_counter = { calls = 0, us = 0, last = 0 }
+
+--- Cap this NPC's accepted cover-to-enemy maximum at max_m (the t199 window write). Clearing restores
+--- the disposition band by construction - the overlay is a separate entry, nothing is overwritten.
+function set_push_max(id, max_m)
+    _push_max[id] = max_m
+end
+
+function clear_push_max(id)
+    _push_max[id] = nil
+end
+
+--- Raise this NPC's accepted cover-to-enemy minimum to min_m, flooring the maximum at max_floor_m so
+--- the band stays open past it (the t202 pull write). Clearing restores the band by construction.
+function set_pull_band(id, min_m, max_floor_m)
+    _pull[id] = { min = min_m, max_floor = max_floor_m }
+end
+
+function clear_pull_band(id)
+    _pull[id] = nil
+end
+
+-- The disposition row, lazily derived and TTL-cached: kind + (snipers) tier -> the two scale factors.
+-- Zombied carry a skip row - a mindless shambler gets no spacing discipline (the scope rule).
+local function _spacing_row(npc, id, tg)
+    local row = _spacing[id]
+    if row and (tg - row.at) < SPACING_TTL_MS then return row end
+    local kind = not (xcreature.community(npc) == "zombied") and xcombat.get_weapon_kind(npc) or nil
+    if not kind then
+        row = { at = tg, skip = true }
+    else
+        local min_k = kind == "w_sniper"
+            and SPACING_SNIPER_MIN_K[ranks.get_obj_rank_name(npc) or ""] or nil
+        if min_k == 1.0 then min_k = nil end
+        row = { at = tg, min_k = min_k, max_k = SPACING_MAX_K[kind] }
+        if at_debug.on() and (row.min_k or row.max_k) then
+            at_debug.dbg("[SPACING] band id=%d kind=%s min_k=%s max_k=%s",
+                id, kind, tostring(row.min_k), tostring(row.max_k))
+        end
+    end
+    _spacing[id] = row
+    return row
+end
+
+-- Fold one handler run into the counter window and flush a single [SPACING] rate line per window.
+-- Called only under the DEBUG gate; the live handler cost is the table reads and multiplies alone.
+local function _record_spacing(us, tg)
+    if _spacing_counter.last == 0 then _spacing_counter.last = tg end
+    _spacing_counter.calls = _spacing_counter.calls + 1
+    _spacing_counter.us = _spacing_counter.us + us
+    if tg - _spacing_counter.last < SPACING_FLUSH_MS then return end
+    at_debug.dbg("[SPACING] window=%.0fs calls=%d rate=%.1f/s handler_avg=%.1fus",
+        (tg - _spacing_counter.last) / 1000, _spacing_counter.calls,
+        _spacing_counter.calls / ((tg - _spacing_counter.last) / 1000),
+        _spacing_counter.us / _spacing_counter.calls)
+    _spacing_counter.calls, _spacing_counter.us, _spacing_counter.last = 0, 0, tg
+end
+
+-- The two engine asks. Each SCALES the handed base into flags.ret_value; an untouched ask keeps the
+-- engine's own value (flags.ret_value arrives preset to base). The push overlay caps the maximum even
+-- with the spacing toggle off - its owner (the Behaviors window) carries its own MCM gate. eff_min /
+-- eff_max stash the answered band under debug for the pick proof line.
+local function _on_min_dist(npc, base, flags)
+    if not npc then return end
+    local tmr = xprofiler.new_if(at_debug.on()):start()
+    local tg = time_global()
+    local id = npc:id()
+    local row = cfg.conduct_spacing and _spacing_row(npc, id, tg) or nil
+    local raised = (row and row.min_k) and base * row.min_k or base
+    local pull = _pull[id]
+    if pull and pull.min > raised then raised = pull.min end
+    if raised ~= base then
+        flags.ret_value = raised
+        if row and at_debug.on() then row.eff_min = raised end
+    end
+    tmr:stop()
+    if at_debug.on() then _record_spacing(tmr:get_us(), tg) end
+end
+
+local function _on_max_dist(npc, base, flags)
+    if not npc then return end
+    local tmr = xprofiler.new_if(at_debug.on()):start()
+    local tg = time_global()
+    local id = npc:id()
+    local row = cfg.conduct_spacing and _spacing_row(npc, id, tg) or nil
+    local capped = (row and row.max_k) and base * row.max_k or base
+    local push_cap = _push_max[id]
+    if push_cap and push_cap < capped then capped = push_cap end
+    local pull = _pull[id]
+    if pull and pull.max_floor > capped then capped = pull.max_floor end
+    if capped ~= base then
+        flags.ret_value = capped
+        if row and at_debug.on() then row.eff_max = capped end
+    end
+    tmr:stop()
+    if at_debug.on() then _record_spacing(tmr:get_us(), tg) end
+end
+
+-- The output proof (the world-trace lesson, architecture.md: measure what he DID): on every actual
+-- cover change, log the chosen point's distance to the enemy beside the band answered for this NPC,
+-- so the log shows successive picks landing inside the band - never inferred from intent fields.
+local function _on_cover_changed(npc, cover_pos)
+    if not at_debug.on() or not (npc and cover_pos) then return end
+    local id = npc:id()
+    local row = _spacing[id]
+    if not (row and (row.eff_min or row.eff_max)) and not _push_max[id] and not _pull[id] then return end
+    local enemy = npc:best_enemy()
+    if not enemy then return end
+    local pull = _pull[id]
+    at_debug.dbg("[SPACING] pick id=%d cover_to_enemy=%.1fm min=%s max=%s push=%s pull=%s",
+        id, cover_pos:distance_to(enemy:position()),
+        tostring(row and row.eff_min), tostring(row and row.eff_max), tostring(_push_max[id]),
+        tostring(pull and pull.min))
+end
+
 local function _on_entity_unregister(se_obj)
     if se_obj then
         _decision[se_obj.id] = nil
         _eligible[se_obj.id] = nil
+        _spacing[se_obj.id] = nil
+        _push_max[se_obj.id] = nil
+        _pull[se_obj.id] = nil
     end
+end
+
+-- Whether the combat-distance seam registered (#563+ overlays); false = spacing INACTIVE, engine
+-- bands untouched, and the t199 push overlay is inert too (its cap rides the same handlers).
+local _spacing_active = false
+
+--- True when the combat-distance handlers are live on this exe (the t199 window's band effector
+--- rides them; its owner logs its own INACTIVE from this).
+function is_spacing_active()
+    return _spacing_active
 end
 
 local function _on_first_update()
     at_debug.refresh()
-    at_debug.info("Stance conduct initialized (posture=%s)", tostring(cfg.conduct_posture))
+    at_debug.info("Stance conduct initialized (posture=%s spacing=%s)",
+        tostring(cfg.conduct_posture), _spacing_active and tostring(cfg.conduct_spacing) or "INACTIVE")
+    if not _spacing_active then
+        at_debug.info("Weapon spacing INACTIVE: exe lacks the combat-distance asks (#563); engine bands apply")
+    end
 end
 
 function on_game_start()
     RegisterScriptCallback("npc_on_combat_set_body_state", _on_combat_body_state)
     RegisterScriptCallback("server_entity_on_unregister",  _on_entity_unregister)
     RegisterScriptCallback("actor_on_first_update",        _on_first_update)
+    _spacing_active = xcombat.on_get_min_combat_dist(_on_min_dist)
+        and xcombat.on_get_max_combat_dist(_on_max_dist)
+    RegisterScriptCallback("npc_on_best_cover_changed", _on_cover_changed)
 end

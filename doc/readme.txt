@@ -89,9 +89,14 @@ Cover posture: experienced riflemen and snipers crouch to steady the shot when t
 It replaces vanilla's blind posture picks (crouching behind random bumps and firing into them, or standing tall where a crouch would steady the aim).
 They crouch only past close range, staying mobile in a knife fight instead of dropping to a knee at your feet, and only while holding a position rather than on the move to cover.
 It reads the game's own cover map toward the enemy, and short-weapon carriers and green ranks keep vanilla behavior.
+Weapon spacing: a stalker's cover choices respect what his weapon is good at, submachine gunners accept closer cover so their fire stays effective, and skilled snipers hold extra distance.
 
-Behaviors (planned):
-New actions the vanilla planner lacks, starting with melee and peek.
+Behaviors:
+Stalkers act on windows of opportunity in the fight, in both directions.
+The Push: the stalkers fighting you punish the moment you cannot answer instead of watching it pass.
+Caught reloading, jammed, dry, or badly hurt, their fire thickens at close range, and with a clear upper hand (you weakened, bleeding, or turned away) the attackers move to closer cover.
+The Pull is the mirror: a stalker caught reloading or badly hurt under your fire falls back, his own cover choices landing farther from you until he recovers.
+Everything reverts the moment the window closes, the moments stay rare rather than constant, and each cause has its own switch.
 
 Effectiveness
 

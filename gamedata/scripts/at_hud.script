@@ -5,7 +5,8 @@
 --- refuses his cover move), then idle (only with HUD_SHOW_IDLE) - and every row is self-describing.
 --- Line A, bright: full rank + name + hp | SYSTEMS - every AT combat system active on the NPC, one
 --- comma-joined list in the who-drives colour (a maneuver's name in caps; COMMIT + age and PIN while
---- Commitment vetoes; CROUCH while Conduct holds a posture), "-" plain when vanilla drives untouched.
+--- Commitment vetoes; PUSH while the Behaviors window bumps him; CROUCH while Conduct holds a
+--- posture), "-" plain when vanilla drives untouched.
 --- Line B, dim: target (name + distance + sight word) | engine (scheme + mental). Sight words are
 --- plain English: "sees" / "aims-off" (sees but body pointed away) / "blind". The cover belief/ray
 --- forensics and the fire-gate verdicts live in the decision trace.
@@ -42,14 +43,16 @@ local SCHEME_MAX       = 14
 local FACING_DEG = 60
 
 -- Colors built lazily; GetARGB is not present at module-load under the static validator.
-local CLR_AT, CLR_HOLD, CLR_CONDUCT, CLR_NORMAL, CLR_DIM = nil, nil, nil, nil, nil
+local CLR_AT, CLR_HOLD, CLR_PUSH, CLR_CONDUCT, CLR_NORMAL, CLR_DIM = nil, nil, nil, nil, nil, nil
 
 -- Row colour = which combat system touches the NPC: green a maneuver drives him, blue Commitment holds
--- him, mauve Conduct posture (crouch) on an otherwise vanilla NPC, plain vanilla untouched, dim detail.
+-- him, amber the Push window bumps him, mauve Conduct posture (crouch) on an otherwise vanilla NPC,
+-- plain vanilla untouched, dim detail.
 local function _init_colors()
     if CLR_AT then return end
     CLR_AT      = GetARGB(240, 170, 220, 170)
     CLR_HOLD    = GetARGB(240, 150, 190, 235)
+    CLR_PUSH    = GetARGB(240, 235, 190, 140)
     CLR_CONDUCT = GetARGB(240, 205, 165, 220)
     CLR_NORMAL  = GetARGB(220, 200, 200, 200)
     CLR_DIM     = GetARGB(160, 160, 160, 160)
@@ -112,11 +115,12 @@ local function _mental_name(npc)
 end
 
 -- The SYSTEMS cell: every AT combat system active on the NPC, one comma-joined list rendered in the
--- who-drives colour, so the three systems read the same way instead of one being a bright headline and
+-- who-drives colour, so the systems read the same way instead of one being a bright headline and
 -- another a dim exile. A maneuver is exclusive (it blocks the planner, so no hold and no conduct can
--- co-occur) and stands alone; Commitment (COMMIT + age, PIN) and Conduct (CROUCH) are composable
--- modifiers on a vanilla NPC and list together when both hold. Returns the text and the dominant
--- driver (AT > HOLD > CONDUCT) that colours the row. "-" plain when vanilla drives untouched.
+-- co-occur) and stands alone; Commitment (COMMIT + age, PIN), the Push window (PUSH), and Conduct
+-- (CROUCH) are composable modifiers on a vanilla NPC and list together when they hold. Returns the
+-- text and the dominant driver (AT > HOLD > PUSH > CONDUCT) that colours the row. "-" plain when
+-- vanilla drives untouched.
 local function _systems(id, maneuver)
     if maneuver then return string_upper(maneuver), "AT" end
     local tokens, driver = {}, nil
@@ -145,6 +149,16 @@ local function _systems(id, maneuver)
         end
     end
     if #tokens > 0 then driver = "HOLD" end
+    -- The Behaviors windows (at_combat, Combat > Behaviors): PUSH while the actor's vulnerable
+    -- window bumps this NPC, PULL while his own window pulls him back. Composable modifiers.
+    if at_combat.get_push(id) then
+        tokens[#tokens + 1] = "PUSH"
+        driver = driver or "PUSH"
+    end
+    if at_combat.get_pull(id) then
+        tokens[#tokens + 1] = "PULL"
+        driver = driver or "PUSH"
+    end
     -- Conduct posture (at_stance, Combat > Conduct): crouches an experienced rifleman behind real cover.
     -- Composes with a Commitment hold on the same vanilla NPC, so it appends rather than replaces.
     if at_stance.crouched(id) then
@@ -317,12 +331,13 @@ end
 -- No allocation, no widget construction. Both Line A cells take the row color, uniformly - the name and
 -- the systems list read in the who-drives colour together, so no system is a bright headline while
 -- another is a dim exile. Line B stays dim, the pairing cue. The overflow entry fills only its first A
--- cell. Row color: green = a maneuver drives him, blue = Commitment holds/pins him, mauve = Conduct
--- crouches him, plain = vanilla drives untouched.
+-- cell. Row color: green = a maneuver drives him, blue = Commitment holds/pins him, amber = the Push
+-- window bumps him, mauve = Conduct crouches him, plain = vanilla drives untouched.
 local function _row_color(row)
     if row.is_overflow then return CLR_DIM end
     if row.driver == "AT" then return CLR_AT end
     if row.driver == "HOLD" then return CLR_HOLD end
+    if row.driver == "PUSH" then return CLR_PUSH end
     if row.driver == "CONDUCT" then return CLR_CONDUCT end
     return CLR_NORMAL
 end

@@ -1,5 +1,5 @@
 next
-  Summary: Glide stop, Disclosure rework, target priority dial, Zombie stance, Gear toggles, Discipline menu, Danger fix
+  Summary: Push and Pull windows, Weapon spacing, Glide stop, Disclosure rework, target priority dial, Zombie stance, Gear toggles, Discipline menu, Danger fix
 
   Combat
     Maneuvers
@@ -10,6 +10,15 @@ next
           instead of breaking off to reposition, and moves again once the enemy can answer. The extra hold is bounded, nobody stays planted for long. Its own switch.
     Conduct
       - Zombied stalkers no longer take a tactical cover crouch on the firing line. They still duck from incoming fire.
+      - Added Weapon spacing: a stalker's cover choices respect what his weapon is good at, submachine gunners accept closer cover so their fire stays effective
+          and skilled snipers hold extra distance. Its own switch.
+    Behaviors
+      - Added the Push, the first behavior on the new Behaviors page: the stalkers fighting you punish the moment you cannot answer instead of watching it pass.
+          Caught reloading, jammed, or with a dry magazine their fire thickens at close range within a burst cycle, and while you are badly hurt healthy attackers close in to finish the fight.
+          With a clear upper hand (you weakened, bleeding, or turned away) they also move to closer cover instead of trading from range.
+          Everything reverts the moment you fire again or recover, the push moments stay rare rather than constant, with a master switch and a switch per cause.
+      - Added the Pull, the push's mirror: a stalker caught reloading or badly hurt under your fire falls back, his own cover choices landing farther from you until he recovers.
+          His self-preservation outranks his squad's push, and the takeover maneuvers (a reload dash to cover, a retreat) still take priority over it. Its own switch.
 
   Effectiveness
     Disclosure
@@ -32,6 +41,7 @@ next
 
   Development
     - The debug HUD's Commitment token reads LIQUIDATE while a stalker holds fire on an enemy who cannot answer, and LIQUIDATED in the afterglow, so sub-second holds stay readable.
+    - The debug HUD shows PUSH in its own amber row colour on every stalker the push window is currently bumping, and PULL on a stalker falling back through his own window.
 
 1.2.0
   Summary: Difficulty rebalance, Tracking Lock, Gear, Vision Range, Reload Cover, cover posture, Perception menu, maneuver fixes, Useful Idiots compatibility, Ballistics Overhaul compatibility
