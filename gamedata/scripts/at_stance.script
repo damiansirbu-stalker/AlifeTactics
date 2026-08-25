@@ -118,7 +118,7 @@ local function _on_combat_body_state(npc, world_operator, _body_state, flags)
         if not (kind and LONG_KINDS[kind]) then return end
         if not _is_eligible(npc, id) then return end
     end
-    local enemy = npc:best_enemy()
+    local enemy = xcombat.get_best_enemy(npc)
     if not (enemy and enemy:alive()) then return end
     local tg = time_global()
     local held = _decision[id]

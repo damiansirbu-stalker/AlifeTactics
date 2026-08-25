@@ -268,7 +268,7 @@ local function _on_action_switch(npc, from_op, to_op, flags)
     if not (is_fire_exit or is_flank_exit) then return end
 
     local id = npc:id()
-    local enemy = npc:best_enemy()
+    local enemy = xcombat.get_best_enemy(npc)
     if not enemy then _log_decline(npc, id, "no_enemy") return end
     local sees = xcombat.sees(npc, enemy)
 
@@ -378,7 +378,7 @@ local function _on_cover_repick(npc, flags)
     local id = npc:id()
     if not _attack_ops[_cur_op[id]] then return end
     if xcreature.community(npc) == "zombied" then return end
-    local enemy = npc:best_enemy()
+    local enemy = xcombat.get_best_enemy(npc)
     if not enemy then _log_decline(npc, id, "cover_no_enemy") return end
     if not xcombat.sees(npc, enemy) then _log_decline(npc, id, "cover_no_sight") return end
     if xcombat.can_kill_member(npc, enemy:position()) then _log_decline(npc, id, "cover_lane_blocked") return end

@@ -360,7 +360,7 @@ local function _on_shot_lead(obj, wpn, body_state, move_type, temp_disp)
     _next_lead[id] = tg + LEAD_THROTTLE_MS
     if xcreature.community(obj) == "zombied" then return end
 
-    local enemy = obj:best_enemy()
+    local enemy = xcombat.get_best_enemy(obj)
     if not enemy then return end
     local tier = _get_obj_rank_name(obj)
     if not tier or tier == "" then return end

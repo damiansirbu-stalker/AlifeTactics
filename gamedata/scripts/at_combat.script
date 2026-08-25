@@ -431,7 +431,7 @@ local function _try_begin_maneuver(npc, state, tg)
     if not _manages(npc) then state.fighting = false return end
     local timer = xprofiler.new_if(at_debug.on()):start()
 
-    local enemy = npc:best_enemy()
+    local enemy = xcombat.get_best_enemy(npc)
     state.fighting = _is_fighting(enemy, state, tg)
     if not state.fighting then state.stall_set = false state.row_cursor = 1 state.repeat_situation = nil return end
     if at_debug.on() then state.name = npc:name() end
@@ -872,7 +872,7 @@ end
 local function _check_push_target(npc, state)
     if state.zombied == nil then state.zombied = xcreature.community(npc) == "zombied" end
     if state.zombied then return false end
-    local enemy = npc:best_enemy()
+    local enemy = xcombat.get_best_enemy(npc)
     return enemy ~= nil and enemy:id() == AC_ID
 end
 

@@ -103,7 +103,7 @@ end
 local function _try_play_heal_anim(npc, gesture)
     if not cfg.healing_anim_enabled then return end
     if xcombat.actor_dist_sqr(npc) > ANIM_RADIUS_SQR then return end
-    if npc:best_enemy() then
+    if xcombat.get_best_enemy(npc) then
         if at_debug.on() then at_debug.dbg("[HEAL] anim skipped id=%d reason=combat", npc:id()) end
         return
     end
@@ -130,7 +130,7 @@ end
 -- ~6s per healing NPC pays 2-4 luabind reads here.
 local ENGAGED_MELEE_SQR = 5 * 5
 local function _engaged(npc)
-    local enemy = npc:best_enemy()
+    local enemy = xcombat.get_best_enemy(npc)
     if not (enemy and enemy:alive()) then return false end
     if npc:active_item() and npc:weapon_unstrapped() then return true end
     return npc:position():distance_to_sqr(enemy:position()) <= ENGAGED_MELEE_SQR
@@ -378,7 +378,7 @@ end
 -- while calm (the eligibility chain), so either flip means a fight began. One predicate so the start gate
 -- and the fast drop share the same definition of "in combat".
 local function _in_combat(npc)
-    return npc:best_enemy() ~= nil or npc:mental_state() ~= anim.free
+    return xcombat.get_best_enemy(npc) ~= nil or npc:mental_state() ~= anim.free
 end
 
 -- The drop detectors, on their own 200ms clock. While a script animation is queued the engine
@@ -443,7 +443,7 @@ local LIMP_DECLINE_WINDOW = 100
 -- The first eligibility gate this hurt NPC fails, re-derived in the eligibility chain's order.
 local function _limp_decline_reason(npc)
     if xcombat.actor_dist_sqr(npc) > ANIM_RADIUS_SQR then return "far" end
-    if npc:best_enemy() then return "enemy" end
+    if xcombat.get_best_enemy(npc) then return "enemy" end
     if npc:mental_state() ~= anim.free then return "mental" end
     if npc:body_state() ~= move.standing then return "standing" end
     if IsWounded(npc) then return "wounded" end
@@ -478,7 +478,7 @@ local function _run_limp_check(npc, id, state, tg)
         and xcombat.actor_dist_sqr(npc) <= ANIM_RADIUS_SQR
         and not npc:in_smart_cover()
         and npc.health < cfg.limping_health_threshold
-        and not npc:best_enemy()
+        and not xcombat.get_best_enemy(npc)
         and npc:mental_state() == anim.free
         and npc:body_state() == move.standing
         and xcreature.community(npc) ~= "zombied"

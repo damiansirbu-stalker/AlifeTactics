@@ -243,7 +243,7 @@ function pick(npc, now)
     local st = _state[id]
     if not st then st = { fighting = false }; _state[id] = st end
 
-    if npc:best_enemy() then
+    if xcombat.get_best_enemy(npc) then
         _on_combat_tick(npc, wpn, wpn_sec, ammo_class, st, now)
     else
         _on_peace_tick(npc, wpn, wpn_sec, st, now)
