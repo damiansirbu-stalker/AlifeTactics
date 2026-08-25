@@ -340,17 +340,17 @@ local function eval_danger(self)
 	-- profile_timer ACCUMULATES across start/stop pairs (script_engine_script.cpp:186), so every
 	-- segment is a delta against the running total.
 	local prof = at_debug.on()
-	local tmr, seg_mark
+	local timer, seg_mark
 	if prof then
 		_seg_bd, _seg_cb, _seg_dtime, _seg_cond, _seg_is, _seg_name = -1, -1, -1, -1, -1, "-"
-		tmr = xprofiler.new_if(true):start()
+		timer = xprofiler.new_if(true):start()
 	end
 	local danger = npc:best_danger()
-	if prof then tmr:stop() _seg_bd = tmr:get_us() seg_mark = _seg_bd tmr:start() end
+	if prof then timer:stop() _seg_bd = timer:get_us() seg_mark = _seg_bd timer:start() end
 
 	local flags = {ret_value = true}
 	SendScriptCallback("npc_on_eval_danger", npc, flags)
-	if prof then tmr:stop() local now_us = tmr:get_us() _seg_cb = now_us - seg_mark seg_mark = now_us end
+	if prof then timer:stop() local now_us = timer:get_us() _seg_cb = now_us - seg_mark seg_mark = now_us end
 	if flags.ret_value == false then return false end
 
 	-- A live script-danger stamp activates the scheme ON ITS OWN. Without this the noise/impact
@@ -369,9 +369,9 @@ local function eval_danger(self)
 	local tg = time_global()
 	local bd_type = danger:type()
 	local bd_name = bd_types[bd_type]
-	if prof then _seg_name = bd_name or tostring(bd_type) tmr:start() end
+	if prof then _seg_name = bd_name or tostring(bd_type) timer:start() end
 	local cur_danger_time = get_danger_time(danger, npc)
-	if prof then tmr:stop() local now_us = tmr:get_us() _seg_dtime = now_us - seg_mark seg_mark = now_us tmr:start() end
+	if prof then timer:stop() local now_us = timer:get_us() _seg_dtime = now_us - seg_mark seg_mark = now_us timer:start() end
 	if type(cur_danger_time) ~= "number" then cur_danger_time = 0 end
 
 	if (type(self.a.inertion) == "number" and type(self.a.danger_time) == "number") then
@@ -390,7 +390,7 @@ local function eval_danger(self)
 	local from_actor = _enabled.actor_tables and danger_obj and danger_obj:id() == AC_ID
 	local src = (from_actor and DangerInertionActor[bd_name]) or DangerInertion[bd_name]
 	local inertion = tonumber(xr_logic.pick_section_from_condlist(db.actor, npc, _parse_cached(npc, bd_name, "danger_inertion_time", src))) or 0
-	if prof then tmr:stop() local now_us = tmr:get_us() _seg_cond = now_us - seg_mark seg_mark = now_us end
+	if prof then timer:stop() local now_us = timer:get_us() _seg_cond = now_us - seg_mark seg_mark = now_us end
 	local danger_time = cur_danger_time
 
 	if not danger_time or type(danger_time) ~= "number" then
@@ -402,9 +402,9 @@ local function eval_danger(self)
 		return false
 	end
 
-	if prof then tmr:start() end
+	if prof then timer:start() end
 	local is_dangerous = is_danger(npc, danger)
-	if prof then tmr:stop() _seg_is = tmr:get_us() - seg_mark end
+	if prof then timer:stop() _seg_is = timer:get_us() - seg_mark end
 	if not is_dangerous then
 		return false
 	end
@@ -437,13 +437,13 @@ function at_evaluator_danger:evaluate()
 	-- or the deref below crashes on exactly the case the guard exists for.
 	local npc = self.object
 	if not npc then return false end
-	local tmr = xprofiler.new_if(at_debug.on()):start()
+	local timer = xprofiler.new_if(at_debug.on()):start()
 	local danger = eval_danger(self) or false
 	local st = db.storage[npc:id()]
 	if st then st.danger_flag = danger end
-	tmr:stop()
+	timer:stop()
 	if at_debug.on() then
-		local us = tmr:get_us()
+		local us = timer:get_us()
 		_eval_n = _eval_n + 1
 		_eval_sum_us = _eval_sum_us + us
 		if us > _eval_max_us then _eval_max_us = us end

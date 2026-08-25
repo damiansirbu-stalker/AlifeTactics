@@ -161,14 +161,14 @@ end
 -- the source's lazy inventory walk and caches the whole record, so the before_hit / shot appliers that
 -- follow in combat read a cache and never scan mid-callback.
 local function _apply_binds(npc)
-    local tmr = xprofiler.new_if(at_debug.on()):start()
+    local timer = xprofiler.new_if(at_debug.on()):start()
     local vrange = resolve(npc, EFFECT.VISION_RANGE)
     xcombat.set_view_distance_factor(npc, vrange or 1.0)
     _apply_aura(npc)
-    tmr:stop()
+    timer:stop()
     if at_debug.on() then
         at_debug.dbg("[EFF] spawn id=%d vrange=%s aura=%s [%.3fms]",
-            npc:id(), tostring(vrange), _emitting[npc:id()] and "on" or "off", tmr:get_ms())
+            npc:id(), tostring(vrange), _emitting[npc:id()] and "on" or "off", timer:get_ms())
     end
 end
 
@@ -195,17 +195,17 @@ end
 -- resolve returns nil for an ineligible NPC and the scale is a no-op.
 local function _on_npc_before_hit(npc, shit, _bone_id, _flags)
     if not (npc and shit) then return end
-    local tmr = xprofiler.new_if(at_debug.on()):start()
+    local timer = xprofiler.new_if(at_debug.on()):start()
     local before = shit.power
     xcombat.scale_hit_power(shit, resolve(npc, EFFECT.DAMAGE_RESIST))
     local attacker = shit.draftsman
     if attacker and IsStalker(attacker) then
         xcombat.scale_hit_power(shit, resolve(attacker, EFFECT.DAMAGE_DEALT))
     end
-    tmr:stop()
+    timer:stop()
     if at_debug.on() and before ~= shit.power then
         at_debug.dbg("[EFF] hit victim=%d attacker=%s power=%.3f->%.3f [%.3fms]",
-            npc:id(), attacker and attacker:id() or "none", before, shit.power, tmr:get_ms())
+            npc:id(), attacker and attacker:id() or "none", before, shit.power, timer:get_ms())
     end
 end
 
@@ -215,13 +215,13 @@ local function _on_actor_before_hit(shit, _bone_id, _flags)
     if not shit then return end
     local attacker = shit.draftsman
     if not (attacker and IsStalker(attacker)) then return end
-    local tmr = xprofiler.new_if(at_debug.on()):start()
+    local timer = xprofiler.new_if(at_debug.on()):start()
     local before = shit.power
     xcombat.scale_hit_power(shit, resolve(attacker, EFFECT.DAMAGE_DEALT))
-    tmr:stop()
+    timer:stop()
     if at_debug.on() and before ~= shit.power then
         at_debug.dbg("[EFF] hit victim=actor attacker=%d power=%.3f->%.3f [%.3fms]",
-            attacker:id(), before, shit.power, tmr:get_ms())
+            attacker:id(), before, shit.power, timer:get_ms())
     end
 end
 
@@ -233,13 +233,13 @@ local function _on_shot_dispersion(obj, _wpn, _body_state, _move_type, temp_disp
     if not (obj and temp_disp) then return end
     local factor = resolve(obj, EFFECT.SHOT_DISPERSION)
     if not factor then return end
-    local tmr = xprofiler.new_if(at_debug.on()):start()
+    local timer = xprofiler.new_if(at_debug.on()):start()
     local before = temp_disp.dispersion
     xcombat.scale_dispersion(temp_disp, factor)
-    tmr:stop()
+    timer:stop()
     if at_debug.on() then
         at_debug.dbg("[EFF] disp id=%d factor=%.3f cone=%.5f->%.5f [%.3fms]",
-            obj:id(), factor, before or -1, temp_disp.dispersion or -1, tmr:get_ms())
+            obj:id(), factor, before or -1, temp_disp.dispersion or -1, timer:get_ms())
     end
 end
 

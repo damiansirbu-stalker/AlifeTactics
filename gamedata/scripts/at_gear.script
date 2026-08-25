@@ -100,22 +100,22 @@ local function _collect(acc, sec)
     _CONTRIBUTE[kind](acc, sec)
 end
 
-local function _trace_resolve(id, record, tmr)
+local function _trace_resolve(id, record, timer)
     at_debug.dbg("[GEAR] resolve id=%d resist=%.3f plate=%.3f dealt=%.3f disp=%.3f regen=%.5f binoc=%s nvg=%s aura=%s combat=%s [%.3fms]",
         id, record.resist, record.plate, record.dealt, record.disp, record.regen,
-        tostring(record.binoc), tostring(record.nvg), tostring(record.aura), tostring(record.combat), tmr:get_ms())
+        tostring(record.binoc), tostring(record.nvg), tostring(record.aura), tostring(record.combat), timer:get_ms())
 end
 
 -- One inventory pass -> record. The chemical strength is routed after the walk, once the npc is in hand:
 -- to passive regen when n039 is present, else into the resist pool (interim). nil = offline/unresolvable.
 local function _resolve(id)
     if not cfg.gear_enabled then return false end
-    local tmr = xprofiler.new_if(at_debug.on()):start()
+    local timer = xprofiler.new_if(at_debug.on()):start()
     local acc = { resist = 0, chem = 0, plate = 0, dealt = 0, disp = 0, binoc = false, nvg = false, aura = false }
     local npc = xinventory.iterate_inventory(id, function(_owner, item)
         _collect(acc, item:section())
     end)
-    if not npc then tmr:stop() return nil end
+    if not npc then timer:stop() return nil end
 
     local regen = 0
     if _has_n039(npc) then
@@ -129,8 +129,8 @@ local function _resolve(id)
         combat = xcreature.community(npc) ~= "zombied",
     }
     _resolved[id] = record
-    tmr:stop()
-    if at_debug.on() then _trace_resolve(id, record, tmr) end
+    timer:stop()
+    if at_debug.on() then _trace_resolve(id, record, timer) end
     return record
 end
 

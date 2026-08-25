@@ -58,7 +58,7 @@ local _orig_get_queue_params
 local function _patched_get_queue_params(npc, st, override)
     local state = npc and _npc_states[npc:id()]
     if state and state.maneuver then
-        local tmr = xprofiler.new_if(at_debug.on()):start()
+        local timer = xprofiler.new_if(at_debug.on()):start()
         local band
         if state.maneuver.name == "pickoff" then
             band = _pickoff_band
@@ -75,12 +75,12 @@ local function _patched_get_queue_params(npc, st, override)
             interval = math_floor(interval * ik + 0.5)
             override = { size, interval, 0 }
         end
-        tmr:stop()
+        timer:stop()
         if at_debug.on() then
             at_debug.dbg("[QUE] id=%d row=%s size=%s interval=%s [%.3fms]",
                 npc:id(), state.maneuver.name,
                 band and tostring(override[1]) or "vanilla",
-                band and tostring(override[2]) or "vanilla", tmr:get_ms())
+                band and tostring(override[2]) or "vanilla", timer:get_ms())
         end
     end
     return _orig_get_queue_params(npc, st, override)
@@ -292,16 +292,16 @@ local function _begin_maneuver(npc)
     -- send_to substitutes silently: an inaccessible vertex is re-targeted to accessible_nearest, and a
     -- failure there falls back to the NPC's own node. Keep what it ACTUALLY set, so the trace and any
     -- distance read reflect where he was really sent rather than where the row asked.
-    local tmr_send = xprofiler.new_if(at_debug.on()):start()
+    local timer_send = xprofiler.new_if(at_debug.on()):start()
     state.sent = xcombat.send_to(npc, state.dest)
-    tmr_send:stop()
-    local tmr_apply = xprofiler.new_if(at_debug.on()):start()
+    timer_send:stop()
+    local timer_apply = xprofiler.new_if(at_debug.on()):start()
     local fire, gate = doctrine.apply_state(npc, maneuver, enemy)
-    tmr_apply:stop()
+    timer_apply:stop()
     state.maneuver_at = tg
     _shots[state.id] = nil
     _hits[state.id] = nil
-    _trace_begin(npc, state, fire, gate, math_floor(tmr_send:get_us()), math_floor(tmr_apply:get_us()))
+    _trace_begin(npc, state, fire, gate, math_floor(timer_send:get_us()), math_floor(timer_apply:get_us()))
 end
 
 -- Shot counter (debug only): one increment per bullet a maneuvering NPC fires.
@@ -429,7 +429,7 @@ end
 -- negates it, so the trigger itself is the throttle - a re-fired need is a real, recurred problem.
 local function _try_begin_maneuver(npc, state, tg)
     if not _manages(npc) then state.fighting = false return end
-    local tmr = xprofiler.new_if(at_debug.on()):start()
+    local timer = xprofiler.new_if(at_debug.on()):start()
 
     local enemy = npc:best_enemy()
     state.fighting = _is_fighting(enemy, state, tg)
@@ -438,16 +438,16 @@ local function _try_begin_maneuver(npc, state, tg)
 
     if not enemy then
         state.enemy_id = nil
-        tmr:stop()
-        _trace_monitor_skip(state, "no_enemy", nil, tmr:get_us())
+        timer:stop()
+        _trace_monitor_skip(state, "no_enemy", nil, timer:get_us())
         return
     end
     state.enemy_id = enemy:id()
 
     local blocked, block_detail = _seize_blocked(npc)
     if blocked then
-        tmr:stop()
-        _trace_monitor_skip(state, blocked, block_detail, tmr:get_us())
+        timer:stop()
+        _trace_monitor_skip(state, blocked, block_detail, timer:get_us())
         return
     end
 
@@ -474,8 +474,8 @@ local function _try_begin_maneuver(npc, state, tg)
         state.maneuver_at = nil
         state.begin_at = tg
     end
-    tmr:stop()
-    if at_debug.on() then state.check_us = math_floor(tmr:get_us()) end
+    timer:stop()
+    if at_debug.on() then state.check_us = math_floor(timer:get_us()) end
     _trace_decision(npc, state, enemy, maneuver and maneuver.name)
     -- A vs_actor row commits to the ACTOR: its problem is the actor, not the selected enemy, so the
     -- maneuver aims at, ends on, and resolves the actor for its whole life. Staged AFTER the decision
@@ -556,11 +556,11 @@ local function _update_maneuver(npc, state, tg)
         -- closing and a foreign sight is then legitimate, not glue.
         if enemy then _check_sight_lost(state, maneuver, sight_id) end
     end
-    local tmr = xprofiler.new_if(at_debug.on()):start()
+    local timer = xprofiler.new_if(at_debug.on()):start()
     local fire, gate = maneuver.update(npc, maneuver, enemy)
-    tmr:stop()
+    timer:stop()
     if not at_debug.on() then return end
-    local us = math_floor(tmr:get_us())
+    local us = math_floor(timer:get_us())
     if not enemy then
         at_debug.dbg("[CMB] update id=%s name=%s maneuver=%s target=nil fire=%s fire_gate=%s [%dus]",
             show(state.id), show(state.name), show(maneuver.name), show(fire), show(gate), us)
@@ -633,10 +633,10 @@ local function _try_end_maneuver(npc, state, tg)
             return
         end
     end
-    local tmr = xprofiler.new_if(at_debug.on()):start()
+    local timer = xprofiler.new_if(at_debug.on()):start()
     local reason = _end_reason(npc, enemy, state, tg)
-    tmr:stop()
-    if reason then _end_maneuver(state, tg, reason, math_floor(tmr:get_us())) end
+    timer:stop()
+    if reason then _end_maneuver(state, tg, reason, math_floor(timer:get_us())) end
 end
 
 
@@ -1077,14 +1077,14 @@ local function _run_monitor()
     if not _monitor_active then return true end
     ResetTimeEvent("at_combat", "monitor", MONITOR_PERIOD_SEC)
     local tg = time_global()
-    local tmr = xprofiler.new_if(at_debug.on()):start()
+    local timer = xprofiler.new_if(at_debug.on()):start()
     _update_push_window(tg)
     for id, state in pairs(_npc_states) do
         local npc = xobject.go(id)
         if npc then _run_npc_checks(npc, state, tg) end
     end
-    tmr:stop()
-    if at_debug.on() then _record_pass(tmr:get_ms(), tg) end
+    timer:stop()
+    if at_debug.on() then _record_pass(timer:get_ms(), tg) end
 end
 
 local function _start_monitor()

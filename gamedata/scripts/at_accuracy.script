@@ -58,15 +58,15 @@ local function _on_move_penalty(obj, wpn, body_state, move_type, temp_disp)
     local move = _move[tier]
     if not move or move == 1.0 then return end
 
-    local tmr  = xprofiler.new_if(at_debug.on()):start()
+    local timer  = xprofiler.new_if(at_debug.on()):start()
     local base = temp_disp.dispersion
     temp_disp.dispersion = base * move
-    tmr:stop()
+    timer:stop()
 
     if at_debug.on() then
         local sect = (wpn and wpn:section()) or "none"
         at_debug.dbg("[ACC] move id=%d tier=%s section=%s bs=%d mt=%d base=%.5f move=%.2f out=%.5f [%.3fms]",
-            obj:id(), tier, sect, body_state, move_type, base, move, temp_disp.dispersion, tmr:get_ms())
+            obj:id(), tier, sect, body_state, move_type, base, move, temp_disp.dispersion, timer:get_ms())
     end
 end
 

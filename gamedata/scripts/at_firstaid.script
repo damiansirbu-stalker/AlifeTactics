@@ -151,7 +151,7 @@ local function _try_pause_hp(npc, id, name, left)
 end
 
 -- Chain-end debug line: why this heal chain stopped (dead, despawned, or ticks spent).
-local function _log_hp_complete(tmr, npc, id, left)
+local function _log_hp_complete(timer, npc, id, left)
     if not at_debug.on() then return end
     local reason = "ticks_exhausted"
     if npc == nil then
@@ -159,13 +159,13 @@ local function _log_hp_complete(tmr, npc, id, left)
     elseif not npc:alive() then
         reason = "dead"
     end
-    at_debug.dbg("[HEAL] complete id=%d reason=%s left=%d [%.2fms]", id, reason, left, tmr:get_ms())
+    at_debug.dbg("[HEAL] complete id=%d reason=%s left=%d [%.2fms]", id, reason, left, timer:get_ms())
 end
 
 -- Vanilla xr_eat_medkit.heal_hp (script:188-201) with MCM rate multiplier.
 -- Reschedules via xr_eat_medkit.heal_hp lookup so the chain stays on the patched function.
 local function _patched_heal_hp(id, left)
-    local tmr = xprofiler.new_if(at_debug.on()):start()
+    local timer = xprofiler.new_if(at_debug.on()):start()
     local nextl = left - 1
     local npc = xobject.go(id)
     if npc and npc:alive() and nextl > 1 then
@@ -174,7 +174,7 @@ local function _patched_heal_hp(id, left)
         local enabled = cfg.healing_enabled ~= false
         local name = npc:name()
         if enabled and _try_pause_hp(npc, id, name, left) then
-            tmr:stop()
+            timer:stop()
             return false
         end
         local mult = enabled and cfg.heal_rate_multiplier or 1
@@ -183,16 +183,16 @@ local function _patched_heal_hp(id, left)
         if enabled and left == HEAL_TICK_FIRST then
             _try_play_heal_anim(npc, HEAL_ANIM_MEDKIT)
         end
-        tmr:stop()
+        timer:stop()
         if at_debug.on() then
             at_debug.dbg("[HEAL] hp_tick id=%d mult=%.2f health=%.2f left=%d [%.2fms]",
-                id, mult, npc.health, nextl, tmr:get_ms())
+                id, mult, npc.health, nextl, timer:get_ms())
         end
         CreateTimeEvent(id, name .. "_self_healing_event_hp_" .. nextl,
             level.get_time_factor(), xr_eat_medkit.heal_hp, id, nextl)
     else
-        tmr:stop()
-        _log_hp_complete(tmr, npc, id, left)
+        timer:stop()
+        _log_hp_complete(timer, npc, id, left)
     end
     return true
 end
@@ -200,7 +200,7 @@ end
 -- Vanilla xr_eat_medkit.heal_bleed (script:203-215) with logging only.
 -- Engine bleeding field is a hard set per tick, not a delta -- no multiplier.
 local function _patched_heal_bleed(id, left)
-    local tmr = xprofiler.new_if(at_debug.on()):start()
+    local timer = xprofiler.new_if(at_debug.on()):start()
     local nextl = left - 1
     local npc = xobject.go(id)
     if npc and npc:alive() and nextl > 1 then
@@ -210,21 +210,21 @@ local function _patched_heal_bleed(id, left)
         if cfg.healing_enabled ~= false and left == HEAL_TICK_FIRST then
             _try_play_heal_anim(npc, HEAL_ANIM_BANDAGE)
         end
-        tmr:stop()
+        timer:stop()
         if at_debug.on() then
             at_debug.dbg("[HEAL] bleed_tick id=%d bleeding=%.3f left=%d [%.2fms]",
-                id, npc.bleeding, nextl, tmr:get_ms())
+                id, npc.bleeding, nextl, timer:get_ms())
         end
         CreateTimeEvent(id, npc:name() .. "_self_healing_event_bleed_" .. nextl,
             level.get_time_factor(), xr_eat_medkit.heal_bleed, id, nextl)
     else
-        tmr:stop()
+        timer:stop()
         if at_debug.on() then
             local reason = (not npc) and "no_obj"
                 or (not npc:alive()) and "dead"
                 or "ticks_exhausted"
             at_debug.dbg("[HEAL] bleed_complete id=%d reason=%s left=%d [%.2fms]",
-                id, reason, left, tmr:get_ms())
+                id, reason, left, timer:get_ms())
         end
     end
     return true
@@ -334,13 +334,13 @@ local function _on_net_spawn(npc, _se_obj)
     -- (zzz_at_firstaid_patch) - the re-roll bug must not return when the toggle is off.
     if cfg.healing_enabled == false then return end
     if not npc or not IsStalker(npc) or not npc:alive() then return end
-    local tmr = xprofiler.new_if(at_debug.on()):start()
+    local timer = xprofiler.new_if(at_debug.on()):start()
     local id = npc:id()
     local name = npc:name()
     if _safe_load(id, name, "at_charge_processed") then
-        tmr:stop()
+        timer:stop()
         if at_debug.on() then
-            at_debug.dbg("[CHARGE] already_processed id=%d name=%s [%.2fms]", id, name, tmr:get_ms())
+            at_debug.dbg("[CHARGE] already_processed id=%d name=%s [%.2fms]", id, name, timer:get_ms())
         end
         return
     end
@@ -351,10 +351,10 @@ local function _on_net_spawn(npc, _se_obj)
     local rolled = math_random()
     local granted = rolled < chance
     _safe_save(id, name, "healing_charge", granted)
-    tmr:stop()
+    timer:stop()
     if at_debug.on() then
         at_debug.dbg("[CHARGE] id=%d tier=%s chance=%.2f rolled=%.3f granted=%s [%.2fms]",
-            id, tier, chance, rolled, granted and "true" or "false", tmr:get_ms())
+            id, tier, chance, rolled, granted and "true" or "false", timer:get_ms())
     end
 end
 
@@ -390,46 +390,46 @@ end
 -- NPC drifted off its add-time anchor; a walk/run-variant NPC stopped displacing (path ended with the
 -- command still up). Returns true when the record was dropped.
 local function _try_drop_limp(npc, id, rec, tg)
-    local tmr = xprofiler.new_if(at_debug.on()):start()
+    local timer = xprofiler.new_if(at_debug.on()):start()
     if not npc:alive() or IsWounded(npc) or npc:critically_wounded() then
-        tmr:stop()
-        _drop_limp(npc, id, "wounded_or_dead", tmr:get_us())
+        timer:stop()
+        _drop_limp(npc, id, "wounded_or_dead", timer:get_us())
         return true
     end
     -- Combat drop on the FAST clock (this detector runs every pass; the enemy/mental gate otherwise sits
     -- on the throttled eligibility chain, ~1s): the instant a fight begins, drop the overlay now, not up to
     -- a second later. A limp still playing when the NPC is shot is what pins the body and slides it.
     if _in_combat(npc) then
-        tmr:stop()
-        _drop_limp(npc, id, "combat", tmr:get_us())
+        timer:stop()
+        _drop_limp(npc, id, "combat", timer:get_us())
         return true
     end
-    if rec.mt == nil then tmr:stop() return false end
+    if rec.mt == nil then timer:stop() return false end
     if npc:movement_type() ~= rec.mt then
-        tmr:stop()
-        _drop_limp(npc, id, "gait_changed", tmr:get_us())
+        timer:stop()
+        _drop_limp(npc, id, "gait_changed", timer:get_us())
         return true
     end
     local pos = npc:position()
     if rec.mt == move.stand then
         if rec.anchor and pos:distance_to_sqr(rec.anchor) > LIMP_MOVE_SQR then
-            tmr:stop()
-            _drop_limp(npc, id, "moved", tmr:get_us())
+            timer:stop()
+            _drop_limp(npc, id, "moved", timer:get_us())
             return true
         end
-        tmr:stop()
+        timer:stop()
         return false
     end
-    if (tg - (rec.sample_ms or 0)) < LIMP_SAMPLE_MS then tmr:stop() return false end
+    if (tg - (rec.sample_ms or 0)) < LIMP_SAMPLE_MS then timer:stop() return false end
     local displaced = rec.last_pos == nil or pos:distance_to_sqr(rec.last_pos) > LIMP_MOVE_SQR
     rec.sample_ms = tg
     rec.last_pos = pos
     if not displaced then
-        tmr:stop()
-        _drop_limp(npc, id, "stopped", tmr:get_us())
+        timer:stop()
+        _drop_limp(npc, id, "stopped", timer:get_us())
         return true
     end
-    tmr:stop()
+    timer:stop()
     return false
 end
 
@@ -472,7 +472,7 @@ local function _run_limp_check(npc, id, state, tg)
     if rec and _try_drop_limp(npc, id, rec, tg) then return end
     if state.eligibility_at and tg < state.eligibility_at then return end
     state.eligibility_at = tg + LIMP_ELIGIBILITY_CHECK_MS
-    local tmr = xprofiler.new_if(at_debug.on()):start()
+    local timer = xprofiler.new_if(at_debug.on()):start()
     local eligible = IsStalker(npc)
         and npc:alive()
         and xcombat.actor_dist_sqr(npc) <= ANIM_RADIUS_SQR
@@ -485,19 +485,19 @@ local function _run_limp_check(npc, id, state, tg)
         and not IsWounded(npc)
 
     if not eligible then
-        tmr:stop()
+        timer:stop()
         if at_debug.on() and IsStalker(npc) and npc:alive() and npc.health < cfg.limping_health_threshold then
             _limp_note_decline(npc)
         end
         if not _limping[id] then return end
-        _drop_limp(npc, id, "not_eligible", tmr:get_us())
+        _drop_limp(npc, id, "not_eligible", timer:get_us())
         return
     end
     rec = _limping[id]
     if not rec then
         rec = { next_add_ms = 0 }
         _limping[id] = rec
-        if at_debug.on() then tmr:stop() at_debug.dbg("[LIMP] gained id=%d hp=%.2f [%dus]", id, npc.health, tmr:get_us()) end
+        if at_debug.on() then timer:stop() at_debug.dbg("[LIMP] gained id=%d hp=%.2f [%dus]", id, npc.health, timer:get_us()) end
     end
     if tg < rec.next_add_ms then return end
     if npc:animation_count() > 0 then return end
@@ -511,12 +511,12 @@ local function _run_limp_check(npc, id, state, tg)
     rec.last_pos = nil
     rec.sample_ms = tg
     if at_debug.on() then
-        tmr:stop()
+        timer:stop()
         local slot = npc:active_slot()
         local wpn  = npc:active_item()
         local sect = wpn and wpn:section() or "none"
         at_debug.dbg("[LIMP] anim id=%d name=%s slot=%d section=%s hp=%.2f [%dus]",
-            id, anim_name, slot, sect, npc.health, tmr:get_us())
+            id, anim_name, slot, sect, npc.health, timer:get_us())
     end
 end
 

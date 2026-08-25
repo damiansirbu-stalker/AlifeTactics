@@ -175,13 +175,13 @@ end
 -- Combat tick: (re)scan AP on entry or weapon change, then hold AP as the loaded type.
 local function _on_combat_tick(npc, wpn, wpn_sec, ammo_class, st, now)
     if not st.fighting or st.wpn_sec ~= wpn_sec then
-        local tmr = xprofiler.new_if(at_debug.on()):start()
+        local timer = xprofiler.new_if(at_debug.on()):start()
         st.fighting = true
         st.wpn_sec = wpn_sec
         st.idx, st.sec = _find_ap(wpn, ammo_class)
         if not st.idx then _try_rekey_depleted(npc, wpn, wpn_sec, ammo_class) end
-        tmr:stop()
-        if at_debug.on() then at_debug.dbg("[AP] engage npc=%d wpn=%s ap=%s [%dus]", npc:id(), wpn_sec, st.sec or "none", tmr:get_us()) end
+        timer:stop()
+        if at_debug.on() then at_debug.dbg("[AP] engage npc=%d wpn=%s ap=%s [%dus]", npc:id(), wpn_sec, st.sec or "none", timer:get_us()) end
     end
     st.last_seen = now
     if st.idx and wpn:get_ammo_type() ~= st.idx then
@@ -196,7 +196,7 @@ local function _on_peace_tick(npc, wpn, wpn_sec, st, now)
     if now - (st.last_seen or 0) < PEACE_DEBOUNCE_MS then return end
     st.fighting = false
     if not st.idx then return end
-    local tmr = xprofiler.new_if(at_debug.on()):start()
+    local timer = xprofiler.new_if(at_debug.on()):start()
     local chance = _decay_chance(npc, st.wpn_sec)
     local dropped = math_random() < chance
     if dropped then _delete_one_ap_box(npc, st.sec) end
@@ -209,10 +209,10 @@ local function _on_peace_tick(npc, wpn, wpn_sec, st, now)
         left = wpn:get_ammo_count_for_type(st.idx)
         if left <= 0 and wpn:get_ammo_type() ~= 0 then wpn:set_ammo_type(0) end
     end
-    tmr:stop()
+    timer:stop()
     if at_debug.on() then
         at_debug.dbg("[AP] disengage npc=%d ap=%s p=%.2f %s left=%d%s [%.2fms]", npc:id(), st.sec, chance,
-            dropped and "DROP" or "keep", left, (left == 0) and " fmj" or "", tmr:get_ms())
+            dropped and "DROP" or "keep", left, (left == 0) and " fmj" or "", timer:get_ms())
     end
 end
 

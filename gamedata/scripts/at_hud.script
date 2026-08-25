@@ -397,7 +397,7 @@ local function _drop_hud()
 end
 
 local function _refresh()
-    local tmr = xprofiler.new_if(at_debug.on()):start()
+    local timer = xprofiler.new_if(at_debug.on()):start()
     if _debug_wanted() then
         local rows = _build_rows()
         if not _hud then _hud = UIDebugHUD() end
@@ -407,8 +407,8 @@ local function _refresh()
         end
         _hud:set_rows(rows)
     end
-    tmr:stop()
-    if at_debug.on() then at_debug.dbg("[HUD] refresh [%.2fms]", tmr:get_ms()) end
+    timer:stop()
+    if at_debug.on() then at_debug.dbg("[HUD] refresh [%.2fms]", timer:get_ms()) end
 end
 
 local function _is_visible()

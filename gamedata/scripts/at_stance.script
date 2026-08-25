@@ -255,7 +255,7 @@ end
 -- eff_max stash the answered band under debug for the pick proof line.
 local function _on_min_dist(npc, base, flags)
     if not npc then return end
-    local tmr = xprofiler.new_if(at_debug.on()):start()
+    local timer = xprofiler.new_if(at_debug.on()):start()
     local tg = time_global()
     local id = npc:id()
     local row = cfg.conduct_spacing and _get_spacing_row(npc, id, tg) or nil
@@ -266,13 +266,13 @@ local function _on_min_dist(npc, base, flags)
         flags.ret_value = raised
         if row and at_debug.on() then row.eff_min = raised end
     end
-    tmr:stop()
-    if at_debug.on() then _record_spacing(tmr:get_us(), tg) end
+    timer:stop()
+    if at_debug.on() then _record_spacing(timer:get_us(), tg) end
 end
 
 local function _on_max_dist(npc, base, flags)
     if not npc then return end
-    local tmr = xprofiler.new_if(at_debug.on()):start()
+    local timer = xprofiler.new_if(at_debug.on()):start()
     local tg = time_global()
     local id = npc:id()
     local row = cfg.conduct_spacing and _get_spacing_row(npc, id, tg) or nil
@@ -285,8 +285,8 @@ local function _on_max_dist(npc, base, flags)
         flags.ret_value = capped
         if row and at_debug.on() then row.eff_max = capped end
     end
-    tmr:stop()
-    if at_debug.on() then _record_spacing(tmr:get_us(), tg) end
+    timer:stop()
+    if at_debug.on() then _record_spacing(timer:get_us(), tg) end
 end
 
 -- The output proof (the world-trace lesson, architecture.md: measure what he DID): on every actual
