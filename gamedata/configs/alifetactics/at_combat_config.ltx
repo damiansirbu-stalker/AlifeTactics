@@ -16,7 +16,7 @@ hurt_frac     = 0.40       ; flee/retreat need below this HP fraction, with the 
 stall_ms      = 4000       ; held position with the enemy not closing this long fires the stalled need (measured SINCE the last maneuver - a finished hold resets it)
 stall_move_m  = 2          ; movement under this counts as "held position"
 stall_close_m = 2          ; enemy gaining more than this much ground resets the stall timer
-circuit_limit = 3          ; consecutive same-situation picks with the NPC still standing within 2m of the last pick before the takeover stops trying (the transactions are provably changing nothing); releases when he moves, the situation changes, or the fight ends (0 = off)
+repeat_limit = 3          ; consecutive same-situation picks with the NPC still standing within 2m of the last pick before the takeover stops trying (the transactions are provably changing nothing); releases when he moves, the situation changes, or the fight ends (0 = off)
 counterflank_actor_dist_m = 5  ; counterflank fires when an enemy actor is inside this range while the NPC's committed target is farther than him
 
 ; Scheme fire discipline - the burst a maneuver-driven NPC fires. Replaces the state machinery's

@@ -116,14 +116,14 @@ local _hold_cap_ms = 6000
 -- it. Sized to the windows it rides (a reload 2-4s, a stagger ~1s). The hold still relents at the
 -- bound regardless - vulnerability extends a refusal, never makes it unconditional. Consulted only
 -- at the relent moment, so the deny stream under the base cap never pays the read.
-local LIQUIDATE_EXTEND_MS = 4000
+local VULNERABLE_EXTEND_MS = 4000
 
 -- The relent decision at the cap, shared by the switch hold and the cover pin: true = the hold
 -- keeps refusing past the base cap because the enemy cannot answer right now. Traces the deferral
 -- once per hold window with the term that tripped; label tells the two seams apart.
-local function _try_defer_relent(hold, enemy, tg, id, label)
+local function _try_extend_hold(hold, enemy, tg, id, label)
     if not cfg.commitment_liquidate then return false end
-    if tg - hold.since > _hold_cap_ms + LIQUIDATE_EXTEND_MS then return false end
+    if tg - hold.since > _hold_cap_ms + VULNERABLE_EXTEND_MS then return false end
     local vuln, why = xcombat.is_vulnerable(enemy)
     if not vuln then return false end
     -- The HUD fact, stamped regardless of the log level (the LIQUIDATE token reads it live and from
@@ -293,7 +293,7 @@ local function _on_action_switch(npc, from_op, to_op, flags)
                 xcombat.can_kill_enemy(npc, enemy) and "yes" or "no")
         end
     end
-    if tg - hold.since > _hold_cap_ms and not _try_defer_relent(hold, enemy, tg, id, "vuln-defer") then
+    if tg - hold.since > _hold_cap_ms and not _try_extend_hold(hold, enemy, tg, id, "vuln-defer") then
         if at_debug.on() then
             at_debug.dbg("[CMT] cap id=%d op=%s after=%dms denies=%d refused=%s",
                 id, _op_name(hold.op), tg - hold.since, hold.denies, _format_refused(hold.refused))
@@ -394,7 +394,7 @@ local function _on_cover_repick(npc, flags)
                 id, npc:name(), _op_name(_cur_op[id]), enemy:id())
         end
     end
-    if tg - hold.since > _hold_cap_ms and not _try_defer_relent(hold, enemy, tg, id, "cover-vuln-defer") then
+    if tg - hold.since > _hold_cap_ms and not _try_extend_hold(hold, enemy, tg, id, "cover-vuln-defer") then
         if at_debug.on() then
             at_debug.dbg("[CMT] cover-cap id=%d after=%dms denies=%d", id, tg - hold.since, hold.denies)
         end

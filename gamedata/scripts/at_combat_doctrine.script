@@ -30,12 +30,12 @@ local CONFIG_SECTION = "at_combat"
 local HURT_FRAC, STALL_MS, STALL_MOVE_SQR, STALL_CLOSE_M
 local KITE_ARC_DEG, KITE_SPREAD_DEG
 local FLEE_MIN_DIST_M, FLEE_BASE_MIN_DIST_M, RETREAT_REAR_M, UNDER_FIRE_MS
-local COUNTERFLANK_ACTOR_DIST_SQR, PICKOFF_TARGETED_DEG, PICKOFF_ENTER_FACTOR, CIRCUIT_LIMIT, RELOAD_STALE_MS, RELOAD_COVER_CONE_DEG
+local COUNTERFLANK_ACTOR_DIST_SQR, PICKOFF_TARGETED_DEG, PICKOFF_ENTER_FACTOR, REPEAT_LIMIT, RELOAD_STALE_MS, RELOAD_COVER_CONE_DEG
 
 -- Displacement under this between two same-situation picks reads as "the transaction changed nothing"
 -- (squared, flat - stairs do not read as movement).
-local CIRCUIT_MOVE_M   = 2
-local CIRCUIT_MOVE_SQR = CIRCUIT_MOVE_M * CIRCUIT_MOVE_M
+local REPEAT_MOVE_M   = 2
+local REPEAT_MOVE_SQR = REPEAT_MOVE_M * REPEAT_MOVE_M
 
 -- The maneuver catalog: an ordered array (array order = priority - resolve_maneuver walks it in order and
 -- the first row whose need, palette, and feasibility all pass wins the tick). Built in load_config so
@@ -328,7 +328,7 @@ at_combat_doctrine.apply_state = _apply_state
 -- vector for the held position, so the predicate allocates nothing on the monitor's hot path.
 local function _eval_stalled(state, tg, npc_pos, dist)
     if not state.stall_pos then state.stall_pos = vector() end
-    -- Flat, same metric as the circuit breaker (stairs do not read as movement) - the two stall
+    -- Flat, same metric as the repeat limit (stairs do not read as movement) - the two stall
     -- trackers measured the same concept with contradictory metrics until 2026-07-27 (f011).
     local held    = state.stall_set and xmath.dist_flat_sqr(npc_pos, state.stall_pos) <= STALL_MOVE_SQR
     local closing = state.stall_dist and dist < state.stall_dist - STALL_CLOSE_M
@@ -567,7 +567,7 @@ function at_combat_doctrine.load_config()
     PICKOFF_TARGETED_DEG = read_float("pickoff_targeted_deg", 10)
     PICKOFF_ENTER_FACTOR = read_float("pickoff_enter_factor", 1.2)
     RELOAD_COVER_CONE_DEG = read_float("reload_cover_cone_deg", 60)
-    CIRCUIT_LIMIT        = read_int("circuit_limit", 3)
+    REPEAT_LIMIT        = read_int("repeat_limit", 3)
     RELOAD_STALE_MS      = read_int("reload_stale_ms", 6000)
     CATALOG = _build_catalog(read_int)
 end
@@ -655,28 +655,28 @@ local function _row_trace(row, sit, stage, need_us, dest_us)
     return head .. "/need=" .. math_floor(need_us) .. "us/dest=" .. math_floor(dest_us) .. "us"
 end
 
--- The short circuit: a pick of the SAME situation with the NPC still within CIRCUIT_MOVE_M of the
+-- The repeat limit: a pick of the SAME situation with the NPC still within REPEAT_MOVE_M of the
 -- previous pick means the last transaction changed nothing (the indoor kite ping-pong, a counterflank
 -- whose hold failed to flip the selection); past the limit the pick is refused and vanilla owns him.
 -- Displacement is the discriminator, never timing: a legitimate chain under a sprinting player re-fires
 -- instantly too, but each transaction MOVED him, which resets the count. Release is world change, not a
 -- clock - he moves 2m, the situation changes, or the fight ends (at_combat clears the record on fight
 -- exit). Returns true when the pick must be refused.
-local function _circuit_tripped(state, sit, npc_pos)
-    if CIRCUIT_LIMIT <= 0 then return false end
-    local stuck = state.circuit_sit == sit and state.circuit_pos ~= nil
-        and xmath.dist_flat_sqr(npc_pos, state.circuit_pos) <= CIRCUIT_MOVE_SQR
+local function _check_repeat_limit(state, sit, npc_pos)
+    if REPEAT_LIMIT <= 0 then return false end
+    local stuck = state.repeat_situation == sit and state.repeat_pos ~= nil
+        and xmath.dist_flat_sqr(npc_pos, state.repeat_pos) <= REPEAT_MOVE_SQR
     if stuck then
-        state.circuit_count = state.circuit_count + 1
+        state.repeat_count = state.repeat_count + 1
     else
-        state.circuit_sit = sit
-        state.circuit_count = 1
-        state.circuit_pos = state.circuit_pos or vector()
+        state.repeat_situation = sit
+        state.repeat_count = 1
+        state.repeat_pos = state.repeat_pos or vector()
     end
-    state.circuit_pos:set(npc_pos)
-    if state.circuit_count <= CIRCUIT_LIMIT then return false end
-    at_debug.dbg("[CMB] circuit id=%s name=%s situation=%s picks=%d - takeover suspended until the world changes",
-        show(state.id), show(state.name), show(sit), state.circuit_count or -1)
+    state.repeat_pos:set(npc_pos)
+    if state.repeat_count <= REPEAT_LIMIT then return false end
+    at_debug.dbg("[CMB] repeat id=%s name=%s situation=%s picks=%d - takeover suspended until the world changes",
+        show(state.id), show(state.name), show(sit), state.repeat_count or -1)
     return true
 end
 
@@ -720,7 +720,7 @@ function at_combat_doctrine.resolve_maneuver(npc, enemy, state, tg)
         state.walk_us = math_floor(walk_timer:get_us())
     end
     if not spent_vid then return nil end
-    if _circuit_tripped(state, spent_sit, memo.npc_pos) then
+    if _check_repeat_limit(state, spent_sit, memo.npc_pos) then
         -- The refused pick's find_destination may have claimed a cover vertex (retreat, reload_cover); no
         -- maneuver opens, so _end_maneuver never releases it - release here or the claim outlives the walk.
         if state.cover_lvid then

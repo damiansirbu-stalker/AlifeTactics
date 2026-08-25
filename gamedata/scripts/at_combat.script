@@ -221,7 +221,7 @@ local function _end_maneuver(state, tg, reason, check_us)
     state.reenters, state.granted_at, state.released_at = nil, nil, nil
     state.tgt_seen, state.tgt_at, state.sent = nil, nil, nil
     state.escape_warned = nil
-    state.sight_warned, state.sight_glue_count = nil, nil
+    state.sight_warned, state.sight_lost_count = nil, nil
     _drop_gate(state)
     state.maneuver = nil
     state.dest = nil
@@ -243,7 +243,7 @@ local function _trace_begin(npc, state, fire, gate, send_us, apply_us)
     at_debug.dbg("[CMB] begin id=%s name=%s maneuver=%s trigger=%s dest=%s sent=%s fire=%s move=%s" ..
         " requested=%s fire_gate=%s cover=%s op=%s tgt=%s vertex=%s pos=%.1f,%.1f dest_m=%.1f [send=%dus apply=%dus]",
         show(state.id), show(state.name), show(maneuver.name), show(state.trigger), show(state.dest),
-        show(state.sent), show(fire), show(maneuver.movement), show(maneuver.fire), show(gate), show(state.cover),
+        show(state.sent), show(fire), show(maneuver.movement), show(maneuver.fire), show(gate), show(state.cover_trace),
         show(xcombat.get_operator(npc)), show(_get_state_mgr_target(state.id)), show(npc:level_vertex_id()),
         pos.x, pos.z, _dest_m(npc, state.sent or state.dest), send_us, apply_us)
     if state.sent == state.dest then return end
@@ -378,7 +378,7 @@ end
 -- Debug-only decision trace, gated here so the bridge reads (name, operator, facing, sight, cover) never run
 -- when tracing is off. The cover read happens at DECIDE time, before any seize: under a takeover block the
 -- planner flags can only decay (the blocked planner cannot run take_cover, the on_best_cover_changed clear
--- still fires), so the pre-seize value is the truthful one - the begin line reprints it from state.cover.
+-- still fires), so the pre-seize value is the truthful one - the begin line reprints it from state.cover_trace.
 -- rows= is one comma-joined entry per examined catalog row in walk order ("name:situation/stage", built by
 -- doctrine.resolve_maneuver); walk= the whole walk's microseconds, check= the begin check's own cost.
 local function _trace_decision(npc, state, enemy, result)
@@ -389,11 +389,11 @@ local function _trace_decision(npc, state, enemy, result)
     state.aim_off    = math_floor(xcombat.get_facing_offset(npc, enemy_pos))
     state.seen       = xcombat.sees(npc, enemy)
     local in_cover, looked_out, held = xcombat.get_cover_state(npc)
-    state.cover = _cover_string(in_cover, looked_out, held,
+    state.cover_trace = _cover_string(in_cover, looked_out, held,
         xcombat.has_obstacle_to_target(enemy_pos, npc:position(), xcombat.BODY_Y.STAND_EYE))
     at_debug.dbg("[CMB] monitor id=%s name=%s target=%s(%s) distance=%.1f seen=%s aim=%ddeg operator=%s cover=%s rows=%s walk=%dus check=%dus result=%s",
         show(state.id), show(state.name), show(state.enemy_id), show(state.enemy_name), state.dist or -1,
-        state.seen and "yes" or "no", state.aim_off or -1, show(state.operator), show(state.cover),
+        state.seen and "yes" or "no", state.aim_off or -1, show(state.operator), show(state.cover_trace),
         show(state.rows), state.walk_us or -1, state.check_us or -1, result or "none")
 end
 
@@ -433,7 +433,7 @@ local function _try_begin_maneuver(npc, state, tg)
 
     local enemy = npc:best_enemy()
     state.fighting = _is_fighting(enemy, state, tg)
-    if not state.fighting then state.stall_set = false state.row_cursor = 1 state.circuit_sit = nil return end
+    if not state.fighting then state.stall_set = false state.row_cursor = 1 state.repeat_situation = nil return end
     if at_debug.on() then state.name = npc:name() end
 
     if not enemy then
@@ -489,17 +489,17 @@ end
 -- are a self-reporting regression, named once per maneuver. The caller samples BEFORE the row's
 -- re-apply (a post-apply read echoes our own write); the counter resets on any clean sample and
 -- clears at maneuver end.
-local function _check_sight_glue(state, maneuver, sight_id)
+local function _check_sight_lost(state, maneuver, sight_id)
     if state.sight_warned then return end
     if maneuver.fire ~= xcombat.FIRE and maneuver.fire ~= xcombat.SNIPE then return end
     if sight_id == nil or sight_id == state.enemy_id then
-        state.sight_glue_count = nil
+        state.sight_lost_count = nil
         return
     end
-    state.sight_glue_count = (state.sight_glue_count or 0) + 1
-    if state.sight_glue_count < 3 then return end
+    state.sight_lost_count = (state.sight_lost_count or 0) + 1
+    if state.sight_lost_count < 3 then return end
     state.sight_warned = true
-    at_debug.warn("[CMB] sight_glue id=%d maneuver=%s staged=%d sight=%d - committed-target sight lost (f015 regression)",
+    at_debug.warn("[CMB] sight_lost id=%d maneuver=%s staged=%d sight=%d - committed-target sight lost (f015 regression)",
         state.id, maneuver.name, state.enemy_id, sight_id)
 end
 
@@ -554,7 +554,7 @@ local function _update_maneuver(npc, state, tg)
         sight_id, sight_mode = xcombat.get_sight_target(npc)
         -- Enemy-guarded at the call: with the target gone the maneuver is one end check from
         -- closing and a foreign sight is then legitimate, not glue.
-        if enemy then _check_sight_glue(state, maneuver, sight_id) end
+        if enemy then _check_sight_lost(state, maneuver, sight_id) end
     end
     local tmr = xprofiler.new_if(at_debug.on()):start()
     local fire, gate = maneuver.update(npc, maneuver, enemy)
