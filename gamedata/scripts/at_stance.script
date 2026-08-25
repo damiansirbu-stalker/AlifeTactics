@@ -187,7 +187,7 @@ local _spacing = {}
 local _push_max = {}
 -- npc id -> { min, max_floor }, the Behaviors pull overlay (t202, the mirror): while set it RAISES
 -- the answered minimum (and floors the maximum past it) so the NPC's own re-picks fall back. Applied
--- AFTER the push cap in both handlers - a vulnerable NPC's self-preservation outranks his push.
+-- AFTER the push cap in both handlers - the pull's self-preservation outranks the push.
 local _pull = {}
 -- Debug counter, [MON]-style: calls + handler us over a window, flushed from inside the handler.
 local SPACING_FLUSH_MS = 5000
