@@ -149,13 +149,13 @@ end
 -- state machinery is currently driving toward and combat is its own idle-bookkeeping flag. Both are plain
 -- table fields (zero luabind), read verbatim into trace lines so a session shows what the state machinery
 -- held at each moment without this file interpreting it.
-local function _sm_target(id)
+local function _get_state_mgr_target(id)
     local st = db.storage[id]
     local sm = st and st.state_mgr
     return sm and sm.target_state or nil
 end
 
-local function _sm_combat(id)
+local function _get_state_mgr_combat(id)
     local st = db.storage[id]
     local sm = st and st.state_mgr
     return sm and sm.combat or nil
@@ -210,7 +210,7 @@ local function _trace_end(state, tg, reason, check_us)
         show(state.id), show(state.name), show(row and row.name), show(reason),
         math_floor(tg - (state.begin_at or tg)), _shots[state.id] or 0, _hits[state.id] or 0,
         show(state.result or "-"), _cleared_label(row, need_cleared), state.reenters or 0,
-        show(vertex), show(state.dest), dest_m, show(_sm_target(state.id)), check)
+        show(vertex), show(state.dest), dest_m, show(_get_state_mgr_target(state.id)), check)
 end
 
 local function _end_maneuver(state, tg, reason, check_us)
@@ -244,7 +244,7 @@ local function _trace_begin(npc, state, fire, gate, send_us, apply_us)
         " requested=%s fire_gate=%s cover=%s op=%s tgt=%s vertex=%s pos=%.1f,%.1f dest_m=%.1f [send=%dus apply=%dus]",
         show(state.id), show(state.name), show(maneuver.name), show(state.trigger), show(state.dest),
         show(state.sent), show(fire), show(maneuver.movement), show(maneuver.fire), show(gate), show(state.cover),
-        show(xcombat.get_operator(npc)), show(_sm_target(state.id)), show(npc:level_vertex_id()),
+        show(xcombat.get_operator(npc)), show(_get_state_mgr_target(state.id)), show(npc:level_vertex_id()),
         pos.x, pos.z, _dest_m(npc, state.sent or state.dest), send_us, apply_us)
     if state.sent == state.dest then return end
     at_debug.dbg("[CMB] dest_substituted id=%s maneuver=%s asked=%s got=%s own=%s",
@@ -259,7 +259,7 @@ local function _trace_reenter(npc, state, maneuver, tg)
     at_debug.dbg("[CMB] reenter id=%s maneuver=%s n=%d op=%s tgt=%s combat=%s vertex=%s dest=%s dest_m=%.1f" ..
         " since_begin=%dms since_apply=%dms away=%dms",
         show(state.id), show(maneuver.name), state.reenters,
-        show(xcombat.get_operator(npc)), show(_sm_target(state.id)), flag(_sm_combat(state.id)),
+        show(xcombat.get_operator(npc)), show(_get_state_mgr_target(state.id)), flag(_get_state_mgr_combat(state.id)),
         show(npc:level_vertex_id()), show(state.dest), _dest_m(npc, state.sent or state.dest),
         math_floor(tg - (state.begin_at or tg)), math_floor(tg - state.maneuver_at),
         state.released_at and math_floor(tg - state.released_at) or -1)
@@ -353,7 +353,7 @@ local function _on_release(npc)
     at_debug.dbg("[CMB] release id=%s maneuver=%s held=%dms op=%s tgt=%s vertex=%s",
         show(state.id), show(state.maneuver and state.maneuver.name),
         math_floor(tg - (state.granted_at or tg)),
-        show(xcombat.get_operator(npc)), show(_sm_target(state.id)), show(npc:level_vertex_id()))
+        show(xcombat.get_operator(npc)), show(_get_state_mgr_target(state.id)), show(npc:level_vertex_id()))
 end
 
 local SPEC = {
@@ -573,7 +573,7 @@ local function _update_maneuver(npc, state, tg)
     -- an object) and stype= its mode - the identity+mode pair the direction evaluator gates fire on
     -- (never the body angle), so a zero-shot hold shows here whether the look order was ever accepted.
     local pos = npc:position()
-    local tgt = _sm_target(state.id)
+    local tgt = _get_state_mgr_target(state.id)
     local sight_label = sight_id and (sight_id == state.enemy_id and "tgt" or tostring(sight_id)) or "-"
     -- One line per TRANSITION of the state machinery's target, not per sample: this is where our applied
     -- combat state being replaced (notably by "idle") shows up with a timestamp, instead of having to be

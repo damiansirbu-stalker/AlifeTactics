@@ -66,27 +66,27 @@ end
 
 -- Clamped tier (>= 1) from the section's `tier` field (vanilla + GAMMA); default 1 for a section without
 -- one (plates, optics), which floors the effect at one tier step.
-local function _tier(sec)
+local function _get_tier(sec)
     local tier = ini_sys:r_float_ex(sec, "tier") or 1
     if tier < 1 then return 1 end
     return tier
 end
 
 -- Effect strength for a section: tier x step, capped. Raw strength (0.02..0.10), not yet a multiplier.
-local function _tier_strength(sec)
-    return math_min(_tier(sec) * _tier_step, _tier_cap)
+local function _get_tier_strength(sec)
+    return math_min(_get_tier(sec) * _tier_step, _tier_cap)
 end
 
 -- kind -> how it contributes to the scan accumulator. Tiered kinds keep the strongest strength per
 -- effect group (a channel never stacks across items); optics set a presence flag. gravi feeds the resist
 -- pool and chemical the regen route (chemical is routed after the walk).
 local _CONTRIBUTE = {
-    gravi    = function(acc, sec) acc.resist = math_max(acc.resist, _tier_strength(sec)) end,
-    chemical = function(acc, sec) acc.chem   = math_max(acc.chem,   _tier_strength(sec)) end,
-    thermal  = function(acc, sec) acc.disp   = math_max(acc.disp,   _tier_strength(sec)) end,
-    electro  = function(acc, sec) acc.dealt  = math_max(acc.dealt,  _tier_strength(sec)) end,
-    special  = function(acc, sec) acc.dealt  = math_max(acc.dealt,  _tier_strength(sec)) end,
-    plate    = function(acc, sec) acc.plate  = math_max(acc.plate,  _tier_strength(sec)) end,
+    gravi    = function(acc, sec) acc.resist = math_max(acc.resist, _get_tier_strength(sec)) end,
+    chemical = function(acc, sec) acc.chem   = math_max(acc.chem,   _get_tier_strength(sec)) end,
+    thermal  = function(acc, sec) acc.disp   = math_max(acc.disp,   _get_tier_strength(sec)) end,
+    electro  = function(acc, sec) acc.dealt  = math_max(acc.dealt,  _get_tier_strength(sec)) end,
+    special  = function(acc, sec) acc.dealt  = math_max(acc.dealt,  _get_tier_strength(sec)) end,
+    plate    = function(acc, sec) acc.plate  = math_max(acc.plate,  _get_tier_strength(sec)) end,
     binoc    = function(acc) acc.binoc = true end,
     nvg      = function(acc) acc.nvg = true end,
 }

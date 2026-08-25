@@ -87,7 +87,7 @@ local _RANK_TO_TIER = {
     legend       = "master",
 }
 
-local function _rank_tier(npc)
+local function _get_rank_tier(npc)
     return _RANK_TO_TIER[ranks.get_obj_rank_name(npc)] or "novice"
 end
 
@@ -346,7 +346,7 @@ local function _on_net_spawn(npc, _se_obj)
     end
     _safe_save(id, name, "at_charge_processed", true)
 
-    local tier = _rank_tier(npc)
+    local tier = _get_rank_tier(npc)
     local chance = (cfg["charge_chance_" .. tier] or 50) / 100
     local rolled = math_random()
     local granted = rolled < chance

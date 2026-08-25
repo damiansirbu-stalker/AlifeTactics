@@ -297,7 +297,7 @@ local function _reset()
     _avx, _avz, _apx, _apz, _at = 0, 0, nil, nil, 0
 end
 
-local function _tier_row(tier)
+local function _get_tier_row(tier)
     local row = _tiers[tier]
     if not row then
         row = { shots = 0, hits = 0, dmg = 0, near = 0, conv = 0,
@@ -351,7 +351,7 @@ local function _on_shot(obj, wpn, body_state, move_type, temp_disp)
     end
     local kind = xcombat.get_weapon_kind(obj)
 
-    local row = _tier_row(tier)
+    local row = _get_tier_row(tier)
     row.shots = row.shots + 1
     if moving then row.mv_shots = row.mv_shots + 1 else row.st_shots = row.st_shots + 1 end
     _drive_row(drive).shots = _drive_row(drive).shots + 1
@@ -438,7 +438,7 @@ local function _record_wrongway(bullet, shooter, ctx)
     local dot = (dir.x * dx + dir.y * dy + dir.z * dz) / edist
     if dot > 1 then dot = 1 elseif dot < -1 then dot = -1 end
     local off = math_deg(math_acos(dot))
-    local row = _tier_row(ctx.tier)
+    local row = _get_tier_row(ctx.tier)
     row.aim_shots = row.aim_shots + 1
     row.aim_off_sum = row.aim_off_sum + off
     if off <= WRONGWAY_DEG then return end
@@ -459,7 +459,7 @@ local function _on_impact(bullet)
 
     local shooter = xobject.go(parent_id)
     if shooter then
-        _record_angle(bullet, shooter, _tier_row(ctx.tier))
+        _record_angle(bullet, shooter, _get_tier_row(ctx.tier))
         _record_wrongway(bullet, shooter, ctx)
     end
 
@@ -473,7 +473,7 @@ local function _on_impact(bullet)
     end
     if not (hit or near) then return end
 
-    local row = _tier_row(ctx.tier)
+    local row = _get_tier_row(ctx.tier)
     row.near = row.near + 1
     if hit then
         row.hits = row.hits + 1
@@ -493,10 +493,10 @@ local function _on_actor_hit(obj, amount, local_direction, who, bone_index)
     if not IsStalker(who) then return end
     local tier = ranks.get_obj_rank_name(who)
     if not tier or tier == "" then return end
-    _tier_row(tier).dmg = _tier_row(tier).dmg + amount
+    _get_tier_row(tier).dmg = _get_tier_row(tier).dmg + amount
 end
 
-local function _pct(hits, shots)
+local function _get_percent(hits, shots)
     return shots > 0 and (100 * hits / shots) or 0
 end
 
@@ -521,16 +521,16 @@ function report()
         if row and row.shots > 0 then
             local moving_n = row.ahead_n + row.behind_n
             log.info("tier=%-12s shots=%-5d hits=%-4d hit=%.1f%% still=%.1f%% moving=%.1f%% conv=%.0f%% dmg=%.2f hpm=%.1f ang=%.1fdeg ahead=%.0f%% off=%.1fdeg wrong=%.0f%%",
-                tier, row.shots, row.hits, _pct(row.hits, row.shots), _pct(row.st_hits, row.st_shots),
-                _pct(row.mv_hits, row.mv_shots), _pct(row.conv, row.near), row.dmg, row.hits / minutes,
+                tier, row.shots, row.hits, _get_percent(row.hits, row.shots), _get_percent(row.st_hits, row.st_shots),
+                _get_percent(row.mv_hits, row.mv_shots), _get_percent(row.conv, row.near), row.dmg, row.hits / minutes,
                 row.ang_n > 0 and (row.ang_sum / row.ang_n) or 0,
                 moving_n > 0 and (100 * row.ahead_n / moving_n) or 0,
                 row.aim_shots > 0 and (row.aim_off_sum / row.aim_shots) or 0,
-                _pct(row.wrongway, row.aim_shots))
+                _get_percent(row.wrongway, row.aim_shots))
         end
     end
     for name, row in pairs(_drive) do
-        log.info("drive=%-8s shots=%-5d hits=%-4d hit=%.1f%%", name, row.shots, row.hits, _pct(row.hits, row.shots))
+        log.info("drive=%-8s shots=%-5d hits=%-4d hit=%.1f%%", name, row.shots, row.hits, _get_percent(row.hits, row.shots))
     end
     for kind, hist in pairs(_bursts) do
         log.info("bursts kind=%-10s %s", tostring(kind), _hist_line(hist))

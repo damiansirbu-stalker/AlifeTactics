@@ -86,7 +86,7 @@ end
 
 -- Per-edge refusal breakdown of a closed hold, for the debug traces only: "get_ready=4 take_cover=1".
 -- Populated only while DEBUG tracing is on (see the deny path), so this formats nothing when tracing is off.
-local function _refused_str(refused)
+local function _format_refused(refused)
     if not refused then return "-" end
     local parts = {}
     for op, count in pairs(refused) do parts[#parts + 1] = string_format("%s=%d", _op_name(op), count) end
@@ -210,12 +210,6 @@ end
 -- fire_make_sense) are recorded as DATA, never as gates, so the analysis can see which read would have
 -- called each transition right. Deduped per (npc, from, to) within CENSUS_LOG_MS because a denied switch
 -- is re-proposed every brain update. Debug-only: no luabind read, no string when the level is below DEBUG.
--- "y"/"n" for the census columns, extracted so the log call stays flat (complexity budget).
-local function _yn(b)
-    if b then return "y" end
-    return "n"
-end
-
 local _census_at = {}
 -- npc id -> time_global() of the last hit it TOOK, for the census under_fire read. is_under_fire is
 -- dead in combat: the engine ignores the SELECTED enemy's hit/sound dangers (danger_manager.cpp:350-351
@@ -236,14 +230,14 @@ local function _census_switch(npc, from_op, to_op)
     _census_at[id] = { from = from_op, to = to_op, at = tg }
     -- cke/fms are engine raycasts and only mean anything when leaving a FIRE action; on a non-fire exit
     -- they are noise, so skip them (and their cost) and log "-". fire = a hit taken within the window.
-    local sees = _yn(xcombat.sees(npc, enemy))
+    local sees = at_debug.flag(xcombat.sees(npc, enemy))
     local cke, fms = "-", "-"
     if _attack_ops[from_op] then
-        cke = _yn(xcombat.can_kill_enemy(npc, enemy))
-        fms = _yn(xcombat.fire_make_sense(npc, enemy))
+        cke = at_debug.flag(xcombat.can_kill_enemy(npc, enemy))
+        fms = at_debug.flag(xcombat.fire_make_sense(npc, enemy))
     end
     local hit = _hit_at[id]
-    local fire = _yn(hit ~= nil and (tg - hit) < CENSUS_UNDER_FIRE_MS)
+    local fire = at_debug.flag(hit ~= nil and (tg - hit) < CENSUS_UNDER_FIRE_MS)
     at_debug.dbg("[CMT] census id=%d %s->%s sees=%s cke=%s fms=%s fire=%s hp=%.2f dist=%.0f enemy=%d",
         id, _op_name(from_op), _op_name(to_op), sees, cke, fms, fire,
         npc.health, npc:position():distance_to(enemy:position()), enemy:id())
@@ -302,7 +296,7 @@ local function _on_action_switch(npc, from_op, to_op, flags)
     if tg - hold.since > _hold_cap_ms and not _try_defer_relent(hold, enemy, tg, id, "vuln-defer") then
         if at_debug.on() then
             at_debug.dbg("[CMT] cap id=%d op=%s after=%dms denies=%d refused=%s",
-                id, _op_name(hold.op), tg - hold.since, hold.denies, _refused_str(hold.refused))
+                id, _op_name(hold.op), tg - hold.since, hold.denies, _format_refused(hold.refused))
         end
         _close_hold(id, hold, tg)
         return
@@ -327,7 +321,7 @@ local function _on_action_changed(npc, prev_op, new_op)
         local tg = time_global()
         if at_debug.on() then
             at_debug.dbg("[CMT] release id=%d op=%s held=%dms denies=%d refused=%s switched_to=%s",
-                id, _op_name(hold.op), tg - hold.since, hold.denies, _refused_str(hold.refused), _op_name(new_op))
+                id, _op_name(hold.op), tg - hold.since, hold.denies, _format_refused(hold.refused), _op_name(new_op))
         end
         _close_hold(id, hold, tg)
         return

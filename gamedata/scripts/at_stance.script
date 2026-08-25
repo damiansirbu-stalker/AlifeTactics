@@ -215,7 +215,7 @@ end
 
 -- The disposition row, lazily derived and TTL-cached: kind + (snipers) tier -> the two scale factors.
 -- Zombied carry a skip row - a mindless shambler gets no spacing discipline (the scope rule).
-local function _spacing_row(npc, id, tg)
+local function _get_spacing_row(npc, id, tg)
     local row = _spacing[id]
     if row and (tg - row.at) < SPACING_TTL_MS then return row end
     local kind = not (xcreature.community(npc) == "zombied") and xcombat.get_weapon_kind(npc) or nil
@@ -258,7 +258,7 @@ local function _on_min_dist(npc, base, flags)
     local tmr = xprofiler.new_if(at_debug.on()):start()
     local tg = time_global()
     local id = npc:id()
-    local row = cfg.conduct_spacing and _spacing_row(npc, id, tg) or nil
+    local row = cfg.conduct_spacing and _get_spacing_row(npc, id, tg) or nil
     local raised = (row and row.min_k) and base * row.min_k or base
     local pull = _pull[id]
     if pull and pull.min > raised then raised = pull.min end
@@ -275,7 +275,7 @@ local function _on_max_dist(npc, base, flags)
     local tmr = xprofiler.new_if(at_debug.on()):start()
     local tg = time_global()
     local id = npc:id()
-    local row = cfg.conduct_spacing and _spacing_row(npc, id, tg) or nil
+    local row = cfg.conduct_spacing and _get_spacing_row(npc, id, tg) or nil
     local capped = (row and row.max_k) and base * row.max_k or base
     local push_cap = _push_max[id]
     if push_cap and push_cap < capped then capped = push_cap end

@@ -91,19 +91,19 @@ end
 
 -- Sight to the enemy in plain words: "blind" (the engine's visible_now is false - he does not see the
 -- enemy right now), "aims-off" (sees it but body pointed >= FACING_DEG off it), "sees" (looking at it).
-local function _sight_flag(npc, enemy)
+local function _get_sight_flag(npc, enemy)
     if not xcombat.sees(npc, enemy) then return "blind" end
     if xcombat.get_facing_offset(npc, enemy:position()) >= FACING_DEG then return "aims-off" end
     return "sees"
 end
 
 -- The target cell: enemy name + distance + sight word, "-" when no selected enemy.
-local function _target_cell(npc, enemy)
+local function _get_target_cell(npc, enemy)
     if not enemy then return "-" end
     return string_format("%s %dm %s",
         _truncate(xcreature.get_name(enemy:id()), TARGET_NAME_MAX),
         math_floor(npc:position():distance_to(enemy:position())),
-        _sight_flag(npc, enemy))
+        _get_sight_flag(npc, enemy))
 end
 
 -- Reverse map anim enum -> label, built lazily (anim is a global enum, absent at file body).
@@ -121,7 +121,7 @@ end
 -- (CROUCH) are composable modifiers on a vanilla NPC and list together when they hold. Returns the
 -- text and the dominant driver (AT > HOLD > PUSH > CONDUCT) that colours the row. "-" plain when
 -- vanilla drives untouched.
-local function _systems(id, maneuver)
+local function _format_systems(id, maneuver)
     if maneuver then return string_upper(maneuver), "AT" end
     local tokens, driver = {}, nil
     -- Commitment is one system with two vetoes (MCM Combat > Commitment): the action-switch hold
@@ -177,14 +177,14 @@ local function _derive(npc, st)
     -- The three combat systems (Maneuvers, Commitment, Conduct) collapse into one comma-joined SYSTEMS
     -- cell; its dominant driver colours the whole row. Mechanics (ammo AP, healing, limp) are not
     -- combat state and stay in the log / world trace.
-    local systems, driver = _systems(id, maneuver)
+    local systems, driver = _format_systems(id, maneuver)
     return {
         driver  = driver,
         stalker = string_format("(%s) %s %d%%",
             rank or "-",
             _truncate(npc:character_name() or npc:name(), SUBJECT_NAME_MAX),
             math_floor((npc.health or 0) * 100)),
-        target  = _target_cell(npc, enemy),
+        target  = _get_target_cell(npc, enemy),
         -- scheme is omitted when absent, not printed as "-" (a leading dash reads as a stray
         -- minus); mental is always present, so the cell is never empty.
         engine  = (st.active_scheme and (_truncate(st.active_scheme, SCHEME_MAX) .. " ") or "")
@@ -333,7 +333,7 @@ end
 -- another is a dim exile. Line B stays dim, the pairing cue. The overflow entry fills only its first A
 -- cell. Row color: green = a maneuver drives him, blue = Commitment holds/pins him, amber = the Push
 -- window bumps him, mauve = Conduct crouches him, plain = vanilla drives untouched.
-local function _row_color(row)
+local function _get_row_color(row)
     if row.is_overflow then return CLR_DIM end
     if row.driver == "AT" then return CLR_AT end
     if row.driver == "HOLD" then return CLR_HOLD end
@@ -343,7 +343,7 @@ local function _row_color(row)
 end
 
 local function _paint_entry(a, b, row)
-    local color = _row_color(row)
+    local color = _get_row_color(row)
     for c = 1, #ROW_A do
         a[c]:SetText(row[ROW_A[c]] or "")
         a[c]:SetTextColor(color)

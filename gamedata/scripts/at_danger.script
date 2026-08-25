@@ -350,7 +350,7 @@ local function eval_danger(self)
 
 	local flags = {ret_value = true}
 	SendScriptCallback("npc_on_eval_danger", npc, flags)
-	if prof then tmr:stop() local t = tmr:get_us() _seg_cb = t - seg_mark seg_mark = t end
+	if prof then tmr:stop() local now_us = tmr:get_us() _seg_cb = now_us - seg_mark seg_mark = now_us end
 	if flags.ret_value == false then return false end
 
 	-- A live script-danger stamp activates the scheme ON ITS OWN. Without this the noise/impact
@@ -371,7 +371,7 @@ local function eval_danger(self)
 	local bd_name = bd_types[bd_type]
 	if prof then _seg_name = bd_name or tostring(bd_type) tmr:start() end
 	local cur_danger_time = get_danger_time(danger, npc)
-	if prof then tmr:stop() local t = tmr:get_us() _seg_dtime = t - seg_mark seg_mark = t tmr:start() end
+	if prof then tmr:stop() local now_us = tmr:get_us() _seg_dtime = now_us - seg_mark seg_mark = now_us tmr:start() end
 	if type(cur_danger_time) ~= "number" then cur_danger_time = 0 end
 
 	if (type(self.a.inertion) == "number" and type(self.a.danger_time) == "number") then
@@ -390,7 +390,7 @@ local function eval_danger(self)
 	local from_actor = _enabled.actor_tables and danger_obj and danger_obj:id() == AC_ID
 	local src = (from_actor and DangerInertionActor[bd_name]) or DangerInertion[bd_name]
 	local inertion = tonumber(xr_logic.pick_section_from_condlist(db.actor, npc, _parse_cached(npc, bd_name, "danger_inertion_time", src))) or 0
-	if prof then tmr:stop() local t = tmr:get_us() _seg_cond = t - seg_mark seg_mark = t end
+	if prof then tmr:stop() local now_us = tmr:get_us() _seg_cond = now_us - seg_mark seg_mark = now_us end
 	local danger_time = cur_danger_time
 
 	if not danger_time or type(danger_time) ~= "number" then
