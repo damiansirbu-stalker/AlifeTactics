@@ -182,7 +182,7 @@ local function _log_held_danger(npc, id, tg)
     _dtrace[id] = { bt = bt, src = src_id }
     local dp, np = danger:position(), npc:position()
     log.debug("[DANGER-HELD] npc=%d name=%s bd=%s src=%d dist=%.0f age=%dms",
-        id, npc:name() or "?", at_danger.type_name(bt), src_id,
+        id, npc:name() or "?", at_danger.get_type_name(bt), src_id,
         math_sqrt((dp.x - np.x) ^ 2 + (dp.z - np.z) ^ 2), tg - danger:time())
 end
 

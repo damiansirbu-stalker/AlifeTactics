@@ -161,7 +161,7 @@ local _cover_hold = {}
 --- True while Commitment is pinning this NPC's cover (the cover-pin hold is open; HUD read).
 --- Second return: true when that pin is currently deferred past its cap by target vulnerability
 --- (the HUD's LIQUIDATE token); nil when no pin or no deferral.
-function cover_held(id)
+function is_cover_pinned(id)
     local hold = _cover_hold[id]
     if not hold then return false end
     return true, hold.vuln

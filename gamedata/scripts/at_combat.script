@@ -42,7 +42,7 @@ local _open_count = 0
 -- ROLLS burst size and pause inside the engine planner's own per-weapon medium band
 -- (xcombat.FIRE_QUEUE, the [fire_queue_params] envelope) - the same fresh-numbers-per-burst
 -- variance the vanilla planner has - then multiplies by the Fire Discipline rank factors
--- (at_reaction.queue_scales: one owner, toggle-governed, pure Lua so it works on every exe).
+-- (at_reaction.get_queue_scales: one owner, toggle-governed, pure Lua so it works on every exe).
 -- The pickoff row swaps the weapon band for its own {1 shot, deliberate pause} band. The
 -- animation-tuned entries (state_mgr_weapon state_queue_params) keep their priority, the
 -- original's aim_time machinery stays intact, and NPCs we are not driving pass through
@@ -69,7 +69,7 @@ local function _patched_get_queue_params(npc, st, override)
         if band then
             local size     = math_random(band[1], band[2])
             local interval = math_random(band[3], band[4])
-            local sk, ik = at_reaction.queue_scales(npc)
+            local sk, ik = at_reaction.get_queue_scales(npc)
             size = math_floor(size * sk + 0.5)
             if size < 1 then size = 1 end
             interval = math_floor(interval * ik + 0.5)
@@ -706,7 +706,7 @@ end
 -- Seized NPCs are exempt by construction (maneuver fire bypasses select_queue_params; a blocked
 -- planner never consults the band) and skipped here anyway so the mirrors stay clean. Zombied
 -- excluded. Every write follows the n040 stale-lever discipline: transition-only against per-NPC
--- mirrors, the fire restore goes through at_reaction.queue_scales (the rank discipline values,
+-- mirrors, the fire restore goes through at_reaction.get_queue_scales (the rank discipline values,
 -- NEVER a raw 1.0), the band restore is clearing the overlay entry, and every path that stops
 -- maintaining a write clears it first (window close, toggle-off, died, destroy, unregister).
 local PUSH_CLOSE_M, PUSH_FAR_M, PUSH_SIZE_K, PUSH_INTERVAL_K, PUSH_PRESS_COOLDOWN_MS
@@ -804,14 +804,14 @@ local function _update_push_window(tg)
 end
 
 -- Restore every push write on one NPC through the one funnel. The fire restore re-applies the RANK
--- discipline values (at_reaction.queue_scales - (1,1) when Discipline is off, which is vanilla
+-- discipline values (at_reaction.get_queue_scales - (1,1) when Discipline is off, which is vanilla
 -- multiplicatively); a dead/gone object skips the engine write, its fields die with it. The restore
 -- line carries the open->close distance delta - the closing proof (a window that moved nobody and
 -- thickened nothing is visible as such).
 local function _clear_push_npc(npc, state, why, tg)
     if not (state.push_fire or state.push_band) then return end
     if state.push_fire and npc and npc:alive() then
-        xcombat.set_fire_queue_scale(npc, at_reaction.queue_scales(npc))
+        xcombat.set_fire_queue_scale(npc, at_reaction.get_queue_scales(npc))
     end
     if state.push_band then at_stance.clear_push_max(state.id) end
     if at_debug.on() then
@@ -827,7 +827,7 @@ end
 -- tighter cadence, "far" = tighter cadence only, nil = the rank restore). Mirror set only when the
 -- engine write applied (floor-exe rule).
 local function _write_push_fire(npc, state, want_fire, dist, cause)
-    local sk, ik = at_reaction.queue_scales(npc)
+    local sk, ik = at_reaction.get_queue_scales(npc)
     if want_fire == "close" then sk = sk * PUSH_SIZE_K end
     if want_fire then ik = ik * PUSH_INTERVAL_K end
     if not xcombat.set_fire_queue_scale(npc, sk, ik) then return end

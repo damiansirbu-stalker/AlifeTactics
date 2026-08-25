@@ -41,7 +41,7 @@ local CROUCH_CHANCE = 0.30
 local _decision = {}
 
 --- True while this NPC's held stance decision is crouch (HUD read).
-function crouched(id)
+function is_crouched(id)
     local dec = _decision[id]
     return dec ~= nil and dec.want == move.crouch
 end

@@ -251,7 +251,7 @@ local _qinterval = {
     legend       = 0.75,
 }
 
--- npc id -> tier string, filled on the first queue_scales read. Ranks are effectively static; a
+-- npc id -> tier string, filled on the first get_queue_scales read. Ranks are effectively static; a
 -- runtime rank change reads stale until respawn - the same acceptance apply() documents for the
 -- engine fields. Dropped on entity unregister.
 local _tier_cache = {}
@@ -264,7 +264,7 @@ local _tier_cache = {}
 --- @return number size_k burst-size multiplier
 --- @return number interval_k inter-burst-pause multiplier
 --- @cost O(1) | 1 luabind (rank) on the first call per id, pure table reads after
-function queue_scales(npc)
+function get_queue_scales(npc)
     if not cfg.discipline_enabled then return 1, 1 end
     local id = npc:id()
     local tier = _tier_cache[id]

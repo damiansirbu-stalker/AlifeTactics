@@ -357,7 +357,7 @@ local function _grey_cap(cap, clr) cap:TextControl():SetTextColor(clr) end
 --- ui_hook_functor disables the control and greys the caption, so it stays ON and cannot be changed; the
 --- disabled control never fires a change, so no functor is needed. The proven technique.
 --- @safety SAFE - each call is pcall-guarded against a handler MCM omits on some build
-function locked_on_grey(_anchor, handlers)
+function render_locked_check(_anchor, handlers)
     if type(handlers) ~= "table" then return end
     if handlers.ctrl then pcall(_disable_ctrl, handlers.ctrl) end
     if handlers.cap then pcall(_grey_cap, handlers.cap, GetARGB(255, 120, 120, 120)) end
@@ -439,7 +439,7 @@ function on_mcm_load()
                             -- Platform footer (self-contained builder in _at_deps, not xlibs)
                             { id = "div_footer", type = "line" },
                             { id = "platform", type = "desc", text = "ui_mcm_xmcm_footer",
-                                ui_hook_functor = { _at_deps.platform_functor() }, clr = {255, 212, 201, 168} },                        },
+                                ui_hook_functor = { _at_deps.get_platform_functor() }, clr = {255, 212, 201, 168} },                        },
                     },
                     {
                         id = "commitment",
@@ -709,19 +709,19 @@ function on_mcm_load()
 
                             { id = "div_fixes", type = "line" },
                             { id = "hdr_fixes", type = "desc", text = "ui_mcm_at_danger_hdr_fixes", clr = {255, 200, 200, 200} },
-                            { id = "fix_config_isolation", type = "check", val = 1, def = true, hint = "at_danger_fix_config_isolation", ui_hook_functor = { at_mcm.locked_on_grey } },
-                            { id = "fix_corpse_time", type = "check", val = 1, def = true, hint = "at_danger_fix_corpse_time", ui_hook_functor = { at_mcm.locked_on_grey } },
-                            { id = "fix_npc_teardown", type = "check", val = 1, def = true, hint = "at_danger_fix_npc_teardown", ui_hook_functor = { at_mcm.locked_on_grey } },
-                            { id = "fix_time_value", type = "check", val = 1, def = true, hint = "at_danger_fix_time_value", ui_hook_functor = { at_mcm.locked_on_grey } },
-                            { id = "fix_hit_memory", type = "check", val = 1, def = true, hint = "at_danger_fix_hit_memory", ui_hook_functor = { at_mcm.locked_on_grey } },
-                            { id = "fix_anim_cleanup", type = "check", val = 1, def = true, hint = "at_danger_fix_anim_cleanup", ui_hook_functor = { at_mcm.locked_on_grey } },
-                            { id = "fix_cover_scope", type = "check", val = 1, def = true, hint = "at_danger_fix_cover_scope", ui_hook_functor = { at_mcm.locked_on_grey } },
-                            { id = "fix_corpse_despawn", type = "check", val = 1, def = true, hint = "at_danger_fix_corpse_despawn", ui_hook_functor = { at_mcm.locked_on_grey } },
-                            { id = "fix_investigator_select", type = "check", val = 1, def = true, hint = "at_danger_fix_investigator_select", ui_hook_functor = { at_mcm.locked_on_grey } },
-                            { id = "fix_investigate_target", type = "check", val = 1, def = true, hint = "at_danger_fix_investigate_target", ui_hook_functor = { at_mcm.locked_on_grey } },
-                            { id = "fix_config_cache", type = "check", val = 1, def = true, hint = "at_danger_fix_config_cache", ui_hook_functor = { at_mcm.locked_on_grey } },
-                            { id = "fix_id_reuse", type = "check", val = 1, def = true, hint = "at_danger_fix_id_reuse", ui_hook_functor = { at_mcm.locked_on_grey } },
-                            { id = "fix_corpse_order", type = "check", val = 1, def = true, hint = "at_danger_fix_corpse_order", ui_hook_functor = { at_mcm.locked_on_grey } },
+                            { id = "fix_config_isolation", type = "check", val = 1, def = true, hint = "at_danger_fix_config_isolation", ui_hook_functor = { at_mcm.render_locked_check } },
+                            { id = "fix_corpse_time", type = "check", val = 1, def = true, hint = "at_danger_fix_corpse_time", ui_hook_functor = { at_mcm.render_locked_check } },
+                            { id = "fix_npc_teardown", type = "check", val = 1, def = true, hint = "at_danger_fix_npc_teardown", ui_hook_functor = { at_mcm.render_locked_check } },
+                            { id = "fix_time_value", type = "check", val = 1, def = true, hint = "at_danger_fix_time_value", ui_hook_functor = { at_mcm.render_locked_check } },
+                            { id = "fix_hit_memory", type = "check", val = 1, def = true, hint = "at_danger_fix_hit_memory", ui_hook_functor = { at_mcm.render_locked_check } },
+                            { id = "fix_anim_cleanup", type = "check", val = 1, def = true, hint = "at_danger_fix_anim_cleanup", ui_hook_functor = { at_mcm.render_locked_check } },
+                            { id = "fix_cover_scope", type = "check", val = 1, def = true, hint = "at_danger_fix_cover_scope", ui_hook_functor = { at_mcm.render_locked_check } },
+                            { id = "fix_corpse_despawn", type = "check", val = 1, def = true, hint = "at_danger_fix_corpse_despawn", ui_hook_functor = { at_mcm.render_locked_check } },
+                            { id = "fix_investigator_select", type = "check", val = 1, def = true, hint = "at_danger_fix_investigator_select", ui_hook_functor = { at_mcm.render_locked_check } },
+                            { id = "fix_investigate_target", type = "check", val = 1, def = true, hint = "at_danger_fix_investigate_target", ui_hook_functor = { at_mcm.render_locked_check } },
+                            { id = "fix_config_cache", type = "check", val = 1, def = true, hint = "at_danger_fix_config_cache", ui_hook_functor = { at_mcm.render_locked_check } },
+                            { id = "fix_id_reuse", type = "check", val = 1, def = true, hint = "at_danger_fix_id_reuse", ui_hook_functor = { at_mcm.render_locked_check } },
+                            { id = "fix_corpse_order", type = "check", val = 1, def = true, hint = "at_danger_fix_corpse_order", ui_hook_functor = { at_mcm.render_locked_check } },
                         },
                     },
                 },

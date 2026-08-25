@@ -130,7 +130,7 @@ local function _systems(id, maneuver)
     -- LIQUIDATE in place of COMMIT (same window, the stronger statement), and a deferred pin shows
     -- LIQUIDATE in place of PIN unless the hold already says it.
     local hold = at_commitment.get_hold(id)
-    local pinned, pin_vuln = at_commitment.cover_held(id)
+    local pinned, pin_vuln = at_commitment.is_cover_pinned(id)
     if hold then
         tokens[#tokens + 1] = string_format(hold.vuln and "LIQUIDATE %ds" or "COMMIT %ds",
             math_floor((time_global() - hold.since) / 1000))
@@ -161,7 +161,7 @@ local function _systems(id, maneuver)
     end
     -- Conduct posture (at_stance, Combat > Conduct): crouches an experienced rifleman behind real cover.
     -- Composes with a Commitment hold on the same vanilla NPC, so it appends rather than replaces.
-    if at_stance.crouched(id) then
+    if at_stance.is_crouched(id) then
         tokens[#tokens + 1] = "CROUCH"
         driver = driver or "CONDUCT"
     end
