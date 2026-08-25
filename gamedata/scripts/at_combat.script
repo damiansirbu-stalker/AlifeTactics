@@ -185,7 +185,7 @@ local _hits = {}
 -- not solve its problem); true = cleared. The measured "did it work", not a guess. A row carrying
 -- need_recheck=false is exempt (pickoff: its success is the tracker reset that happens after this
 -- trace, so the recheck would read pre-reset state and mutate the tracker it measures - r003); the
--- line prints "-" for it. reenters/vertex/dest_m/tgt are the raw reads
+-- line prints "-" for it. reenters/vertex/dest_m/target are the raw reads
 -- for the re-entry question; the position half says whether the NPC ever reached what he was sent to.
 -- need_cleared label: "-" = the row opts out of the recheck (need_recheck=false: its success IS
 -- the reset the recheck would read); else y/n from the recheck, "?" = could not check (target gone).
@@ -206,7 +206,7 @@ local function _trace_end(state, tg, reason, check_us)
     local vertex, dest_m = "gone", -1
     if npc then vertex, dest_m = npc:level_vertex_id(), _dest_m(npc, state.dest) end
     at_debug.dbg("[CMB] end id=%s name=%s maneuver=%s reason=%s dur=%dms shots=%d hits_actor=%d result=%s" ..
-        " need_cleared=%s reenters=%d vertex=%s dest=%s dest_m=%.1f tgt=%s [%dus]",
+        " need_cleared=%s reenters=%d vertex=%s dest=%s dest_m=%.1f target=%s [%dus]",
         show(state.id), show(state.name), show(row and row.name), show(reason),
         math_floor(tg - (state.begin_at or tg)), _shots[state.id] or 0, _hits[state.id] or 0,
         show(state.result or "-"), _cleared_label(row, need_cleared), state.reenters or 0,
@@ -219,7 +219,7 @@ local function _end_maneuver(state, tg, reason, check_us)
     _hits[state.id] = nil
     state.result = nil
     state.reenters, state.granted_at, state.released_at = nil, nil, nil
-    state.tgt_seen, state.tgt_at, state.sent = nil, nil, nil
+    state.target_seen, state.target_at, state.sent = nil, nil, nil
     state.escape_warned = nil
     state.sight_warned, state.sight_lost_count = nil, nil
     _drop_gate(state)
@@ -241,7 +241,7 @@ local function _trace_begin(npc, state, fire, gate, send_us, apply_us)
     local maneuver = state.maneuver
     local pos = npc:position()
     at_debug.dbg("[CMB] begin id=%s name=%s maneuver=%s trigger=%s dest=%s sent=%s fire=%s move=%s" ..
-        " requested=%s fire_gate=%s cover=%s op=%s tgt=%s vertex=%s pos=%.1f,%.1f dest_m=%.1f [send=%dus apply=%dus]",
+        " requested=%s fire_gate=%s cover=%s op=%s target=%s vertex=%s pos=%.1f,%.1f dest_m=%.1f [send=%dus apply=%dus]",
         show(state.id), show(state.name), show(maneuver.name), show(state.trigger), show(state.dest),
         show(state.sent), show(fire), show(maneuver.movement), show(maneuver.fire), show(gate), show(state.cover_trace),
         show(xcombat.get_operator(npc)), show(_get_state_mgr_target(state.id)), show(npc:level_vertex_id()),
@@ -256,7 +256,7 @@ end
 -- stamp, which is the one interval the 200ms operator census cannot resolve.
 local function _trace_reenter(npc, state, maneuver, tg)
     if not at_debug.on() then return end
-    at_debug.dbg("[CMB] reenter id=%s maneuver=%s n=%d op=%s tgt=%s combat=%s vertex=%s dest=%s dest_m=%.1f" ..
+    at_debug.dbg("[CMB] reenter id=%s maneuver=%s n=%d op=%s target=%s combat=%s vertex=%s dest=%s dest_m=%.1f" ..
         " since_begin=%dms since_apply=%dms away=%dms",
         show(state.id), show(maneuver.name), state.reenters,
         show(xcombat.get_operator(npc)), show(_get_state_mgr_target(state.id)), flag(_get_state_mgr_combat(state.id)),
@@ -350,7 +350,7 @@ local function _on_release(npc)
     local tg = time_global()
     state.released_at = tg
     if not at_debug.on() then return end
-    at_debug.dbg("[CMB] release id=%s maneuver=%s held=%dms op=%s tgt=%s vertex=%s",
+    at_debug.dbg("[CMB] release id=%s maneuver=%s held=%dms op=%s target=%s vertex=%s",
         show(state.id), show(state.maneuver and state.maneuver.name),
         math_floor(tg - (state.granted_at or tg)),
         show(xcombat.get_operator(npc)), show(_get_state_mgr_target(state.id)), show(npc:level_vertex_id()))
@@ -569,27 +569,27 @@ local function _update_maneuver(npc, state, tg)
     -- The 200ms sample of who actually holds the top-level slot while AT believes it is driving, plus the
     -- state machinery's own target and the raw geometry. op is the engine's current action id mapped to a
     -- name: any value other than "takeover" means the graft was NOT current at this sample.
-    -- sight= is the sight manager's current object (tgt = the staged target, an id = someone else, - = not
+    -- sight= is the sight manager's current object (target = the staged target, an id = someone else, - = not
     -- an object) and stype= its mode - the identity+mode pair the direction evaluator gates fire on
     -- (never the body angle), so a zero-shot hold shows here whether the look order was ever accepted.
     local pos = npc:position()
-    local tgt = _get_state_mgr_target(state.id)
-    local sight_label = sight_id and (sight_id == state.enemy_id and "tgt" or tostring(sight_id)) or "-"
+    local target = _get_state_mgr_target(state.id)
+    local sight_label = sight_id and (sight_id == state.enemy_id and "target" or tostring(sight_id)) or "-"
     -- One line per TRANSITION of the state machinery's target, not per sample: this is where our applied
     -- combat state being replaced (notably by "idle") shows up with a timestamp, instead of having to be
     -- diffed out of the 200ms samples below.
-    if tgt ~= state.tgt_seen then
-        at_debug.dbg("[CMB] tgt_change id=%s maneuver=%s from=%s to=%s op=%s held=%dms",
-            show(state.id), show(maneuver.name), show(state.tgt_seen), show(tgt),
-            show(xcombat.get_operator(npc)), math_floor(tg - (state.tgt_at or tg)))
-        state.tgt_seen, state.tgt_at = tgt, tg
+    if target ~= state.target_seen then
+        at_debug.dbg("[CMB] target_change id=%s maneuver=%s from=%s to=%s op=%s held=%dms",
+            show(state.id), show(maneuver.name), show(state.target_seen), show(target),
+            show(xcombat.get_operator(npc)), math_floor(tg - (state.target_at or tg)))
+        state.target_seen, state.target_at = target, tg
     end
     at_debug.dbg("[CMB] update id=%s name=%s maneuver=%s target=%s(%s) seen=%s aim=%ddeg sight=%s stype=%s"
-        .. " fire=%s fire_gate=%s op=%s tgt=%s mt=%s vertex=%s pos=%.1f,%.1f dest_m=%.1f reenters=%d [%dus]",
+        .. " fire=%s fire_gate=%s op=%s target=%s mt=%s vertex=%s pos=%.1f,%.1f dest_m=%.1f reenters=%d [%dus]",
         show(state.id), show(state.name), show(maneuver.name), show(enemy:id()), show(xcreature.get_name(enemy:id())),
         xcombat.sees(npc, enemy) and "yes" or "no", math_floor(xcombat.get_facing_offset(npc, enemy:position())),
         sight_label, show(sight_mode),
-        show(fire), show(gate), show(xcombat.get_operator(npc)), show(tgt),
+        show(fire), show(gate), show(xcombat.get_operator(npc)), show(target),
         show(npc:movement_type()), show(npc:level_vertex_id()), pos.x, pos.z,
         _dest_m(npc, state.sent or state.dest), state.reenters or 0, us)
 end

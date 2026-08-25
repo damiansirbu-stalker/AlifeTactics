@@ -602,17 +602,17 @@ local function _check_row(row, npc, enemy, state, tg, memo)
     if (row.vs_actor or false) == memo.actor_fight then return nil, nil, "scope" end
     if cfg[row.toggle] == false then return nil, nil, "off" end
     _seg:reset() _seg:start()
-    local sit = row.check_need(npc, enemy, state, tg, memo)
+    local situation = row.check_need(npc, enemy, state, tg, memo)
     _seg:stop()
     local need_us = _seg:get_us()
-    if not sit then return nil, nil, "-", need_us end
-    if not _palette_matches(row, npc, memo) then return nil, sit, "palette", need_us end
+    if not situation then return nil, nil, "-", need_us end
+    if not _palette_matches(row, npc, memo) then return nil, situation, "palette", need_us end
     _seg:reset() _seg:start()
     local dest = row.find_destination(npc, enemy, state, tg, memo)
     _seg:stop()
     local dest_us = _seg:get_us()
-    if dest then return dest, sit, "picked", need_us, dest_us end
-    return nil, sit, "declined", need_us, dest_us
+    if dest then return dest, situation, "picked", need_us, dest_us end
+    return nil, situation, "declined", need_us, dest_us
 end
 
 -- Reset the per-walk memo on the state record: wipe the lazy reads (faction, my/enemy weapon kind, hurt,
@@ -649,8 +649,8 @@ end
 --- whole walk's microseconds; the timers are null objects when tracing is off, zero cost live.
 -- Format one examined row for the rows= trace: "name:situation/stage", plus the per-layer timings on the
 -- one row whose find_destination ran (dest_us non-nil).
-local function _row_trace(row, sit, stage, need_us, dest_us)
-    local head = row.name .. ":" .. (sit and (sit .. "/" .. stage) or stage)
+local function _row_trace(row, situation, stage, need_us, dest_us)
+    local head = row.name .. ":" .. (situation and (situation .. "/" .. stage) or stage)
     if dest_us == nil then return head end
     return head .. "/need=" .. math_floor(need_us) .. "us/dest=" .. math_floor(dest_us) .. "us"
 end
@@ -662,21 +662,21 @@ end
 -- instantly too, but each transaction MOVED him, which resets the count. Release is world change, not a
 -- clock - he moves 2m, the situation changes, or the fight ends (at_combat clears the record on fight
 -- exit). Returns true when the pick must be refused.
-local function _check_repeat_limit(state, sit, npc_pos)
+local function _check_repeat_limit(state, situation, npc_pos)
     if REPEAT_LIMIT <= 0 then return false end
-    local stuck = state.repeat_situation == sit and state.repeat_pos ~= nil
+    local stuck = state.repeat_situation == situation and state.repeat_pos ~= nil
         and xmath.dist_flat_sqr(npc_pos, state.repeat_pos) <= REPEAT_MOVE_SQR
     if stuck then
         state.repeat_count = state.repeat_count + 1
     else
-        state.repeat_situation = sit
+        state.repeat_situation = situation
         state.repeat_count = 1
         state.repeat_pos = state.repeat_pos or vector()
     end
     state.repeat_pos:set(npc_pos)
     if state.repeat_count <= REPEAT_LIMIT then return false end
     at_debug.dbg("[CMB] repeat id=%s name=%s situation=%s picks=%d - takeover suspended until the world changes",
-        show(state.id), show(state.name), show(sit), state.repeat_count or -1)
+        show(state.id), show(state.name), show(situation), state.repeat_count or -1)
     return true
 end
 
@@ -701,16 +701,16 @@ function at_combat_doctrine.resolve_maneuver(npc, enemy, state, tg)
     _seg = xprofiler.new_if(tracing)
     walk_timer:start()
     local rows_trace = tracing and {} or nil
-    local spent_row, spent_vid, spent_sit
+    local spent_row, spent_vid, spent_situation
     for i = 0, count - 1 do
         local idx = (start + i - 1) % count + 1
         local row = CATALOG[idx]
-        local vid, sit, stage, need_us, dest_us = _check_row(row, npc, enemy, state, tg, memo)
-        if tracing then rows_trace[#rows_trace + 1] = _row_trace(row, sit, stage, need_us, dest_us) end
+        local vid, situation, stage, need_us, dest_us = _check_row(row, npc, enemy, state, tg, memo)
+        if tracing then rows_trace[#rows_trace + 1] = _row_trace(row, situation, stage, need_us, dest_us) end
         if dest_us ~= nil then
             -- The row's find_destination ran: pick or decline, the tick is spent and the cursor moves past it.
             state.row_cursor = idx % count + 1
-            spent_row, spent_vid, spent_sit = row, vid, sit
+            spent_row, spent_vid, spent_situation = row, vid, situation
             break
         end
     end
@@ -720,7 +720,7 @@ function at_combat_doctrine.resolve_maneuver(npc, enemy, state, tg)
         state.walk_us = math_floor(walk_timer:get_us())
     end
     if not spent_vid then return nil end
-    if _check_repeat_limit(state, spent_sit, memo.npc_pos) then
+    if _check_repeat_limit(state, spent_situation, memo.npc_pos) then
         -- The refused pick's find_destination may have claimed a cover vertex (retreat, reload_cover); no
         -- maneuver opens, so _end_maneuver never releases it - release here or the claim outlives the walk.
         if state.cover_lvid then
@@ -729,6 +729,6 @@ function at_combat_doctrine.resolve_maneuver(npc, enemy, state, tg)
         end
         return nil
     end
-    state.trigger = spent_sit
+    state.trigger = spent_situation
     return spent_row, spent_vid
 end
