@@ -4,36 +4,14 @@ local RegisterScriptCallback = RegisterScriptCallback
 
 local cfg = at_mcm.cfg
 
--- Engine flow (ai_stalker_fire.cpp:72-133): base = PI/180; base *= m_fRankDisperison (=0.8 for clamped
--- Anomaly ranks); base *= per-state factor (walk/zoom/crouch); callback fires. Two rank factors ride the
--- cone. disp is the standing rank curve (novice 1.20 sprays, legend 0.20 the proven 52-62%-hit cone; 1.0
--- = engine baseline, lower = tighter, above 1.0 loosens); it is MULTI-source (rank + a thermal artefact),
--- so at_accuracy REGISTERS it as the SHOT_DISPERSION rank slice and the resolver applies min(rank,thermal)
--- via xcombat.scale_dispersion. move is SINGLE-source (rank only) and keyed on the per-shot move_type a
--- provider never sees, so at_accuracy writes it DIRECTLY on the shot seam: it applies only while the
--- shooter moves (walk/run, the same move_type the engine keys its own ~2x-cone penalty on - walk 5.1+1 vs
--- still 2.0+1, m_stalker.ltx:478-482) and cancels part of it per rank (1.00 = full vanilla penalty, legend
--- 0.70 leaves ~1.8x). Both factors multiply temp_disp.dispersion, so they compose regardless of subscriber
--- order. Same tier-floor lerp as every curve (game_relations.ltx:8 floors / 27000).
-
--- Per-tier curves, filled from at_mcm at _refresh_config (single source of truth: the at_mcm defaults
--- table + MCM sliders). Empty here on purpose - get_config never returns nil for these keys (the
--- defaults table carries all 16), so a script-side copy would be dead. Curve shape is in the header.
-local _disp = {}
-local _move = {}
-
--- move_type enum (ai_monster_space.h:31-33): walk = 0, run = 1, stand = 2.
 local MT_RUN = 1
-
--- The rank tiers, owned by xcreature; iterated to build the per-rank _disp/_move keys.
 local TIERS = xcreature.RANK_TIERS
 
 local _get_obj_rank_name = ranks.get_obj_rank_name
 
--- The rank cone slice of SHOT_DISPERSION (D11): the per-rank standing dispersion factor, registered into
--- at_effects_resolver where it composes highest-wins (min = tighter cone) with at_gear's thermal factor.
--- at_accuracy only PROVIDES the cone; the resolver applies it via xcombat.scale_dispersion. Zombied
--- excluded like every rank curve; gated by the dispersion toggle.
+local _disp = {}
+local _move = {}
+
 local function _disp_provider(obj)
     if not cfg.disp_enabled then return nil end
     if xcreature.is_zombied(obj) then return nil end
@@ -42,11 +20,6 @@ local function _disp_provider(obj)
     return _disp[tier]
 end
 
--- The moving-fire penalty, written DIRECTLY on the shot seam because it is single-source (rank only) and
--- keyed on the per-shot move_type a provider never receives. It multiplies temp_disp.dispersion, and the
--- resolver's SHOT_DISPERSION multiplies the same field, so the two compose regardless of subscriber order.
--- Applies only while the shooter moves (walk/run). Callback signature (obj, wpn, body_state, move_type,
--- temp_disp) per axr_main.script:126 and _g.script:1213-1217; temp_disp is the shared cone table.
 local function _on_move_penalty(obj, wpn, body_state, move_type, temp_disp)
     if not cfg.move_enabled then return end
     if not (obj and temp_disp and temp_disp.dispersion) then return end
