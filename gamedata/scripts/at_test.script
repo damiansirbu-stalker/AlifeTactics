@@ -159,9 +159,7 @@ local function _spawn_set(label, entries)
     at_debug.info("[SPAWN] set=%s count=%d", label, #entries)
 end
 
---------------------------------------------------------------------------------
 -- Single squad, varied distance / direction / faction
---------------------------------------------------------------------------------
 
 --- @export console
 function at_spawn()
@@ -285,14 +283,12 @@ function at_spawn_unarmed()
     end)
 end
 
---------------------------------------------------------------------------------
 -- Arena: keep a CONSTANT number of geared, fighting NPCs around you - respawn the dead each tick, release
 -- corpses, so the effects resolver (and every net_spawn-evaluated system) fires continuously and the log
 -- fills on its own. Each NPC onlines carrying the full EFFECT_GEAR spread (parented before online).
 --   at_arena(n)     - n/2 side-a (army + the cowardly ecolog/csky/renegade) vs n/2 monolith; watch from the edge (default 16)
 --   at_arena_me(n)  - n monolith hostile to everything including you
 --   at_arena_stop() - stop and release everything
---------------------------------------------------------------------------------
 local ARENA_TICK_SEC     = 2
 local ARENA_RING_MIN     = 10
 local ARENA_RING_MAX     = 18
@@ -507,7 +503,6 @@ function at_arm_ap()
         armed, seen, AP_RANK))
 end
 
---------------------------------------------------------------------------------
 -- The lab harness: stock every nearby stalker so all AlifeTactics systems have fuel.
 -- Per pass: a medkit + bandage to anyone missing them (Healing spends them when hurt), AP boxes +
 -- veteran rank for the active weapon (Ammo fires them; the rank also moves the Accuracy tier and the
@@ -515,7 +510,6 @@ end
 -- shotgun/pistol feeds the kite range bands). Fights, hits, and heals then show in alifetactics.log
 -- under [AP] / [HEAL] / [LIMP] / [ACC] / [DISCLOSURE] / [CROSSFIRE] / [JAM] / monitor with log
 -- level DEBUG. Effect gear (artefacts/kevlar/optics) is spawned WITH the NPC by _gear_members, not here.
---------------------------------------------------------------------------------
 
 local LAB_RADIUS_SQR  = 100 * 100
 local LAB_PERIOD_SEC  = 30
@@ -610,9 +604,7 @@ function at_lab_loop()
     _tip("AT.LAB: loop started (a pass every " .. LAB_PERIOD_SEC .. "s)")
 end
 
---------------------------------------------------------------------------------
 -- Multi-squad scenarios (combat planner stress tests)
---------------------------------------------------------------------------------
 
 -- 3 bandit squads in a line ahead. Tests mode progression as NPCs close to floor.
 --- @export console
@@ -658,9 +650,7 @@ function at_spawn_mixed()
     })
 end
 
---------------------------------------------------------------------------------
 -- Dumps
---------------------------------------------------------------------------------
 
 --- @export console
 function at_dump()

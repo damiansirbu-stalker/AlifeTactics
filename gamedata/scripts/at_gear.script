@@ -144,9 +144,7 @@ local function _carrier_record(npc)
     return _resolve(id) or nil
 end
 
--- =========================================================================
 -- Providers (fn(npc) -> value|nil), registered into at_effects_resolver
--- =========================================================================
 
 local function _p_dealt(npc)
     if not (cfg.gear_enabled and cfg.gear_dealt_enabled) then return nil end
@@ -194,9 +192,7 @@ local function _p_aura(npc)
     return (record and record.aura) or nil
 end
 
--- =========================================================================
 -- Passive regen (single-source, at_gear-owned, n039): the net_spawn write
--- =========================================================================
 
 -- Set the per-NPC restore boost at spawn. Inert until n039 exists (the wrapper no-ops below the bind);
 -- writes the neutral 0 for a non-carrier or a disabled toggle so a re-online never keeps a stale boost.
@@ -215,9 +211,7 @@ local function _apply_regen(npc)
     end
 end
 
--- =========================================================================
 -- Cache lifecycle
--- =========================================================================
 
 -- Re-resolve one NPC and re-push the spawn-bound effects. The gear scan cache is at_gear's own; the
 -- VISION_RANGE bind and the aura are the resolver's, so invalidate here then hand the re-apply to it.

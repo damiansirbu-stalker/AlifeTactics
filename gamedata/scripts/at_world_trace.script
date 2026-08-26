@@ -55,9 +55,7 @@ local function _driver(id)
     return "vanilla"
 end
 
--- ---------------------------------------------------------------------------
 -- Slide watchdog
--- ---------------------------------------------------------------------------
 
 -- Monitor pass period (the fast clock) and the fight radius around the actor - the visible combat.
 local SAMPLE_SEC  = 0.15
@@ -78,7 +76,7 @@ local _watch = {}
 local _dtrace = {}
 -- FAST (f009): per-id previous sample { x, z, t, logged } for the rate check, and the derived ceiling.
 -- The ceiling is the winning [stalker_movement_speeds] section's own maximum (ini_sys resolves the
--- include chain, the at_noise config-read precedent) times a blend tolerance, derived once per enable.
+-- include chain, the at_sound config-read precedent) times a blend tolerance, derived once per enable.
 local SPEED_TOLERANCE = 1.25
 local _speed = {}
 local _speed_ceiling = nil
@@ -264,9 +262,7 @@ local function _on_unregister(se_obj)
     _dtrace[id] = nil
 end
 
--- ---------------------------------------------------------------------------
 -- Ballistics recorder
--- ---------------------------------------------------------------------------
 
 local AC_ID = 0
 local SHOOTER_RADIUS_SQR = 120 * 120
@@ -551,10 +547,8 @@ local function _report_tick()
     return false
 end
 
--- ---------------------------------------------------------------------------
 -- Lifecycle: one toggle arms both instruments; nothing is registered while off, so the module is
 -- truly zero cost when the player leaves it off.
--- ---------------------------------------------------------------------------
 
 local function _apply_enabled()
     local want = cfg.world_trace_enabled and true or false

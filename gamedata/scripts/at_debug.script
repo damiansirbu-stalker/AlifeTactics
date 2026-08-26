@@ -59,7 +59,7 @@ function at_debug.flush()
     log.flush()
 end
 
--- ---- shared formatters, so every trace line reads the same way ----
+-- shared formatters, so every trace line reads the same way
 
 --- Tri-state flag: y / n / ? (nil = unknowable, e.g. no planner to ask).
 function at_debug.flag(v)

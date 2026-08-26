@@ -2,7 +2,7 @@
 --- The victim turns through the engine's own selection: a standing per-NPC hit-redirect lever
 --- (set_hit_redirect, PR #636) makes the real "he hit me" term outrank a seen enemy within falloff
 --- range - no forged sighting, and fire still requires real line of sight. Squadmates within
---- earshot of a SUPPRESSED hit get a graded investigate stamp (the at_noise idiom): they walk the
+--- earshot of a SUPPRESSED hit get a graded investigate stamp (the at_sound idiom): they walk the
 --- shooter's position through the danger scheme and escalate to combat only on real perception.
 --- An unsuppressed shot seeds nothing - the engine's own gunfire hearing owns it. A killed victim
 --- seeds nothing - native death-sound and corpse discovery own it. No relation writes, no memory

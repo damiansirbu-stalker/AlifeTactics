@@ -43,14 +43,12 @@ local REPEAT_MOVE_SQR = REPEAT_MOVE_M * REPEAT_MOVE_M
 local CATALOG = {}
 
 
--- =========================================================================
 -- find_destination methods (feasibility). Each owns its geometry and returns a destination level vertex, or nil
 -- when the maneuver is not doable here - the return IS the gate, no separate predicate, and the vertex
 -- feasibility validated is the vertex the engine executes (resolve once, never re-resolve). Run only after
 -- the row's need and palette pass, and at most ONE runs per begin tick (the walk ends when a find_destination
 -- runs). All of them read the walk's shared geometry (memo.npc_pos / memo.enemy_pos / state.dist) instead
 -- of re-probing.
--- =========================================================================
 
 -- Per-weapon kite back-off in metres: a kiting stalker retreats this far, full stop - a visible
 -- fighting withdrawal that always ends well outside his weapon minimum. Replaces the
@@ -343,7 +341,6 @@ local function _eval_stalled(state, tg, npc_pos, dist)
 end
 
 
--- =========================================================================
 -- check_need methods (need) - the cheap compares that open a row. Allowed reads: the walk memo and
 -- O(1) state (positions, distance, health, weapon kind, relation) - never a raycast, a path build or a
 -- cover/base search; find_destination owns those. Each states the row's FULL problem and returns the situation
@@ -353,7 +350,6 @@ end
 -- walk. The success-negates-the-need law: every term here is chosen so the maneuver's completion makes
 -- the need read false (kite clears its own minimum, retreat/flee push past the enemy's reach, counterflank flips
 -- the engine's selection, a finished hold resets the stall measurement).
--- =========================================================================
 
 -- too_close: the enemy is inside the NPC's own weapon minimum. Complete as-is - the need IS a proximity
 -- statement on my own weapon, and the kite's back-off ends well outside the minimum by construction.

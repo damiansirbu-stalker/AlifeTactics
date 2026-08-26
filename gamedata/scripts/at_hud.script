@@ -59,9 +59,7 @@ local function _init_colors()
 end
 
 
--- =========================================================================
 -- Position presets
--- =========================================================================
 
 local function _calc_position(panel_h, total_w, pos_key)
     local cy = math_floor((768 - panel_h) / 2)
@@ -79,9 +77,7 @@ local function _calc_position(panel_h, total_w, pos_key)
 end
 
 
--- =========================================================================
 -- Per-NPC derivation: logic scheme, combat operator + state, target + aim flag
--- =========================================================================
 
 local function _truncate(s, limit)
     if not s or s == "" then return "?" end
@@ -195,9 +191,7 @@ local function _derive(npc, st)
 end
 
 
--- =========================================================================
 -- Row builder: walk db.storage, derive per NPC, sort, cap
--- =========================================================================
 
 -- Cheap candidate pass: no raycast, no name read, no operator read - just the row's identity and
 -- sort keys. The expensive derivation (_derive: cover ray, operator, names) runs only for the
@@ -260,10 +254,8 @@ local function _build_rows()
 end
 
 
--- =========================================================================
 -- UIDebugHUD: CUIScriptWnd built ONCE, refresh only rewrites text + colors
 -- (no per-tick widget construction). Two lines per NPC on ONE shared grid.
--- =========================================================================
 
 -- The shared grid (chars per column) and what each line puts in it. Two columns per line: identity over
 -- its target on the left, the active systems over the engine words on the right. The systems budget (28)
@@ -371,9 +363,7 @@ end
 function UIDebugHUD:__finalize() end
 
 
--- =========================================================================
 -- Lifecycle: visibility-gated refresh (REFRESH_INTERVAL_SEC) via ResetTimeEvent
--- =========================================================================
 
 local _hud = nil
 local _shown = false

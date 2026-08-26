@@ -12,7 +12,6 @@
 	         MO2 virtual filesystem (vanilla or any AI overhaul copy).
 
 	Composition
-	-----------
 	AlifeTactics no longer ships xr_danger.script, so it does not compete for that file
 	slot. This module keeps the full danger implementation privately (file-locals plus
 	at_-prefixed classes) and, at on_game_start, points the winning xr_danger's generic
@@ -31,7 +30,6 @@
 	running untouched.
 
 	Vanilla bugs fixed (always on)
-	------------------------------
 	1. bd_types read three danger categories under the wrong config section, because the
 	   danger_perceive_type names visual/sound/hit collide with danger_type values 0/1/2 in
 	   the shared danger_object enum (danger_object.h:18-35, memory_space_script.cpp:130-147).
@@ -60,12 +58,10 @@
 	   inherited a scripted danger the new NPC never perceived.
 
 	Extension callback
-	------------------
 	eval_danger fires npc_on_eval_danger before evaluating; a subscriber that sets
 	flags.ret_value = false suppresses danger for that NPC that tick.
 
 	Improvements (MCM-toggleable on the Effectiveness > Danger page)
-	---------------------------------------------------------------
 	1. danger_hit_bypass: a direct hit is danger at any distance (being hit is proof of range);
 	   bypasses the relation, combat-ignore and ignore-distance gates. Only the scripted
 	   combat-ignore override still suppresses it. Squad-level response to the same hit is
@@ -78,10 +74,8 @@
 	Snap danger-state transitions (not toggleable) remove the reaction-delay blend.
 --]]
 
---------------------
 local _evaid = 188113
 local _actid = 188113
---------------------
 local math_random, tonumber, math_max = math.random, tonumber, math.max
 local time_global = time_global
 local IsStalker, IsMonster, IsWounded = IsStalker, IsMonster, IsWounded
@@ -97,7 +91,6 @@ local _actor_tables_live = false
 -- of the config's attack_sound row (up to 300m on vanilla tuning) - a neutral reacting at combat
 -- ranges would alarm whole camps; 30m is earshot-of-concern.
 local NEUTRAL_GUNFIRE_RADIUS_SQR = 30 * 30
---------------------
 
 local ini = ini_file("ai_tweaks\\xr_danger.ltx")
 DangerInertion = utils_data.collect_section(ini,"danger_inertion",true)
@@ -139,9 +132,7 @@ function get_type_name(danger_type)
 	return bd_types[danger_type] or tostring(danger_type)
 end
 
------------------------------------------------------------------------------
 -- 																PUBLIC
------------------------------------------------------------------------------
 -- strength (optional, t163): the evidence grade the scripted reaction runs at - "faint" (stance
 -- only) or "solid" (walk-investigate). Absent = the original assault reaction, so foreign callers
 -- (the winning xr_danger's own feeds) are untouched. Assigned unconditionally: a later ungraded
@@ -169,9 +160,7 @@ function has_danger(npc)
 	local st = db.storage[id]
 	return st and st.danger_flag == true
 end
------------------------------------------------------------------------------
 -- 																PRIVATE
------------------------------------------------------------------------------
 function get_danger_time(danger,npc)
 	if (danger:type() == danger_object.entity_corpse) then
 		local corpse_object = danger:object()
@@ -315,9 +304,7 @@ local function check_script_danger(id)
 	return false
 end
 
-----------------------------------------------------------------------------------------------------------------------
 -- 																EVALUATORS
-----------------------------------------------------------------------------------------------------------------------
 class "at_evaluator_danger" (property_evaluator)
 function at_evaluator_danger:__init(name, storage, npc) super (nil, name)
 	self.a = storage
@@ -466,9 +453,7 @@ function at_evaluator_danger:evaluate()
 	return danger
 end
 
------------------------------------------------------------------------
 -- 														ACTION
------------------------------------------------------------------------
 class "at_action_danger" ( action_base )
 function at_action_danger:__init( name, storage )  super ( nil, name )
 	self.a = storage
@@ -1018,9 +1003,7 @@ function at_action_danger:finalize()
 	action_base.finalize(self)
 end
 
-----------------------------------------------------------------------------------------------------------------------
 -- false - engine danger, true - script danger
-----------------------------------------------------------------------------------------------------------------------
 class "at_evaluator_check_danger" (property_evaluator)
 function at_evaluator_check_danger:__init(name, storage) super (nil, name)
 	self.a = storage
@@ -1124,9 +1107,7 @@ function at_position_node:select_best_vertex_id(object,dir,lvid,min_dist,max_dis
 	return close and self.node[close]
 end
 
-----------------------------------------------------------------------------------------------------------------------
 -- BINDER
-----------------------------------------------------------------------------------------------------------------------
 function setup_generic_scheme(npc,ini,scheme,section,stype,temp)
 	local st = xr_logic.assign_storage_and_bind(npc,ini,"danger","danger",temp)
 	db.storage[npc:id()].danger_flag = false
@@ -1202,9 +1183,7 @@ function reset_generic_scheme(npc,scheme,section,stype,st)
 
 end
 
------------------------------------------------------------------------------
 -- 															ON GAME START
------------------------------------------------------------------------------
 -- Fix 12: drop a dead perceiver's scripted-danger entry, so a recycled id inside the
 -- inertion window cannot inherit a danger the new NPC never perceived.
 local function _on_entity_unregister(se_obj)
