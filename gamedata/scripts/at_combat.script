@@ -706,7 +706,7 @@ end
 --   (rounds past base_dispersioned_bullets_count carry the worst dispersion, WeaponMagazined.cpp:
 --   797-800): inside push_close_m the burst grows AND the pause shrinks; out to push_far_m only the
 --   pause shrinks (more aimed bursts, same length); beyond, nothing - a flat raise would just spray.
---   BAND - at_stance.set_push_max caps his cover-band maximum at a fraction of his current distance,
+--   BAND - at_conduct.set_push_max caps his cover-band maximum at a fraction of his current distance,
 --   so his own re-picks close in. The riskier effector, so it needs an advantage beside the cause:
 --   the finisher (target weak + self healthy), the target bleeding (deteriorating), or the target's
 --   back turned to this NPC (he cannot answer even post-reload until he turns).
@@ -821,7 +821,7 @@ local function _clear_push_npc(npc, state, why, tg)
     if state.push_fire and npc and npc:alive() then
         xcombat.set_fire_queue_scale(npc, at_reaction.get_queue_scales(npc))
     end
-    if state.push_band then at_stance.clear_push_max(state.id) end
+    if state.push_band then at_conduct.clear_push_max(state.id) end
     if at_debug.on() then
         local dist_close = (npc and db.actor) and npc:position():distance_to(db.actor:position()) or -1
         at_debug.dbg("[PUSH] restore id=%s why=%s d=%.1f->%.1fm fire=%s band=%s",
@@ -865,7 +865,7 @@ end
 local function _write_push_band(state, advantage, dist, cause)
     local band = dist * PUSH_BAND_K
     if band < PUSH_BAND_FLOOR_M then band = PUSH_BAND_FLOOR_M end
-    at_stance.set_push_max(state.id, band)
+    at_conduct.set_push_max(state.id, band)
     state.push_band = band
     state.push_advantage = advantage
     state.push_dist = state.push_dist or dist
@@ -908,7 +908,7 @@ local function _update_push_npc(npc, state, tg)
     local dist = npc:position():distance_to(db.actor:position())
     local want_fire = _get_fire_band(dist)
     if want_fire ~= state.push_fire then _write_push_fire(npc, state, want_fire, dist, win.cause) end
-    if not state.push_band and at_stance.is_spacing_active()
+    if not state.push_band and at_conduct.is_spacing_active()
         and xcombat.get_weapon_kind(npc) ~= "w_sniper" then
         local advantage = _get_push_advantage(win, npc)
         if advantage then _write_push_band(state, advantage, dist, win.cause) end
@@ -923,9 +923,9 @@ end
 -- HIT_FIGHT_MS stops pulling - the pull answers pressure, not old wounds), and both need the actor
 -- strong (one health read per pass, shared in _actor_frac) plus the same fighting-the-actor qualify
 -- as the push. ONE effector, no fire side (a reloading gun is silent; MEASURED stays reserved for
--- suppress): at_stance.set_pull_band raises his cover-band minimum past his current distance so his
+-- suppress): at_conduct.set_pull_band raises his cover-band minimum past his current distance so his
 -- own re-picks land farther, restored by clearing the overlay. Pull outranks push per NPC (applied
--- after it in both at_stance handlers) - self-preservation over aggression when both windows hold.
+-- after it in both at_conduct handlers) - self-preservation over aggression when both windows hold.
 -- Same laws as the push: one write per window, per-NPC cooldown after it clears, n040 stale-lever
 -- clears on every path, seized exempt and cleared, zombied excluded via the shared qualify.
 local PULL_WEAK_FRAC, PULL_STRONG_FRAC, PULL_BAND_K, PULL_BAND_CAP_M, PULL_BAND_DEPTH_M, PULL_COOLDOWN_MS
@@ -947,7 +947,7 @@ end
 -- carries the open->close distance delta - the mirror closing proof, the delta expected to GROW.
 local function _clear_pull_npc(npc, state, why, tg)
     if not state.pull then return end
-    at_stance.clear_pull_band(state.id)
+    at_conduct.clear_pull_band(state.id)
     state.pull_until = tg + PULL_COOLDOWN_MS
     if at_debug.on() then
         local dist_close = (npc and db.actor) and npc:position():distance_to(db.actor:position()) or -1
@@ -963,14 +963,14 @@ local function _try_open_pull(npc, state, tg)
     if tg < (state.pull_until or 0) then return end
     if _actor_frac < PULL_STRONG_FRAC then return end
     if not _check_push_target(npc, state) then return end
-    if not at_stance.is_spacing_active() then return end
+    if not at_conduct.is_spacing_active() then return end
     local cause = _get_pull_cause(npc, state, tg, false)
     if not cause then return end
     local dist = npc:position():distance_to(db.actor:position())
     local min_m = dist * PULL_BAND_K
     if min_m < PULL_BAND_FLOOR_M then min_m = PULL_BAND_FLOOR_M end
     if min_m > PULL_BAND_CAP_M then min_m = PULL_BAND_CAP_M end
-    at_stance.set_pull_band(state.id, min_m, min_m + PULL_BAND_DEPTH_M)
+    at_conduct.set_pull_band(state.id, min_m, min_m + PULL_BAND_DEPTH_M)
     state.pull = cause
     state.pull_at = tg
     state.pull_dist = dist
@@ -1366,7 +1366,7 @@ local function _on_first_update()
     at_debug.info("Combat monitor initialized (enabled=%s dbg=%s cap=%d queue_patch=%s push=%s band=%s)",
         tostring(cfg.combat_enabled), tostring(at_debug.on()), MAX_CONCURRENT,
         _orig_get_queue_params and "installed" or "missing",
-        tostring(cfg.push_enabled), at_stance.is_spacing_active() and "active" or "INACTIVE")
+        tostring(cfg.push_enabled), at_conduct.is_spacing_active() and "active" or "INACTIVE")
 end
 
 function on_game_start()

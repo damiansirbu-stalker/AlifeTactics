@@ -159,9 +159,9 @@ local function _format_systems(id, maneuver)
         tokens[#tokens + 1] = "PULL"
         driver = driver or "PUSH"
     end
-    -- Conduct posture (at_stance, Combat > Conduct): crouches an experienced rifleman behind real cover.
+    -- Conduct posture (at_conduct, Combat > Conduct): crouches an experienced rifleman behind real cover.
     -- Composes with a Commitment hold on the same vanilla NPC, so it appends rather than replaces.
-    if at_stance.is_crouched(id) then
+    if at_conduct.is_crouched(id) then
         tokens[#tokens + 1] = "CROUCH"
         driver = driver or "CONDUCT"
     end

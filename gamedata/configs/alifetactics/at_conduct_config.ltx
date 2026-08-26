@@ -1,0 +1,19 @@
+; AlifeTactics Conduct (Combat > Conduct) tuning. Paired with gamedata/scripts/at_conduct.script.
+; All keys have script-side fallback defaults, so a missing key or file won't crash.
+
+[at_conduct]
+decide_ms       = 3000   ; posture hold: one crouch/stand decision per NPC per this window
+conduct_floor_m = 20     ; closer than this is a close/dynamic fight - stand and stay mobile, never crouch
+crouch_chance   = 0.30   ; fraction of eligible NPCs that crouch, rolled once per NPC life, so a firing line is a mix
+posture_kinds   = w_rifle, w_sniper   ; long kinds whose carriers run posture discipline; short weapons keep vanilla's pick
+posture_tiers   = experienced, professional, veteran, expert, master, legend   ; tiers that run it; the green tiers keep vanilla
+spacing_ttl_ms  = 5000   ; spacing rows re-derive on this staleness; a mid-life weapon change re-keys within one TTL
+spacing_max_k_w_smg = 0.6   ; SMG cover maximum tightened (the engine leaves it at the 20m default)
+
+; Sniper cover minimum raised by rank - a skilled sniper holds range. Absent rank = 1.0 (no raise).
+spacing_sniper_min_k_experienced  = 1.15
+spacing_sniper_min_k_professional = 1.15
+spacing_sniper_min_k_veteran      = 1.3
+spacing_sniper_min_k_expert       = 1.3
+spacing_sniper_min_k_master       = 1.5
+spacing_sniper_min_k_legend       = 1.5
