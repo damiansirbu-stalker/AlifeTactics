@@ -1,0 +1,30 @@
+; AlifeTactics Sound (Danger > Sound) tuning. Paired with gamedata/scripts/at_sound.script.
+; All keys have script-side fallback defaults, so a missing key or file won't crash.
+; Radii anchor to Anomaly room scale (4-5m); no occlusion test, so the radii ARE the wall policy.
+
+[at_sound]
+tick_sec       = 0.5   ; movement scan pass period (time event, never per-frame)
+step_fresh_ms  = 900   ; a step older than this is stale and the pass skips the scan
+realert_ms     = 4000  ; per-NPC re-alert throttle; a solid event bypasses it over a standing faint alert
+inertion_ms    = 5000  ; how long the heard position stays a danger (the scheme's decay)
+base_radius_m  = 5     ; walking on neutral ground
+crouch_factor  = 0     ; crouched movement is SILENT - hearing never defeats the crouched stealth approach
+sprint_factor  = 1.6
+rain_cut       = 0.4   ; rain masks the radius by up to this fraction at full rain
+land_radius_m  = 10    ; landing thud, the loudest movement sound
+hear_scale_min = 0.25  ; clamp on the install-hearing scale (winning config's stalker hearing over vanilla's)
+hear_scale_max = 2.0
+
+; Surface factors, substring-matched against the step's material name; unlisted surfaces are neutral
+material_factor_metal = 1.25
+material_factor_wood  = 1.15
+material_factor_water = 1.35
+material_factor_grass = 0.7
+material_factor_dirt  = 0.8
+material_factor_earth = 0.8
+material_factor_sand  = 0.8
+
+; Handling rows: "radius m, strength" per heard sound type (strength = the evidence grade the reaction runs at)
+action_wpn_reload = 8, solid
+action_wpn_empty  = 6, solid
+action_itm_use    = 5, faint
