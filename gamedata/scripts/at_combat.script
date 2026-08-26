@@ -116,7 +116,7 @@ local function _can_seize(npc)
     -- tick defers; the begin check re-asks in 600ms, after the reaction released the body. The
     -- tripping TERM is the returned reason ("stagger"/"overlay"/"flinch"), so the monitor trace
     -- splits the deferral counts by cause with no string built on the live path.
-    local busy, why = xcombat.body_busy(npc)
+    local busy, why = xcombat.is_body_busy(npc)
     if busy then return false, why end
     return true
 end
@@ -539,7 +539,7 @@ local function _update_maneuver(npc, state, tg)
     -- all PAUSE here and the maneuver resumes when the animation releases the body; only the real
     -- wounded-down state (IsWounded) ends the maneuver, on the end check. The pause line keeps the
     -- skipped passes visible in a debug log (otherwise a paused maneuver reads as silence).
-    local busy, busy_why = xcombat.body_busy(npc)
+    local busy, busy_why = xcombat.is_body_busy(npc)
     if busy then
         at_debug.dbg("[CMB] pause id=%s maneuver=%s why=%s", show(state.id), show(maneuver.name), show(busy_why))
         return
@@ -609,7 +609,7 @@ local function _end_reason(npc, enemy, state, tg)
     -- open, 2026-07-27 session), so the transaction ends NOW instead of re-applying state onto an
     -- NPC AT no longer drives - and the cover claim releases through the normal path (f003).
     -- IsWounded ONLY (user ruling 2026-07-28): the crit stagger (xcombat.is_staggering) is a ~1s
-    -- hit reaction, not the wounded state - it pauses the maneuver via the body_busy skip instead
+    -- hit reaction, not the wounded state - it pauses the maneuver via the is_body_busy skip instead
     -- of ending it, so a rout or kite survives a heavy hit.
     if IsWounded(npc) then return "wounded" end
     local maneuver = state.maneuver
@@ -715,7 +715,7 @@ local PUSH_WEAK_FRAC, PUSH_SELF_FRAC, PUSH_BAND_K, PUSH_BAND_FLOOR_M, PUSH_BACK_
 -- across the exact threshold cannot flap the window.
 local PUSH_WEAK_EXIT = 0.10
 
--- The one window: { cause = "reload"/"dry"/"jam"/"weak", opened_at, bleeding }. nil = closed.
+-- The one window: { cause = "reload"/"no_ammo"/"jam"/"weak", opened_at, bleeding }. nil = closed.
 -- bleeding is the window-level advantage input, refreshed once per pass for every NPC's band gate.
 local _push
 -- Press windows are the EXCEPTION, not the fight's steady state: after one closes, no new press
@@ -731,7 +731,7 @@ local function _open_window(cause, tg)
     if at_debug.on() then at_debug.dbg("[PUSH] open cause=%s", cause) end
 end
 
--- Open the window from an actor weapon edge, or re-cause an already-open one. A dry mag flowing
+-- Open the window from an actor weapon edge, or re-cause an already-open one. An empty mag flowing
 -- into its reload stays ONE window on the original clock, so the press cap bounds the total; a
 -- press edge upgrading an open FINISHER window re-stamps the clock instead - the weak window has
 -- no cap, so its age would cap-close the press on the next pass and burn the cooldown for nothing.
@@ -750,7 +750,7 @@ local function _try_open_press(cause, tg)
 end
 
 local function _on_actor_reload()  _try_open_press("reload", time_global()) end
-local function _on_actor_no_ammo() _try_open_press("dry",    time_global()) end
+local function _on_actor_no_ammo() _try_open_press("no_ammo", time_global()) end
 local function _on_actor_jammed()  _try_open_press("jam",    time_global()) end
 
 local function _close_push(why, tg)
@@ -763,8 +763,9 @@ local function _close_push(why, tg)
     _push = nil
 end
 
--- The actor firing IS the answered-window proof for every press cause; the per-pass is_vulnerable
--- confirm would catch the reload end anyway, this catches the dry/jam recoveries a state read cannot.
+-- The actor firing IS the answered-window proof for every press cause; the per-pass
+-- is_actor_vulnerable confirm would catch the reload end anyway, this catches the
+-- no_ammo/jam recoveries a state read cannot.
 local function _on_actor_fired()
     if _push and _push.cause ~= "weak" then _close_push("answered", time_global()) end
 end
@@ -780,7 +781,7 @@ local function _get_close_reason(win, actor, tg)
     end
     if not cfg.push_reload then return "off" end
     if tg - win.opened_at > PUSH_WINDOW_MAX_MS then return "cap" end
-    if win.cause == "reload" and not xcombat.is_vulnerable(actor) then return "answered" end
+    if win.cause == "reload" and not xcombat.is_actor_vulnerable() then return "answered" end
     return nil
 end
 

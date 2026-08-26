@@ -123,13 +123,13 @@ local function _on_combat_body_state(npc, world_operator, _body_state, flags)
     local tg = time_global()
     local held = _decision[id]
     -- While a hit reaction plays (additive flinch, crit stagger, or a queued script animation overlay -
-    -- xcombat.body_busy, the same read the maneuvers gate their seize on), FREEZE the posture: never
+    -- xcombat.is_body_busy, the same read the maneuvers gate their seize on), FREEZE the posture: never
     -- re-decide and never issue a crouch<->stand transition mid-reaction. A stance flip landing inside a
     -- flinch is the "sliding when shot" class (at_stance v1); the held 3s decision only bounded its RATE,
     -- not the coincidence, and the additive flinch does not change the op so this callback keeps firing
     -- through it. Keep applying the last held posture (idempotent - holds the pre-reaction pose); with no
     -- decision yet, leave vanilla's body_state for this ask and decide once the body is free.
-    local busy, busy_why = xcombat.body_busy(npc)
+    local busy, busy_why = xcombat.is_body_busy(npc)
     if busy then
         if at_debug.on() then
             at_debug.dbg("[STANCE] id=%d freeze=%s held=%s", id, tostring(busy_why),

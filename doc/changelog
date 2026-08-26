@@ -6,7 +6,7 @@ next
       - Stalkers hit mid reaction no longer slide across the ground with their feet still. A standing stalker is held planted while the hit animation plays
           and resumes his route the moment it ends. Its own Hit reaction hold switch. Needs a modded exes build carrying PR #645, older builds keep vanilla movement.
     Commitment
-      - Added Liquidate: a stalker whose enemy is caught reloading, dry, staggered, or disarmed keeps firing through that window
+      - Added Liquidate: a stalker whose enemy is caught reloading, out of ammo, staggered, disarmed, or sprinting weapon-down keeps firing through that window
           instead of breaking off to reposition, and moves again once the enemy can answer. The extra hold is bounded, nobody stays planted for long. Its own switch.
     Conduct
       - Zombied stalkers no longer take a tactical cover crouch on the firing line. They still duck from incoming fire.
@@ -14,7 +14,7 @@ next
           and skilled snipers hold extra distance. Its own switch.
     Behaviors
       - Added the Push, the first behavior on the new Behaviors page: the stalkers fighting you punish the moment you cannot answer instead of watching it pass.
-          Caught reloading, jammed, or with a dry magazine their fire thickens at close range within a burst cycle, and while you are badly hurt healthy attackers close in to finish the fight.
+          Caught reloading, jammed, or with an empty magazine their fire thickens at close range within a burst cycle, and while you are badly hurt healthy attackers close in to finish the fight.
           With a clear upper hand (you weakened, bleeding, or turned away) they also move to closer cover instead of trading from range.
           Everything reverts the moment you fire again or recover, the push moments stay rare rather than constant, with a master switch and a switch per cause.
       - Added the Pull, the push's mirror: a stalker caught reloading or badly hurt under your fire falls back, his own cover choices landing farther from you until he recovers.

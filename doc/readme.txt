@@ -86,7 +86,7 @@ Many mods answer this by switching the stalker to a camper scheme that pins him 
 AlifeTactics keeps the engine's full combat AI and instead stops a stalker throwing away a decision that still makes sense.
 While what he is doing still works he stays with it, and he switches the instant it stops: he loses sight, the shot is blocked, or the enemy is gone.
 It also pins his cover: a stalker firing with a clear shot keeps his spot instead of sliding to a marginally better one, stopping the mid-fight strafe at its source.
-When his enemy is caught reloading, dry, staggered, or with no weapon up, he liquidates: fire held on the window instead of breaking off, repositioning once the enemy can answer again.
+When his enemy is caught reloading, out of ammo, staggered, sprinting weapon-down, or with no weapon up, he liquidates: fire held on the window instead of breaking off, repositioning once the enemy can answer again.
 He sees a decision through, keeping up his fire, pressing a flank, or finishing a reload, instead of second-guessing himself every frame.
 
 Conduct:
@@ -100,7 +100,7 @@ Weapon spacing: a stalker's cover choices respect what his weapon is good at, su
 Behaviors:
 Stalkers act on windows of opportunity in the fight, in both directions.
 The Push: the stalkers fighting you punish the moment you cannot answer instead of watching it pass.
-Caught reloading, jammed, dry, or badly hurt, their fire thickens at close range, and with a clear upper hand (you weakened, bleeding, or turned away) the attackers move to closer cover.
+Caught reloading, jammed, out of ammo, or badly hurt, their fire thickens at close range, and with a clear upper hand (you weakened, bleeding, or turned away) the attackers move to closer cover.
 The Pull is the mirror: a stalker caught reloading or badly hurt under your fire falls back, his own cover choices landing farther from you until he recovers.
 Everything reverts the moment the window closes, the moments stay rare rather than constant, and each cause has its own switch.
 
