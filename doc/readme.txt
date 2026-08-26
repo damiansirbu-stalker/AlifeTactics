@@ -86,7 +86,7 @@ Many mods answer this by switching the stalker to a camper scheme that pins him 
 AlifeTactics keeps the engine's full combat AI and instead stops a stalker throwing away a decision that still makes sense.
 While what he is doing still works he stays with it, and he switches the instant it stops: he loses sight, the shot is blocked, or the enemy is gone.
 It also pins his cover: a stalker firing with a clear shot keeps his spot instead of sliding to a marginally better one, stopping the mid-fight strafe at its source.
-When his enemy is caught reloading, staggered, or with no weapon up, he liquidates: fire held on the window instead of breaking off, repositioning once the enemy can answer again.
+When his enemy is caught reloading, dry, staggered, or with no weapon up, he liquidates: fire held on the window instead of breaking off, repositioning once the enemy can answer again.
 He sees a decision through, keeping up his fire, pressing a flank, or finishing a reload, instead of second-guessing himself every frame.
 
 Conduct:

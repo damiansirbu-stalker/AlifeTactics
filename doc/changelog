@@ -6,7 +6,7 @@ next
       - Stalkers hit mid reaction no longer slide across the ground with their feet still. A standing stalker is held planted while the hit animation plays
           and resumes his route the moment it ends. Its own Hit reaction hold switch. Needs a modded exes build carrying PR #645, older builds keep vanilla movement.
     Commitment
-      - Added Liquidate: a stalker whose enemy is caught reloading, staggered, or disarmed keeps firing through that window
+      - Added Liquidate: a stalker whose enemy is caught reloading, dry, staggered, or disarmed keeps firing through that window
           instead of breaking off to reposition, and moves again once the enemy can answer. The extra hold is bounded, nobody stays planted for long. Its own switch.
     Conduct
       - Zombied stalkers no longer take a tactical cover crouch on the firing line. They still duck from incoming fire.
