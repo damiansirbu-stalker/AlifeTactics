@@ -55,7 +55,7 @@ end
 -- the target-priority fairness dial, npc side stays vanilla). Zombied keep vanilla selection.
 local function _apply_selection_levers(npc)
     if not IsStalker(npc) then return end
-    if xcreature.community(npc) == "zombied" then return end
+    if xcreature.is_zombied(npc) then return end
     local turn_on = cfg.disclosure_enabled and cfg.disclosure_turn
     local applied = xcombat.set_hit_redirect(npc, turn_on and TURN_MAX or -1, TURN_FALLOFF_M)
     if _has_redirect == nil then _has_redirect = applied end
@@ -73,7 +73,7 @@ local function _stamp_one(member_id, victim_pos, who_id, who_pos, tg)
     local member = xobject.go(member_id)
     if not member then return false end
     if not member:alive() then return false end
-    if xcreature.community(member) == "zombied" then return false end
+    if xcreature.is_zombied(member) then return false end
     if member:position():distance_to_sqr(victim_pos) > EARSHOT_SQR then return false end
     local last = _stamp_at[member_id]
     if last and (tg - last) < RESTAMP_MS then return false end
@@ -162,7 +162,7 @@ local function _on_hit(npc, amount, _local_direction, who, bone_index)
     if not amount or amount <= 0 then return end
     if not (who and npc) then return end
     if who:id() == npc:id() then return end
-    if xcreature.community(npc) == "zombied" then return end
+    if xcreature.is_zombied(npc) then return end
     if not xcreature.is_enemy(npc, who) then return end
 
     _stat.hits = _stat.hits + 1

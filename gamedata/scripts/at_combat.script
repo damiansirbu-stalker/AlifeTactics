@@ -94,7 +94,7 @@ end
 -- caller already read (one best_enemy luabind per begin check, not two).
 local function _is_fighting(enemy, state, tg)
     if enemy ~= nil then return true end
-    return state.hit_at ~= nil and (tg - state.hit_at) < HIT_FIGHT_MS
+    return doctrine.has_recent_hit(state, tg, HIT_FIGHT_MS)
 end
 
 -- Eligibility: does AT manage this NPC at all. Enabled, inside the share, not a companion. Changes rarely.
@@ -108,7 +108,7 @@ end
 -- takeover fights everywhere; xcombat.is_indoor (a proper roof+walls raycast) stays available if a future
 -- maneuver ever needs it, but the takeover does not.
 local function _can_seize(npc)
-    if xcreature.community(npc) == "zombied" then return false, "zombied" end
+    if xcreature.is_zombied(npc) then return false, "zombied" end
     if not xcombat.get_weapon_kind(npc) then return false, "no_weapon" end
     if npc:in_smart_cover() then return false, "smart_cover" end
     -- Never seize an animating body (design law, 2026-07-27): a seize writes state and starts
@@ -683,7 +683,7 @@ local function _update_hold(npc, state, tg)
         if state.move_hold then _apply_hold(npc, state, false, "disabled") end
         return
     end
-    if not state.move_hold and (not state.hit_at or (tg - state.hit_at) >= HOLD_WINDOW_MS) then return end
+    if not state.move_hold and not doctrine.has_recent_hit(state, tg, HOLD_WINDOW_MS) then return end
     local hold, why = _check_hold(npc)
     _apply_hold(npc, state, hold, why or "released")
 end
@@ -848,7 +848,7 @@ local function _get_push_advantage(win, npc)
         return xcombat.get_health_frac(npc) >= PUSH_SELF_FRAC and "weak" or nil
     end
     if win.bleeding then return "bleeding" end
-    if xcombat.get_facing_offset(db.actor, npc:position()) >= PUSH_BACK_DEG then return "back" end
+    if not xcombat.is_facing(db.actor, npc:position(), PUSH_BACK_DEG) then return "back" end
     return nil
 end
 
@@ -870,7 +870,7 @@ end
 -- Push qualification for one NPC: not zombied (community cached once per state - zombification is
 -- static per NPC life) and fighting the actor (best_enemy).
 local function _check_push_target(npc, state)
-    if state.zombied == nil then state.zombied = xcreature.community(npc) == "zombied" end
+    if state.zombied == nil then state.zombied = xcreature.is_zombied(npc) end
     if state.zombied then return false end
     local enemy = xcombat.get_best_enemy(npc)
     return enemy ~= nil and enemy:id() == AC_ID
@@ -930,7 +930,7 @@ local PULL_WEAK_EXIT = 0.10
 -- A held pull re-asks with the hysteresis bar so healing across the threshold cannot flap the band.
 local function _get_pull_cause(npc, state, tg, held)
     if state.reloading and xcombat.is_reloading(npc) then return "reload" end
-    if not (state.hit_at and (tg - state.hit_at) < HIT_FIGHT_MS) then return nil end
+    if not doctrine.has_recent_hit(state, tg, HIT_FIGHT_MS) then return nil end
     local bar = held and (PULL_WEAK_FRAC + PULL_WEAK_EXIT) or PULL_WEAK_FRAC
     if xcombat.get_health_frac(npc) <= bar then return "hurt" end
     return nil
@@ -989,7 +989,7 @@ local function _update_pull_npc(npc, state, tg)
         end
         return
     end
-    if state.reloading or (state.hit_at and (tg - state.hit_at) < HIT_FIGHT_MS) then
+    if state.reloading or doctrine.has_recent_hit(state, tg, HIT_FIGHT_MS) then
         _try_open_pull(npc, state, tg)
     end
 end

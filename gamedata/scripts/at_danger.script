@@ -222,7 +222,7 @@ local function is_danger(npc,best_danger,script)
 	--end
 
 	if (bd_type == danger_object.grenade) then
-		if not (best_danger:dependent_object() and xcreature.community(npc) ~= "zombied") then
+		if not (best_danger:dependent_object() and not xcreature.is_zombied(npc)) then
 			return false
 		end
 
@@ -1048,7 +1048,7 @@ function at_evaluator_check_danger:evaluate()
 		return false
 	end
 
-	if (xcreature.community(self.object) == "zombied") then
+	if (xcreature.is_zombied(self.object)) then
 		return false
 	end
 

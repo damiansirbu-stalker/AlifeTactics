@@ -126,7 +126,7 @@ local function _resolve(id)
     local record = {
         resist = acc.resist, plate = acc.plate, dealt = acc.dealt, disp = acc.disp, regen = regen,
         binoc = acc.binoc, nvg = acc.nvg, aura = acc.aura,
-        combat = xcreature.community(npc) ~= "zombied",
+        combat = not xcreature.is_zombied(npc),
     }
     _resolved[id] = record
     timer:stop()

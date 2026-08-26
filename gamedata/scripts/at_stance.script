@@ -112,7 +112,7 @@ local function _on_combat_body_state(npc, world_operator, _body_state, flags)
     -- ray. Everyone else is left to vanilla. The danger-duck (at_danger, a direct set_body_state on a
     -- startle) is a reaction, not deliberate posture, and is untouched here.
     local id = npc:id()
-    local zombied = xcreature.community(npc) == "zombied"
+    local zombied = xcreature.is_zombied(npc)
     if not zombied then
         local kind = xcombat.get_weapon_kind(npc)
         if not (kind and LONG_KINDS[kind]) then return end
@@ -218,7 +218,7 @@ end
 local function _get_spacing_row(npc, id, tg)
     local row = _spacing[id]
     if row and (tg - row.at) < SPACING_TTL_MS then return row end
-    local kind = not (xcreature.community(npc) == "zombied") and xcombat.get_weapon_kind(npc) or nil
+    local kind = not (xcreature.is_zombied(npc)) and xcombat.get_weapon_kind(npc) or nil
     if not kind then
         row = { at = tg, skip = true }
     else

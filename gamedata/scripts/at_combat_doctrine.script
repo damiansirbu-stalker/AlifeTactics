@@ -110,9 +110,9 @@ end
 -- the cascade path, the same placement as flee's _flee_blocked) and re-checked while the hold runs (the
 -- row's check_end) - a broken premise ends the hold now, not at the cap. Returns the reason, or nil.
 local function _pickoff_blocked(npc, enemy, state, tg, npc_pos)
-    if state.hit_at and (tg - state.hit_at) < UNDER_FIRE_MS then return "under_fire" end
+    if has_recent_hit(state, tg, UNDER_FIRE_MS) then return "under_fire" end
     if xcombat.is_under_fire(npc, enemy, tg, UNDER_FIRE_MS) then return "under_fire" end
-    if db.actor and xcombat.get_facing_offset(db.actor, npc_pos) <= PICKOFF_TARGETED_DEG then return "targeted" end
+    if db.actor and xcombat.is_facing(db.actor, npc_pos, PICKOFF_TARGETED_DEG) then return "targeted" end
     return nil
 end
 
@@ -269,10 +269,9 @@ end
 -- the cursor and is re-asked a lap later, so the rout fires once the shooting pauses). Returns the decline
 -- reason for the trace, or nil when clear to rout.
 local function _flee_blocked(npc, enemy, state)
-    local squad = xsquad.get_squad_by_member(npc:id())
-    if squad and squad:npc_count() > 1 then return "squad_stands" end
+    if not xsquad.is_last_man(npc:id()) then return "squad_stands" end
     local tg = time_global()
-    if state.hit_at and (tg - state.hit_at) < UNDER_FIRE_MS then return "under_fire" end
+    if has_recent_hit(state, tg, UNDER_FIRE_MS) then return "under_fire" end
     if xcombat.is_under_fire(npc, enemy, tg, UNDER_FIRE_MS) then return "under_fire" end
     return nil
 end
@@ -359,7 +358,7 @@ end
 -- statement on my own weapon, and the kite's back-off ends well outside the minimum by construction.
 local function _check_too_close(npc, _enemy, state, _tg, memo)
     if memo.kind == nil then memo.kind = xcombat.get_weapon_kind(npc) or "w_rifle" end
-    if state.dist < xcombat.get_weapon_range(memo.kind).min then return "too_close" end
+    if xcombat.is_inside_minimum(state.dist, memo.kind) then return "too_close" end
     return nil
 end
 
@@ -386,7 +385,7 @@ local function _check_hurt(npc, enemy, state, _tg, memo)
     if memo.hurt == nil then memo.hurt = xcombat.get_health_frac(npc) < HURT_FRAC end
     if not memo.hurt then return nil end
     if memo.enemy_kind == nil then memo.enemy_kind = xcombat.get_weapon_kind(enemy) or "w_rifle" end
-    if state.dist <= xcombat.get_weapon_range(memo.enemy_kind).max then return "hurt" end
+    if xcombat.is_inside_reach(state.dist, memo.enemy_kind) then return "hurt" end
     return nil
 end
 
@@ -543,6 +542,12 @@ local function _build_catalog(read_int)
             timeout        = read_int("pickoff_hold_ms", 8000),
         },
     }
+end
+
+--- True when a hit landed on this NPC within window_ms - the landed-hit under-fire read over the
+--- state.hit_at stamp (at_combat writes it on npc_on_hit). Window is caller policy.
+function at_combat_doctrine.has_recent_hit(state, tg, window_ms)
+    return state.hit_at ~= nil and (tg - state.hit_at) < window_ms
 end
 
 --- Load the tunables and (re)build the maneuver catalog. Called by the shell on_game_start; every key has

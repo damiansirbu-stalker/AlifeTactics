@@ -310,7 +310,7 @@ end
 --- @param npc game_object stalker to (re-)apply the curves to
 function apply(npc)
     if not (npc and npc:alive()) then return end
-    if xcreature.community(npc) == "zombied" then return end
+    if xcreature.is_zombied(npc) then return end
     if not (cfg.aim_enabled or cfg.vision_enabled or cfg.discipline_enabled) then return end
 
     local tier = _get_obj_rank_name(npc)
@@ -358,7 +358,7 @@ local function _on_shot_lead(obj, wpn, body_state, move_type, temp_disp)
     local nxt = _next_lead[id]
     if nxt and tg < nxt then return end
     _next_lead[id] = tg + LEAD_THROTTLE_MS
-    if xcreature.community(obj) == "zombied" then return end
+    if xcreature.is_zombied(obj) then return end
 
     local enemy = xcombat.get_best_enemy(obj)
     if not enemy then return end
@@ -417,7 +417,7 @@ end
 -- every rank curve; shares the Vision toggle with vision speed.
 local function _vision_range_provider(npc)
     if not cfg.vision_enabled then return nil end
-    if xcreature.community(npc) == "zombied" then return nil end
+    if xcreature.is_zombied(npc) then return nil end
     local tier = _get_obj_rank_name(npc)
     if not tier or tier == "" then return nil end
     return _vrange[tier]

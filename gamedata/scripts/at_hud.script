@@ -93,7 +93,7 @@ end
 -- enemy right now), "aims-off" (sees it but body pointed >= FACING_DEG off it), "sees" (looking at it).
 local function _get_sight_flag(npc, enemy)
     if not xcombat.sees(npc, enemy) then return "blind" end
-    if xcombat.get_facing_offset(npc, enemy:position()) >= FACING_DEG then return "aims-off" end
+    if not xcombat.is_facing(npc, enemy:position(), FACING_DEG) then return "aims-off" end
     return "sees"
 end
 

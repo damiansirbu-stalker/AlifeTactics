@@ -91,6 +91,11 @@ local function _get_rank_tier(npc)
     return _RANK_TO_TIER[ranks.get_obj_rank_name(npc)] or "novice"
 end
 
+-- Calm = out of the danger mental state (anim.free) - the out-of-combat eligibility read.
+local function _is_calm(npc)
+    return npc:mental_state() == anim.free
+end
+
 -- One-shot medkit/bandage gesture. Gated on healing_anim toggle, on no visible
 -- enemy (no anim during combat), on not-on-ground, and on STANDING STILL: a torso
 -- gesture on a moving NPC suspends his leg animation while the body keeps
@@ -378,7 +383,7 @@ end
 -- while calm (the eligibility chain), so either flip means a fight began. One predicate so the start gate
 -- and the fast drop share the same definition of "in combat".
 local function _in_combat(npc)
-    return xcombat.get_best_enemy(npc) ~= nil or npc:mental_state() ~= anim.free
+    return xcombat.get_best_enemy(npc) ~= nil or not _is_calm(npc)
 end
 
 -- The drop detectors, on their own 200ms clock. While a script animation is queued the engine
@@ -444,11 +449,11 @@ local LIMP_DECLINE_WINDOW = 100
 local function _limp_decline_reason(npc)
     if xcombat.actor_dist_sqr(npc) > ANIM_RADIUS_SQR then return "far" end
     if xcombat.get_best_enemy(npc) then return "enemy" end
-    if npc:mental_state() ~= anim.free then return "mental" end
+    if not _is_calm(npc) then return "mental" end
     if npc:body_state() ~= move.standing then return "standing" end
     if IsWounded(npc) then return "wounded" end
     if npc:in_smart_cover() then return "smart_cover" end
-    if xcreature.community(npc) == "zombied" then return "zombied" end
+    if xcreature.is_zombied(npc) then return "zombied" end
     return "other"
 end
 
@@ -479,9 +484,9 @@ local function _run_limp_check(npc, id, state, tg)
         and not npc:in_smart_cover()
         and npc.health < cfg.limping_health_threshold
         and not xcombat.get_best_enemy(npc)
-        and npc:mental_state() == anim.free
+        and _is_calm(npc)
         and npc:body_state() == move.standing
-        and xcreature.community(npc) ~= "zombied"
+        and not xcreature.is_zombied(npc)
         and not IsWounded(npc)
 
     if not eligible then
