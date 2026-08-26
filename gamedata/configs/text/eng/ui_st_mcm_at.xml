@@ -93,7 +93,7 @@
     <text>Push on reload, jam, and empty mag</text>
   </string>
   <string id="ui_mcm_at_behaviors_push_reload_desc">
-    <text>Opens the push window when your weapon goes down mid-fight: a reload, a jam, or a dry magazine. It closes when you fire again or the weapon comes back up.</text>
+    <text>Opens the push window when your weapon goes down mid-fight: a reload, a jam, or an empty magazine. It closes when you fire again or the weapon comes back up.</text>
   </string>
   <string id="ui_mcm_at_behaviors_push_finisher">
     <text>Push weakened targets</text>
@@ -750,7 +750,7 @@
     <text>Liquidate vulnerable targets</text>
   </string>
   <string id="ui_mcm_at_commitment_commitment_liquidate_desc">
-    <text>A stalker whose enemy is caught reloading, staggered, or with no weapon up keeps firing through that window instead of breaking off to reposition, and moves once the enemy can answer again. The extra hold is bounded, so nobody stays planted for long. Shows as LIQUIDATE on the debug HUD.</text>
+    <text>A stalker whose enemy is caught reloading, out of ammo, staggered, sprinting weapon-down, or with no weapon up keeps firing through that window instead of breaking off to reposition, and moves once the enemy can answer again. The extra hold is bounded, so nobody stays planted for long. Mutants never trigger it. Shows as LIQUIDATE on the debug HUD.</text>
   </string>
   <string id="ui_mcm_at_commitment_commitment_enabled">
     <text>Enable Commitment</text>
