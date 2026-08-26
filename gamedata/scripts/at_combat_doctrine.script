@@ -90,8 +90,9 @@ local function _find_kite_lane(npc, _enemy, state, _tg, memo)
     -- find_flee_lane for, dest_enemy_m is the enemy's distance from the DESTINATION (the accept gate:
     -- must exceed min_m, my weapon's minimum - the trigger's own quantity), lane_m the withdrawal length.
     local min_m        = xcombat.get_weapon_range(memo.kind).min
-    local lane_m       = vid and math_sqrt(xmath.dist_flat_sqr(level.vertex_position(vid), np)) or -1
-    local dest_enemy_m = vid and math_sqrt(xmath.dist_flat_sqr(level.vertex_position(vid), ep)) or -1
+    local vp           = vid and level.vertex_position(vid)
+    local lane_m       = vp and math_sqrt(xmath.dist_flat_sqr(vp, np)) or -1
+    local dest_enemy_m = vp and math_sqrt(xmath.dist_flat_sqr(vp, ep)) or -1
     if vid and dest_enemy_m <= min_m then
         at_debug.dbg("[CMB] can_kite id=%s name=%s dist=%.1f min_m=%.1f back_m=%.1f dest_enemy_m=%.2f lane_m=%.2f lane=%s result=short",
             show(state.id), show(state.name), dist or -1, min_m, back_m, dest_enemy_m, lane_m, show(vid))
