@@ -1,0 +1,6 @@
+; AlifeTactics Commitment (Combat > Commitment) tuning. Paired with gamedata/scripts/at_commitment.script.
+; All keys have script-side fallback defaults, so a missing key or file won't crash.
+; The hold cap itself is MCM-owned (commitment_hold_s) and never read from here.
+
+[at_commitment]
+vulnerable_extend_ms = 4000 ; liquidate: a hold defers past the relent cap at most this long while the enemy cannot return fire

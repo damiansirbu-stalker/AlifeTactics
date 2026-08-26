@@ -2,60 +2,41 @@
 
 local RegisterScriptCallback, time_global, string_format, tostring = RegisterScriptCallback, time_global, string.format, tostring
 local pairs, table_concat = pairs, table.concat
+local ini_file, math_floor = ini_file, math.floor
 
 local cfg = at_mcm.cfg
 
--- The veto seam (npc_on_combat_action_switch, PR #595): fires BEFORE the combat planner swaps actions;
--- flags.allow = false keeps the current action executing, re-asked each brain update while denied. A
--- blocked planner never proposes a switch, so the veto never fires for an AT-seized NPC - Maneuvers and
--- Commitment are mutually exclusive per NPC by construction (architecture.md Commitment).
---
--- Three holds, proven per-transition from the planner preconditions (full table: architecture.md
--- Commitment; census-derived 2026-07-15). A held fire action keeps firing on visible_now regardless of
--- InCover (stalker_combat_actions.cpp:483); a held detour keeps flanking:
---   kill_enemy|kill_if_not_visible -> take_cover : InCover dropped (best-cover re-pick). Hold when the
---       NPC SEES the enemy AND fire_make_sense (the aim-direction lane is clear to the enemy + a
---       reasonable floor gap; pick_distance raycasts to the first occluder, ai_stalker_fire.cpp:684-937)
---       AND the friendly lane is clear (can_kill_member). An occluded shot (cover/geometry in the lane)
---       or a big height gap makes the held fire wasted, so the cover move goes through.
---   kill_enemy|kill_if_not_visible -> get_ready : ReadyToKill dropped (reload/empty/misfire). Hold on
---       sight + clear lane. The object handler reloads independent of the combat action, so the hold is
---       reload-in-place instead of the get_ready -> take_cover advance.
---   detour_enemy -> take_cover : the flank abandoned for cover. detour runs blind (SeeEnemy=false), so
---       hold while STILL blind (the inverse of the fire gate) and release the instant the enemy is re-seen.
--- can_kill_enemy is NEVER a gate: it raycasts along the gun's CURRENT aim direction (g_fireParams,
--- ai_stalker_fire.cpp:811-824), so it reads false through the aim-lag of a moving target - the t152
--- mute-fire bug - and survives only as a debug read on the hold line. NEVER vetoed: get_ready ->
--- take_cover (a DEADLOCK - get_ready set InCover=false, take_cover is the only restorer, so blocking it
--- strands a non-firing NPC), so the shuffle is caught one hop upstream at kill_enemy -> get_ready. A recent-hit standdown was tried and removed 2026-07-12: any-hit-in-3s kept
--- the veto disabled for the whole fight the player is in, the exact fight it exists for. Every other
--- transition passes untouched: grenade dodges, the critically-wounded finisher, retreats, the
--- get-distance chain, and the lost-sight rotation (SeeEnemy=false, so the sight/shot gate self-declines)
--- all fall outside the fire-action exit set or fail the advantage gate. Release needs no machinery -
--- each condition falsifies itself and the next proposal passes. Full per-transition rationale +
--- histogram: architecture.md Commitment.
+local LTX_PATH    = "alifetactics\\at_commitment_config.ltx"
+local LTX_SECTION = "at_commitment"
 
--- Fire actions worth holding, and the cover-seeking destinations that constitute the shuffle's exit
--- from them. stalker_ids is read lazily on the first veto call, never at file scope (the
--- xcombat.get_blocked_planners pattern).
+local VULNERABLE_EXTEND_MS
+local RECENT_HOLD_MS = 4000
+local DECLINE_LOG_MS = 1000
+local CENSUS_LOG_MS = 1000
+local CENSUS_UNDER_FIRE_MS = 2000
+
+local _hold_cap_ms = 6000
 local _attack_ops, _cover_ops
-
--- Reverse map op id -> short name for the debug traces, built with the ops.
 local _op_names
+local _hold = {}
+local _last = {}
+local _decline_at = {}
+local _cur_op = {}
+local _cover_hold = {}
+local _census_at = {}
+local _hit_at = {}
+
+local function _load_config()
+    local ini = ini_file(LTX_PATH)
+    local function read_int(k, d) local v = ini:r_float_ex(LTX_SECTION, k) return v and math_floor(v) or d end
+    VULNERABLE_EXTEND_MS = read_int("vulnerable_extend_ms", 4000)
+end
 
 local function _resolve_ops()
     _attack_ops = {
         [stalker_ids.action_kill_enemy]                = true,
         [stalker_ids.action_kill_enemy_if_not_visible] = true,
     }
-    -- The two ways kill_enemy exits toward the cover cycle while the enemy is still visible, derived
-    -- from its preconditions: InCover drops (cover-manager re-pick) -> take_cover; ReadyToKill drops
-    -- (reload/empty/misfire) -> get_ready_to_kill. Holding either keeps the NPC on kill_enemy, which
-    -- fires on visible_now (take_cover case) or reloads in place at the object handler then resumes
-    -- (get_ready case). look_out is NOT here: it requires SeeEnemy=false and the sees gate always
-    -- declines that, so it could never hold. NEVER add get_ready or take_cover as a FROM: get_ready
-    -- does not fire, and vetoing get_ready -> take_cover strands the NPC (InCover=false, take_cover the
-    -- only way back). Full exit map: architecture.md Commitment.
     _cover_ops = {
         [stalker_ids.action_take_cover]        = true,
         [stalker_ids.action_get_ready_to_kill] = true,
@@ -84,8 +65,6 @@ local function _op_name(op)
     return (_op_names and _op_names[op]) or tostring(op)
 end
 
--- Per-edge refusal breakdown of a closed hold, for the debug traces only: "get_ready=4 take_cover=1".
--- Populated only while DEBUG tracing is on (see the deny path), so this formats nothing when tracing is off.
 local function _format_refused(refused)
     if not refused then return "-" end
     local parts = {}
@@ -93,42 +72,17 @@ local function _format_refused(refused)
     return table_concat(parts, " ")
 end
 
--- Per-edge refusal tally, debug only: which cover-seeking destinations a hold turned away and how
--- often (get_ready vs take_cover vs look_out), the transition-level view of the veto at work. Its
--- own function so the deny path stays a straight line and this whole branch vanishes when tracing is
--- off; the hold record keeps its 3 live fields.
 local function _track_refused(hold, to_op)
     if not at_debug.on() then return end
     hold.refused = hold.refused or {}
     hold.refused[to_op] = (hold.refused[to_op] or 0) + 1
 end
 
--- Refusal TIME-TO-LIVE (ms), MCM-tunable, refreshed in _refresh_config. NOT a commanded hold
--- length: the veto returns allow=false for every proposed -> take_cover while the advantage holds;
--- this cap is only the ceiling on how long ONE continuous refusal may last before it relents and
--- lets a cover move through. A hold ends earlier the moment any advantage condition falsifies. Block
--- unconditionally (never relent) and the NPC holds his firing spot indefinitely.
-local _hold_cap_ms = 6000
-
--- The liquidate bound (t197): while the current enemy cannot return fire
--- (at_combat.is_enemy_vulnerable - the per-kind business rule; a MUTANT enemy never defers,
--- its weapon is its body), the relent valve defers up to this much past _hold_cap_ms,
--- so a hold finishes the helpless window instead of relenting into a cover move in the middle of
--- it. Sized to the windows it rides (a reload 2-4s, a stagger ~1s). The hold still relents at the
--- bound regardless - vulnerability extends a refusal, never makes it unconditional. Consulted only
--- at the relent moment, so the deny stream under the base cap never pays the read.
-local VULNERABLE_EXTEND_MS = 4000
-
--- The relent decision at the cap, shared by the switch hold and the cover pin: true = the hold
--- keeps refusing past the base cap because the enemy cannot answer right now. Traces the deferral
--- once per hold window with the term that tripped; label tells the two seams apart.
 local function _try_extend_hold(hold, enemy, tg, id, label)
     if not cfg.commitment_liquidate then return false end
     if tg - hold.since > _hold_cap_ms + VULNERABLE_EXTEND_MS then return false end
     local vuln, why = at_combat.is_enemy_vulnerable(enemy)
     if not vuln then return false end
-    -- The HUD fact, stamped regardless of the log level (the LIQUIDATE token reads it live and from
-    -- the afterglow record); the trace-once stays behind the debug gate.
     hold.vuln = true
     if at_debug.on() and not hold.vuln_logged then
         hold.vuln_logged = true
@@ -137,63 +91,11 @@ local function _try_extend_hold(hold, enemy, tg, id, label)
     return true
 end
 
--- npc id -> { op, since, denies }, the running refusal window
-local _hold = {}
--- npc id -> the last CLOSED window { op, held_ms, denies, at } - display afterglow only. Holds run
--- sub-second (the veto adds no delay by design), so the HUD would blink them invisibly; this lets
--- it show HELD for a few seconds after release. Never read by any behavior path.
-local _last = {}
-local RECENT_HOLD_MS = 4000
--- npc id -> time_global() of the last logged decline (the decline trace dedup, debug only)
-local _decline_at = {}
-local DECLINE_LOG_MS = 1000
--- npc id -> current combat action id, shadowed from npc_on_combat_action_changed. The cover re-pick
--- veto hands the subscriber only (npc, flags), and re-picks fire exclusively from the RUNNING combat
--- action's execute, so this shadow is what scopes the cover deny to the fire actions. The engine does
--- not report a fight's INITIAL action (stalker_combat_planner.cpp:107 fires only on current != previous
--- past the first update), so the shadow can be nil (fresh NPC: reads as not-held, re-picks pass) or
--- stale from the last fight until the first in-combat swap - a wrong hold in that window still passes
--- the live advantage gates and the cap.
-local _cur_op = {}
--- npc id -> { since, denies }, the running cover-refusal window - the cover twin of _hold, capped by
--- the same _hold_cap_ms TTL, closed by any ACTUAL cover change (_on_best_cover_changed)
-local _cover_hold = {}
-
---- True while Commitment is pinning this NPC's cover (the cover-pin hold is open; HUD read).
---- Second return: true when that pin is currently deferred past its cap by target vulnerability
---- (the HUD's LIQUIDATE token); nil when no pin or no deferral.
-function is_cover_pinned(id)
-    local hold = _cover_hold[id]
-    if not hold then return false end
-    return true, hold.vuln
-end
-
---- The open hold window for `id` ({ op, since, denies }) or nil - the debug HUD's headline read.
-function get_hold(id)
-    return _hold[id]
-end
-
---- The last closed hold for `id` ({ op, held_ms, denies, at }) while it is fresh enough to show
---- (RECENT_HOLD_MS), or nil. Display-only companion of get_hold; lazily purged on read.
-function get_recent_hold(id)
-    local rec = _last[id]
-    if not rec then return nil end
-    if time_global() - rec.at > RECENT_HOLD_MS then
-        _last[id] = nil
-        return nil
-    end
-    return rec
-end
-
 local function _close_hold(id, hold, tg)
     _last[id] = { op = hold.op, held_ms = tg - hold.since, denies = hold.denies, at = tg, vuln = hold.vuln }
     _hold[id] = nil
 end
 
--- The decline trace (debug only): when the WATCHED transition is proposed but a condition fails, log
--- WHICH one - the denominator the 2026-07-12 session analysis lacked (holds that opened were logged,
--- proposals that slipped through were not, so under-vetoing was unmeasurable). Deduplicated per NPC
--- per DECLINE_LOG_MS because a declined proposal re-fires every brain update.
 local function _log_decline(npc, id, reason)
     if not at_debug.on() then return end
     local tg = time_global()
@@ -203,23 +105,6 @@ local function _log_decline(npc, id, reason)
     at_debug.dbg("[CMT] decline id=%d name=%s reason=%s", id, name, reason)
 end
 
--- The decision-point census (debug only): every PROPOSED combat action switch with the situational
--- reads that decide whether holding it serves the NPC, for every enemy - the raw material for the
--- per-action commitment model (c01). Logged BEFORE the commitment_enabled gate and OUTSIDE the watched
--- set, so it records the transitions the veto never touches too; run with Commitment OFF to measure the
--- unhelped stream, ON to see what the veto changed against it. The three fire reads (sees/can_kill_enemy/
--- fire_make_sense) are recorded as DATA, never as gates, so the analysis can see which read would have
--- called each transition right. Deduped per (npc, from, to) within CENSUS_LOG_MS because a denied switch
--- is re-proposed every brain update. Debug-only: no luabind read, no string when the level is below DEBUG.
-local _census_at = {}
--- npc id -> time_global() of the last hit it TOOK, for the census under_fire read. is_under_fire is
--- dead in combat: the engine ignores the SELECTED enemy's hit/sound dangers (danger_manager.cpp:350-351
--- adds the source to the ignore list, useful():186-190 then rejects a source-only danger), so
--- best_danger never holds the combat enemy - measured 1468/1468 false, 2026-07-15. A landed-hit stamp
--- (the same signal at_combat's state.hit_at uses) is the working "under fire" read in a fight. Debug-only.
-local _hit_at = {}
-local CENSUS_LOG_MS = 1000
-local CENSUS_UNDER_FIRE_MS = 2000
 local function _census_switch(npc, from_op, to_op)
     if not at_debug.on() then return end
     local enemy = npc:best_enemy()
@@ -229,8 +114,6 @@ local function _census_switch(npc, from_op, to_op)
     local prev = _census_at[id]
     if prev and prev.from == from_op and prev.to == to_op and (tg - prev.at) < CENSUS_LOG_MS then return end
     _census_at[id] = { from = from_op, to = to_op, at = tg }
-    -- cke/fms are engine raycasts and only mean anything when leaving a FIRE action; on a non-fire exit
-    -- they are noise, so skip them (and their cost) and log "-". fire = a hit taken within the window.
     local sees = at_debug.flag(xcombat.sees(npc, enemy))
     local cke, fms = "-", "-"
     if _attack_ops[from_op] then
@@ -244,8 +127,6 @@ local function _census_switch(npc, from_op, to_op)
         npc.health, npc:position():distance_to(enemy:position()), enemy:id())
 end
 
--- Stamp the hit-taken time for the census under_fire read (debug only; the census is the sole reader).
--- Mirrors at_disclosure's npc_on_hit_callback signature; bone_index carries the death re-entry marker.
 local function _on_hit(npc, amount, _local_direction, _who, bone_index)
     if not at_debug.on() then return end
     if bone_index == "from_death_callback" then return end
@@ -253,11 +134,6 @@ local function _on_hit(npc, amount, _local_direction, _who, bone_index)
     _hit_at[npc:id()] = time_global()
 end
 
--- Veto handler on the combat action-switch seam. Holds two transitions the break-contact shuffle abuses:
--- a fire-action exit toward cover (held while the NPC still sees the enemy and the firing lane is clear,
--- plus fire_make_sense for take_cover) and a blind flank abandonment (held while blind, released on re-sight).
--- _hold_cap_ms is the TTL that eventually relents one continuous refusal. Gate proofs: architecture.md Commitment.
--- @cost O(1) | a few luabind on a watched transition (best_enemy, sees, can_kill_member), early-out otherwise
 local function _on_action_switch(npc, from_op, to_op, flags)
     if flags.allow == false then return end
     if not _attack_ops then _resolve_ops() end
@@ -308,11 +184,6 @@ local function _on_action_switch(npc, from_op, to_op, flags)
     flags.allow = false
 end
 
--- An ALLOWED switch closes the refusal window, so the next one on the same action starts a fresh cap
--- (without this, a stale window would instantly exceed the cap and the veto would never fire again).
--- Doubles as the transition HISTOGRAM (debug only): every actual combat action change (any enemy) logs
--- from->to by name, so the watched set can be chosen from what real shuffling consists of instead of a
--- guess - the COMMITTED companion of the proposed-switch census. Event-driven - switches, not updates.
 local function _on_action_changed(npc, prev_op, new_op)
     if not npc then return end
     local id = npc:id()
@@ -331,14 +202,10 @@ local function _on_action_changed(npc, prev_op, new_op)
     local enemy = npc:best_enemy()
     if not enemy then return end
     if not _op_names then _resolve_ops() end
-    -- sees + dist per switch: whether the enemy was visible when the action changed.
     at_debug.dbg("[CMT] switch id=%d %s->%s sees=%s dist=%.0f", id, _op_name(prev_op), _op_name(new_op),
         xcombat.sees(npc, enemy) and "yes" or "no", npc:position():distance_to(enemy:position()))
 end
 
--- Drop every per-id record for one NPC. Shared by the death and unregister paths: death covers the
--- online case, unregister covers offline deaths and despawns, so a recycled id never inherits a stale
--- _cur_op (the cover-pin veto scopes on it) or an open hold window.
 local function _forget(id)
     _hold[id] = nil
     _last[id] = nil
@@ -358,19 +225,6 @@ local function _on_entity_unregister(se_obj)
     if se_obj then _forget(se_obj.id) end
 end
 
--- Veto handler on the best-cover re-pick seam (npc_on_best_cover_repick, PR #607). Denies the re-pick
--- while the NPC is ON a fire action with the shot still paying - the same advantage gate as the
--- fire-action exit hold - so InCover never drops and the kill_enemy -> take_cover proposal never
--- happens: the shuffle's CAUSE, caught one step before the switch veto's symptom. Scoped by _cur_op to
--- the two fire actions; every other caller of best_cover() (take_cover's walk, look_out,
--- hold_position, the grenade dodge's hide-cover) keeps vanilla re-picks - denying during
--- hide_from_grenade would pin the NPC's grenade cover to its old fire spot. A maneuver-seized NPC
--- never reaches here (blocked planner, no combat action executes). Two invalidators are standing
--- state, not events (enemy inside 3m of the held cover, a smart cover with no loophole): while one
--- holds and we deny, the engine re-asks every action execute - _hold_cap_ms bounds that window the
--- same way it bounds the switch-hold deny stream.
--- @cost O(1) | a few luabind on a fire-action re-pick (best_enemy, sees, can_kill_member,
---   fire_make_sense - the last two raycast-class), pure-Lua early-out otherwise
 local function _on_cover_repick(npc, flags)
     if flags.allow == false then return end
     if not cfg.commitment_enabled then return end
@@ -406,16 +260,9 @@ local function _on_cover_repick(npc, flags)
     flags.allow = false
 end
 
--- Best-cover re-pick evidence (debug only): the re-pick that flips InCover false is the CAUSE of the
--- shuffle this system fights, so each change is logged beside the holds it provokes. Watched set: an
--- open hold, an open maneuver, or any NPC currently fighting - the census needs the cover moves of every
--- fighter, not just the actor's. Event-driven (fires on cover re-evaluation), one boolean bail when
--- debug is off.
 local function _on_best_cover_changed(npc, cover_pos, is_smart_cover, smart_cover_name)
     if not npc then return end
     local id = npc:id()
-    -- Any ACTUAL cover change closes the cover-refusal window: an allowed re-pick (conditions failed
-    -- or the cap relented) means the next deny starts a fresh cap, mirroring _on_action_changed.
     local chold = _cover_hold[id]
     if chold then
         if at_debug.on() then
@@ -446,17 +293,37 @@ local function _refresh_config()
 end
 
 local function _on_first_update()
-    -- Session boundary: a loaded save re-creates entities under different ids, so every per-id
-    -- record is stale (the at_disclosure _disclosed = {} shape).
     _hold, _last, _decline_at, _census_at, _hit_at, _cur_op, _cover_hold = {}, {}, {}, {}, {}, {}, {}
     _refresh_config()
     at_debug.info("Commitment initialized (enabled=%s, hold_cap=%dms)",
         cfg.commitment_enabled and "true" or "false", _hold_cap_ms)
 end
 
+--- True while the cover pin holds this NPC; second return true while the pin is deferred by target vulnerability
+function is_cover_pinned(id)
+    local hold = _cover_hold[id]
+    if not hold then return false end
+    return true, hold.vuln
+end
+
+--- The open hold window for id ({ op, since, denies }) or nil (HUD read)
+function get_hold(id)
+    return _hold[id]
+end
+
+--- The last closed hold for id while fresh ({ op, held_ms, denies, at }) or nil; lazily purged on read
+function get_recent_hold(id)
+    local rec = _last[id]
+    if not rec then return nil end
+    if time_global() - rec.at > RECENT_HOLD_MS then
+        _last[id] = nil
+        return nil
+    end
+    return rec
+end
+
 function on_game_start()
-    -- The best-cover re-pick trace registers regardless of the veto seam: the shuffle it evidences exists on
-    -- every exe, and the maneuver/actor-enemy filters work without Commitment.
+    _load_config()
     RegisterScriptCallback("npc_on_best_cover_changed",      _on_best_cover_changed)
     RegisterScriptCallback("server_entity_on_unregister",    _on_entity_unregister)
     RegisterScriptCallback("actor_on_first_update",          _on_first_update)
