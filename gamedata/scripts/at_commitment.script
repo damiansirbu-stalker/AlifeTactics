@@ -110,9 +110,9 @@ end
 -- unconditionally (never relent) and the NPC holds his firing spot indefinitely.
 local _hold_cap_ms = 6000
 
--- The liquidate bound (t197): while the current enemy cannot return fire (is_actor_vulnerable /
--- is_stalker_vulnerable - reloading / disarmed / staggered; a MUTANT enemy never defers, its
--- weapon is its body), the relent valve defers up to this much past _hold_cap_ms,
+-- The liquidate bound (t197): while the current enemy cannot return fire
+-- (at_combat.is_enemy_vulnerable - the per-kind business rule; a MUTANT enemy never defers,
+-- its weapon is its body), the relent valve defers up to this much past _hold_cap_ms,
 -- so a hold finishes the helpless window instead of relenting into a cover move in the middle of
 -- it. Sized to the windows it rides (a reload 2-4s, a stagger ~1s). The hold still relents at the
 -- bound regardless - vulnerability extends a refusal, never makes it unconditional. Consulted only
@@ -125,12 +125,7 @@ local VULNERABLE_EXTEND_MS = 4000
 local function _try_extend_hold(hold, enemy, tg, id, label)
     if not cfg.commitment_liquidate then return false end
     if tg - hold.since > _hold_cap_ms + VULNERABLE_EXTEND_MS then return false end
-    local vuln, why
-    if enemy:id() == AC_ID then
-        vuln, why = xcombat.is_actor_vulnerable()
-    elseif IsStalker(enemy) then
-        vuln, why = xcombat.is_stalker_vulnerable(enemy)
-    end
+    local vuln, why = at_combat.is_enemy_vulnerable(enemy)
     if not vuln then return false end
     -- The HUD fact, stamped regardless of the log level (the LIQUIDATE token reads it live and from
     -- the afterglow record); the trace-once stays behind the debug gate.

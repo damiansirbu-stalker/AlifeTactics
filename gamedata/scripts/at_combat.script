@@ -97,6 +97,13 @@ local function _is_fighting(enemy, state, tg)
     return doctrine.has_recent_hit(state, tg, HIT_FIGHT_MS)
 end
 
+-- Zombification is static per NPC life: one community read, cached on the state record. The one
+-- lazy-init site; every zombied gate reads through here.
+local function _is_zombied(npc, state)
+    if state.zombied == nil then state.zombied = xcreature.is_zombied(npc) end
+    return state.zombied
+end
+
 -- Eligibility: does AT manage this NPC at all. Enabled, inside the share, not a companion. Changes rarely.
 local function _manages(npc)
     if not cfg.combat_enabled then return false end
@@ -107,8 +114,8 @@ end
 -- Seizability: armed and not already in a smart cover (vanilla owns that micro). No indoor gate - the
 -- takeover fights everywhere; xcombat.is_indoor (a proper roof+walls raycast) stays available if a future
 -- maneuver ever needs it, but the takeover does not.
-local function _can_seize(npc)
-    if xcreature.is_zombied(npc) then return false, "zombied" end
+local function _can_seize(npc, state)
+    if _is_zombied(npc, state) then return false, "zombied" end
     if not xcombat.get_weapon_kind(npc) then return false, "no_weapon" end
     if npc:in_smart_cover() then return false, "smart_cover" end
     -- Never seize an animating body (design law, 2026-07-27): a seize writes state and starts
@@ -414,8 +421,8 @@ end
 -- problems the actor is party to, as row data, not as a gate branch.
 -- Concurrency cap (failsafe): the field is full, so skip the catalog walk (and its find_destination
 -- raycasts) before any expensive read; the NPC retries on its next begin check.
-local function _seize_blocked(npc)
-    local can_seize, seize_block = _can_seize(npc)
+local function _seize_blocked(npc, state)
+    local can_seize, seize_block = _can_seize(npc, state)
     if not can_seize then return "cannot_seize", seize_block end
     if MAX_CONCURRENT > 0 and _open_count >= MAX_CONCURRENT then return "at_cap" end
     return nil
@@ -444,7 +451,7 @@ local function _try_begin_maneuver(npc, state, tg)
     end
     state.enemy_id = enemy:id()
 
-    local blocked, block_detail = _seize_blocked(npc)
+    local blocked, block_detail = _seize_blocked(npc, state)
     if blocked then
         timer:stop()
         _trace_monitor_skip(state, blocked, block_detail, timer:get_us())
@@ -764,7 +771,7 @@ local function _close_push(why, tg)
 end
 
 -- The actor firing IS the answered-window proof for every press cause; the per-pass
--- is_actor_vulnerable confirm would catch the reload end anyway, this catches the
+-- is_enemy_vulnerable confirm would catch the reload end anyway, this catches the
 -- no_ammo/jam recoveries a state read cannot.
 local function _on_actor_fired()
     if _push and _push.cause ~= "weak" then _close_push("answered", time_global()) end
@@ -781,7 +788,7 @@ local function _get_close_reason(win, actor, tg)
     end
     if not cfg.push_reload then return "off" end
     if tg - win.opened_at > PUSH_WINDOW_MAX_MS then return "cap" end
-    if win.cause == "reload" and not xcombat.is_actor_vulnerable() then return "answered" end
+    if win.cause == "reload" and not is_enemy_vulnerable(actor) then return "answered" end
     return nil
 end
 
@@ -871,8 +878,7 @@ end
 -- Push qualification for one NPC: not zombied (community cached once per state - zombification is
 -- static per NPC life) and fighting the actor (best_enemy).
 local function _check_push_target(npc, state)
-    if state.zombied == nil then state.zombied = xcreature.is_zombied(npc) end
-    if state.zombied then return false end
+    if _is_zombied(npc, state) then return false end
     local enemy = xcombat.get_best_enemy(npc)
     return enemy ~= nil and enemy:id() == AC_ID
 end
@@ -1102,6 +1108,29 @@ end
 
 
 -- Public API consumed by at_hud and the at_test observer.
+
+--- Can this enemy answer fire right now - the one vulnerability business rule, branched per kind
+--- (the callers never know kinds). Actor: the weapon block terms plus the weapon-down locomotion
+--- states (sprint, climb - instant-exit, never a multi-second promise). Stalker: the weapon block
+--- terms plus the animation terms (is_body_busy). Mutant: never vulnerable - its weapon is its
+--- body; the mutant terms arrive with the mutant state scan. Consumers: the Liquidate deferral
+--- (at_commitment) and the Push window close; costs 2-5 trivial luabind at those cadences.
+function is_enemy_vulnerable(enemy)
+    if not enemy then return false end
+    if enemy:id() == AC_ID then
+        local term = xcombat.get_weapon_block_term(enemy)
+        if term then return true, term end
+        if xcombat.is_actor_sprinting() then return true, "sprinting" end
+        if xcombat.is_actor_climbing() then return true, "climbing" end
+        return false
+    end
+    if IsStalker(enemy) then
+        local term = xcombat.get_weapon_block_term(enemy)
+        if term then return true, term end
+        return xcombat.is_body_busy(enemy)
+    end
+    return false
+end
 
 --- Current maneuver name for an NPC, or nil when AT is not driving one.
 function get_maneuver(id)
