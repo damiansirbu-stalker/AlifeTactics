@@ -1,38 +1,10 @@
---- at_effects_resolver: the deliberate shared substrate for AlifeTactics's MULTI-SOURCE combat effects.
---- An EFFECT is a per-NPC value that more than one source feeds; the resolver owns the effect enum, the
---- highest-wins combiner (resolve), the source registry (register), and the engine WRITES for these
---- effects only. A value fed by a single source is NOT an effect - it stays in its owning module and
---- writes itself, never touching resolve (that is why aim, vision speed, fire discipline, the move
---- penalty, and passive regen are absent here). A behaviour the NPC PERFORMS (a medkit) is an action,
---- owned by its module, not an effect.
----
---- The effect set: DAMAGE_DEALT (attacker shit.power up), DAMAGE_RESIST (victim shit.power down),
---- SHOT_DISPERSION (the per-shot cone), VISION_RANGE (detection distance, n038), AURA (the carrier glow,
---- a boolean presence). Sources REGISTER lazy providers and never write a multi-source field: at_gear
---- (the inventory scan), at_reaction and at_accuracy (the rank slice of the effects that mix rank with
---- gear). resolve looks up the registry, calls each provider, and keeps the STRONGEST - the maximum for
---- higher-is-better effects, the minimum for reduction effects (DAMAGE_RESIST, SHOT_DISPERSION), a
---- boolean OR for the aura. Sources never sum and never multiply against each other; there is no clamp,
---- the ceiling is the largest single tier value.
----
---- The scan lives in the source, the apply in the applier, and they meet only at resolve: an APPLY
---- handler (net_spawn binds, before_hit, npc_shot_dispersion, the aura) does resolve(npc, effect) + one
---- xcombat write and never reads an inventory. Each provider is lazy (it walks the inventory once per
---- NPC on the first call and caches in the SOURCE's cache); resolve just re-combines the cached answers,
---- a few table reads plus max/min on the hot path. Every combat write goes through an xcombat primitive
---- (xcombat.scale_hit_power / xcombat.scale_dispersion / xcombat.set_view_distance_factor); this module
---- makes no raw engine combat call. Tracing rides at_debug with a measured duration, a no-op below DEBUG.
+--- at_effects_resolver: highest-wins resolver and engine writes for the multi-source combat effects
 
 local tostring, IsStalker = tostring, IsStalker
 local RegisterScriptCallback, ini_file = RegisterScriptCallback, ini_file
 local xcombat, xprofiler, at_debug, xcreature = xcombat, xprofiler, at_debug, xcreature
 
--- The multi-source effects. Value strings are the registry keys; a source registers a provider against
--- one, a consumer resolves one. Single-source values (aim, vision speed, fire, move, regen) are NOT here
--- by design - they have one writer and no clash, so they never enter resolve (invariant I3). Where each
--- is applied: DAMAGE_DEALT / DAMAGE_RESIST scale shit.power on the before-hit seam, SHOT_DISPERSION the
--- cone on the shot seam, VISION_RANGE the view-distance bind at net_spawn (n038), AURA the carrier
--- particle at net_spawn (a boolean presence).
+--- The multi-source effects; a single-source value stays in its owning module and never enters resolve
 EFFECT = {
     DAMAGE_DEALT    = "damage_dealt",
     DAMAGE_RESIST   = "damage_resist",
@@ -41,28 +13,127 @@ EFFECT = {
     AURA            = "aura",
 }
 
--- Reduction effects: a LOWER value is the STRONGER effect (less damage taken, a tighter cone), so
--- highest-wins takes the MINIMUM. Every numeric effect not listed here is higher-is-better (maximum).
 local _REDUCE = {
     [EFFECT.DAMAGE_RESIST]   = true,
     [EFFECT.SHOT_DISPERSION] = true,
 }
 
--- Boolean effects: a provider returns truthy or nil, and resolve combines them with OR (any source
--- present -> present). The aura is the one presence effect (invariant I1).
 local _BOOL = {
     [EFFECT.AURA] = true,
 }
 
--- effect -> ordered list of provider fns. A provider is fn(npc) -> value|nil: the per-NPC contribution,
--- or nil when it does not contribute for this NPC. Filled at on_game_start by the source modules; an
--- effect with no provider resolves to nil.
-local _providers = {}
+local AURA_BONES = { "bip01_spine", "bip01_pelvis", "bip01_head", "link" }
+local GEAR_LTX = "alifetactics\\at_gear.ltx"
+local GEAR_SECTION = "at_gear"
 
---- Register a provider against an effect. Called from a source module's on_game_start. Registration
---- order does not matter - resolve keeps the strongest across all providers, not the first.
---- @param effect string one of at_effects_resolver.EFFECT
---- @param fn function fn(npc) -> number|boolean|nil
+local _providers = {}
+local _aura = ""
+local _aura_bone = ""
+local _emitting = {}
+
+local function _load_config()
+    local ini = ini_file(GEAR_LTX)
+    if not (ini and ini:section_exist(GEAR_SECTION)) then return end
+    _aura = ini:r_string_ex(GEAR_SECTION, "aura") or ""
+    _aura_bone = ini:r_string_ex(GEAR_SECTION, "aura_bone") or ""
+end
+
+local function _attach_first(obj, bones)
+    for i = 1, #bones do
+        if xcreature.attach_particle(obj, _aura, bones[i]) then return bones[i] end
+    end
+    return nil
+end
+
+local function _start_aura(id, obj)
+    if _aura == "" or _emitting[id] then return end
+    if not obj:alive() then return end
+    local bone = xcreature.attach_particle(obj, _aura, _aura_bone) and _aura_bone or _attach_first(obj, AURA_BONES)
+    if not bone then return end
+    _emitting[id] = bone
+    if at_debug.on() then at_debug.dbg("[EFF] aura id=%d particle=%s bone=%s", id, _aura, bone) end
+end
+
+local function _apply_aura(npc)
+    if resolve(npc, EFFECT.AURA) then _start_aura(npc:id(), npc) end
+end
+
+local function _apply_binds(npc)
+    local timer = xprofiler.new_if(at_debug.on()):start()
+    local vrange = resolve(npc, EFFECT.VISION_RANGE)
+    xcombat.set_view_distance_factor(npc, vrange or 1.0)
+    _apply_aura(npc)
+    timer:stop()
+    if at_debug.on() then
+        at_debug.dbg("[EFF] spawn id=%d vrange=%s aura=%s [%.3fms]",
+            npc:id(), tostring(vrange), _emitting[npc:id()] and "on" or "off", timer:get_ms())
+    end
+end
+
+local function _on_net_spawn(npc, _se_obj)
+    if not npc then return end
+    _emitting[npc:id()] = nil
+    _apply_binds(npc)
+end
+
+local function _on_npc_before_hit(npc, shit, _bone_id, _flags)
+    if not (npc and shit) then return end
+    local timer = xprofiler.new_if(at_debug.on()):start()
+    local before = shit.power
+    xcombat.scale_hit_power(shit, resolve(npc, EFFECT.DAMAGE_RESIST))
+    local attacker = shit.draftsman
+    if attacker and IsStalker(attacker) then
+        xcombat.scale_hit_power(shit, resolve(attacker, EFFECT.DAMAGE_DEALT))
+    end
+    timer:stop()
+    if at_debug.on() and before ~= shit.power then
+        at_debug.dbg("[EFF] hit victim=%d attacker=%s power=%.3f->%.3f [%.3fms]",
+            npc:id(), attacker and attacker:id() or "none", before, shit.power, timer:get_ms())
+    end
+end
+
+local function _on_actor_before_hit(shit, _bone_id, _flags)
+    if not shit then return end
+    local attacker = shit.draftsman
+    if not (attacker and IsStalker(attacker)) then return end
+    local timer = xprofiler.new_if(at_debug.on()):start()
+    local before = shit.power
+    xcombat.scale_hit_power(shit, resolve(attacker, EFFECT.DAMAGE_DEALT))
+    timer:stop()
+    if at_debug.on() and before ~= shit.power then
+        at_debug.dbg("[EFF] hit victim=actor attacker=%d power=%.3f->%.3f [%.3fms]",
+            attacker:id(), before, shit.power, timer:get_ms())
+    end
+end
+
+local function _on_shot_dispersion(obj, _wpn, _body_state, _move_type, temp_disp)
+    if not (obj and temp_disp) then return end
+    local factor = resolve(obj, EFFECT.SHOT_DISPERSION)
+    if not factor then return end
+    local timer = xprofiler.new_if(at_debug.on()):start()
+    local before = temp_disp.dispersion
+    xcombat.scale_dispersion(temp_disp, factor)
+    timer:stop()
+    if at_debug.on() then
+        at_debug.dbg("[EFF] disp id=%d factor=%.3f cone=%.5f->%.5f [%.3fms]",
+            obj:id(), factor, before or -1, temp_disp.dispersion or -1, timer:get_ms())
+    end
+end
+
+local function _on_death(victim, _who)
+    if victim then _emitting[victim:id()] = nil end
+end
+
+local function _on_entity_unregister(se_obj)
+    if se_obj then _emitting[se_obj.id] = nil end
+end
+
+local function _on_first_update()
+    at_debug.refresh()
+    at_debug.info("Effects resolver initialized (aura=%s)", _aura ~= "" and _aura or "none")
+end
+
+--- Register a provider (fn(npc) -> value|nil) against an effect; resolve keeps the strongest, order free
 function register(effect, fn)
     local list = _providers[effect]
     if not list then
@@ -72,16 +143,7 @@ function register(effect, fn)
     list[#list + 1] = fn
 end
 
---- Resolve an effect for one NPC: the STRONGEST contribution across every registered provider, or nil
---- when none contributes. Strongest is the maximum for higher-is-better effects, the minimum for
---- reduction effects, and OR for boolean effects. A source that does not apply returns nil and drops
---- out; a real per-NPC penalty (a novice rank curve above 1.0) survives because it is a contributing
---- value, not an absent sentinel. Appliers use the return directly and treat nil as "no effect" (the
---- engine/vanilla value). The provider does the one lazy inventory walk on its first call for an NPC;
---- this stays a table walk plus one call per provider, microseconds on the hot path.
---- @param npc game_object
---- @param effect string one of at_effects_resolver.EFFECT
---- @return number|boolean|nil the combined value, or nil when no provider contributes
+--- Resolve an effect for one NPC: the strongest contribution across providers, or nil when none contributes
 function resolve(npc, effect)
     local list = _providers[effect]
     if not list then return nil end
@@ -102,159 +164,10 @@ function resolve(npc, effect)
     return best
 end
 
--- =========================================================================
--- Aura: the carrier presence effect (attached at net_spawn)
--- =========================================================================
-
--- Bone fallback chain when the configured aura_bone is absent on a skeleton.
-local AURA_BONES = { "bip01_spine", "bip01_pelvis", "bip01_head", "link" }
-
--- The one carrier glow. The particle NAME and the preferred bone are carrier data, so they live in
--- at_gear.ltx (the source that decides who carries an artefact); the resolver owns only the APPLICATION.
--- Blank = no aura. Read once at on_game_start (configs are loaded by then, the at_reaction/at_ammo
--- precedent), so the first net_spawn applier already has it.
-local GEAR_LTX = "alifetactics\\at_gear.ltx"
-local GEAR_SECTION = "at_gear"
-local _aura = ""
-local _aura_bone = ""
-
--- id -> the emitting bone (present == aura live on this game object). The resolver's only per-NPC state.
-local _emitting = {}
-
-local function _load_config()
-    local ini = ini_file(GEAR_LTX)
-    if not (ini and ini:section_exist(GEAR_SECTION)) then return end
-    _aura = ini:r_string_ex(GEAR_SECTION, "aura") or ""
-    _aura_bone = ini:r_string_ex(GEAR_SECTION, "aura_bone") or ""
-end
-
--- Attach the aura on the first bone in the list the skeleton has, return that bone or nil.
-local function _attach_first(obj, bones)
-    for i = 1, #bones do
-        if xcreature.attach_particle(obj, _aura, bones[i]) then return bones[i] end
-    end
-    return nil
-end
-
--- Attach the aura on the configured bone or a fallback, through the bone-guarded xcreature primitive.
-local function _start_aura(id, obj)
-    if _aura == "" or _emitting[id] then return end
-    if not obj:alive() then return end
-    local bone = xcreature.attach_particle(obj, _aura, _aura_bone) and _aura_bone or _attach_first(obj, AURA_BONES)
-    if not bone then return end
-    _emitting[id] = bone
-    if at_debug.on() then at_debug.dbg("[EFF] aura id=%d particle=%s bone=%s", id, _aura, bone) end
-end
-
--- Resolve the aura presence and start it for a carrier. Start-only, no stop (see architecture.md).
-local function _apply_aura(npc)
-    if resolve(npc, EFFECT.AURA) then _start_aura(npc:id(), npc) end
-end
-
--- =========================================================================
--- Appliers: resolve + one xcombat write, per engine seam
--- =========================================================================
-
--- Re-apply the spawn-bound effects for one NPC: the VISION_RANGE bind and the aura. resolve returns nil
--- when no source contributes, and the bind is written to the NEUTRAL value in that case, so a former
--- carrier that dropped its optic never keeps a stale distance factor. The first resolve here triggers
--- the source's lazy inventory walk and caches the whole record, so the before_hit / shot appliers that
--- follow in combat read a cache and never scan mid-callback.
-local function _apply_binds(npc)
-    local timer = xprofiler.new_if(at_debug.on()):start()
-    local vrange = resolve(npc, EFFECT.VISION_RANGE)
-    xcombat.set_view_distance_factor(npc, vrange or 1.0)
-    _apply_aura(npc)
-    timer:stop()
-    if at_debug.on() then
-        at_debug.dbg("[EFF] spawn id=%d vrange=%s aura=%s [%.3fms]",
-            npc:id(), tostring(vrange), _emitting[npc:id()] and "on" or "off", timer:get_ms())
-    end
-end
-
---- Re-apply the spawn-bound effects (VISION_RANGE, aura) for one NPC now. Public for a source that
---- changed an NPC's gear and invalidated its own cache (a take/drop, or a scripted grant with no take
---- event): the source drops its record, then calls this to re-push the binds off a fresh resolve.
---- @param npc game_object stalker
+--- Re-apply the spawn-bound effects (VISION_RANGE, aura) for one NPC after a source invalidated its cache
 function refresh(npc)
     if not (npc and npc:alive()) then return end
     _apply_binds(npc)
-end
-
--- Fresh game object each online: the old object's particle died with it, so clear the emitting mark and
--- re-apply. The handler runs on every net_spawn; resolve returns the cached value after the first walk.
-local function _on_net_spawn(npc, _se_obj)
-    if not npc then return end
-    _emitting[npc:id()] = nil
-    _apply_binds(npc)
-end
-
--- Both damage directions on the one hit seam: the victim's DAMAGE_RESIST (down) and the attacker's
--- DAMAGE_DEALT (up), each scaling shit.power through the xcombat primitive so plates+gravi+chemical
--- (resist) or special+electro (dealt) compose highest-wins. Eligibility rides in the providers, so
--- resolve returns nil for an ineligible NPC and the scale is a no-op.
-local function _on_npc_before_hit(npc, shit, _bone_id, _flags)
-    if not (npc and shit) then return end
-    local timer = xprofiler.new_if(at_debug.on()):start()
-    local before = shit.power
-    xcombat.scale_hit_power(shit, resolve(npc, EFFECT.DAMAGE_RESIST))
-    local attacker = shit.draftsman
-    if attacker and IsStalker(attacker) then
-        xcombat.scale_hit_power(shit, resolve(attacker, EFFECT.DAMAGE_DEALT))
-    end
-    timer:stop()
-    if at_debug.on() and before ~= shit.power then
-        at_debug.dbg("[EFF] hit victim=%d attacker=%s power=%.3f->%.3f [%.3fms]",
-            npc:id(), attacker and attacker:id() or "none", before, shit.power, timer:get_ms())
-    end
-end
-
--- Hits on the actor: only the shooter's DAMAGE_DEALT (the actor's own gear is engine-handled). Callback
--- passes (shit, bone_id, flags) - shit first, no victim object (the victim is the actor).
-local function _on_actor_before_hit(shit, _bone_id, _flags)
-    if not shit then return end
-    local attacker = shit.draftsman
-    if not (attacker and IsStalker(attacker)) then return end
-    local timer = xprofiler.new_if(at_debug.on()):start()
-    local before = shit.power
-    xcombat.scale_hit_power(shit, resolve(attacker, EFFECT.DAMAGE_DEALT))
-    timer:stop()
-    if at_debug.on() and before ~= shit.power then
-        at_debug.dbg("[EFF] hit victim=actor attacker=%d power=%.3f->%.3f [%.3fms]",
-            attacker:id(), before, shit.power, timer:get_ms())
-    end
-end
-
--- The per-shot cone: multiply temp_disp.dispersion by SHOT_DISPERSION (rank cone + thermal, min-wins).
--- at_accuracy owns a separate subscriber for the single-source MOVE penalty; both multiply the shared
--- field, so they compose regardless of subscriber order. Callback (obj, wpn, body_state, move_type,
--- temp_disp), same seam at_accuracy and at_reaction ride.
-local function _on_shot_dispersion(obj, _wpn, _body_state, _move_type, temp_disp)
-    if not (obj and temp_disp) then return end
-    local factor = resolve(obj, EFFECT.SHOT_DISPERSION)
-    if not factor then return end
-    local timer = xprofiler.new_if(at_debug.on()):start()
-    local before = temp_disp.dispersion
-    xcombat.scale_dispersion(temp_disp, factor)
-    timer:stop()
-    if at_debug.on() then
-        at_debug.dbg("[EFF] disp id=%d factor=%.3f cone=%.5f->%.5f [%.3fms]",
-            obj:id(), factor, before or -1, temp_disp.dispersion or -1, timer:get_ms())
-    end
-end
-
--- Death clears only the emitting mark. Start-only aura has no stop path (see architecture.md).
-local function _on_death(victim, _who)
-    if victim then _emitting[victim:id()] = nil end
-end
-
-local function _on_entity_unregister(se_obj)
-    if se_obj then _emitting[se_obj.id] = nil end
-end
-
-local function _on_first_update()
-    at_debug.refresh()
-    at_debug.info("Effects resolver initialized (aura=%s)", _aura ~= "" and _aura or "none")
 end
 
 function on_game_start()
