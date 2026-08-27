@@ -49,7 +49,7 @@ local _enabled = false
 
 -- Who drives the NPC right now - the attribution every world line needs to point at a suspect.
 local function _driver(id)
-    local maneuver = at_combat.get_maneuver(id)
+    local maneuver = at_maneuvers.get_maneuver(id)
     if maneuver then return maneuver end
     if at_commitment.get_hold(id) then return "commit" end
     return "vanilla"
@@ -340,7 +340,7 @@ local function _on_shot(obj, wpn, body_state, move_type, temp_disp)
     local timer = xprofiler.new_if(at_debug.on()):start()
     local moving = move_type ~= nil and move_type <= MT_RUN
     local drive = "vanilla"
-    if at_combat.get_maneuver(id) then
+    if at_maneuvers.get_maneuver(id) then
         drive = "maneuver"
     elseif at_commitment.get_hold(id) then
         drive = "hold"

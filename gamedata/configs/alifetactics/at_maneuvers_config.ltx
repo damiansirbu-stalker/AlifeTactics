@@ -1,0 +1,54 @@
+; AlifeTactics Maneuvers (Combat > Maneuvers) tuning. Paired with gamedata/scripts/at_maneuvers.script
+; + at_maneuvers_config.script (the catalog rows). All keys have script-side fallback defaults.
+
+[at_maneuvers]
+; The monitor pass (a vanilla time event, 200ms) - each check self-throttles on its own period.
+begin_period_ms  = 600     ; begin_maneuver check: no maneuver open, look for a fired need and stage a row (every 3rd pass)
+update_period_ms = 200     ; update_maneuver check: re-run the row's update (fire re-check / holster re-assert)
+end_period_ms    = 200     ; end_maneuver check: watch for arrival / the time cap / a broken premise, hand back
+hit_fight_ms      = 5000    ; a recent hit counts as "fighting" this long (far-shooter entry, best_enemy still nil)
+max_concurrent_maneuvers = 20 ; runaway failsafe, never a behavior lever (0 = no cap)
+
+; Needs (when AT seizes - only where vanilla is weak).
+hurt_frac     = 0.40       ; flee/retreat need below this HP fraction, with the enemy inside his own weapon's reach (0.25 fired too late, 2026-07-11 playtest)
+stall_ms      = 4000       ; held position with the enemy not closing this long fires the stalled need (measured SINCE the last maneuver)
+stall_move_m  = 2          ; movement under this counts as "held position"
+stall_close_m = 2          ; enemy gaining more than this much ground resets the stall timer
+repeat_limit = 3          ; consecutive same-situation picks with the NPC still within 2m before the takeover stops trying (0 = off)
+counterflank_actor_dist_m = 5  ; counterflank fires when an enemy actor is inside this range while the NPC's committed target is farther
+
+; Scheme fire discipline - uncommenting a queue_w_* key PINS that kind to fixed "size, interval ms" (no roll).
+;queue_w_pistol  = 2, 450
+;queue_w_shotgun = 2, 675
+;queue_w_rifle   = 3, 475
+;queue_w_smg     = 7, 400
+;queue_w_sniper  = 1, 1750
+
+; Pickoff fire: 1 deliberate aimed shot per pull, the pause rolled fresh each shot in this band.
+pickoff_interval_min_ms = 1500
+pickoff_interval_max_ms = 2000
+
+; Maneuver tunables.
+kite_arc_deg    = 45       ; back-lane fan step: try straight-back, then +-45, then +-90 for a clear lane
+kite_spread_deg = 90       ; max fan to either side when the straight-back lane is blocked
+retreat_rear_m  = 8        ; retreat centers its cover search this far behind the NPC; MUST exceed the 7m search radius (2026-07-11 playtest)
+under_fire_ms   = 2000     ; flee and pickoff decline while a hit landed or a shot was perceived within this window
+reload_cover_cone_deg = 60 ; reload_cover fires when the player faces the reloader within this cone with a clear shot line
+reload_stale_ms = 6000     ; a reload start-edge older than this is stale (the stop edge is best-effort)
+pickoff_targeted_deg = 10  ; pickoff declines (and an open hold ends) while the actor's aim is within this many degrees
+pickoff_enter_factor = 1.2 ; hysteresis: plant only past the enemy's EFFECTIVE range x this; the hold ends inside 1.0x
+maneuver_max_ms = 8000     ; stuck cap - a committed maneuver hands back after this even if it never arrives
+pickoff_hold_ms = 8000     ; pickoff is a deliberate-fire hold (ends_on=time)
+counterflank_max_ms = 3000 ; counterflank is a hold: the turn makes the actor seen, the engine's selection flips
+flee_max_ms     = 20000    ; flee is a rout (ends_on=arrival); a rout to a far base needs a longer cap
+flee_min_dist_m = 5        ; flee only when the enemy is at least this far - nobody turns their back point-blank (0 = off)
+flee_base_min_dist_m = 100 ; flee only to a friendly base at least this far away - a real rout, not a near hop
+
+; Kite: how far each weapon kind backs off, still firing; the destination must put the enemy back outside the weapon minimum.
+kite_distance_m_w_melee     = 4
+kite_distance_m_w_shotgun   = 4
+kite_distance_m_w_pistol    = 5
+kite_distance_m_w_smg       = 6
+kite_distance_m_w_rifle     = 8
+kite_distance_m_w_sniper    = 15
+kite_distance_m_w_explosive = 8

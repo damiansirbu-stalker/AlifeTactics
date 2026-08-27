@@ -257,7 +257,7 @@ local _qinterval = {
 local _tier_cache = {}
 
 --- Fire-discipline scales for one NPC: the same per-tier factors _apply_discipline feeds the engine
---- planner, for consumers that pace fire OUTSIDE it (at_combat's maneuver queue patch). Returns
+--- planner, for consumers that pace fire OUTSIDE it (at_maneuvers' queue patch). Returns
 --- (1, 1) when the discipline toggle is off or the NPC has no tier, so callers multiply blindly.
 --- Interval floored like the engine path (DISC_INT_FLOOR), live MCM curve values honored.
 --- @param npc game_object stalker

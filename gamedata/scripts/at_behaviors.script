@@ -1,0 +1,323 @@
+--- at_behaviors: the Push and Pull windows (Combat > Behaviors) - engine bumps on vanilla-driven NPCs
+
+local IsStalker, time_global = IsStalker, time_global
+local math_floor, RegisterScriptCallback, AC_ID = math.floor, RegisterScriptCallback, AC_ID
+local ini_file = ini_file
+
+local cfg = at_mcm.cfg
+local show = at_debug.show
+
+local LTX_PATH    = "alifetactics\\at_behaviors_config.ltx"
+local LTX_SECTION = "at_behaviors"
+
+local PUSH_WEAK_EXIT = 0.10
+local PULL_WEAK_EXIT = 0.10
+
+local HIT_FIGHT_MS
+local PUSH_CLOSE_M, PUSH_FAR_M, PUSH_SIZE_K, PUSH_INTERVAL_K, PUSH_PRESS_COOLDOWN_MS
+local PUSH_WEAK_FRAC, PUSH_SELF_FRAC, PUSH_BAND_K, PUSH_BAND_FLOOR_M, PUSH_BACK_DEG, PUSH_WINDOW_MAX_MS
+local PULL_WEAK_FRAC, PULL_STRONG_FRAC, PULL_BAND_K, PULL_BAND_CAP_M, PULL_BAND_DEPTH_M, PULL_COOLDOWN_MS
+local PULL_HOLD_MIN_MS, PULL_BAND_FLOOR_M
+
+local _push
+local _press_cooldown_until = 0
+local _actor_frac = 1
+
+local function _load_config()
+    local ini = ini_file(LTX_PATH)
+    local function read_int(k, d) local v = ini:r_float_ex(LTX_SECTION, k) return v and math_floor(v) or d end
+    local function read_float(k, d) return ini:r_float_ex(LTX_SECTION, k) or d end
+    HIT_FIGHT_MS       = read_int("hit_fight_ms",       5000)
+    PUSH_CLOSE_M       = read_int("push_close_m",       15)
+    PUSH_FAR_M         = read_int("push_far_m",         45)
+    PUSH_BAND_FLOOR_M  = read_int("push_band_floor_m",  8)
+    PUSH_BACK_DEG      = read_int("push_back_deg",      135)
+    PUSH_WINDOW_MAX_MS = read_int("push_window_max_ms", 8000)
+    PUSH_PRESS_COOLDOWN_MS = read_int("push_press_cooldown_ms", 15000)
+    PUSH_SIZE_K        = read_float("push_size_k",      1.5)
+    PUSH_INTERVAL_K    = read_float("push_interval_k",  0.6)
+    PUSH_BAND_K        = read_float("push_band_k",      0.6)
+    PUSH_WEAK_FRAC     = read_float("push_weak_frac",   0.35)
+    PUSH_SELF_FRAC     = read_float("push_self_frac",   0.5)
+    PULL_WEAK_FRAC     = read_float("pull_weak_frac",   0.35)
+    PULL_STRONG_FRAC   = read_float("pull_strong_frac", 0.5)
+    PULL_BAND_K        = read_float("pull_band_k",      1.2)
+    PULL_BAND_CAP_M    = read_int("pull_band_cap_m",    45)
+    PULL_BAND_DEPTH_M  = read_int("pull_band_depth_m",  12)
+    PULL_COOLDOWN_MS   = read_int("pull_cooldown_ms",   15000)
+    PULL_HOLD_MIN_MS   = read_int("pull_hold_min_ms",   8000)
+    PULL_BAND_FLOOR_M  = read_int("pull_band_floor_m",  8)
+end
+
+local function _is_zombied(npc, state)
+    if state.zombied == nil then state.zombied = xcreature.is_zombied(npc) end
+    return state.zombied
+end
+
+local function _open_window(cause, tg)
+    _push = { cause = cause, opened_at = tg }
+    if at_debug.on() then at_debug.dbg("[PUSH] open cause=%s", cause) end
+end
+
+local function _try_open_press(cause, tg)
+    if not (cfg.push_enabled and cfg.push_reload) then return end
+    if _push then
+        if _push.cause == cause then return end
+        if _push.cause == "weak" then _push.opened_at = tg end
+        _push.cause = cause
+        if at_debug.on() then at_debug.dbg("[PUSH] recause cause=%s", cause) end
+        return
+    end
+    if tg < _press_cooldown_until then return end
+    _open_window(cause, tg)
+end
+
+local function _on_actor_reload()  _try_open_press("reload", time_global()) end
+local function _on_actor_no_ammo() _try_open_press("no_ammo", time_global()) end
+local function _on_actor_jammed()  _try_open_press("jam",    time_global()) end
+
+local function _close_push(why, tg)
+    if not _push then return end
+    if at_debug.on() then
+        at_debug.dbg("[PUSH] close cause=%s why=%s dur=%dms", _push.cause, why,
+            math_floor(tg - _push.opened_at))
+    end
+    if _push.cause ~= "weak" then _press_cooldown_until = tg + PUSH_PRESS_COOLDOWN_MS end
+    _push = nil
+end
+
+local function _on_actor_fired()
+    if _push and _push.cause ~= "weak" then _close_push("answered", time_global()) end
+end
+
+local function _get_close_reason(win, actor, tg)
+    if win.cause == "weak" then
+        if not cfg.push_finisher then return "off" end
+        if xcombat.get_health_frac(actor) > PUSH_WEAK_FRAC + PUSH_WEAK_EXIT then return "recovered" end
+        return nil
+    end
+    if not cfg.push_reload then return "off" end
+    if tg - win.opened_at > PUSH_WINDOW_MAX_MS then return "cap" end
+    if win.cause == "reload" and not is_enemy_vulnerable(actor) then return "answered" end
+    return nil
+end
+
+local function _clear_push_npc(npc, state, why, tg)
+    if not (state.push_fire or state.push_band) then return end
+    if state.push_fire and npc and npc:alive() then
+        xcombat.set_fire_queue_scale(npc, at_reaction.get_queue_scales(npc))
+    end
+    if state.push_band then at_conduct.clear_push_max(state.id) end
+    if at_debug.on() then
+        local dist_close = (npc and db.actor) and npc:position():distance_to(db.actor:position()) or -1
+        at_debug.dbg("[PUSH] restore id=%s why=%s d=%.1f->%.1fm fire=%s band=%s",
+            show(state.id), show(why), state.push_dist or -1, dist_close,
+            show(state.push_fire), show(state.push_band))
+    end
+    state.push_fire, state.push_band, state.push_dist, state.push_advantage = nil, nil, nil, nil
+end
+
+local function _write_push_fire(npc, state, want_fire, dist, cause)
+    local sk, ik = at_reaction.get_queue_scales(npc)
+    if want_fire == "close" then sk = sk * PUSH_SIZE_K end
+    if want_fire then ik = ik * PUSH_INTERVAL_K end
+    if not xcombat.set_fire_queue_scale(npc, sk, ik) then return end
+    state.push_fire = want_fire
+    state.push_dist = state.push_dist or dist
+    if not (want_fire or state.push_band) then state.push_dist = nil end
+    if at_debug.on() then
+        at_debug.dbg("[PUSH] fire id=%s cause=%s band=%s d=%.1fm size_k=%.2f interval_k=%.2f",
+            show(state.id), cause, show(want_fire), dist, sk, ik)
+    end
+end
+
+local function _get_push_advantage(win, npc)
+    if win.cause == "weak" then
+        return xcombat.get_health_frac(npc) >= PUSH_SELF_FRAC and "weak" or nil
+    end
+    if win.bleeding then return "bleeding" end
+    if not xcombat.is_facing(db.actor, npc:position(), PUSH_BACK_DEG) then return "back" end
+    return nil
+end
+
+local function _write_push_band(state, advantage, dist, cause)
+    local band = dist * PUSH_BAND_K
+    if band < PUSH_BAND_FLOOR_M then band = PUSH_BAND_FLOOR_M end
+    at_conduct.set_push_max(state.id, band)
+    state.push_band = band
+    state.push_advantage = advantage
+    state.push_dist = state.push_dist or dist
+    if at_debug.on() then
+        at_debug.dbg("[PUSH] band id=%s cause=%s advantage=%s d=%.1fm max=%.1fm",
+            show(state.id), cause, advantage, dist, band)
+    end
+end
+
+local function _check_push_target(npc, state)
+    if _is_zombied(npc, state) then return false end
+    local enemy = xcombat.get_best_enemy(npc)
+    return enemy ~= nil and enemy:id() == AC_ID
+end
+
+local function _get_fire_band(dist)
+    if dist <= PUSH_CLOSE_M then return "close" end
+    if dist <= PUSH_FAR_M then return "far" end
+    return nil
+end
+
+local function _update_push_npc(npc, state, tg)
+    local win = _push
+    if not win or state.maneuver then
+        _clear_push_npc(npc, state, win and "seized" or "closed", tg)
+        return
+    end
+    if not _check_push_target(npc, state) then
+        _clear_push_npc(npc, state, "not_fighting_target", tg)
+        return
+    end
+    local dist = npc:position():distance_to(db.actor:position())
+    local want_fire = _get_fire_band(dist)
+    if want_fire ~= state.push_fire then _write_push_fire(npc, state, want_fire, dist, win.cause) end
+    if not state.push_band and at_conduct.is_spacing_active()
+        and xcombat.get_weapon_kind(npc) ~= "w_sniper" then
+        local advantage = _get_push_advantage(win, npc)
+        if advantage then _write_push_band(state, advantage, dist, win.cause) end
+    end
+end
+
+local function _get_pull_cause(npc, state, tg, held)
+    if state.reloading and xcombat.is_reloading(npc) then return "reload" end
+    if not at_maneuvers.has_recent_hit(state, tg, HIT_FIGHT_MS) then return nil end
+    local bar = held and (PULL_WEAK_FRAC + PULL_WEAK_EXIT) or PULL_WEAK_FRAC
+    if xcombat.get_health_frac(npc) <= bar then return "hurt" end
+    return nil
+end
+
+local function _clear_pull_npc(npc, state, why, tg)
+    if not state.pull then return end
+    at_conduct.clear_pull_band(state.id)
+    state.pull_until = tg + PULL_COOLDOWN_MS
+    if at_debug.on() then
+        local dist_close = (npc and db.actor) and npc:position():distance_to(db.actor:position()) or -1
+        at_debug.dbg("[PULL] restore id=%s why=%s d=%.1f->%.1fm cause=%s",
+            show(state.id), show(why), state.pull_dist or -1, dist_close, show(state.pull))
+    end
+    state.pull, state.pull_at, state.pull_dist = nil, nil, nil
+end
+
+local function _try_open_pull(npc, state, tg)
+    if tg < (state.pull_until or 0) then return end
+    if _actor_frac < PULL_STRONG_FRAC then return end
+    if not _check_push_target(npc, state) then return end
+    if not at_conduct.is_spacing_active() then return end
+    local cause = _get_pull_cause(npc, state, tg, false)
+    if not cause then return end
+    local dist = npc:position():distance_to(db.actor:position())
+    local min_m = dist * PULL_BAND_K
+    if min_m < PULL_BAND_FLOOR_M then min_m = PULL_BAND_FLOOR_M end
+    if min_m > PULL_BAND_CAP_M then min_m = PULL_BAND_CAP_M end
+    at_conduct.set_pull_band(state.id, min_m, min_m + PULL_BAND_DEPTH_M)
+    state.pull = cause
+    state.pull_at = tg
+    state.pull_dist = dist
+    if at_debug.on() then
+        at_debug.dbg("[PULL] set id=%s cause=%s d=%.1fm min=%.1fm", show(state.id), cause, dist, min_m)
+    end
+end
+
+local function _update_pull_npc(npc, state, tg)
+    if not cfg.pull_enabled or state.maneuver then
+        _clear_pull_npc(npc, state, cfg.pull_enabled and "seized" or "off", tg)
+        return
+    end
+    if state.pull then
+        if not _get_pull_cause(npc, state, tg, true)
+            and (tg - state.pull_at) >= PULL_HOLD_MIN_MS then
+            _clear_pull_npc(npc, state, "recovered", tg)
+        end
+        return
+    end
+    if state.reloading or at_maneuvers.has_recent_hit(state, tg, HIT_FIGHT_MS) then
+        _try_open_pull(npc, state, tg)
+    end
+end
+
+--- Can this enemy answer fire right now - the one vulnerability business rule, branched per kind
+function is_enemy_vulnerable(enemy)
+    if not enemy then return false end
+    if enemy:id() == AC_ID then
+        local term = xcombat.get_weapon_block_term(enemy)
+        if term then return true, term end
+        if xcombat.is_actor_sprinting() then return true, "sprinting" end
+        if xcombat.is_actor_climbing() then return true, "climbing" end
+        return false
+    end
+    if IsStalker(enemy) then
+        local term = xcombat.get_weapon_block_term(enemy)
+        if term then return true, term end
+        return xcombat.is_body_busy(enemy)
+    end
+    return false
+end
+
+--- Push-window term on an NPC while an effector write is on him, or nil when untouched (HUD read)
+function get_push(id)
+    local state = at_maneuvers.get_state(id)
+    if not (state and (state.push_fire or state.push_band)) then return nil end
+    return state.push_advantage or (_push and _push.cause) or "push"
+end
+
+--- Pull-window cause on an NPC while his band write is on, nil when untouched (HUD read)
+function get_pull(id)
+    local state = at_maneuvers.get_state(id)
+    return state and state.pull or nil
+end
+
+--- Per-pass window maintenance: confirm the cause, close on the bound, open the standing finisher
+function update_window(tg)
+    local actor = db.actor
+    _actor_frac = (actor and actor:alive()) and xcombat.get_health_frac(actor) or 0
+    if not (cfg.push_enabled and actor and actor:alive()) then
+        if _push then _close_push("off", tg) end
+        return
+    end
+    if _push then
+        local why = _get_close_reason(_push, actor, tg)
+        if why then _close_push(why, tg) end
+    end
+    if not _push and cfg.push_finisher and _actor_frac <= PUSH_WEAK_FRAC then
+        _open_window("weak", tg)
+    end
+    if _push then _push.bleeding = xcombat.is_bleeding(actor) end
+end
+
+--- Per-NPC effector maintenance on the monitor pass (transition-only writes against the state mirrors)
+function update_npc(npc, state, tg)
+    _update_push_npc(npc, state, tg)
+    _update_pull_npc(npc, state, tg)
+end
+
+--- Restore every push and pull write on one NPC (death, despawn, unregister, seize paths)
+function clear_npc(npc, state, why, tg)
+    _clear_push_npc(npc, state, why, tg)
+    _clear_pull_npc(npc, state, why, tg)
+end
+
+--- Close the window when the push master went off (the stale-lever rule: restore now, not on a stopped pass)
+function apply_enabled(tg)
+    if not cfg.push_enabled then _close_push("off", tg) end
+end
+
+--- Per-record toggle-off restore for the option-change sweep
+function apply_enabled_npc(npc, state, tg)
+    if not cfg.push_enabled then _clear_push_npc(npc, state, "disabled", tg) end
+    if not cfg.pull_enabled and state.pull then _clear_pull_npc(npc, state, "disabled", tg) end
+end
+
+function on_game_start()
+    _load_config()
+    RegisterScriptCallback("actor_on_weapon_reload",  _on_actor_reload)
+    RegisterScriptCallback("actor_on_weapon_no_ammo", _on_actor_no_ammo)
+    RegisterScriptCallback("actor_on_weapon_jammed",  _on_actor_jammed)
+    RegisterScriptCallback("actor_on_weapon_fired",   _on_actor_fired)
+end

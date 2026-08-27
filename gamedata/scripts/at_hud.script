@@ -145,13 +145,13 @@ local function _format_systems(id, maneuver)
         end
     end
     if #tokens > 0 then driver = "HOLD" end
-    -- The Behaviors windows (at_combat, Combat > Behaviors): PUSH while the actor's vulnerable
+    -- The Behaviors windows (at_behaviors, Combat > Behaviors): PUSH while the actor's vulnerable
     -- window bumps this NPC, PULL while his own window pulls him back. Composable modifiers.
-    if at_combat.get_push(id) then
+    if at_behaviors.get_push(id) then
         tokens[#tokens + 1] = "PUSH"
         driver = driver or "PUSH"
     end
-    if at_combat.get_pull(id) then
+    if at_behaviors.get_pull(id) then
         tokens[#tokens + 1] = "PULL"
         driver = driver or "PUSH"
     end
@@ -167,7 +167,7 @@ end
 
 local function _derive(npc, st)
     local id = npc:id()
-    local maneuver = at_combat.get_maneuver(id)
+    local maneuver = at_maneuvers.get_maneuver(id)
     local enemy = npc:best_enemy()
     local rank = ranks.get_obj_rank_name(npc)
     -- The three combat systems (Maneuvers, Commitment, Conduct) collapse into one comma-joined SYSTEMS
@@ -204,7 +204,7 @@ local function _candidate(id, st, ax, r2, actor_id, show_idle)
     if not npc:alive() then return nil end
     local dist_sqr = ax:distance_to_sqr(npc:position())
     if dist_sqr >= r2 then return nil end
-    local maneuver = at_combat.get_maneuver(id)
+    local maneuver = at_maneuvers.get_maneuver(id)
     local is_combat = maneuver ~= nil or npc:best_enemy() ~= nil
     if not (show_idle or is_combat) then return nil end
     return { npc = npc, st = st, dist_sqr = dist_sqr, at = maneuver ~= nil, is_combat = is_combat }

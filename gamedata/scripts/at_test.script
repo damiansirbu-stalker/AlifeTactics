@@ -81,7 +81,7 @@ local function _strip_npc(sim, npc)
 end
 
 -- Remove every weapon (rifle/pistol/knife) from each online squad member so the NPC reads as unarmed to
--- at_combat (xcombat.get_weapon_kind -> nil). Members must be online; call a few seconds after spawn.
+-- at_maneuvers (xcombat.get_weapon_kind -> nil). Members must be online; call a few seconds after spawn.
 local function _strip_weapons(squad)
     if squad:npc_count() == 0 then return 0 end
     local sim = alife()

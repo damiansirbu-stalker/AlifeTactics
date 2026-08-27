@@ -81,7 +81,7 @@ end
 local function _try_extend_hold(hold, enemy, tg, id, label)
     if not cfg.commitment_liquidate then return false end
     if tg - hold.since > _hold_cap_ms + VULNERABLE_EXTEND_MS then return false end
-    local vuln, why = at_combat.is_enemy_vulnerable(enemy)
+    local vuln, why = at_behaviors.is_enemy_vulnerable(enemy)
     if not vuln then return false end
     hold.vuln = true
     if at_debug.on() and not hold.vuln_logged then
@@ -272,7 +272,7 @@ local function _on_best_cover_changed(npc, cover_pos, is_smart_cover, smart_cove
         _cover_hold[id] = nil
     end
     if not at_debug.on() then return end
-    local maneuver = at_combat.get_maneuver(id)
+    local maneuver = at_maneuvers.get_maneuver(id)
     local watched = _hold[id] ~= nil or maneuver ~= nil
     if not watched then
         local enemy = npc:best_enemy()

@@ -945,7 +945,7 @@ function at_action_danger:execute()
 
 	-- A dead subject faults npc:see (engine logs "cannot check visibility of dead object!",
 	-- script_game_object.cpp:314). A dead NPC has no danger reaction, so bail before the
-	-- dispatch. Same guard as at_combat _run_npc_checks (at_combat.script:702).
+	-- dispatch. Same guard as at_maneuvers _run_npc_checks.
 	if not npc:alive() then return end
 
 	-- Script-danger first: the scripted reaction runs off the stamped position alone, so it must
