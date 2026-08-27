@@ -23,7 +23,7 @@ local _BOOL = {
 }
 
 local AURA_BONES = { "bip01_spine", "bip01_pelvis", "bip01_head", "link" }
-local GEAR_LTX = "alifetactics\\at_gear.ltx"
+local GEAR_LTX = "alifetactics\\at_gear_config.ltx"
 local GEAR_SECTION = "at_gear"
 
 local _providers = {}

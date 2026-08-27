@@ -212,7 +212,7 @@ Any single artefact tops out at 10 percent and never stacks, the strongest sourc
 A chemical artefact instead heals its carrier slowly over time, in place of the damage cut above.
 Any artefact carrier warps the air around his body, so a distorting stalker is a real, huntable artefact drop.
 Binoculars extend his sight range by day and night-vision by night.
-Effect strengths and the artefact class tables are tunable in configs/alifetactics/at_gear.ltx.
+Effect strengths and the artefact class tables are tunable in configs/alifetactics/at_gear_config.ltx.
 
 Effects (planned):
 Player-facing combat feedback, starting with concussion: tinnitus and blur.
