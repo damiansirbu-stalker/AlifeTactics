@@ -1,47 +1,14 @@
---- at_maneuvers_config: the maneuver catalog - array order is priority; at_maneuvers binds the
---- methods. Also the loader for at_faction_config.ltx, the mod-wide faction policy file.
+--- at_maneuvers_config: the maneuver catalog - array order is priority; at_maneuvers binds the methods
 
-local string_match, string_gmatch, tonumber, pairs = string.match, string.gmatch, tonumber, pairs
-
-local FACTION_LTX = "alifetactics\\at_faction_config.ltx"
-
---- The [section] block of at_faction_config.ltx. Any AT system reads its own section through this
---- one loader: the factions whitelist as a set (nil = any faction), chance, and the
---- chance_<faction> sparse overrides (nil chance = every NPC).
-function get_faction_policy(sec)
-    local map = xltx.section(FACTION_LTX, sec)
-    local factions, chance_by
-    if map.factions then
-        factions = {}
-        for faction in string_gmatch(map.factions, "[^%s,]+") do factions[faction] = true end
-    end
-    for key, val in pairs(map) do
-        local faction = string_match(key, "^chance_(.+)$")
-        if faction then
-            chance_by = chance_by or {}
-            chance_by[faction] = tonumber(val)
-        end
-    end
-    return factions, tonumber(map.chance), chance_by
-end
-
---- Per-NPC inclination: a stable id-hash against chance - one NPC either carries the behavior for
---- his whole life or never does (save/load stable, zero state; the prime multiplier decorrelates
---- the consecutive ids squad members spawn with). nil chance = everyone.
-function has_inclination(id, chance)
-    if not chance then return true end
-    return (id * 2654435761) % 100 < chance * 100
-end
-
---- Build the catalog rows over the method table and LTX reader at_maneuvers passes in; each row's
---- faction palette and inclination chances attach from at_faction_config.ltx
+--- Build the catalog rows over the method table and LTX reader at_maneuvers passes in
 function get_catalog(fn, read_int)
-    local rows = {
+    return {
         {
             name             = "counterflank",
             toggle           = "maneuver_counterflank",
             vs_actor         = true,
             check_need       = fn.check_actor_close,
+            factions         = nil,
             weapons          = nil,
             find_destination = fn.find_counterflank_spot,
             update           = fn.apply_state,
@@ -53,6 +20,7 @@ function get_catalog(fn, read_int)
             name             = "reload_cover",
             toggle           = "maneuver_reload_cover",
             check_need       = fn.check_reloading,
+            factions         = nil,
             weapons          = nil,
             find_destination = fn.find_reload_cover,
             update           = fn.apply_state,
@@ -65,6 +33,7 @@ function get_catalog(fn, read_int)
             name             = "flee",
             toggle           = "maneuver_flee",
             check_need       = fn.check_hurt,
+            factions         = { ecolog = true, csky = true, renegade = true },
             weapons          = nil,
             find_destination = fn.find_flee_base,
             update           = fn.apply_state,
@@ -76,6 +45,7 @@ function get_catalog(fn, read_int)
             name             = "retreat",
             toggle           = "maneuver_retreat",
             check_need       = fn.check_hurt,
+            factions         = { army = true, dolg = true, freedom = true, killer = true, isg = true, stalker = true, bandit = true, greh = true, ecolog = true, csky = true, renegade = true },
             weapons          = nil,
             find_destination = fn.find_retreat_cover,
             update           = fn.apply_state,
@@ -87,6 +57,7 @@ function get_catalog(fn, read_int)
             name             = "kite",
             toggle           = "maneuver_kite",
             check_need       = fn.check_too_close,
+            factions         = nil,
             weapons          = nil,
             find_destination = fn.find_kite_lane,
             update           = fn.apply_state,
@@ -99,6 +70,7 @@ function get_catalog(fn, read_int)
             toggle           = "maneuver_pickoff",
             need_recheck     = false,
             check_need       = fn.check_stalled,
+            factions         = nil,
             weapons          = nil,
             find_destination = fn.find_pickoff_spot,
             update           = fn.apply_state,
@@ -108,9 +80,4 @@ function get_catalog(fn, read_int)
             timeout          = read_int("pickoff_hold_ms", 8000),
         },
     }
-    for i = 1, #rows do
-        local row = rows[i]
-        row.factions, row.chance, row.chance_by = get_faction_policy(row.name)
-    end
-    return rows
 end
