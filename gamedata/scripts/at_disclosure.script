@@ -1,46 +1,36 @@
---- at_disclosure: the hit-victim turn + squad investigate on suppressed attacks.
---- The victim turns through the engine's own selection: a standing per-NPC hit-redirect lever
---- (set_hit_redirect, PR #636) makes the real "he hit me" term outrank a seen enemy within falloff
---- range - no forged sighting, and fire still requires real line of sight. Squadmates within
---- earshot of a SUPPRESSED hit get a graded investigate stamp (the at_sound idiom): they walk the
---- shooter's position through the danger scheme and escalate to combat only on real perception.
---- An unsuppressed shot seeds nothing - the engine's own gunfire hearing owns it. A killed victim
---- seeds nothing - native death-sound and corpse discovery own it. No relation writes, no memory
---- injection, no squad-wide combat-mask forcing (the force-disclosure eras are retired).
+--- at_disclosure: the hit-victim turn (standing hit-redirect lever) + squad investigate on suppressed attacks
 
 local tostring, IsStalker, IsWeapon, RegisterScriptCallback = tostring, IsStalker, IsWeapon, RegisterScriptCallback
--- CreateTimeEvent / RemoveTimeEvent not cached: demonized_time_events replaces them at runtime;
--- cached locals would pin the dead originals.
 
 local cfg = at_mcm.cfg
 
--- The standing victim-turn lever (PR #636): the last attacker within TURN_FALLOFF_M outranks a
--- seen enemy by up to TURN_MAX in selection. 900/60 probe-proven (formula-exact selection flip
--- against a fully-visible competitor at ~10m, probe_hit_redirect.log).
-local TURN_MAX       = 900
-local TURN_FALLOFF_M = 60
-
--- Squad investigate: members within earshot of the VICTIM hear a suppressed impact and walk the
--- shooter's position at the graded "solid" reaction (at_danger t163). Tune from playtest.
-local EARSHOT_SQR       = 15 * 15
-local STAMP_INERTION_MS = 15000
-local RESTAMP_MS        = 4000
+local LTX_PATH    = "alifetactics\\at_disclosure_config.ltx"
+local LTX_SECTION = "at_disclosure"
 
 local TIMER_EV = "at_disclosure"
 
--- _stamp_at: member id -> last stamp time_global (the re-stamp throttle).
+local TURN_MAX
+local TURN_FALLOFF_M
+local EARSHOT_SQR
+local STAMP_INERTION_MS
+local RESTAMP_MS
+
 local _stamp_at    = {}
 local _pending_seq = 0
 local _stat        = { hits = 0, loud = 0, stamps = 0, victim_seeds = 0 }
-
--- Redirect-bind presence, captured from the first lever write (true/false; nil = no write yet).
--- false = floor exe: the on-hit victim seed below carries the turn instead.
 local _has_redirect = nil
 
--- Suppressed-now: an integral silencer (weapon_silencer_status 1) or an attachable one currently
--- mounted (status 2 + weapon_is_silencer, the utils_item.has_attached_silencer shape,
--- utils_item.script:414-420). A shooter without a ranged weapon in hand - a mutant, a knife - is
--- silent by definition. Humans = stalkers and the actor (IsStalker(actor) is false; AC_ID covers it).
+local function _load_config()
+    local ini = ini_file(LTX_PATH)
+    local function read_num(k, d) return ini:r_float_ex(LTX_SECTION, k) or d end
+    TURN_MAX          = read_num("turn_max", 900)
+    TURN_FALLOFF_M    = read_num("turn_falloff_m", 60)
+    local earshot_m   = read_num("earshot_m", 15)
+    EARSHOT_SQR       = earshot_m * earshot_m
+    STAMP_INERTION_MS = read_num("stamp_inertion_ms", 15000)
+    RESTAMP_MS        = read_num("restamp_ms", 4000)
+end
+
 local function _shot_is_suppressed(who)
     if not (IsStalker(who) or who:id() == AC_ID) then return true end
     local wpn = who:active_item()
@@ -50,9 +40,6 @@ local function _shot_is_suppressed(who)
     return status == 2 and wpn:weapon_is_silencer()
 end
 
--- Write the standing selection levers for one stalker. The turn lever follows the MCM toggles
--- (off = -1 = vanilla hit step); the actor-bias dial applies independently of disclosure (it is
--- the target-priority fairness dial, npc side stays vanilla). Zombied keep vanilla selection.
 local function _apply_selection_levers(npc)
     if not IsStalker(npc) then return end
     if xcreature.is_zombied(npc) then return end
@@ -66,9 +53,6 @@ local function _apply_selection_levers(npc)
     end
 end
 
--- Stamp one squadmate with the scripted investigate danger at the shooter's position, when he is
--- alive, not zombied, within earshot of the victim, and past the re-stamp throttle. Returns true
--- when stamped.
 local function _stamp_one(member_id, victim_pos, who_id, who_pos, tg)
     local member = xobject.go(member_id)
     if not member then return false end
@@ -82,10 +66,6 @@ local function _stamp_one(member_id, victim_pos, who_id, who_pos, tg)
     return true
 end
 
--- Stamp the victim's squadmates within earshot with the scripted investigate danger at the
--- shooter's position. Grade "solid": a buddy-hit is confirmed evidence, so the reaction walks
--- (raid), never runs. A fighting member is untouched by construction - the danger scheme does not
--- run for an NPC with a combat enemy. Returns the stamped count.
 local function _stamp_squad(victim, victim_id, who_id, who_pos)
     local squad = xsquad.get_squad_by_member(victim_id)
     if not squad then return 0 end
@@ -101,12 +81,6 @@ local function _stamp_squad(victim, victim_id, who_id, who_pos)
     return stamped
 end
 
--- Deferred victim-turn trace, dbg only: read best_enemy ~1s after the admitted hit and log whether
--- selection flipped to the shooter. The redirect's effect is engine-internal, so this line is the
--- only log-readable proof of the turn. -1 = no selected enemy. seen and dist make a false
--- self-explanatory: flipped=false with seen=true = stayed on a SEEN enemy (correct - seen plus the
--- actor pull outweighs the hit term); dist past TURN_FALLOFF_M = the redirect is 0 there (correct).
--- Suspicious only when false with seen=false AND dist inside the falloff.
 local function _trace_turn(victim_id, who_id)
     _pending_seq = _pending_seq + 1
     CreateTimeEvent(TIMER_EV, "turn_" .. _pending_seq, 1, function()
@@ -125,11 +99,6 @@ local function _trace_turn(victim_id, who_id)
     end)
 end
 
--- One-frame-deferred hit resolver (survivor semantics): a hit that killed the victim seeds
--- nothing - the engine's death sound and corpse discovery own that case. For a surviving victim:
--- on a floor exe the scripted danger orients him on the KNOWN shooter position (its look order
--- wins - the danger action is the selected action) and combat registration enters him into the
--- fight; on a redirect exe the standing lever already owns the turn. Then the squad investigate.
 local function _resolve_hit(victim_id, who_id)
     local victim = xobject.go(victim_id)
     if not victim then return end
@@ -200,8 +169,7 @@ local function _on_first_update()
         at_debug.on() and "true" or "false")
 end
 
---- Counters snapshot for diagnostics (at_test.at_dump): admitted hits, loud skips, squad stamps,
---- floor-exe victim seeds, and whether the redirect bind is live.
+--- Counters snapshot for diagnostics (at_test.at_dump)
 function get_stats()
     return {
         hits = _stat.hits, loud = _stat.loud, stamps = _stat.stamps,
@@ -210,6 +178,7 @@ function get_stats()
 end
 
 function on_game_start()
+    _load_config()
     RegisterScriptCallback("npc_on_hit_callback",         _on_hit)
     RegisterScriptCallback("npc_on_net_spawn",            _on_net_spawn)
     RegisterScriptCallback("server_entity_on_unregister", _on_entity_unregister)

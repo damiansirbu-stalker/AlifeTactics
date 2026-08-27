@@ -1,0 +1,9 @@
+; AlifeTactics Disclosure (Effectiveness > Disclosure) tuning. Paired with gamedata/scripts/at_disclosure.script.
+; All keys have script-side fallback defaults, so a missing key or file won't crash.
+
+[at_disclosure]
+turn_max          = 900   ; hit-redirect selection weight; 900/60 probe-proven to flip selection at ~10m
+turn_falloff_m    = 60    ; the redirect decays to zero at this attacker distance
+earshot_m         = 15    ; squadmates within this range of the VICTIM investigate a suppressed hit
+stamp_inertion_ms = 15000 ; how long the investigate stamp stays a danger
+restamp_ms        = 4000  ; per-member re-stamp throttle

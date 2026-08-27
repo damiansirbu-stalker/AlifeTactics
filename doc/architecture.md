@@ -456,7 +456,7 @@ A suppressed hit on a surviving victim stamps his squadmates within earshot of t
 
 **The silent/loud gate.** An unsuppressed shot from a human (stalker or actor) seeds nothing - the engine's own gunfire perception covers it twice: per-listener `attack_sound` danger entries, and the ally-relay (`CStalkerSoundDataVisitor` - a listener adopts the enemy a fighting ally has selected, `stalker_sound_data_visitor.cpp:30-60`). Suppressed-now is the `utils_item.has_attached_silencer` shape (`utils_item.script:414-420`): an integral silencer (`weapon_silencer_status() == 1`) or an attachable one currently mounted (`== 2` + `weapon_is_silencer()`). A shooter without a ranged weapon in hand - a mutant, a knife - is silent by definition.
 
-**Survivor semantics.** A hit that killed the victim seeds nothing (checked one frame deferred - `alive()` is still true inside the killing hit's callback). A clean suppressed kill tells no one; the squad can still find the body through the engine's native death sound and corpse discovery.
+**Survivor semantics.** A hit that killed the victim seeds nothing (checked one frame deferred - `alive()` is still true inside the killing hit's callback; the deferral uses `CreateTimeEvent` looked up live, never a cached local, because demonized_time_events replaces the functions at runtime and a cached local would pin the dead originals). A clean suppressed kill tells no one; the squad can still find the body through the engine's native death sound and corpse discovery.
 
 ### The target-priority dial
 
@@ -467,7 +467,7 @@ A suppressed hit on a surviving victim stamps his squadmates within earshot of t
 - The victim turns on a close attacker through the engine's own selection; fire needs real line of sight.
 - Only squadmates who could plausibly have noticed (earshot of the victim, suppressed case) investigate the shooter's position; engagement requires real perception. Distant patrols are never told.
 - Loud shots are the engine's business end to end - no script double-fire.
-- No relation writes (the original goodwill-write era corrupted saved relations and is long gone), no memory injection, no forced combat-mask, no retention state: the module keeps only a per-member stamp throttle and counters (`get_stats` for `at_test.at_dump`).
+- No relation writes (the original goodwill-write era corrupted saved relations and is long gone), no memory injection, no forced combat-mask, no retention state: the module keeps only a per-member stamp throttle and counters (`get_stats` for `at_test.at_dump`). Reading the deferred `[TURN]` trace (the only log-readable proof of the engine-internal redirect): `flipped=false` with `seen=true` is CORRECT (a seen enemy plus the actor pull outweighs the hit term), as is `flipped=false` past the falloff (the redirect is zero there); suspicious only when false with `seen=false` AND the shooter inside the falloff.
 
 ---
 
