@@ -4,13 +4,6 @@ local IsStalker, RegisterScriptCallback, AC_ID = IsStalker, RegisterScriptCallba
 
 local cfg = at_mcm.cfg
 
--- Friendly-fire damage gate. Suppress damage unless the shooter and victim are actually enemies
--- (npc:relation == game_object.enemy). relation() sums the community-to-community base (+/-2000, the dominant
--- term) with personal/reputation/rank goodwill, so faction is paramount: same-faction NPCs (loner vs loner)
--- are neutral at worst and never enemy, so they stay protected; a cross-faction pair (a loner vs a soured
--- Clear Sky) damages each other only once their relation has actually gone hostile. Friend and neutral are
--- both suppressed. Runs on every hit, no throttle: a damage block must catch each hit, O(1) (one luabind).
--- Never touches actor-dealt damage.
 local function _on_before_hit(npc, shit, _bone_id, _flags)
     if not cfg.crossfire_enabled then return end
     if not (npc and shit) then return end
