@@ -337,6 +337,49 @@ local function _palette_matches(row, npc, memo)
     return true
 end
 
+local function _chance_matches(row, npc, state, memo)
+    local chance = row.chance
+    if row.chance_by then
+        if memo.faction == nil then memo.faction = xcreature.community(npc) end
+        local override = row.chance_by[memo.faction]
+        if override ~= nil then chance = override end
+    end
+    if chance == nil then return true end
+    return at_maneuvers_config.has_inclination(state.id, chance)
+end
+
+local function _member_ledger_entry(mid, maneuver)
+    local hold = at_commitment.get_hold(mid)
+    return mid .. "=" .. (maneuver or "-")
+        .. "/" .. (at_behaviors.get_push(mid) or "-")
+        .. "/" .. (at_behaviors.get_pull(mid) or "-")
+        .. "/" .. (hold and hold.op or "-")
+        .. "/" .. flag(at_conduct.is_crouched(mid))
+end
+
+local function _get_squad_answers(state, memo)
+    if memo.squad_answers ~= nil then return memo.squad_answers end
+    local answers = {}
+    memo.squad_answers = answers
+    local squad = xsquad.get_squad_by_member(state.id)
+    if not squad then return answers end
+    local ledger = at_debug.on() and {} or nil
+    for mid in xsquad.iter_member_ids(squad) do
+        local maneuver = mid ~= state.id and get_maneuver(mid) or nil
+        if maneuver then answers[maneuver] = mid end
+        if ledger and mid ~= state.id then ledger[#ledger + 1] = _member_ledger_entry(mid, maneuver) end
+    end
+    if ledger and #ledger > 0 then
+        at_debug.dbg("[CMB] squad id=%s ledger(maneuver/push/pull/hold/crouch)=%s",
+            show(state.id), table_concat(ledger, " "))
+    end
+    return answers
+end
+
+local function _squad_allows(row, state, memo)
+    return _get_squad_answers(state, memo)[row.name] == nil
+end
+
 local function _check_row(row, npc, enemy, state, tg, memo)
     if (row.vs_actor or false) == memo.actor_fight then return nil, nil, "scope" end
     if cfg[row.toggle] == false then return nil, nil, "off" end
@@ -346,6 +389,8 @@ local function _check_row(row, npc, enemy, state, tg, memo)
     local need_us = _seg:get_us()
     if not situation then return nil, nil, "-", need_us end
     if not _palette_matches(row, npc, memo) then return nil, situation, "palette", need_us end
+    if not _chance_matches(row, npc, state, memo) then return nil, situation, "chance", need_us end
+    if not _squad_allows(row, state, memo) then return nil, situation, "squad", need_us end
     _seg:reset() _seg:start()
     local dest = row.find_destination(npc, enemy, state, tg, memo)
     _seg:stop()
@@ -358,7 +403,7 @@ local function _reset_memo(state, npc, enemy)
     local memo = state.memo
     if not memo then memo = {} state.memo = memo end
     memo.faction, memo.kind, memo.enemy_kind, memo.hurt = nil, nil, nil, nil
-    memo.actor_pos, memo.actor_enemy = nil, nil
+    memo.actor_pos, memo.actor_enemy, memo.squad_answers = nil, nil, nil
     memo.actor_fight = state.enemy_id == AC_ID
     local np, ep = npc:position(), enemy:position()
     memo.npc_pos, memo.enemy_pos = np, ep

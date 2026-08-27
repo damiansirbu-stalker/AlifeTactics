@@ -18,6 +18,7 @@ local PUSH_CLOSE_M, PUSH_FAR_M, PUSH_SIZE_K, PUSH_INTERVAL_K, PUSH_PRESS_COOLDOW
 local PUSH_WEAK_FRAC, PUSH_SELF_FRAC, PUSH_BAND_K, PUSH_BAND_FLOOR_M, PUSH_BACK_DEG, PUSH_WINDOW_MAX_MS
 local PULL_WEAK_FRAC, PULL_STRONG_FRAC, PULL_BAND_K, PULL_BAND_CAP_M, PULL_BAND_DEPTH_M, PULL_COOLDOWN_MS
 local PULL_HOLD_MIN_MS, PULL_BAND_FLOOR_M
+local PUSH_CHANCE, PUSH_CHANCE_BY
 
 local _push
 local _press_cooldown_until = 0
@@ -47,6 +48,8 @@ local function _load_config()
     PULL_COOLDOWN_MS   = read_int("pull_cooldown_ms",   15000)
     PULL_HOLD_MIN_MS   = read_int("pull_hold_min_ms",   8000)
     PULL_BAND_FLOOR_M  = read_int("pull_band_floor_m",  8)
+    local _, push_chance, push_chance_by = at_maneuvers_config.get_faction_policy("push")
+    PUSH_CHANCE, PUSH_CHANCE_BY = push_chance, push_chance_by
 end
 
 local function _is_zombied(npc, state)
@@ -165,6 +168,18 @@ local function _get_fire_band(dist)
     return nil
 end
 
+local function _has_push_inclination(npc, state)
+    if state.push_inclination == nil then
+        local chance = PUSH_CHANCE
+        if PUSH_CHANCE_BY then
+            local override = PUSH_CHANCE_BY[xcreature.community(npc)]
+            if override ~= nil then chance = override end
+        end
+        state.push_inclination = at_maneuvers_config.has_inclination(state.id, chance)
+    end
+    return state.push_inclination
+end
+
 local function _update_push_npc(npc, state, tg)
     local win = _push
     if not win or state.maneuver then
@@ -175,6 +190,7 @@ local function _update_push_npc(npc, state, tg)
         _clear_push_npc(npc, state, "not_fighting_target", tg)
         return
     end
+    if not _has_push_inclination(npc, state) then return end
     local dist = npc:position():distance_to(db.actor:position())
     local want_fire = _get_fire_band(dist)
     if want_fire ~= state.push_fire then _write_push_fire(npc, state, want_fire, dist, win.cause) end
