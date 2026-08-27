@@ -2,7 +2,7 @@
 
 local IsStalker, IsWounded, time_global, tostring, pairs = IsStalker, IsWounded, time_global, tostring, pairs
 local math_floor, math_random, RegisterScriptCallback, AC_ID = math.floor, math.random, RegisterScriptCallback, AC_ID
-local string_match, tonumber = string.match, tonumber
+local string_match, string_find, tonumber = string.match, string.find, tonumber
 local math_sqrt, vector, table_concat = math.sqrt, vector, table.concat
 
 local cfg = at_mcm.cfg
@@ -34,18 +34,14 @@ local _open_count = 0
 local _queue_band_by_kind = {}
 local _pickoff_band
 local _orig_get_queue_params
-local _shots = {}
-local _hits = {}
 local _monitor_active = false
 local _mon = { ms = 0, max = 0, ticks = 0, last = 0 }
 local CHECKS
 local CATALOG = {}
-local _seg = xprofiler.new_if(false)
 
 local function _patched_get_queue_params(npc, st, override)
     local state = npc and _npc_states[npc:id()]
     if state and state.maneuver then
-        local timer = xprofiler.new_if(at_debug.on()):start()
         local band
         if state.maneuver.name == "pickoff" then
             band = _pickoff_band
@@ -62,12 +58,11 @@ local function _patched_get_queue_params(npc, st, override)
             interval = math_floor(interval * ik + 0.5)
             override = { size, interval, 0 }
         end
-        timer:stop()
         if at_debug.on() then
-            at_debug.dbg("[QUE] id=%d row=%s size=%s interval=%s [%.3fms]",
+            at_debug.dbg("[QUE] id=%d row=%s size=%s interval=%s",
                 npc:id(), state.maneuver.name,
                 band and tostring(override[1]) or "vanilla",
-                band and tostring(override[2]) or "vanilla", timer:get_ms())
+                band and tostring(override[2]) or "vanilla")
         end
     end
     return _orig_get_queue_params(npc, st, override)
@@ -383,20 +378,14 @@ end
 local function _check_row(row, npc, enemy, state, tg, memo)
     if (row.vs_actor or false) == memo.actor_fight then return nil, nil, "scope" end
     if cfg[row.toggle] == false then return nil, nil, "off" end
-    _seg:reset() _seg:start()
     local situation = row.check_need(npc, enemy, state, tg, memo)
-    _seg:stop()
-    local need_us = _seg:get_us()
-    if not situation then return nil, nil, "-", need_us end
-    if not _palette_matches(row, npc, memo) then return nil, situation, "palette", need_us end
-    if not _chance_matches(row, npc, state, memo) then return nil, situation, "chance", need_us end
-    if not _squad_allows(row, state, memo) then return nil, situation, "squad", need_us end
-    _seg:reset() _seg:start()
+    if not situation then return nil, nil, "-" end
+    if not _palette_matches(row, npc, memo) then return nil, situation, "palette" end
+    if not _chance_matches(row, npc, state, memo) then return nil, situation, "chance" end
+    if not _squad_allows(row, state, memo) then return nil, situation, "squad" end
     local dest = row.find_destination(npc, enemy, state, tg, memo)
-    _seg:stop()
-    local dest_us = _seg:get_us()
-    if dest then return dest, situation, "picked", need_us, dest_us end
-    return nil, situation, "declined", need_us, dest_us
+    if dest then return dest, situation, "picked" end
+    return nil, situation, "declined"
 end
 
 local function _reset_memo(state, npc, enemy)
@@ -418,10 +407,8 @@ local function _recheck_need(row, npc, enemy, state, tg)
     return row.check_need(npc, enemy, state, tg, memo)
 end
 
-local function _row_trace(row, situation, stage, need_us, dest_us)
-    local head = row.name .. ":" .. (situation and (situation .. "/" .. stage) or stage)
-    if dest_us == nil then return head end
-    return head .. "/need=" .. math_floor(need_us) .. "us/dest=" .. math_floor(dest_us) .. "us"
+local function _row_trace(row, situation, stage)
+    return row.name .. ":" .. (situation and (situation .. "/" .. stage) or stage)
 end
 
 local function _check_repeat_limit(state, situation, npc_pos)
@@ -450,16 +437,15 @@ local function _resolve_maneuver(npc, enemy, state, tg)
     local memo = _reset_memo(state, npc, enemy)
     local tracing = at_debug.on()
     local walk_timer = xprofiler.new_if(tracing)
-    _seg = xprofiler.new_if(tracing)
     walk_timer:start()
     local rows_trace = tracing and {} or nil
     local spent_row, spent_vid, spent_situation
     for i = 0, count - 1 do
         local idx = (start + i - 1) % count + 1
         local row = CATALOG[idx]
-        local vid, situation, stage, need_us, dest_us = _check_row(row, npc, enemy, state, tg, memo)
-        if tracing then rows_trace[#rows_trace + 1] = _row_trace(row, situation, stage, need_us, dest_us) end
-        if dest_us ~= nil then
+        local vid, situation, stage = _check_row(row, npc, enemy, state, tg, memo)
+        if tracing then rows_trace[#rows_trace + 1] = _row_trace(row, situation, stage) end
+        if stage == "picked" or stage == "declined" then
             state.row_cursor = idx % count + 1
             spent_row, spent_vid, spent_situation = row, vid, situation
             break
@@ -503,18 +489,12 @@ local function _get_state_mgr_target(id)
     return sm and sm.target_state or nil
 end
 
-local function _dest_m(npc, dest)
-    if not dest then return -1 end
-    return npc:position():distance_to(level.vertex_position(dest))
-end
-
 local function _cleared_label(row, need_cleared)
     if row and row.need_recheck == false then return "-" end
     return flag(need_cleared)
 end
 
-local function _trace_end(state, tg, reason, check_us)
-    local check = check_us or -1
+local function _trace_end(state, tg, reason)
     local row = state.maneuver
     local npc = xobject.go(state.id)
     local need_cleared
@@ -522,21 +502,13 @@ local function _trace_end(state, tg, reason, check_us)
         local enemy = xcombat.resolve_enemy(state.enemy_id)
         if enemy then need_cleared = _recheck_need(row, npc, enemy, state, tg) == nil end
     end
-    local vertex, dest_m = "gone", -1
-    if npc then vertex, dest_m = npc:level_vertex_id(), _dest_m(npc, state.dest) end
-    at_debug.dbg("[CMB] end id=%s name=%s maneuver=%s reason=%s dur=%dms shots=%d hits_actor=%d result=%s" ..
-        " need_cleared=%s reenters=%d vertex=%s dest=%s dest_m=%.1f target=%s [%dus]",
+    at_debug.dbg("[CMB] end id=%s name=%s maneuver=%s reason=%s dur=%dms need_cleared=%s reenters=%d",
         show(state.id), show(state.name), show(row and row.name), show(reason),
-        math_floor(tg - (state.begin_at or tg)), _shots[state.id] or 0, _hits[state.id] or 0,
-        show(state.result or "-"), _cleared_label(row, need_cleared), state.reenters or 0,
-        show(vertex), show(state.dest), dest_m, show(_get_state_mgr_target(state.id)), check)
+        math_floor(tg - (state.begin_at or tg)), _cleared_label(row, need_cleared), state.reenters or 0)
 end
 
-local function _end_maneuver(state, tg, reason, check_us)
-    if at_debug.on() then _trace_end(state, tg, reason, check_us) end
-    _shots[state.id] = nil
-    _hits[state.id] = nil
-    state.result = nil
+local function _end_maneuver(state, tg, reason)
+    if at_debug.on() then _trace_end(state, tg, reason) end
     state.reenters, state.granted_at, state.released_at = nil, nil, nil
     state.target_seen, state.target_at, state.sent = nil, nil, nil
     state.escape_warned = nil
@@ -552,29 +524,21 @@ local function _end_maneuver(state, tg, reason, check_us)
     _release_cover(state)
 end
 
-local function _trace_begin(npc, state, fire, gate, send_us, apply_us)
+local function _trace_begin(npc, state, fire)
     if not at_debug.on() then return end
     local maneuver = state.maneuver
-    local pos = npc:position()
-    at_debug.dbg("[CMB] begin id=%s name=%s maneuver=%s trigger=%s dest=%s sent=%s fire=%s move=%s" ..
-        " requested=%s fire_gate=%s cover=%s op=%s target=%s vertex=%s pos=%.1f,%.1f dest_m=%.1f [send=%dus apply=%dus]",
+    at_debug.dbg("[CMB] begin id=%s name=%s maneuver=%s trigger=%s dest=%s sent=%s fire=%s move=%s",
         show(state.id), show(state.name), show(maneuver.name), show(state.trigger), show(state.dest),
-        show(state.sent), show(fire), show(maneuver.movement), show(maneuver.fire), show(gate), show(state.cover_trace),
-        show(xcombat.get_operator(npc)), show(_get_state_mgr_target(state.id)), show(npc:level_vertex_id()),
-        pos.x, pos.z, _dest_m(npc, state.sent or state.dest), send_us, apply_us)
+        show(state.sent), show(fire), show(maneuver.movement))
     if state.sent == state.dest then return end
     at_debug.dbg("[CMB] dest_substituted id=%s maneuver=%s asked=%s got=%s own=%s",
         show(state.id), show(maneuver.name), show(state.dest), show(state.sent), show(npc:level_vertex_id()))
 end
 
-local function _trace_reenter(npc, state, maneuver, tg)
+local function _trace_reenter(state, maneuver, tg)
     if not at_debug.on() then return end
-    at_debug.dbg("[CMB] reenter id=%s maneuver=%s n=%d op=%s target=%s combat=%s vertex=%s dest=%s dest_m=%.1f" ..
-        " since_begin=%dms since_apply=%dms away=%dms",
+    at_debug.dbg("[CMB] reenter id=%s maneuver=%s n=%d since_begin=%dms since_apply=%dms away=%dms",
         show(state.id), show(maneuver.name), state.reenters,
-        show(xcombat.get_operator(npc)), show(_get_state_mgr_target(state.id)),
-        flag(db.storage[state.id] and db.storage[state.id].state_mgr and db.storage[state.id].state_mgr.combat or nil),
-        show(npc:level_vertex_id()), show(state.dest), _dest_m(npc, state.sent or state.dest),
         math_floor(tg - (state.begin_at or tg)), math_floor(tg - state.maneuver_at),
         state.released_at and math_floor(tg - state.released_at) or -1)
 end
@@ -586,48 +550,15 @@ local function _begin_maneuver(npc)
     local maneuver = state.maneuver
     if state.maneuver_at then
         state.reenters = (state.reenters or 0) + 1
-        _trace_reenter(npc, state, maneuver, tg)
+        _trace_reenter(state, maneuver, tg)
     end
     state.granted_at = tg
     local enemy = xcombat.resolve_enemy(state.enemy_id)
     if not enemy then _end_maneuver(state, tg, "target_lost") return end
-    local timer_send = xprofiler.new_if(at_debug.on()):start()
     state.sent = xcombat.send_to(npc, state.dest)
-    timer_send:stop()
-    local timer_apply = xprofiler.new_if(at_debug.on()):start()
-    local fire, gate = _apply_state(npc, maneuver, enemy)
-    timer_apply:stop()
+    local fire = _apply_state(npc, maneuver, enemy)
     state.maneuver_at = tg
-    _shots[state.id] = nil
-    _hits[state.id] = nil
-    _trace_begin(npc, state, fire, gate, math_floor(timer_send:get_us()), math_floor(timer_apply:get_us()))
-end
-
-local function _on_shot_fired(obj)
-    if not at_debug.on() or not obj then return end
-    local id = obj:id()
-    local state = _npc_states[id]
-    if state and state.maneuver then
-        _shots[id] = (_shots[id] or 0) + 1
-    end
-end
-
-local function _on_actor_hit(_, amount, _, who)
-    if not at_debug.on() or not who then return end
-    if not amount or amount <= 0 then return end
-    local id = who:id()
-    local state = _npc_states[id]
-    if state and state.maneuver then
-        _hits[id] = (_hits[id] or 0) + 1
-    end
-end
-
-local function _on_enemy_downed(npc, victim)
-    if not at_debug.on() or not (npc and victim) then return end
-    local state = _npc_states[npc:id()]
-    if not (state and state.maneuver) then return end
-    if victim:id() ~= state.enemy_id then return end
-    state.result = victim:alive() and "wounded" or "killed"
+    _trace_begin(npc, state, fire)
 end
 
 local function _on_release(npc)
@@ -636,10 +567,9 @@ local function _on_release(npc)
     local tg = time_global()
     state.released_at = tg
     if not at_debug.on() then return end
-    at_debug.dbg("[CMB] release id=%s maneuver=%s held=%dms op=%s target=%s vertex=%s",
+    at_debug.dbg("[CMB] release id=%s maneuver=%s held=%dms",
         show(state.id), show(state.maneuver and state.maneuver.name),
-        math_floor(tg - (state.granted_at or tg)),
-        show(xcombat.get_operator(npc)), show(_get_state_mgr_target(state.id)), show(npc:level_vertex_id()))
+        math_floor(tg - (state.granted_at or tg)))
 end
 
 local SPEC = {
@@ -652,27 +582,13 @@ local SPEC = {
     on_release = _on_release,
 }
 
-local function _trace_decision(npc, state, enemy, result)
+local function _trace_decision(state, enemy, result)
     if not at_debug.on() then return end
-    local enemy_pos = enemy:position()
+    if not (result or (state.rows and string_find(state.rows, "/", 1, true))) then return end
     state.enemy_name = xcreature.get_name(enemy:id())
-    state.operator   = xcombat.get_operator(npc)
-    state.aim_off    = math_floor(xcombat.get_facing_offset(npc, enemy_pos))
-    state.seen       = xcombat.sees(npc, enemy)
-    local in_cover, looked_out, held = xcombat.get_cover_state(npc)
-    local blocked = xcombat.has_obstacle_to_target(enemy_pos, npc:position(), xcombat.BODY_Y.STAND_EYE)
-    state.cover_trace = flag(in_cover) .. flag(looked_out) .. flag(held) .. "/" .. (blocked and "y" or "n")
-    at_debug.dbg("[CMB] monitor id=%s name=%s target=%s(%s) distance=%.1f seen=%s aim=%ddeg operator=%s cover=%s rows=%s walk=%dus check=%dus result=%s",
+    at_debug.dbg("[CMB] monitor id=%s name=%s target=%s(%s) distance=%.1f rows=%s walk=%dus result=%s",
         show(state.id), show(state.name), show(state.enemy_id), show(state.enemy_name), state.dist or -1,
-        state.seen and "yes" or "no", state.aim_off or -1, show(state.operator), show(state.cover_trace),
-        show(state.rows), state.walk_us or -1, state.check_us or -1, result or "none")
-end
-
-local function _trace_monitor_skip(state, result, detail, us)
-    if not at_debug.on() then return end
-    at_debug.dbg("[CMB] monitor id=%s name=%s target=%s result=%s%s [%dus]",
-        show(state.id), show(state.name), show(state.enemy_id), result,
-        detail and (":" .. detail) or "", us or -1)
+        show(state.rows), state.walk_us or -1, result or "none")
 end
 
 local function _seize_blocked(npc, state)
@@ -684,7 +600,6 @@ end
 
 local function _try_begin_maneuver(npc, state, tg)
     if not _manages(npc) then state.fighting = false return end
-    local timer = xprofiler.new_if(at_debug.on()):start()
 
     local enemy = xcombat.get_best_enemy(npc)
     state.fighting = _is_fighting(enemy, state, tg)
@@ -693,18 +608,11 @@ local function _try_begin_maneuver(npc, state, tg)
 
     if not enemy then
         state.enemy_id = nil
-        timer:stop()
-        _trace_monitor_skip(state, "no_enemy", nil, timer:get_us())
         return
     end
     state.enemy_id = enemy:id()
 
-    local blocked, block_detail = _seize_blocked(npc, state)
-    if blocked then
-        timer:stop()
-        _trace_monitor_skip(state, blocked, block_detail, timer:get_us())
-        return
-    end
+    if _seize_blocked(npc, state) then return end
 
     local maneuver, dest = _resolve_maneuver(npc, enemy, state, tg)
     if maneuver then
@@ -716,9 +624,7 @@ local function _try_begin_maneuver(npc, state, tg)
         state.maneuver_at = nil
         state.begin_at = tg
     end
-    timer:stop()
-    if at_debug.on() then state.check_us = math_floor(timer:get_us()) end
-    _trace_decision(npc, state, enemy, maneuver and maneuver.name)
+    _trace_decision(state, enemy, maneuver and maneuver.name)
     if maneuver and maneuver.vs_actor then state.enemy_id = AC_ID end
 end
 
@@ -753,38 +659,19 @@ local function _update_maneuver(npc, state, tg)
         return
     end
     local enemy = xcombat.resolve_enemy(state.enemy_id)
-    local sight_id, sight_mode
     if at_debug.on() then
-        sight_id, sight_mode = xcombat.get_sight_target(npc)
+        local sight_id = xcombat.get_sight_target(npc)
         if enemy then _check_sight_lost(state, maneuver, sight_id) end
     end
-    local timer = xprofiler.new_if(at_debug.on()):start()
-    local fire, gate = maneuver.update(npc, maneuver, enemy)
-    timer:stop()
+    maneuver.update(npc, maneuver, enemy)
     if not at_debug.on() then return end
-    local us = math_floor(timer:get_us())
-    if not enemy then
-        at_debug.dbg("[CMB] update id=%s name=%s maneuver=%s target=nil fire=%s fire_gate=%s [%dus]",
-            show(state.id), show(state.name), show(maneuver.name), show(fire), show(gate), us)
-        return
-    end
-    local pos = npc:position()
     local target = _get_state_mgr_target(state.id)
-    local sight_label = sight_id and (sight_id == state.enemy_id and "target" or tostring(sight_id)) or "-"
     if target ~= state.target_seen then
-        at_debug.dbg("[CMB] target_change id=%s maneuver=%s from=%s to=%s op=%s held=%dms",
+        at_debug.dbg("[CMB] target_change id=%s maneuver=%s from=%s to=%s held=%dms",
             show(state.id), show(maneuver.name), show(state.target_seen), show(target),
-            show(xcombat.get_operator(npc)), math_floor(tg - (state.target_at or tg)))
+            math_floor(tg - (state.target_at or tg)))
         state.target_seen, state.target_at = target, tg
     end
-    at_debug.dbg("[CMB] update id=%s name=%s maneuver=%s target=%s(%s) seen=%s aim=%ddeg sight=%s stype=%s"
-        .. " fire=%s fire_gate=%s op=%s target=%s mt=%s vertex=%s pos=%.1f,%.1f dest_m=%.1f reenters=%d [%dus]",
-        show(state.id), show(state.name), show(maneuver.name), show(enemy:id()), show(xcreature.get_name(enemy:id())),
-        xcombat.sees(npc, enemy) and "yes" or "no", math_floor(xcombat.get_facing_offset(npc, enemy:position())),
-        sight_label, show(sight_mode),
-        show(fire), show(gate), show(xcombat.get_operator(npc)), show(target),
-        show(npc:movement_type()), show(npc:level_vertex_id()), pos.x, pos.z,
-        _dest_m(npc, state.sent or state.dest), state.reenters or 0, us)
 end
 
 local function _end_reason(npc, enemy, state, tg)
@@ -808,10 +695,8 @@ local function _try_end_maneuver(npc, state, tg)
             return
         end
     end
-    local timer = xprofiler.new_if(at_debug.on()):start()
     local reason = _end_reason(npc, enemy, state, tg)
-    timer:stop()
-    if reason then _end_maneuver(state, tg, reason, math_floor(timer:get_us())) end
+    if reason then _end_maneuver(state, tg, reason) end
 end
 
 local function _check_hold(npc)
@@ -965,8 +850,6 @@ local function _on_net_destroy(npc)
     _drop_gate(_npc_states[id])
     _release_cover(_npc_states[id])
     _npc_states[id] = nil
-    _shots[id] = nil
-    _hits[id] = nil
 end
 
 local function _on_entity_unregister(se_obj)
@@ -985,8 +868,6 @@ local function _on_entity_unregister(se_obj)
     _drop_gate(_npc_states[id])
     _release_cover(_npc_states[id])
     _npc_states[id] = nil
-    _shots[id] = nil
-    _hits[id] = nil
 end
 
 local function _load_config()
@@ -1122,9 +1003,6 @@ function on_game_start()
     end
     RegisterScriptCallback("npc_on_net_spawn",            _install)
     RegisterScriptCallback("npc_on_hit_callback",         _on_hit)
-    RegisterScriptCallback("npc_shot_dispersion",         _on_shot_fired)
-    RegisterScriptCallback("actor_on_hit_callback",       _on_actor_hit)
-    RegisterScriptCallback("npc_on_enemy_wounded_or_killed", _on_enemy_downed)
     RegisterScriptCallback("npc_on_net_destroy",          _on_net_destroy)
     RegisterScriptCallback("server_entity_on_unregister", _on_entity_unregister)
     RegisterScriptCallback("actor_on_first_update",       _on_first_update)
