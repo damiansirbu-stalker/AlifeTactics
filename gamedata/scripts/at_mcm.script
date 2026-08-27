@@ -360,7 +360,7 @@ function on_mcm_load()
         vrange_novice = 1.00, vrange_trainee = 1.02, vrange_experienced = 1.05, vrange_professional = 1.07,
         vrange_veteran = 1.09, vrange_expert = 1.11, vrange_master = 1.13, vrange_legend = 1.15,
     }
-    local RCT_CONFIG_PATH    = "alifetactics\\at_reaction.ltx"
+    local RCT_CONFIG_PATH    = "alifetactics\\at_reaction_config.ltx"
     local RCT_CONFIG_SECTION = "at_reaction"
     local rct_ini = ini_file(RCT_CONFIG_PATH)
     local function rct_def(key)
