@@ -151,10 +151,6 @@ local defaults = {
 
 local RegisterScriptCallback = RegisterScriptCallback
 
--- Every value here MUST mirror the on_mcm_load tree: an option's saved path is at/<tab>/<key>, and
--- ui_mcm.get validates that path against the option tree before touching storage (opt_val gate,
--- MCM ui_mcm.script:711-714) - a path the tree does not contain reads nothing, logs
--- "!MCM given bad path", and the getter silently falls back to the code default.
 local _key_to_tab = {
     disclosure_enabled        = "effectiveness/disclosure",
     disclosure_turn           = "effectiveness/disclosure",
@@ -310,13 +306,6 @@ end
 
 cfg, get_config, load_config = xmcm.create_config("at", defaults, path_builder)
 
--- functor_ui receives the UI_MCM instance as trailing arg (ui_mcm.script:1435).
--- functor would receive nothing. MCM 1.7.2fix leaves file-local GUI nil on fresh
--- opens (only Open_to sets it, Reset_last_opt skips Open_to when last_path is nil),
--- so ui_mcm.get_gui() returns nil. functor_ui sidesteps that bug.
--- MCM keeps file-local opt_temp (pending widget edits) at ui_mcm.script:175. On_Accept
--- at ui_mcm.script:2393 writes opt_temp AFTER our config writes, partially un-applying
--- the reset. The warning desc above the button instructs the user to save or discard first.
 local function _apply_defaults(gui, msg)
     local config = axr_main.config
     for k, v in pairs(defaults) do
@@ -329,10 +318,6 @@ local function _apply_defaults(gui, msg)
         if gui.owner and gui.owner.SetMsg then
             gui.owner:SetMsg(msg, 5)
         end
-        -- Close via On_Cancel: On_Discard calls Reset_opt -> scroll_opt:Clear at
-        -- ui_mcm.script:949, which destroys btn_reset_all while its click handler is
-        -- still on the stack; C++ dispatcher returns into the freed control and
-        -- SEH-fires on some exe builds. On_Cancel only calls HideDialog + Unregister_UI.
         if gui.On_Cancel then
             gui:On_Cancel()
         end
@@ -346,16 +331,10 @@ function btn_reset_all(gui)
     _apply_defaults(gui, game.translate_string("st_at_reset_all_done"))
 end
 
--- Greying helpers for a locked-on toggle, at file scope (no per-call closure), pcall-guarded by the
--- caller against a handler MCM omits on some build. The handler keys are the proven ctrl + cap pair
--- (mcm_probe, 2026-07-30): the control is disabled, the caption greyed.
 local function _disable_ctrl(ctrl) ctrl:Enable(false) end
 local function _grey_cap(cap, clr) cap:TextControl():SetTextColor(clr) end
 
---- Render a check as a permanent ON, greyed, non-interactive toggle - the display for an always-on
---- feature that cannot be turned off (the danger crash fixes). The check ships def = true and its
---- ui_hook_functor disables the control and greys the caption, so it stays ON and cannot be changed; the
---- disabled control never fires a change, so no functor is needed. The proven technique.
+--- Render a check as a permanent ON, greyed, non-interactive toggle (the always-on danger fixes)
 --- @safety SAFE - each call is pcall-guarded against a handler MCM omits on some build
 function render_locked_check(_anchor, handlers)
     if type(handlers) ~= "table" then return end
@@ -363,21 +342,8 @@ function render_locked_check(_anchor, handlers)
     if handlers.cap then pcall(_grey_cap, handlers.cap, GetARGB(255, 120, 120, 120)) end
 end
 
--- The menu tree groups pages under the category folders Combat / Effectiveness / Perception / Mechanics / Effects / Mutants.
--- (1) The saved setting path is path_builder(key) = at/_key_to_tab[key]/key and it MUST match this tree:
--- ui_mcm.get validates the path against the option tree before reading storage (opt_val gate, MCM
--- ui_mcm.script:711-714), so reparenting a page moves its path - update _key_to_tab in the same edit, and
--- values stored under the old path are orphaned (defaults apply until the user re-sets them). The original
--- restructure assumed the path was independent of the tree; it is not - every read off-tree logged
--- "!MCM given bad path" and returned the code default. (2) An option's label/hint string is
--- opt_str .. (v.hint or path) (ui_mcm.script:1412,886), so each option sets hint = its original
--- "at_<tab>_<key>" and the label resolves to the existing ui_mcm_at_<tab>_<key> string without renaming any
--- strings to the new tree path. desc/hdr/title nodes keep explicit text. Only the ui_mcm_menu_<id> page
--- labels move (handled in ui_st_mcm_at.xml). WIP sub-pages carry a single "wip" desc until their feature exists.
+--- Build the option tree (the canonical six-category structure; paths and hints per the architecture)
 function on_mcm_load()
-    -- The Reaction sliders default from configs/alifetactics/at_reaction.ltx - the file owns the
-    -- default numbers; a moved slider overrides its key, and MCM reset returns to the LTX values.
-    -- rct_fb holds the code fallbacks for a missing key/file (repo LTX convention).
     local rct_fb = {
         aim_novice = 0.24, aim_trainee = 0.40, aim_experienced = 0.54, aim_professional = 0.66,
         aim_veteran = 0.80, aim_expert = 0.92, aim_master = 1.06, aim_legend = 1.50,
@@ -436,7 +402,6 @@ function on_mcm_load()
                             { id = "maneuver_kite",    type = "check", val = 1, def = true, hint = "at_combat_maneuver_kite" },
                             { id = "maneuver_pickoff", type = "check", val = 1, def = true, hint = "at_combat_maneuver_pickoff" },
 
-                            -- Platform footer (self-contained builder in _at_deps, not xlibs)
                             { id = "div_footer", type = "line" },
                             { id = "platform", type = "desc", text = "ui_mcm_xmcm_footer",
                                 ui_hook_functor = { _at_deps.get_platform_functor() }, clr = {255, 212, 201, 168} },                        },
@@ -858,8 +823,6 @@ function on_mcm_load()
     }
 end
 
--- Dump every MCM setting to the debug log: the runtime value per key, so a misread flag
--- (combat_enabled, ...) is visible at a glance after load_config has run.
 local function _log_mcm_settings()
     local parts = {}
     for key in pairs(defaults) do
