@@ -1,27 +1,54 @@
---- at_test: Console commands for AlifeTactics (squad spawn, dumps)
+--- at_test: Console commands for AlifeTactics (squad spawn, arena, lab stocking, dumps)
 
 local tostring, string_format, math_rad, math_cos, math_sin = tostring, string.format, math.rad, math.cos, math.sin
 local math_random, math_floor, math_pi = math.random, math.floor, math.pi
 local pairs, IsStalker, IsWeapon, get_object_squad = pairs, IsStalker, IsWeapon, get_object_squad
 local time_global, alife_object, level = time_global, alife_object, level
 local alife = alife
--- CreateTimeEvent NOT cached: demonized_time_events replaces it at runtime.
 
 local DEFAULT_SECTION  = "bandit_sim_squad_novice"
 local DEFAULT_DISTANCE = 50
 local INVALID_VERTEX   = 4294967295
 
--- The full effect-gear spread: one artefact of each anomaly class (gravi/chemical/thermal/electro/special),
--- a kevlar plate, and both optics - so every effects-resolver channel (resist, dispersion, damage, vision,
--- aura) fires on each carrier. Parented onto the server object BEFORE online (see _gear_members).
 local EFFECT_GEAR = { "af_gravi", "af_soul", "af_fireball", "af_electra_sparkler", "af_compass", "af_kevlar", "wpn_binoc", "device_torch_nv_1" }
+
+local ARENA_TICK_SEC     = 2
+local ARENA_RING_MIN     = 10
+local ARENA_RING_MAX     = 18
+local ARENA_MAX_PER_TICK = 8
+local ARENA_SPREAD_DEG   = 25
+local ARENA_SECTIONS = {
+    monolith = { "sim_default_monolith_1", "sim_default_monolith_2", "sim_default_monolith_3", "sim_default_monolith_4" },
+    army     = { "sim_default_military_1", "sim_default_military_2", "sim_default_military_3", "sim_default_military_4" },
+    ecolog   = { "sim_default_ecolog_0", "sim_default_ecolog_1", "sim_default_ecolog_2", "sim_default_ecolog_3", "sim_default_ecolog_4" },
+    csky     = { "sim_default_csky_0", "sim_default_csky_1", "sim_default_csky_2", "sim_default_csky_3", "sim_default_csky_4" },
+    renegade = { "sim_default_renegade_0", "sim_default_renegade_1", "sim_default_renegade_2" },
+}
+local ARENA_SIDE_A = { "army", "ecolog", "csky", "renegade" }
+
+local AP_RANK    = 14000
+local AP_BOXES   = 3
+local AP_PER_BOX = 15
+local AP_RADIUS  = 120
+
+local LAB_RADIUS_SQR  = 100 * 100
+local LAB_PERIOD_SEC  = 30
+local LAB_WEAPONS = { "wpn_svd", "wpn_spas12", "wpn_mp5", "wpn_pm" }
+
+local _strip_buf = {}
+local _arena_on = false
+local _arena_mode = nil
+local _arena_want = 0
+local _arena_center_lvid, _arena_gvid = nil, nil
+local _arena_side_dir = 0
+local _arena_spawned = {}
+local _lab_wpn_i = 0
+local _lab_loop_on = false
 
 local function _tip(msg)
     if db.actor then news_manager.send_tip(db.actor, msg, nil, nil, 5000) end
 end
 
--- Rotate a forward vector by angle_deg around Y (right-handed, Y up).
--- 0 = forward, 90 = right, -90 = left, 180 = behind.
 local function _rotate_y(dir, angle_deg)
     local rad = math_rad(angle_deg)
     local cos_a = math_cos(rad)
@@ -29,7 +56,6 @@ local function _rotate_y(dir, angle_deg)
     return vector():set(dir.x * cos_a + dir.z * sin_a, dir.y, -dir.x * sin_a + dir.z * cos_a)
 end
 
--- Drop `grenades` F1 grenades into each squad member's inventory (server-side, offline-safe). No-op when 0.
 local function _arm_members(squad, pos, lvid, gvid, grenades)
     local count = grenades or 0
     if count == 0 or squad:npc_count() == 0 then return end
@@ -41,7 +67,6 @@ local function _arm_members(squad, pos, lvid, gvid, grenades)
     end
 end
 
--- Parent-create the effect-gear spread onto one member's SERVER object (before online).
 local function _gear_one(sim, member_id, pos, lvid, gvid)
     for i = 1, #EFFECT_GEAR do
         if ini_sys:section_exist(EFFECT_GEAR[i]) then
@@ -50,10 +75,6 @@ local function _gear_one(sim, member_id, pos, lvid, gvid)
     end
 end
 
--- Gear every member BEFORE it onlines, the _arm_members pattern: a parented server-side create fires no
--- take event, so the gear is simply in the inventory when net_spawn fires and the effects resolver (and
--- every other net_spawn-evaluated system) reads it on the online transition - the real path, not a refresh
--- of an already-online NPC.
 local function _gear_members(squad, pos, lvid, gvid)
     if squad:npc_count() == 0 then return end
     local sim = alife()
@@ -62,13 +83,10 @@ local function _gear_members(squad, pos, lvid, gvid)
     end
 end
 
--- Reused scratch buffer + a single inventory functor (defined once, never per-loop) for weapon stripping.
-local _strip_buf = {}
 local function _buf_weapon(_owner, item)
     if IsWeapon(item) then _strip_buf[#_strip_buf + 1] = item:id() end
 end
 
--- Release every weapon in one online NPC's inventory. Returns the count removed.
 local function _strip_npc(sim, npc)
     for i = #_strip_buf, 1, -1 do _strip_buf[i] = nil end
     npc:iterate_inventory(_buf_weapon, npc)
@@ -80,8 +98,6 @@ local function _strip_npc(sim, npc)
     return removed
 end
 
--- Remove every weapon (rifle/pistol/knife) from each online squad member so the NPC reads as unarmed to
--- at_maneuvers (xcombat.get_weapon_kind -> nil). Members must be online; call a few seconds after spawn.
 local function _strip_weapons(squad)
     if squad:npc_count() == 0 then return 0 end
     local sim = alife()
@@ -93,8 +109,6 @@ local function _strip_weapons(squad)
     return removed
 end
 
--- Spawn at actor vertex then teleport to `distance` meters along (actor facing rotated by angle).
--- Off-map target vertex -> stay at actor.
 local function _spawn(section, distance, angle_deg, grenades)
     section   = section   or DEFAULT_SECTION
     distance  = distance  or DEFAULT_DISTANCE
@@ -150,7 +164,6 @@ local function _spawn(section, distance, angle_deg, grenades)
     return squad
 end
 
--- Spawn N squads in one call. Each entry: { section, distance, angle_deg }.
 local function _spawn_set(label, entries)
     for i = 1, #entries do
         local entry = entries[i]
@@ -158,8 +171,6 @@ local function _spawn_set(label, entries)
     end
     at_debug.info("[SPAWN] set=%s count=%d", label, #entries)
 end
-
--- Single squad, varied distance / direction / faction
 
 --- @export console
 function at_spawn()
@@ -256,7 +267,7 @@ function at_spawn_renegade()
     _spawn("renegade_sim_squad_novice", 50, 0)
 end
 
--- Give the actor a Fort-17 + three boxes of 9x18, so you can engage a spawned squad and hurt them (the flee test).
+--- Give the actor a Fort-17 + three boxes of 9x18 (engage a spawned squad, hurt them - the flee test)
 --- @export console
 function at_give_pistol()
     local id = db.actor and db.actor:id()
@@ -266,9 +277,7 @@ function at_give_pistol()
     _tip("AT.TEST: Fort-17 + 3 boxes 9x18 given")
 end
 
--- Spawn an armed military squad, then strip every weapon 3s later so each member reads as unarmed.
--- Tests that AT declines an unarmed NPC: get_weapon_kind returns nil so _can_seize is false, no takeover
--- fires, and vanilla drives the gunless NPC (its own rearm lives in the blocked combat planner).
+--- Spawn an armed military squad, strip every weapon 3s later - proves the unarmed seize decline
 --- @export console
 function at_spawn_unarmed()
     local squad = _spawn("army_sim_squad_novice", 40, 0)
@@ -283,43 +292,12 @@ function at_spawn_unarmed()
     end)
 end
 
--- Arena: keep a CONSTANT number of geared, fighting NPCs around you - respawn the dead each tick, release
--- corpses, so the effects resolver (and every net_spawn-evaluated system) fires continuously and the log
--- fills on its own. Each NPC onlines carrying the full EFFECT_GEAR spread (parented before online).
---   at_arena(n)     - n/2 side-a (army + the cowardly ecolog/csky/renegade) vs n/2 monolith; watch from the edge (default 16)
---   at_arena_me(n)  - n monolith hostile to everything including you
---   at_arena_stop() - stop and release everything
-local ARENA_TICK_SEC     = 2
-local ARENA_RING_MIN     = 10
-local ARENA_RING_MAX     = 18
-local ARENA_MAX_PER_TICK = 8
-local ARENA_SPREAD_DEG   = 25
-local ARENA_SECTIONS = {
-    monolith = { "sim_default_monolith_1", "sim_default_monolith_2", "sim_default_monolith_3", "sim_default_monolith_4" },
-    army     = { "sim_default_military_1", "sim_default_military_2", "sim_default_military_3", "sim_default_military_4" },
-    ecolog   = { "sim_default_ecolog_0", "sim_default_ecolog_1", "sim_default_ecolog_2", "sim_default_ecolog_3", "sim_default_ecolog_4" },
-    csky     = { "sim_default_csky_0", "sim_default_csky_1", "sim_default_csky_2", "sim_default_csky_3", "sim_default_csky_4" },
-    renegade = { "sim_default_renegade_0", "sim_default_renegade_1", "sim_default_renegade_2" },
-}
--- Side "a" faction roster: brave army (exercises retreat) plus the three cowardly flee-palette factions
--- (ecolog, clear sky, renegade). Monolith on side "b" is hostile to all of them - the universal
--- aggressor property at_arena_me relies on - so retreat AND flee both exercise in one arena.
-local ARENA_SIDE_A = { "army", "ecolog", "csky", "renegade" }
-local _arena_on = false
-local _arena_mode = nil
-local _arena_want = 0
-local _arena_center_lvid, _arena_gvid = nil, nil
-local _arena_side_dir = 0
-local _arena_spawned = {}
-
--- Parent the full effect-gear spread onto one NPC's server object before it onlines.
 local function _arena_gear(pos, lvid, id)
     for i = 1, #EFFECT_GEAR do
         if ini_sys:section_exist(EFFECT_GEAR[i]) then alife():create(EFFECT_GEAR[i], pos, lvid, _arena_gvid, id) end
     end
 end
 
--- A navmesh spot on the ring toward `angle` from the arena center, or nil.
 local function _arena_spawn_pos(angle)
     local dist = ARENA_RING_MIN + math_random() * (ARENA_RING_MAX - ARENA_RING_MIN)
     local dir = vector():set(math_cos(angle), 0, math_sin(angle))
@@ -328,8 +306,6 @@ local function _arena_spawn_pos(angle)
     return level.vertex_position(lvid), lvid
 end
 
--- Spawn one geared NPC for a side (a = army/ecolog/csky/renegade, b = monolith; me-mode = all monolith).
--- Returns true on spawn.
 local function _arena_spawn_one(side)
     local faction = (_arena_mode == "me" or side == "b") and "monolith"
         or ARENA_SIDE_A[math_random(1, #ARENA_SIDE_A)]
@@ -348,8 +324,6 @@ local function _arena_spawn_one(side)
     return true
 end
 
--- Reap one tracked NPC: release its corpse the tick after death is first seen. Returns its side if alive,
--- else nil (gone or dead-pending).
 local function _arena_reap(id, rec)
     local se = alife_object(id)
     if not se then _arena_spawned[id] = nil return nil end
@@ -363,7 +337,6 @@ local function _arena_reap(id, rec)
     return nil
 end
 
--- Count the living per side, releasing corpses as it goes.
 local function _arena_census()
     local alive_a, alive_b = 0, 0
     for id, rec in pairs(_arena_spawned) do
@@ -374,7 +347,6 @@ local function _arena_census()
     return alive_a, alive_b
 end
 
--- Top up one side (me-mode) to the deficit, budget-capped.
 local function _arena_topup_me(alive_a)
     local budget = ARENA_MAX_PER_TICK
     local deficit = _arena_want - alive_a
@@ -384,7 +356,6 @@ local function _arena_topup_me(alive_a)
     end
 end
 
--- Top up both sides (war-mode) toward half each, budget-capped, favouring the emptier side.
 local function _arena_topup_war(alive_a, alive_b)
     local budget = ARENA_MAX_PER_TICK
     local half = math_floor(_arena_want / 2)
@@ -396,7 +367,6 @@ local function _arena_topup_war(alive_a, alive_b)
     end
 end
 
--- One maintenance pass: census (with corpse release) then top up to _arena_want.
 local function _arena_tick()
     if not _arena_on then return true end
     ResetTimeEvent("at_arena", "tick", ARENA_TICK_SEC)
@@ -420,19 +390,18 @@ local function _arena_start(mode, count)
 end
 
 --- Keep n/2 side-a (army + cowardly ecolog/csky/renegade) vs n/2 monolith fighting around you, all geared
---- (default 16). The cowardly factions exercise flee, army exercises retreat. Watch from the edge.
 --- @export console
 function at_arena(count)
     _arena_start("war", count)
 end
 
---- Keep n monolith around you, hostile to everything including you, all geared.
+--- Keep n monolith around you, hostile to everything including you, all geared
 --- @export console
 function at_arena_me(count)
     _arena_start("me", count)
 end
 
---- Stop the arena and release every NPC it spawned.
+--- Stop the arena and release every NPC it spawned
 --- @export console
 function at_arena_stop()
     _arena_on = false
@@ -446,19 +415,6 @@ function at_arena_stop()
     _tip(string_format("AT.ARENA: stopped, released %d", released))
 end
 
--- Test helper for at_ammo: arm every online stalker near the actor with AP boxes
--- matching its weapon plus a veteran rank, so it fires AP. Spawn hostile factions
--- (at_spawn_mixed / at_spawn_*), run at_arm_ap, let them fight, and watch
--- alifetactics.log for the [AP] engage / disengage lines (log level DEBUG).
--- The AP section set is at_ammo.AP_SECTIONS - one set, arming and firing agree.
-
--- Test arming: veteran rank so AP fires, 3 boxes of 15 rounds each, within 120m.
-local AP_RANK    = 14000
-local AP_BOXES   = 3
-local AP_PER_BOX = 15
-local AP_RADIUS  = 120
-
--- First AP section in the weapon's ammo_class, or nil if it fires no AP variant.
 local function _ap_for_weapon(wpn_sec)
     local ammo_class = parse_list(ini_sys, wpn_sec, "ammo_class")
     if not ammo_class then return nil end
@@ -468,8 +424,6 @@ local function _ap_for_weapon(wpn_sec)
     return nil
 end
 
--- Give one online stalker AP boxes for its weapon plus a veteran rank. Returns true if armed.
--- Skips an NPC already carrying that AP section, so a periodic caller (at_lab_loop) does not stack boxes.
 local function _arm_ap(npc)
     local wpn = npc:active_item()
     if not (wpn and IsWeapon(wpn)) then return false end
@@ -481,7 +435,7 @@ local function _arm_ap(npc)
     return true
 end
 
--- Arm every online stalker within AP_RADIUS of the actor so they fire AP when they fight.
+--- Arm every online stalker within 120m with AP for its weapon plus a veteran rank
 --- @export console
 function at_arm_ap()
     if not db.actor then return end
@@ -503,27 +457,12 @@ function at_arm_ap()
         armed, seen, AP_RANK))
 end
 
--- The lab harness: stock every nearby stalker so all AlifeTactics systems have fuel.
--- Per pass: a medkit + bandage to anyone missing them (Healing spends them when hurt), AP boxes +
--- veteran rank for the active weapon (Ammo fires them; the rank also moves the Accuracy tier and the
--- healing-charge tier), and one palette weapon per squad (kind variety - a long rifle feeds pickoff, a
--- shotgun/pistol feeds the kite range bands). Fights, hits, and heals then show in alifetactics.log
--- under [AP] / [HEAL] / [LIMP] / [ACC] / [DISCLOSURE] / [CROSSFIRE] / [JAM] / monitor with log
--- level DEBUG. Effect gear (artefacts/kevlar/optics) is spawned WITH the NPC by _gear_members, not here.
-
-local LAB_RADIUS_SQR  = 100 * 100
-local LAB_PERIOD_SEC  = 30
-local LAB_WEAPONS = { "wpn_svd", "wpn_spas12", "wpn_mp5", "wpn_pm" }
-local _lab_wpn_i = 0
-
--- Give one item unless already carried (loop-safe).
 local function _lab_ensure(npc, section)
     if npc:object(section) ~= nil then return 0 end
     xinventory.create_item(section, npc:id())
     return 1
 end
 
--- Give the next palette weapon + 2 ammo boxes (the engine equips it when it scores higher).
 local function _lab_give_weapon(npc)
     _lab_wpn_i = _lab_wpn_i + 1
     local sec = LAB_WEAPONS[((_lab_wpn_i - 1) % #LAB_WEAPONS) + 1]
@@ -538,8 +477,6 @@ local function _lab_give_weapon(npc)
     return sec
 end
 
--- Stock one NPC: meds, AP + rank, and the squad's palette weapon (once per squad per pass).
--- Returns (items_given, ap_armed 0|1, weapon_given 0|1).
 local function _lab_stock_npc(npc, squads)
     local items = _lab_ensure(npc, "medkit") + _lab_ensure(npc, "bandage")
     local ap = _arm_ap(npc) and 1 or 0
@@ -549,7 +486,6 @@ local function _lab_stock_npc(npc, squads)
     return items, ap, 1
 end
 
--- One pass over online stalkers near the actor. Squads get their weapon once per pass (first member).
 local function _lab_pass()
     if not db.actor then return end
     local apos = db.actor:position()
@@ -572,13 +508,11 @@ local function _lab_pass()
     _tip(string_format("AT.LAB: %d NPCs stocked, %d items, %d AP-armed, %d squad weapons", seen, items, aps, weapons))
 end
 
---- One harness pass: stock every nearby stalker (meds, AP + rank, squad weapons).
+--- One harness pass: stock every nearby stalker (meds, AP + rank, squad weapons)
 --- @export console
 function at_lab()
     _lab_pass()
 end
-
-local _lab_loop_on = false
 
 local function _lab_tick()
     if not _lab_loop_on then return true end
@@ -586,7 +520,7 @@ local function _lab_tick()
     ResetTimeEvent("at_lab", "loop", LAB_PERIOD_SEC)
 end
 
---- Toggle the periodic harness: a stocking pass every 30s until toggled off.
+--- Toggle the periodic harness: a stocking pass every 30s until toggled off
 --- @export console
 function at_lab_loop()
     if _lab_loop_on then
@@ -604,9 +538,7 @@ function at_lab_loop()
     _tip("AT.LAB: loop started (a pass every " .. LAB_PERIOD_SEC .. "s)")
 end
 
--- Multi-squad scenarios (combat planner stress tests)
-
--- 3 bandit squads in a line ahead. Tests mode progression as NPCs close to floor.
+--- Three bandit squads in a line ahead
 --- @export console
 function at_spawn_horde()
     _spawn_set("horde", {
@@ -616,7 +548,7 @@ function at_spawn_horde()
     })
 end
 
--- 2 squads on opposite flanks. Tests multi-direction reservation + mode-per-NPC.
+--- Two squads on opposite flanks
 --- @export console
 function at_spawn_pincer()
     _spawn_set("pincer", {
@@ -625,8 +557,7 @@ function at_spawn_pincer()
     })
 end
 
--- 4 squads in a circle around actor. Cover convergence stress (many NPCs picking
--- cover in same area). Validates db.used_level_vertex_ids reservation.
+--- Four squads in a circle around the actor (cover-reservation stress)
 --- @export console
 function at_spawn_swarm()
     _spawn_set("swarm", {
@@ -637,10 +568,7 @@ function at_spawn_swarm()
     })
 end
 
--- Mixed faction wave: bandits ahead, military flank, monolith behind. Tests
--- different communities (monolith and zombied are excluded from flee/retreat only;
--- the universal rows - counterflank, kite, pickoff - still fire for them), different
--- weapon loadouts, simultaneous tracking.
+--- Mixed faction wave: bandits ahead, military flank, monolith behind
 --- @export console
 function at_spawn_mixed()
     _spawn_set("mixed", {
@@ -650,8 +578,7 @@ function at_spawn_mixed()
     })
 end
 
--- Dumps
-
+--- Dump the disclosure counters to the log and a tip
 --- @export console
 function at_dump()
     if not db.actor then return end
@@ -661,6 +588,3 @@ function at_dump()
     _tip(string_format("AT.TEST: hits=%d loud=%d stamps=%d redirect=%s (see alifetactics.log)",
         stats.hits, stats.loud, stats.stamps, tostring(stats.has_redirect)))
 end
-
--- Combat telemetry dump removed: the DEBUG alifetactics.log already carries the per-decision
--- scan / decide / eval lines, so no separate console aggregate is needed.
