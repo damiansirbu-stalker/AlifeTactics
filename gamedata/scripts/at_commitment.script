@@ -139,7 +139,7 @@ local function _on_action_switch(npc, from_op, to_op, flags)
     if not _attack_ops then _resolve_ops() end
     _census_switch(npc, from_op, to_op)
     if not cfg.commitment_enabled then return end
-    if xcreature.is_zombied(npc) then return end
+    if not at_faction.has_flavor(npc, "commitment") then return end
     local is_fire_exit  = _attack_ops[from_op] and _cover_ops[to_op]
     local is_flank_exit = from_op == stalker_ids.action_detour_enemy and to_op == stalker_ids.action_take_cover
     if not (is_fire_exit or is_flank_exit) then return end
@@ -232,7 +232,7 @@ local function _on_cover_repick(npc, flags)
     if not _attack_ops then _resolve_ops() end
     local id = npc:id()
     if not _attack_ops[_cur_op[id]] then return end
-    if xcreature.is_zombied(npc) then return end
+    if not at_faction.has_flavor(npc, "commitment") then return end
     local enemy = xcombat.get_best_enemy(npc)
     if not enemy then _log_decline(npc, id, "cover_no_enemy") return end
     if not xcombat.sees(npc, enemy) then _log_decline(npc, id, "cover_no_sight") return end

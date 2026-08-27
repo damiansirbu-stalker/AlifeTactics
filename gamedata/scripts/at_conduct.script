@@ -1,7 +1,7 @@
 --- at_conduct: the Conduct habits (Combat > Conduct) - cover posture and weapon spacing on vanilla-driven NPCs
 
 local RegisterScriptCallback = RegisterScriptCallback
-local tostring, time_global, math_random = tostring, time_global, math.random
+local tostring, time_global = tostring, time_global
 local math_floor, string_gmatch = math.floor, string.gmatch
 
 local cfg = at_mcm.cfg
@@ -13,7 +13,6 @@ local LONG_KINDS
 local POSTURE_TIERS
 local DECIDE_MS
 local CONDUCT_FLOOR_M
-local CROUCH_CHANCE
 local SPACING_MAX_K
 local SPACING_SNIPER_MIN_K
 local SPACING_TTL_MS
@@ -34,7 +33,6 @@ local _spacing_active = false
 local function _load_config()
     local ini = ini_file(LTX_PATH)
     local function read_int(k, d) local v = ini:r_float_ex(LTX_SECTION, k) return v and math_floor(v) or d end
-    local function read_float(k, d) return ini:r_float_ex(LTX_SECTION, k) or d end
     local function read_set(k, d)
         local raw = ini:r_string_ex(LTX_SECTION, k)
         if not raw then return d end
@@ -44,7 +42,6 @@ local function _load_config()
     end
     DECIDE_MS       = read_int("decide_ms", 3000)
     CONDUCT_FLOOR_M = read_int("conduct_floor_m", 20)
-    CROUCH_CHANCE   = read_float("crouch_chance", 0.30)
     SPACING_TTL_MS  = read_int("spacing_ttl_ms", 5000)
     LONG_KINDS      = read_set("posture_kinds", { w_rifle = true, w_sniper = true })
     POSTURE_TIERS   = read_set("posture_tiers", { experienced = true, professional = true,
@@ -86,12 +83,12 @@ local function _decide(npc, enemy)
     return move.crouch, true
 end
 
---- Tier and the crouch-disposition roll, cached once per NPC life.
+--- Tier and the crouch-disposition roll (at_faction conduct_crouch), cached once per NPC life.
 local function _is_eligible(npc, id)
     local ok = _eligible[id]
     if ok == nil then
         ok = POSTURE_TIERS[ranks.get_obj_rank_name(npc) or ""] == true
-            and math_random() < CROUCH_CHANCE
+            and at_faction.has_flavor(npc, "conduct_crouch")
         _eligible[id] = ok
     end
     return ok

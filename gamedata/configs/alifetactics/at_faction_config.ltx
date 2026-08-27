@@ -1,0 +1,109 @@
+; AlifeTactics faction flavor - the chance a faction's stalker carries each behavior. Paired with
+; gamedata/scripts/at_faction.script. Section = faction, key = the decision, value = 0..1.
+; Lookup: [<faction>] key, else [default] key, else 1 (carries it). The answer is rolled once per
+; NPC per key and held for the fight; 0 and 1 never roll. Zombied carry 0 on everything - this
+; file is also the zombied participation filter.
+
+[default]
+maneuver_flee    = 0
+conduct_crouch   = 0.3
+
+[stalker]
+maneuver_flee    = 0.5
+maneuver_pickoff = 0.8
+behavior_push    = 0.5
+behavior_pull    = 0.5
+
+[army]
+maneuver_retreat = 0.8
+behavior_push    = 0.7
+behavior_pull    = 0.7
+conduct_crouch   = 0.6
+
+[dolg]
+maneuver_retreat = 0.8
+maneuver_pickoff = 0.9
+behavior_push    = 0.7
+behavior_pull    = 0.7
+conduct_crouch   = 0.6
+
+[freedom]
+maneuver_retreat = 0.8
+maneuver_pickoff = 0.8
+behavior_push    = 0.6
+behavior_pull    = 0.7
+conduct_crouch   = 0.45
+
+[isg]
+maneuver_retreat = 0.8
+behavior_push    = 0.7
+behavior_pull    = 0.7
+conduct_crouch   = 0.6
+
+[killer]
+maneuver_flee    = 0.2
+maneuver_retreat = 0.8
+behavior_push    = 0.6
+behavior_pull    = 0.6
+conduct_crouch   = 0.45
+
+[monolith]
+maneuver_retreat = 0
+behavior_pull    = 0
+conduct_crouch   = 0.6
+
+[greh]
+maneuver_retreat = 0.3
+maneuver_pickoff = 0.8
+behavior_push    = 0.9
+behavior_pull    = 0.4
+conduct_crouch   = 0.25
+
+[bandit]
+maneuver_flee    = 0.6
+maneuver_kite    = 0.9
+maneuver_pickoff = 0.6
+behavior_push    = 0.9
+behavior_pull    = 0.8
+conduct_crouch   = 0.25
+
+[renegade]
+maneuver_flee    = 0.7
+maneuver_kite    = 0.8
+maneuver_pickoff = 0.6
+behavior_push    = 0.9
+behavior_pull    = 0.9
+conduct_crouch   = 0.2
+
+[csky]
+maneuver_flee    = 0.9
+maneuver_kite    = 0.7
+maneuver_pickoff = 0.6
+behavior_push    = 0.4
+conduct_crouch   = 0.2
+
+[ecolog]
+maneuver_flee    = 1
+maneuver_kite    = 0.6
+maneuver_pickoff = 0.4
+behavior_push    = 0.2
+conduct_crouch   = 0.15
+
+[zombied]
+maneuver_counterflank = 0
+maneuver_reload_cover = 0
+maneuver_flee    = 0
+maneuver_retreat = 0
+maneuver_kite    = 0
+maneuver_pickoff = 0
+behavior_push    = 0
+behavior_pull    = 0
+conduct_crouch   = 0
+accuracy         = 0
+reaction         = 0
+disclosure       = 0
+crossfire        = 0
+gear             = 0
+healing          = 0
+commitment       = 0
+danger           = 0

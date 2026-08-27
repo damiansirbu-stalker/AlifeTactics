@@ -1,7 +1,12 @@
 next
-  Summary: Push and Pull windows, Weapon spacing, Glide stop, Disclosure rework, target priority dial, Zombie stance, Gear toggles, Discipline menu, Danger fix
+  Summary: Faction flavor, Push and Pull windows, Weapon spacing, Glide stop, Disclosure rework, target priority dial, Zombie stance, Gear toggles, Discipline menu, Danger fix
 
   Combat
+    Faction flavor
+      - Added Faction flavor: every faction fights its own way. Whether a stalker routs, pulls back to cover, presses your empty magazine, plants for deliberate shots,
+          backs out of close range, or takes a tactical crouch is now a per-faction chance, rolled once per stalker per fight so each man stays consistent while it lasts.
+          Ecologists run and rarely press, bandits and renegades press hard, the militarized factions hold order and do not rout, Monolith never backs down.
+          Zombied sit at zero across every system through the same file. Every number is one line in at_faction_config.ltx, per faction and per behavior.
     Maneuvers
       - Stalkers hit mid reaction no longer slide across the ground with their feet still. A standing stalker is held planted while the hit animation plays
           and resumes his route the moment it ends. Its own Hit reaction hold switch. Needs a modded exes build carrying PR #645, older builds keep vanilla movement.

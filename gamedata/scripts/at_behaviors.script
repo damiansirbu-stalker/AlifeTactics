@@ -49,11 +49,6 @@ local function _load_config()
     PULL_BAND_FLOOR_M  = read_int("pull_band_floor_m",  8)
 end
 
-local function _is_zombied(npc, state)
-    if state.zombied == nil then state.zombied = xcreature.is_zombied(npc) end
-    return state.zombied
-end
-
 local function _open_window(cause, tg)
     _push = { cause = cause, opened_at = tg }
     if at_debug.on() then at_debug.dbg("[PUSH] open cause=%s", cause) end
@@ -153,8 +148,7 @@ local function _write_push_band(state, advantage, dist, cause)
     end
 end
 
-local function _check_push_target(npc, state)
-    if _is_zombied(npc, state) then return false end
+local function _check_push_target(npc)
     local enemy = xcombat.get_best_enemy(npc)
     return enemy ~= nil and enemy:id() == AC_ID
 end
@@ -171,7 +165,8 @@ local function _update_push_npc(npc, state, tg)
         _clear_push_npc(npc, state, win and "seized" or "closed", tg)
         return
     end
-    if not _check_push_target(npc, state) then
+    if not at_faction.has_flavor(npc, "behavior_push") then return end
+    if not _check_push_target(npc) then
         _clear_push_npc(npc, state, "not_fighting_target", tg)
         return
     end
@@ -206,9 +201,10 @@ local function _clear_pull_npc(npc, state, why, tg)
 end
 
 local function _try_open_pull(npc, state, tg)
+    if not at_faction.has_flavor(npc, "behavior_pull") then return end
     if tg < (state.pull_until or 0) then return end
     if _actor_frac < PULL_STRONG_FRAC then return end
-    if not _check_push_target(npc, state) then return end
+    if not _check_push_target(npc) then return end
     if not at_conduct.is_spacing_active() then return end
     local cause = _get_pull_cause(npc, state, tg, false)
     if not cause then return end

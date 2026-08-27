@@ -4,7 +4,7 @@ local math_max, math_min, tostring = math.max, math.min, tostring
 local IsStalker, AC_ID, type = IsStalker, AC_ID, type
 local RegisterScriptCallback, ini_file, ini_sys = RegisterScriptCallback, ini_file, ini_sys
 local level = level
-local xinventory, xcreature, xprofiler = xinventory, xcreature, xprofiler
+local xinventory, xprofiler = xinventory, xprofiler
 local at_debug, at_effects_resolver, xcombat = at_debug, at_effects_resolver, xcombat
 local EFFECT = at_effects_resolver.EFFECT
 
@@ -90,7 +90,7 @@ local function _resolve(id)
     local record = {
         resist = acc.resist, plate = acc.plate, dealt = acc.dealt, disp = acc.disp, regen = regen,
         binoc = acc.binoc, nvg = acc.nvg, aura = acc.aura,
-        combat = not xcreature.is_zombied(npc),
+        combat = at_faction.has_flavor(npc, "gear"),
     }
     _resolved[id] = record
     timer:stop()

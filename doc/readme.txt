@@ -34,6 +34,7 @@ Threat, accuracy, and the rest read state and decide the same way.
 
 Effects:
 - Creatures make emergent decisions from environment, own state, enemy state, squad state, weapons, and faction doctrine.
+- Every faction fights its own way: who routs, who presses your weak moment, who plants for deliberate shots, who crouches on the line, who never backs down.
 - Nothing is player-centric, and no side gets an advantage or a handicap.
 - Creatures use the items they acquired themselves: medkits, ammo, props.
 - Rank scales accuracy, weapon spread, aim speed, and how tightly a stalker tracks you, which vanilla clamps flat.
@@ -58,15 +59,23 @@ Every system below has its own MCM page in this order, where it is toggled and t
 
 Combat
 
+Faction flavor:
+Every faction fights its own way. Whether a stalker routs, pulls back, presses your empty magazine, plants for deliberate shots, backs out of close range,
+or takes a tactical crouch is a per-faction chance, rolled once per stalker per fight, so each man stays consistent while the fight lasts.
+Ecologists run from a losing fight and rarely press yours. Bandits and renegades press hard and rarely hold a disciplined standoff.
+The militarized factions crouch on the firing line, withdraw in order, and do not rout. Monolith never backs down. Loners sit in the middle,
+mercenaries beside them with the military edge. Zombied carry none of it.
+Every number is one line in at_faction_config.ltx, per faction and per behavior, yours to tune.
+
 Maneuvers:
 A maneuver takes one stalker over completely to perform what the vanilla engine cannot, either a mechanic it lacks or a decision it never makes.
-Planned: whole squads coordinating their movement and fire, each faction fighting in its own flavor and favoring the maneuvers that suit it.
+Planned: whole squads coordinating their movement and fire, each faction favoring the maneuvers that suit it.
 
 These maneuvers cover the moments vanilla fumbles:
   Counterflank snaps a stalker around when a hostile player stands at contact range while he shoots someone far away.
   Reload Cover sends a stalker caught reloading in your line of fire to the nearest cover instead of standing in the open, and his weapon finishes reloading on the way.
-  Flee routs a cautious faction to a distant friendly base, because a coward runs before he fights.
-  Retreat pulls a steady one to cover under pressure, and a coward whose escape is cut off does the same.
+  Flee routs a flee-prone faction to a distant friendly base, because a coward runs before he fights.
+  Retreat pulls a steadier one to cover under pressure, and a coward whose escape is cut off does the same.
   Kite backs a stalker out of an enemy that closed too near, still firing.
   Pickoff plants a stalker who has his enemy outranged and picks him off with deliberate single shots, breaking off the moment the threat returns.
 

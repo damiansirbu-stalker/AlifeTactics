@@ -14,7 +14,7 @@ local _move = {}
 
 local function _disp_provider(obj)
     if not cfg.disp_enabled then return nil end
-    if xcreature.is_zombied(obj) then return nil end
+    if not at_faction.has_flavor(obj, "accuracy") then return nil end
     local tier = _get_obj_rank_name(obj)
     if not tier or tier == "" then return nil end
     return _disp[tier]
@@ -23,7 +23,7 @@ end
 local function _on_move_penalty(obj, wpn, body_state, move_type, temp_disp)
     if not cfg.move_enabled then return end
     if not (obj and temp_disp and temp_disp.dispersion) then return end
-    if xcreature.is_zombied(obj) then return end
+    if not at_faction.has_flavor(obj, "accuracy") then return end
     if not (move_type and move_type <= MT_RUN) then return end
 
     local tier = _get_obj_rank_name(obj)
