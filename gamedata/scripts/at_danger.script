@@ -361,13 +361,14 @@ local function eval_danger(self)
 	if prof then timer:stop() local now_us = timer:get_us() _seg_dtime = now_us - seg_mark seg_mark = now_us timer:start() end
 	if type(cur_danger_time) ~= "number" then cur_danger_time = 0 end
 
-	if (type(self.a.inertion) == "number" and type(self.a.danger_time) == "number") then
-		if (self.a.type ~= bd_type and cur_danger_time > self.a.danger_time) then
+	local a = self.a
+	if (type(a.inertion) == "number" and type(a.danger_time) == "number") then
+		if (a.type ~= bd_type and cur_danger_time > a.danger_time) then
 
 		else
-			if (tg < self.a.danger_time + self.a.inertion) then
+			if (tg < a.danger_time + a.inertion) then
 				return true
-			elseif (cur_danger_time <= self.a.danger_time) then
+			elseif (cur_danger_time <= a.danger_time) then
 				return false
 			end
 		end
