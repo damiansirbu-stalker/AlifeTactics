@@ -626,7 +626,7 @@ Themrdemonized's `gamedata/scripts/xr_weapon_jam.script` (packed in `00_modded_e
 
 ### What we override
 
-`at_jam.script` saves the original function reference at install and replaces it with one that reads `at_mcm.get_config("jam_enabled")`:
+`at_jam.script` saves the original function reference at install and replaces it with one that reads a snapshot boolean (`_jam_enabled`, refreshed on every option change - the functor runs per NPC shot, so the hot path never calls a live config read):
 
 - `jam_enabled == true` (default): return 0 regardless of weapon, npc, or base_value.
 - `jam_enabled == false`: forward `(weapon, npc, base_value)` to the saved original. Modded-exes behavior restored.
@@ -635,7 +635,7 @@ The engine gates the functor call to non-actor parents at `Weapon.cpp:1778`. Act
 
 ### Version requirement
 
-The engine functor lookup at `Weapon.cpp:1781` was added in demonized commit `f27211ad`, first released as tag `2026.6.1` (2026-06-01). Before that release the script handled misfires via `npc_on_update` + `itm:unload_magazine()` (the older mag-dump approach); `GetConditionMisfireProbability` did not exist as a module field. Our override installs to a missing field on older releases, the engine never calls it, no error fires. AlifeTactics's `DEMONIZED_MIN_VERSION` is not raised for this; the feature is informational at the dep gate layer. On AOEngine the `xr_weapon_jam` module is not loaded (no modded-exes db0 overlay), and the `if xr_weapon_jam then` guard skips the install entirely.
+The engine functor lookup at `Weapon.cpp:1781` was added in demonized commit `f27211ad`, first released as tag `2026.6.1` (2026-06-01). Before that release the script handled misfires via `npc_on_update` + `itm:unload_magazine()` (the older mag-dump approach); `GetConditionMisfireProbability` did not exist as a module field. The install captures the original functor FIRST and installs only when it is a real function: vanilla Anomaly's `xr_weapon_jam` has the module but not the functor, and a wrapper closing over a nil original is harmless while jam is enabled yet a nil-call crash the moment it is disabled (the disabled path forwards to the original) - so an absent functor logs a WARN and the module stays inert. AlifeTactics's `DEMONIZED_MIN_VERSION` is not raised for this; the feature is informational at the dep gate layer. On AOEngine the `xr_weapon_jam` module is not loaded (no modded-exes db0 overlay) and the same guard covers it. The suppressed rolls summarize to one `[JAM]` line per 200; the reload-start evidence lives on at_combat's `[RELOAD]` edge traces, where a near-full `mag_left` means the planner topping up, not a misfire.
 
 ### MCM
 

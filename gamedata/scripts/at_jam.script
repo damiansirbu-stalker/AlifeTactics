@@ -1,40 +1,14 @@
 --- at_jam: Suppress modded-exes script-injected NPC weapon misfires
----
---- The themrdemonized modded-exes overlay ships `xr_weapon_jam.script` with a
---- `GetConditionMisfireProbability(weapon, npc, base_value)` functor that the
---- engine calls per-shot from `Weapon.cpp:1781`. The default subscriber
---- (`npc_misfire`) rolls a per-rank chance against ammo spent and on a hit
---- returns 1.0, forcing the engine's `CheckForMisfire()` at `Weapon.cpp:1791`
---- to set `bMisfire = true`. That triggers a reload to clear the misfire flag
---- (`Weapon.cpp:484` clears it on `ReloadMagazine`), producing the
---- "fire 2-3 rounds then reload" symptom even on full-condition NPC weapons.
----
---- This monkey-patches the functor to return 0 for all non-actor weapons.
---- Engine `Weapon.cpp:1778` already gates the functor call to non-actor parents,
---- so actor's own condition-based misfire mechanic is unaffected.
 
 local RegisterScriptCallback, type = RegisterScriptCallback, type
 
-local _original
--- Snapshot of the jam_enabled MCM value (mcm.md snapshot pattern): the functor runs per NPC shot,
--- so it reads this boolean instead of a live ui_mcm.get; refreshed on every option change.
-local _jam_enabled = true
--- Suppressed-roll counter, summarized to the debug log every SUMMARY_EVERY rolls (a per-shot line
--- would flood; the counter is one pure-Lua increment per NPC shot).
-local _suppressed = 0
 local SUMMARY_EVERY = 200
 
--- The reload-start trace (the "reloading for nothing" evidence: a near-full mag_left is the planner
--- topping up, not a misfire) lives on at_combat's [RELOAD] edge handlers (the n031 reload events);
--- the old npc_on_update poll here was the mod's one per-frame subscriber and is gone.
+local _original
+local _jam_enabled = true
+local _suppressed = 0
 
 local function _install()
-    -- Capture the original functor first and install the wrapper only if it is a real function
-    -- (ap_core_anomaly_fixes.script:32 pattern). GetConditionMisfireProbability is a demonized
-    -- modded-exes addition (gamedata/scripts/xr_weapon_jam.script:19); vanilla Anomaly's
-    -- xr_weapon_jam has the module but not the functor. Guarding only `xr_weapon_jam` would install
-    -- a wrapper closing over a nil _original: harmless while jam is enabled (returns 0 without
-    -- calling it), a nil-call crash the moment jam is disabled (the disabled path calls _original).
     _original = xr_weapon_jam and xr_weapon_jam.GetConditionMisfireProbability
     if type(_original) ~= "function" then
         at_debug.warn("xr_weapon_jam.GetConditionMisfireProbability not present; NPC misfire suppression inert")
