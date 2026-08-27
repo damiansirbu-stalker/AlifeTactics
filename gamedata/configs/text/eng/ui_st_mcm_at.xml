@@ -995,7 +995,7 @@
   </string>
   <!-- ==================== AMMO PAGE ==================== -->
   <string id="ui_mcm_at_ammo_desc">
-    <text>Stalkers fire the ammunition they actually carry. Veteran-rank and higher use the armor-piercing rounds from their own inventory, with real ballistics, and revert to standard rounds when the supply runs out. Each fight has a chance to consume one carried AP box, and faster weapons and lower ranks burn it sooner. The AP comes from the world through trade and looting, so what a stalker scavenged shapes how dangerous he is, and he drops none of it as loot. Rank threshold and drain rate tune in configs/alifetactics/at_ammo.ltx.</text>
+    <text>Stalkers fire the ammunition they actually carry. Veteran-rank and higher use the armor-piercing rounds from their own inventory, with real ballistics, and revert to standard rounds when the supply runs out. Each fight has a chance to consume one carried AP box, and faster weapons and lower ranks burn it sooner. The AP comes from the world through trade and looting, so what a stalker scavenged shapes how dangerous he is, and he drops none of it as loot. Rank threshold and drain rate tune in configs/alifetactics/at_ammo_config.ltx.</text>
   </string>
   <string id="ui_mcm_at_fixes_ammo_ammo_enabled">
     <text>NPC armor-piercing ammo</text>

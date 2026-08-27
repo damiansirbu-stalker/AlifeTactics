@@ -202,7 +202,7 @@ Ammo:
 NPCs fire the ammunition they actually carry, not infinite generic rounds.
 Veteran-rank and higher stalkers use armor-piercing rounds from their own inventory, with real ballistics, and fall back to standard rounds once it runs out.
 That AP comes from trade and looting through the Alife Collection, so what an NPC scavenged shapes how dangerous he is. NPCs drop no AP as loot.
-Rank threshold and consumption rate are tunable in configs/alifetactics/at_ammo.ltx.
+Rank threshold and consumption rate are tunable in configs/alifetactics/at_ammo_config.ltx.
 
 Gear:
 Items a stalker carries give him combat advantages, read from each item's own game data, so artefacts from any mod work.

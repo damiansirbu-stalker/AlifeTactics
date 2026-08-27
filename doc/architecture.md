@@ -56,7 +56,7 @@ Version 1.1.5.
 | `configs/ai_tweaks/mod_xr_eat_medkit_at.ltx` | data | done |
 | `configs/ai_tweaks/mod_xr_danger_at.ltx` | data | done (delete-lines-only DLTX: drops the collision keys; the copied value rows removed 2026-07-10) |
 | `configs/alifetactics/at_combat_config.ltx` | data | done (Combat takeover tunables) |
-| `configs/alifetactics/at_ammo.ltx` | data | done (Ammo tunables) |
+| `configs/alifetactics/at_ammo_config.ltx` | data | done (Ammo tunables) |
 | `configs/alifetactics/at_reaction.ltx` | data | done (Reaction curves; the MCM slider defaults read from it) |
 | `configs/ui/ui_at_stats.xml` | data | done (at_hud layout) |
 
@@ -88,7 +88,7 @@ AlifeTactics/
 │   │   ├── alifetactics/
 │   │   │   ├── at_combat_config.ltx           # Combat numeric tunables
 │   │   │   ├── at_reaction.ltx                # Reaction + vision curves (MCM slider defaults)
-│   │   │   ├── at_ammo.ltx                    # Ammo tunables
+│   │   │   ├── at_ammo_config.ltx             # Ammo tunables
 │   │   │   └── at_gear.ltx                    # Gear tunables + artefact class tables
 │   │   ├── ui/
 │   │   │   └── ui_at_stats.xml                # at_hud HUD layout
@@ -647,18 +647,18 @@ The engine functor lookup at `Weapon.cpp:1781` was added in demonized commit `f2
 
 Veteran-rank-and-up NPCs fire AP from the loose ammo they carry; each engagement has a rank- and fire-rate-weighted chance to consume one AP box, until the NPC runs out and reverts to vanilla magic FMJ. NPCs drop no AP boxes as loot.
 
-Engine context: while `unlimited_ammo()` is TRUE (the stalker default, `ai_stalker.cpp:78,1585`) the magic refill at `WeaponMagazined.cpp:559-571` copies `m_DefaultCartridge` keyed from `m_ammoTypes[m_ammoType]` and never consumes inventory, and the reload does not re-derive `m_ammoType` -- so `wpn:set_ammo_type(idx)` re-keys what is fired and holds for the online session. `get_ammo_count_for_type` sums loose belt+ruck boxes only (`Weapon.cpp:1727`), so the AP an NPC carries comes from AlifePlus trade/loot; vanilla gives NPCs zero loose ammo (`xrs_rnd_npc_loadout.script:215`, ammo-give block commented out).
+Engine context: while `unlimited_ammo()` is TRUE (the stalker default, `ai_stalker.cpp:78,1585`) the magic refill at `WeaponMagazined.cpp:559-571` copies `m_DefaultCartridge` keyed from `m_ammoTypes[m_ammoType]` and never consumes inventory, and the reload does not re-derive `m_ammoType` -- so `wpn:set_ammo_type(idx)` re-keys what is fired and holds for the online session. `get_ammo_count_for_type` sums loose belt+ruck boxes only (`Weapon.cpp:1727`), so the AP an NPC carries comes from AlifePlus trade/loot; vanilla gives NPCs zero loose ammo (`xrs_rnd_npc_loadout.script:215`, ammo-give block commented out). At `g_ai_unlimited_ammo` 0 the engine consumes real inventory rounds and the whole-box decay would double-consume, so `pick` goes inert (one INFO line marks it, so a silent module is distinguishable from a broken one); the cvar is probed via `get_console():get_string`, the one getter that signals absence without an error path (`XR_IOConsole_get.cpp:76-85`), read live per tick so a console toggle mid-session is honored, and an absent cvar means the refill path is always on.
 
 ### Budget is the inventory
 
-No virtual ledger. The budget is the NPC's AP boxes themselves, stocked by AlifePlus trade and looting. `_find_ap` returns the first `AP_SECTIONS` entry in the weapon's `ammo_class` with a loose count > 0. `AP_SECTIONS` is the clean-AP set; degraded `_bad` / `_verybad` variants are excluded.
+No virtual ledger. The budget is the NPC's AP boxes themselves, stocked by AlifePlus trade and looting. `_find_ap` returns the first `AP_SECTIONS` entry in the weapon's `ammo_class` with a loose count > 0. `AP_SECTIONS` is the clean-AP set (box_size 15 rifle / 16 pistol); degraded `_bad` / `_verybad` variants are excluded. The set is exported: at_test's AP arming helper reads it, so a modpack caliber added once reaches both.
 
 ### Tick algorithm
 
-`pick(npc, now)` is the public entry, driven by the ammo monitor pass (a vanilla time event every 5s over the spawn-filled roster; at_test drives it directly). Gates: cached `ammo_enabled`, `alive`/`IsStalker`, `character_rank() >= min_ap_rank`, `IsWeapon(active_item)`, non-empty `ammo_class`. Then it splits on `best_enemy()`:
+`pick(npc, now)` is the public entry, driven by the ammo monitor pass (a vanilla time event every 5s over the spawn-filled roster; at_test drives it directly). The pass re-arms FIRST: `ProcessEventQueue` has no error protection, so an expired event that errors would re-fire and re-error every frame and starve every time event in the game - re-armed, a fault costs one aborted pass. Gates: cached `ammo_enabled`, `alive`/`IsStalker`, `character_rank() >= min_ap_rank`, `IsWeapon(active_item)`, non-empty `ammo_class`. Then it splits on `best_enemy()`:
 
 - Combat tick: on combat entry or weapon change, `_find_ap` caches `idx`/`sec`; while AP is carried, hold `m_ammoType = idx` (re-asserted only if changed). AP is held for the whole fight, no mid-fight revert.
-- Peace tick: once `best_enemy()` has been nil past `peace_debounce_ms`, the engagement ends -- roll `_decay_chance`; on a hit, `alife_release` one AP box of `sec`; if that section is now empty, set `m_ammoType = 0`.
+- Peace tick: once `best_enemy()` has been nil past `peace_debounce_ms`, the engagement ends -- roll `_decay_chance`; on a hit, `alife_release` one AP box of `sec` (the box id is captured during the inventory walk and released after it, never mid-iteration); if that section is now empty, set `m_ammoType = 0`. After a mid-debounce weapon switch the cached `idx` indexes the OLD weapon's `ammo_class`, so the depleted-revert is skipped (`left=-1` in the trace) and the next engagement rescans; the decay roll and the box delete are keyed by section, not index, and stay unconditional. The disengage revert can also miss on timing: `alife_release` of an online box is a deferred GE_DESTROY event (`alife_simulator_script.cpp:288-310`), so the same-tick count still includes the deleted box - `_try_rekey_depleted` repairs it at the next engagement, and only AP sections ever revert (a looted weapon's own non-AP type is not ours to touch).
 
 ### Decay chance
 
@@ -674,7 +674,7 @@ Vanilla `decide_items_to_keep` (`xr_motivator.script:362` -> `death_manager.scri
 
 ### Tuning
 
-The numeric tunables live in `configs/alifetactics/at_ammo.ltx` with matching script-side fallbacks. The `ammo_enabled` MCM toggle early-exits `pick` with no `m_ammoType` writes and no box deletion.
+The numeric tunables live in `configs/alifetactics/at_ammo_config.ltx` with matching script-side fallbacks. The `ammo_enabled` MCM toggle early-exits `pick` with no `m_ammoType` writes and no box deletion.
 
 ### Scope and limits
 
