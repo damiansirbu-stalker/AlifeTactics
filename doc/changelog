@@ -10,6 +10,8 @@ next
     Maneuvers
       - Stalkers hit mid reaction no longer slide across the ground with their feet still. A standing stalker is held planted while the hit animation plays
           and resumes his route the moment it ends. Its own Hit reaction hold switch. Needs a modded exes build carrying PR #645, older builds keep vanilla movement.
+      - Reload Cover now checks that your weapon is actually in your hands: a stalker reloading while your rifle is holstered, or while you hold a knife or nothing,
+          reloads in place instead of running for cover from a player who cannot shoot him.
     Commitment
       - Added Liquidate: a stalker whose enemy is caught reloading, out of ammo, staggered, disarmed, or sprinting weapon-down keeps firing through that window
           instead of breaking off to reposition, and moves again once the enemy can answer. The extra hold is bounded, nobody stays planted for long.

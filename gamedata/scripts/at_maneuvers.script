@@ -162,8 +162,8 @@ local function _find_reload_cover(npc, _enemy, state, _tg, memo)
         at_debug.dbg("[CMB] can_reload_cover id=%s name=%s path=not_reloading cover=-", show(state.id), show(state.name))
         return nil
     end
-    if not xcombat.actor_can_hit(npc, RELOAD_COVER_CONE_DEG) then
-        at_debug.dbg("[CMB] can_reload_cover id=%s name=%s path=actor_no_shot cover=-", show(state.id), show(state.name))
+    if not xcombat.is_in_actor_sight(npc, RELOAD_COVER_CONE_DEG) then
+        at_debug.dbg("[CMB] can_reload_cover id=%s name=%s path=not_in_sight cover=-", show(state.id), show(state.name))
         return nil
     end
     local vid = xcombat.find_cover(npc, memo.enemy_pos, { selection = "nearest", firing = false, radius = 5, search_pos = npc:position() })
