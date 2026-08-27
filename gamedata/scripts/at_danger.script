@@ -104,6 +104,14 @@ ini = nil
 -- distinct string once; keyed by the raw string so both the base and actor tables share entries.
 -- parse_condlist's npc/section/field args feed only its error messages - the parsed structure is
 -- npc-independent; the npc enters at pick_section_from_condlist time.
+-- Vanilla xr_danger thresholds, kept as named values rather than inline numbers.
+local CORPSE_STALE_SEC = 12000      -- a body older than this stops being a danger
+local EVAL_BUDGET = 200             -- evaluations before the per-tick budget trips
+local HEAR_DIST_M = 70              -- past this a danger is heard, not seen
+local FAR_DIST_M = 150              -- past this the danger is ignored outright
+local GRENADE_CHANCE_PCT = 33       -- roll under this and the NPC throws
+local INVALID_SMART_ID = 65535      -- engine sentinel, xconst.INVALID_ENTITY_ID
+
 local _condlist_cache = {}
 local function _parse_cached(npc, bd_name, key, src)
 	if src == nil then return nil end
@@ -238,7 +246,7 @@ local function is_danger(npc,best_danger,script)
 				return false
 			end
 
-			if (game.get_game_time():diffSec(corpse_st.death_time) > 12000) then
+			if (game.get_game_time():diffSec(corpse_st.death_time) > CORPSE_STALE_SEC) then
 				return false
 			end
 
@@ -400,7 +408,7 @@ local function eval_danger(self)
 	--[[
 	local sim = alife()
 	local se_obj = sim:object(id)
-	if (se_obj and se_obj.m_smart_terrain_id ~= 65535) then
+	if (se_obj and se_obj.m_smart_terrain_id ~= INVALID_SMART_ID) then
 		sim:object(se_obj.m_smart_terrain_id):set_alarm()
 	end
 	--]]
@@ -444,7 +452,7 @@ function at_evaluator_danger:evaluate()
 			at_debug.dbg("[PERF] eval_danger SLOW us=%d type=%s bd=%dus cb=%dus danger_time=%dus condlist=%dus is=%dus unattributed=%dus heap=%dKB",
 				us, _seg_name, _seg_bd, _seg_cb, _seg_dtime, _seg_cond, _seg_is, us - seg_sum, collectgarbage("count"))
 		end
-		if _eval_n >= 200 then
+		if _eval_n >= EVAL_BUDGET then
 			local heap_kb = collectgarbage("count")
 			at_debug.dbg("[PERF] eval_danger n=%d avg=%dus max=%dus heap=%dKB (%+dKB)",
 				_eval_n, _eval_sum_us / _eval_n, _eval_max_us, heap_kb, heap_kb - _eval_heap_kb)
@@ -481,7 +489,7 @@ local function script_action_danger_scripted(npc,st)
 	local who_dist = bdo and bdo:position():distance_to_sqr(bdo_pos)
 
 	--[[
-	if (dist and dist >= 70) then
+	if (dist and dist >= HEAR_DIST_M) then
 		if (bdo and npc:relation(bdo) > 0 and npc:see(bdo)) then
 			state_mgr.set_state(npc,"hide_na",nil,nil,{look_object = bdo},{fast_set = true})
 			if (not utils_obj.squad_in_los(npc,bdo)) then
@@ -589,7 +597,7 @@ local function script_action_danger_grenade(npc,st,bd,best_danger_object,depende
 
 	local tg = time_global()
 
-	if (dist and dist >= 150) then
+	if (dist and dist >= FAR_DIST_M) then
 		--[[
 		if (be and npc:see(be)) then
 			state_mgr.set_state(npc,"hide_na",nil,nil,{look_object = be},{fast_set = true})
@@ -723,7 +731,7 @@ local function script_action_danger_corpse(npc,st,bd,best_danger_object,dependen
 		local dist = bdo and bdo:position():distance_to_sqr(npc:position()) or 0
 		if (st.lvid == npc:level_vertex_id() or dist <= st.rnd) then
 			local rnd = math_random(100)
-			if (rnd <= 33) then
+			if (rnd <= GRENADE_CHANCE_PCT) then
 				xr_sound.set_sound_play(npc:id(),"search")
 				state_mgr.set_state(npc,"threat_danger",nil,nil,{look_position = dst and dst.killer_last_known_position},{fast_set = true})
 				st.dtimer = time_global() + math_random(3000,5000)

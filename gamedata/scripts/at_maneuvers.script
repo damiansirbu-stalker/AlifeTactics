@@ -20,6 +20,7 @@ local QUEUE_KINDS = { "w_pistol", "w_shotgun", "w_rifle", "w_smg", "w_sniper" }
 local KITE_KINDS = { "w_melee", "w_shotgun", "w_pistol", "w_smg", "w_rifle", "w_sniper", "w_explosive" }
 local REPEAT_MOVE_M   = 2
 local REPEAT_MOVE_SQR = REPEAT_MOVE_M * REPEAT_MOVE_M
+local INVALID_LEVEL_VERTEX = 4294967295
 
 local BEGIN_PERIOD_MS, UPDATE_PERIOD_MS, END_PERIOD_MS, HIT_FIGHT_MS, MAX_CONCURRENT
 local HURT_FRAC, STALL_MS, STALL_MOVE_SQR, STALL_CLOSE_M
@@ -252,7 +253,7 @@ local function _find_flee_base(npc, enemy, state, _tg, memo)
     if base then
         at_debug.dbg("[CMB] can_flee id=%s name=%s path=base", show(state.id), show(state.name))
         local vid = base.m_level_vertex_id
-        if not vid or vid >= 4294967295 then vid = level.vertex_id(base.position) end
+        if not vid or vid >= INVALID_LEVEL_VERTEX then vid = level.vertex_id(base.position) end
         return vid
     end
     at_debug.dbg("[CMB] can_flee id=%s name=%s path=no_base", show(state.id), show(state.name))
