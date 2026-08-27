@@ -3,7 +3,7 @@
 
 local _evaid = 188113
 local _actid = 188113
-local math_random, tonumber, math_max = math.random, tonumber, math.max
+local math_random, tonumber = math.random, tonumber
 local time_global = time_global
 local IsStalker, IsMonster, IsWounded = IsStalker, IsMonster, IsWounded
 
@@ -207,7 +207,6 @@ function at_evaluator_danger:__init(name, storage, npc) super (nil, name)
 end
 
 local SLOW_EVAL_US = 2000
-local _seg_bd, _seg_cb, _seg_dtime, _seg_cond, _seg_is, _seg_name = -1, -1, -1, -1, -1, "-"
 
 local function eval_danger(self)
 	local npc = self.object
@@ -216,18 +215,10 @@ local function eval_danger(self)
 		return false
 	end
 
-	local prof = at_debug.on()
-	local timer, seg_mark
-	if prof then
-		_seg_bd, _seg_cb, _seg_dtime, _seg_cond, _seg_is, _seg_name = -1, -1, -1, -1, -1, "-"
-		timer = xprofiler.new_if(true):start()
-	end
 	local danger = npc:best_danger()
-	if prof then timer:stop() _seg_bd = timer:get_us() seg_mark = _seg_bd timer:start() end
 
 	local flags = {ret_value = true}
 	SendScriptCallback("npc_on_eval_danger", npc, flags)
-	if prof then timer:stop() local now_us = timer:get_us() _seg_cb = now_us - seg_mark seg_mark = now_us end
 	if flags.ret_value == false then return false end
 
 	if check_script_danger(npc:id()) then
@@ -241,9 +232,7 @@ local function eval_danger(self)
 	local tg = time_global()
 	local bd_type = danger:type()
 	local bd_name = bd_types[bd_type]
-	if prof then _seg_name = bd_name or tostring(bd_type) timer:start() end
 	local cur_danger_time = get_danger_time(danger, npc)
-	if prof then timer:stop() local now_us = timer:get_us() _seg_dtime = now_us - seg_mark seg_mark = now_us timer:start() end
 	if type(cur_danger_time) ~= "number" then cur_danger_time = 0 end
 
 	local a = self.a
@@ -263,7 +252,6 @@ local function eval_danger(self)
 	local from_actor = _enabled.actor_tables and danger_obj and danger_obj:id() == AC_ID
 	local src = (from_actor and DangerInertionActor[bd_name]) or DangerInertion[bd_name]
 	local inertion = tonumber(xr_logic.pick_section_from_condlist(db.actor, npc, _parse_cached(npc, bd_name, "danger_inertion_time", src))) or 0
-	if prof then timer:stop() local now_us = timer:get_us() _seg_cond = now_us - seg_mark seg_mark = now_us end
 	local danger_time = cur_danger_time
 
 	if not danger_time or type(danger_time) ~= "number" then
@@ -275,9 +263,7 @@ local function eval_danger(self)
 		return false
 	end
 
-	if prof then timer:start() end
 	local is_dangerous = is_danger(npc, danger)
-	if prof then timer:stop() _seg_is = timer:get_us() - seg_mark end
 	if not is_dangerous then
 		return false
 	end
@@ -306,10 +292,7 @@ function at_evaluator_danger:evaluate()
 		_eval_sum_us = _eval_sum_us + us
 		if us > _eval_max_us then _eval_max_us = us end
 		if us > SLOW_EVAL_US then
-			local seg_sum = math_max(0, _seg_bd) + math_max(0, _seg_cb) + math_max(0, _seg_dtime)
-				+ math_max(0, _seg_cond) + math_max(0, _seg_is)
-			at_debug.dbg("[PERF] eval_danger SLOW us=%d type=%s bd=%dus cb=%dus danger_time=%dus condlist=%dus is=%dus unattributed=%dus heap=%dKB",
-				us, _seg_name, _seg_bd, _seg_cb, _seg_dtime, _seg_cond, _seg_is, us - seg_sum, collectgarbage("count"))
+			at_debug.dbg("[PERF] eval_danger SLOW us=%d heap=%dKB", us, collectgarbage("count"))
 		end
 		if _eval_n >= EVAL_BUDGET then
 			local heap_kb = collectgarbage("count")
