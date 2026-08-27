@@ -40,7 +40,7 @@ Version 1.1.5.
 | `at_disclosure.script` | feature | done |
 | `at_crossfire.script` | feature | done |
 | `at_effects_resolver.script` | substrate | done (the multi-source effects resolver: the `EFFECT` enum, `resolve` (highest-wins), `register`, and the engine WRITES for DAMAGE_DEALT / DAMAGE_RESIST / SHOT_DISPERSION / VISION_RANGE / AURA; sources register lazy providers, the resolver owns the appliers) |
-| `at_firstaid.script` | feature | done (active first-aid healing: self-heal rate + per-rank medkit charge + limp/heal anim; also traces the wounded-down medkit consume in `xr_wounded.Cwound_manager:eat_medkit`, the vanilla seam that fires no callback) |
+| `at_healing.script` | feature | done (active first-aid healing: self-heal rate + per-rank medkit charge + limp/heal anim; also traces the wounded-down medkit consume in `xr_wounded.Cwound_manager:eat_medkit`, the vanilla seam that fires no callback) |
 | `at_accuracy.script` | feature | done |
 | `at_reaction.script` | feature | done (per-rank aim, target lead, vision, fire discipline) |
 | `at_commitment.script` | feature | done (action-switch + cover re-pick vetoes) |
@@ -53,7 +53,7 @@ Version 1.1.5.
 | `at_jam.script` | feature | done (NPC misfire suppression via the modded-exes functor) |
 | `at_ammo.script` | feature | done (AP fired from carried boxes, box-delete decay) |
 | `at_gear.script` | source | done (functional NPC inventory SOURCE: scans carried artefacts/plates/optics, registers lazy providers into the effects resolver; owns the n039 passive-regen write) |
-| `zzz_at_firstaid_patch.script` | feature | done (vanilla xr_eat_medkit re-roll suppressor) |
+| `zzz_at_healing_patch.script` | feature | done (vanilla xr_eat_medkit re-roll suppressor) |
 | `at_compat.script` | feature | done (grok_bo hit-pipeline wrapper: NPC artefact resistance restored under G.A.M.M.A.) |
 | `configs/ai_tweaks/mod_xr_eat_medkit_at.ltx` | data | done |
 | `configs/ai_tweaks/mod_xr_danger_at.ltx` | data | done (delete-lines-only DLTX: drops the collision keys; the copied value rows removed 2026-07-10) |
@@ -114,13 +114,13 @@ AlifeTactics/
 │   │   ├── at_danger.script                   # Effectiveness > Danger (danger scheme fn-patch)
 │   │   ├── at_sound.script                    # Danger > Sound (movement + handling noise hearing)
 │   │   ├── at_crossfire.script                # Effectiveness > Crossfire (friendly-fire damage block)
-│   │   ├── at_firstaid.script                 # Mechanics > Healing (active first-aid: heal rate, charge, limp/heal anim)
+│   │   ├── at_healing.script                 # Mechanics > Healing (active first-aid: heal rate, charge, limp/heal anim)
 │   │   ├── at_jam.script                      # Mechanics > Jamming (modded-exes xr_weapon_jam override)
 │   │   ├── at_ammo.script                     # Mechanics > Ammo (NPC ammo simulation)
 │   │   ├── at_gear.script                     # Mechanics > Gear (functional NPC inventory SOURCE -> effects resolver)
 │   │   ├── at_effects_resolver.script         # the multi-source effects substrate (resolve/register + the engine writes)
 │   │   ├── at_compat.script                   # third-party hit-pipeline compatibility (grok_bo wrapper)
-│   │   ├── zzz_at_firstaid_patch.script       # vanilla xr_eat_medkit re-roll suppressor
+│   │   ├── zzz_at_healing_patch.script       # vanilla xr_eat_medkit re-roll suppressor
 │   │   ├── at_world_trace.script              # world log: slide watchdog + ballistics recorder -> alifetactics_world.log (MCM Development, off by default)
 │   │   ├── at_hud.script                      # live debug HUD (nearby NPC logic/combat/target)
 │   │   └── at_test.script                     # console test commands
@@ -152,7 +152,7 @@ The MCM menu is a six-category gameplay tree plus a Development tab, the canonic
 | Reaction | `at_reaction.script` | Effectiveness > Reaction | per-curve `aim_enabled` / `lead_enabled`, no master (vision -> Perception > Vision, fire discipline -> Effectiveness > Discipline) | All NPCs | callback |
 | Discipline | `at_reaction.script` (fire queue) | Effectiveness > Discipline | `discipline_enabled` | All NPCs | callback |
 | Vision | `at_reaction.script` (rank) + `at_gear.script` (optics) | Perception > Vision | `vision_enabled` (speed + range curves) | All NPCs | provider -> effects resolver |
-| Healing | `at_firstaid.script` | Mechanics > Healing | `healing_enabled` | All NPCs | fn-patch |
+| Healing | `at_healing.script` | Mechanics > Healing | `healing_enabled` | All NPCs | fn-patch |
 | Jamming | `at_jam.script` | Mechanics > Jamming | `jam_enabled` | All NPCs | save-wrap |
 | Ammo | `at_ammo.script` | Mechanics > Ammo | `ammo_enabled` | All NPCs | callback |
 | Gear | `at_gear.script` | Mechanics > Gear | `gear_enabled` | All NPCs | provider -> effects resolver |
@@ -186,7 +186,7 @@ The file structure (the 2026-08-27 split of the old `at_combat.script` + `at_com
 
 ### Scope: fights the actor is party to
 
-AT seizes only problems the actor is party to - one rule, carried as row data, not as a gate branch. Every catalog row declares whose problem it answers (`vs_actor`): the four fight rows (retreat, flee, kite, pickoff) walk only when the actor IS the NPC's selected enemy (`state.enemy_id == AC_ID`), and counterflank - the actor-party row - walks only when he is NOT (its problem is the actor standing at contact range while the NPC's committed fight is someone farther). NPC-vs-NPC fights are never seized: the triggers that make maneuvers legible - pressing a weapon minimum, chasing a routing man - are things the player does, and an NPC-vs-NPC maneuver reads as generic repositioning (the 2026-07-09 `seize_actor_radius_m` perceivability radius bought a branch, a config key, and a cached distance read on the begin path for that thin payoff; removed 2026-07-10 - the 50m radius survives only as at_firstaid's presentation radius, a different system).
+AT seizes only problems the actor is party to - one rule, carried as row data, not as a gate branch. Every catalog row declares whose problem it answers (`vs_actor`): the four fight rows (retreat, flee, kite, pickoff) walk only when the actor IS the NPC's selected enemy (`state.enemy_id == AC_ID`), and counterflank - the actor-party row - walks only when he is NOT (its problem is the actor standing at contact range while the NPC's committed fight is someone farther). NPC-vs-NPC fights are never seized: the triggers that make maneuvers legible - pressing a weapon minimum, chasing a routing man - are things the player does, and an NPC-vs-NPC maneuver reads as generic repositioning (the 2026-07-09 `seize_actor_radius_m` perceivability radius bought a branch, a config key, and a cached distance read on the begin path for that thin payoff; removed 2026-07-10 - the 50m radius survives only as at_healing's presentation radius, a different system).
 
 Within a qualifying fight the target is never picked by AT: `best_enemy()` at STAGE time, the same object vanilla combat drives against (counterflank is the one row that stages the ACTOR - the row declares its committed target and the shell stages what the row declares). From staging on, the maneuver is COMMITTED to that target (2026-07-09): `_begin_maneuver` and `_update_maneuver` resolve the staged id via `xcombat.resolve_enemy` instead of re-reading `best_enemy`, so a kiter's LOOK never re-targets mid-maneuver to whoever the brain glanced at (the fire selection stays the engine's), and a dead or despawned target ends the maneuver (reason `target_lost`) with vanilla picking the next fight. A weaponless enemy (a mutant) reads as the rifle range band where a row needs the enemy's weapon, and the reads are otherwise enemy-agnostic. The one other actor read in the decide path is flee's base search scoping to the CURRENT level via the actor's level id - valid because a fleeing NPC is online, and online NPCs are on the actor's level by construction.
 
@@ -581,18 +581,19 @@ Per-NPC self-healing. Vanilla `xr_eat_medkit.script` has a working stage machine
 
 ### Data layer fix
 
-`mod_xr_eat_medkit_at.ltx` is a DLTX overlay on `![plugin]` adding `medkits = medkit, medkit_army, medkit_scientic, medkit_ai1, medkit_ai2, medkit_ai3` and `bandages = bandage`. Boot-time, no runtime toggle.
+`mod_xr_eat_medkit_at.ltx` is a DLTX overlay on `![plugin]` adding `medkits = medkit, medkit_army, medkit_scientic, medkit_ai1, medkit_ai2, medkit_ai3` and `bandages = bandage`. Boot-time, no runtime toggle. The paired `zzz_at_healing_patch.script` unregisters vanilla's `xr_eat_medkit.on_register` roll: vanilla rolls `math.random() > 0.5` for `healing_charge` on EVERY `server_entity_on_register` fire, and `alife_storage_manager.cpp:160-161` re-fires that for every restored entity on save load - so vanilla re-rolls per load and can re-grant consumed charges (cleared at `xr_eat_medkit.script:223`). The suppression is unconditional (the master toggle is live in the patched bodies; leaving vanilla's roll registered while off would reintroduce the bug the moment a save loads), and the `zzz_` name orders its `on_game_start` after `xr_eat_medkit`'s.
 
 ### Runtime tuning
 
-`at_firstaid.script` installs two hooks on `on_game_start`:
+`at_healing.script` installs two hooks on `on_game_start`:
 
 | Hook | Mechanism | What it changes |
 |---|---|---|
 | Heal rate multiplier | `xr_eat_medkit.heal_hp = _patched_heal_hp` | Per-tick `change_health` scaled by the MCM multiplier, read each tick; rescheduling via the `xr_eat_medkit.heal_hp` lookup keeps every tick on the patched function |
 | Engaged-pause | inside `_patched_heal_hp` | A fight must be able to end: the hp tick PAUSES while the NPC is actively engaged - a live `best_enemy` with the weapon in his hands (`weapon_unstrapped`, the state_mgr.script:396 read) or an enemy inside 5m regardless of weapon (a mutant mauling him). Pause = `ResetTimeEvent` on the firing event + return false, so the same event stays queued with a pushed timer - no health applied, no tick consumed, the charge waits; a same-key re-create from inside the callback would be silently skipped (`_g.script:345`) and kill the chain. Bleed staunching deliberately stays vanilla: pausing it would turn every pressed fight into a bleed-out lottery. Field case: the melee-locked NPC pair that healed through punch damage at 3x and could not die (reporter, 2026-07-21) |
 | Bandage tick logging | `xr_eat_medkit.heal_bleed = _patched_heal_bleed` | Logging-only wrapper around vanilla bleed loop |
-| Per-rank healing-charge | `RegisterScriptCallback("npc_on_net_spawn", _on_net_spawn)` | Reads `ranks.get_obj_rank_name(npc)`, folds the rank names into MCM tiers, rolls the per-tier chance, replacing vanilla's flat roll. Per-NPC `at_charge_processed` se_var prevents re-roll. |
+| Per-rank healing-charge | `RegisterScriptCallback("npc_on_net_spawn", _on_net_spawn)` | Reads `ranks.get_obj_rank_name(npc)`, folds the rank names into MCM tiers, rolls the per-tier chance, replacing vanilla's flat roll. Per-NPC `at_charge_processed` se_var prevents re-roll (written through a nil-name guard - vanilla pstor writes to a wrong key when the name is nil). With the master off, no roll and no processed marker, so a later ON rolls the NPC on its next spawn; previously granted charges persist. |
+| Wounded-consume trace | `_hook_method` on `xr_wounded.Cwound_manager.eat_medkit` | The wounded-DOWN recovery (`xr_wounded.script:271-308`, distinct from the standing self-heal) sets health to full and releases one medkit while firing no engine eat, so this wrap is the ONLY signal for medkits handed via the help dialog or burned by the 90s autoheal. The held section (the four-section fallback priority, `xr_wounded.script:282-289`) is read BEFORE the original releases it; logged only on a true return. The hook mechanism: reading a method off a luabind class returns a plain callable, `__newindex` accepts re-registering it, and every instance dispatches through the class - no per-instance copy - so the swap reaches instances created afterward; `xr_wounded` is touched first to force its chunk to load, a missing class degrades to a WARN, and an install-once module-local guards the `-keep_lua` case where the VM survives a load and `on_game_start` re-runs against an already-wrapped method. |
 
 ### The flow
 
@@ -618,9 +619,9 @@ Two cosmetic cues using `npc:add_animation` directly. No state_mgr, no GOAP, no 
 | Cue | Trigger | Animation(s) |
 |---|---|---|
 | Limping | the limp monitor pass (`_run_monitor`, a vanilla time event every 200ms over the spawn-filled roster): the drop detectors run on the pass itself while the pose is worn (wounded/dead; an enemy is selected or the mental state leaves free, i.e. a fight began - moved onto this fast pass so a limp does not linger up to a second into combat and slide when the NPC is shot; commanded gait changed since add; stand-variant drifted off its add anchor; walk/run-variant stopped displacing over a 1s sample) - every drop calls `clear_animations()`; a 1s eligibility check on a per-NPC stamp (`health < threshold`, no `best_enemy`, `mental_state() == anim.free`, `body_state() == move.standing`, not zombied, not in smart_cover), re-armed every 5s | a per-slot `dmg_norm` hurt pose (clutch-the-torso) chosen from `active_slot()` + `movement_type()`. A queued script animation suspends the engine's whole animation selection (legs included, stalker_animation_manager_update.cpp:232), so the overlay must die the moment its gait stops matching - that is what the drop detectors do |
-| Heal anim | One-shot via `_try_play_heal_anim` on the first heal tick. Gated on `not npc:best_enemy()`, `not IsWounded(npc)`, `not npc:critically_wounded()`. No movement freeze, no stage machine, no mid-flight aborts. Engine drains the queue when the gesture ends; action transitions clear it on the way to action_wounded / action_critically_wounded (`stalker_base_action.cpp:24-29`) | a torso medkit / bandage gesture |
+| Heal anim | One-shot via `_try_play_heal_anim` on the first heal tick. Gated on `not npc:best_enemy()`, `not IsWounded(npc)`, `not npc:critically_wounded()`, an empty animation queue, and STANDING STILL (`movement_type() == move.stand` - the INTENT read is exactly right here, it answers "will his legs be animating": a torso gesture on a moving NPC suspends the leg animation while the body keeps translating, the frozen-legs glide of the 2026-07-25 reporter video). No stage machine, no mid-flight aborts. Engine drains the queue when the gesture ends; action transitions clear it on the way to action_wounded / action_critically_wounded (`stalker_base_action.cpp:24-29`) | a torso medkit / bandage gesture |
 
-Limping is independent of the healing master toggle (its monitor arms unconditionally; gated at runtime by `limping_anim_enabled` - one boolean per pass when off). Heal cue is gated by `healing_anim_enabled` and the master toggle (it lives inside the heal_hp/heal_bleed patches that only install when healing is enabled).
+Limping is independent of the healing master toggle (its monitor arms unconditionally; gated at runtime by `limping_anim_enabled` - one boolean per pass when off). Heal cue is gated by `healing_anim_enabled` and the master toggle, both read live per tick: the patches install UNCONDITIONALLY at `on_game_start`, and with the master off the same installed functions run exact vanilla semantics (flat 0.05, no gesture), so an MCM flip applies on the next tick with no restart. Both animations play only within `ANIM_ACTOR_RADIUS_M` (50m) of the actor - a presentation-only gate; the healing SIMULATION (hp/bleed ticks, item consumption) is never distance-gated, off-screen stalkers heal identically. The hurt-pose tables are indexed by the WEAPON POSTURE slot (not inventory slot), one variant per commanded gait; slots 5 and 7 are absent from the OMF and slot 6 exists only as the run variant (verified 2026-07-08 by binary grep across both installed variants of `stalker_animation.omf` - a queued name the OMF lacks error-logs and plays nothing). A `[LIMP] declined` aggregate counts the first failing eligibility gate per hurt stalker and prints one line per 100 declines - the flood-free answer to "why is nobody limping".
 
 Combat NPCs are excluded by the `mental_state == anim.free` gate. state_mgr drives mental to `anim.danger` in combat states (`state_lib.script:326-340` hide_fire / threat).
 
@@ -701,7 +702,7 @@ The numeric tunables live in `configs/alifetactics/at_ammo_config.ltx` with matc
 `at_effects_resolver.script` is the deliberate shared substrate for the combat effects MORE THAN ONE source feeds. It owns the `EFFECT` enum, the highest-wins combiner `resolve`, the source registry `register`, and the engine WRITES for these effects; the sources own the scans. Four invariants govern it:
 
 - **I1.** An effect is a per-NPC value MULTIPLE sources feed and the resolver combines highest-wins at a fixed engine point. Most are numeric multipliers on a value the engine already computes (damage on a hit, dispersion on a shot, vision range at spawn), combined MAX or, for a reduction effect, MIN; the aura is a PRESENCE effect (boolean, OR-combined, applied by a particle call). A single-source value is NOT an effect - it stays in its owning module and writes itself.
-- **I2.** Medkit healing is an ACTION, owned by `at_firstaid`: the NPC consumes an item and runs the `xr_eat_medkit` chain. Its heal rate and charge chance are parameters of that action, not effects.
+- **I2.** Medkit healing is an ACTION, owned by `at_healing`: the NPC consumes an item and runs the `xr_eat_medkit` chain. Its heal rate and charge chance are parameters of that action, not effects.
 - **I3.** The entry rule: a value enters the resolver ONLY when more than one source feeds it. One source means one writer and no clash, so it stays home and never touches `resolve`. This is why aim, vision speed, fire discipline, the move penalty, and passive regen are NOT effects.
 - **I4.** Passive regen is a distinct engine lever from medkit healing: the condition velocity `m_fV_HealthRestore` (`EntityCondition.cpp:642`), not the `xr_eat_medkit` action. `at_gear` owns it (n039).
 

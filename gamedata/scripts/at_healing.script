@@ -1,37 +1,20 @@
---- at_firstaid: active first-aid healing - heal-rate scaling, per-rank medkit charge, limp + heal
---- animations. Medkit healing is an ACTION (the NPC consumes an item and runs the xr_eat_medkit chain),
---- owned here and named apart from the passive regen at_gear writes via n039 (invariants I2, I4). It has
---- one owner and no source clash, so it is NOT an effect and never enters at_effects_resolver.
+--- at_healing: active first-aid healing - heal rate, per-rank medkit charge, limp and heal animations
 
 local math_random, tostring, pairs, type = math.random, tostring, pairs, type
 local se_save_var, se_load_var = se_save_var, se_load_var
 local RegisterScriptCallback, time_global = RegisterScriptCallback, time_global
 local IsStalker, IsWounded = IsStalker, IsWounded
 
--- The limp monitor pass period (a vanilla time event): the pass IS the drop-detector clock (a worn
--- pose must die the moment its gait stops matching); the eligibility check self-throttles to its own
--- slower period on a per-NPC stamp. Zero per-frame code.
 local MONITOR_PERIOD_SEC        = 0.2
 local LIMP_ELIGIBILITY_CHECK_MS = 1000
 local LIMP_SAMPLE_MS            = 1000
 local LIMP_REARM_MS             = 5000
--- Displacement that counts as "moved" for the drop detectors (anchor drift / path-stop sample).
 local LIMP_MOVE_M               = 0.2
 local LIMP_MOVE_SQR             = LIMP_MOVE_M * LIMP_MOVE_M
--- Presentation-only perceivability gate: the limp pose and heal gesture play only within this
--- radius of the actor (nobody sees them farther; xcombat.actor_dist_sqr is the 5s-TTL cached
--- read the combat seize gate shares). The healing SIMULATION (hp/bleed ticks, item consumption)
--- is never distance-gated - off-screen stalkers heal identically.
 local ANIM_ACTOR_RADIUS_M       = 50
 local ANIM_RADIUS_SQR           = ANIM_ACTOR_RADIUS_M * ANIM_ACTOR_RADIUS_M
--- xr_eat_medkit.consume_medkit schedules heal_hp/heal_bleed with left=15.
 local HEAL_TICK_FIRST           = 15
 
--- Posture-slot tables for the dmg_norm hurt pose (the clutch-the-torso overlay), one variant per
--- commanded gait. Engine indexes torso anims by weapon posture slot, not inventory slot. Missing
--- entries fall through to slot 0 (fist). Slots 5, 7 not present in the OMF; slot 6 exists only as
--- the run variant (verified 2026-07-08 by binary grep across both installed variants of
--- stalker_animation.omf - a queued name the OMF lacks error-logs and plays nothing).
 local LIMP_IDLE_BY_SLOT = {
     [0] = "dmg_norm_torso_0_idle_0", [1] = "dmg_norm_torso_1_idle_0",
     [2] = "dmg_norm_torso_2_idle_0", [3] = "dmg_norm_torso_3_idle_0",
@@ -56,26 +39,10 @@ local LIMP_RUN_BY_SLOT = {
 local HEAL_ANIM_MEDKIT  = "dmg_norm_torso_11_attack_0"
 local HEAL_ANIM_BANDAGE = "norm_torso_12_attack_0"
 
-local _limping = {}
--- ONLINE tracked stalkers, the limp monitor's roster: one record per NPC ({ eligibility_at }),
--- filled on net spawn, dropped on net destroy / unregister.
-local _npc_states = {}
+local ENGAGED_MELEE_SQR = 5 * 5
+local LIMP_DECLINE_WINDOW = 100
+local WOUNDED_MEDKITS = { "medkit_script", "medkit", "medkit_army", "medkit_scientic" }
 
--- Vanilla pstor writes to a wrong key when name is nil. Guard explicitly.
-local function _safe_save(id, name, key, val)
-    if not name then return end
-    se_save_var(id, name, key, val)
-end
-local function _safe_load(id, name, key)
-    if not name then return nil end
-    return se_load_var(id, name, key)
-end
-
-local _heal_active = false
-local cfg = at_mcm.cfg
-
--- Vanilla rank intervals (game_relations.ltx [game_relations] rating) folded
--- into MCM tiers via ranks.get_obj_rank_name.
 local _RANK_TO_TIER = {
     novice       = "novice",
     trainee      = "novice",
@@ -87,24 +54,33 @@ local _RANK_TO_TIER = {
     legend       = "master",
 }
 
+local _limping = {}
+local _npc_states = {}
+local _heal_active = false
+local _orig_consume
+local _wounded_wrapped = false
+local _monitor_active = false
+local _limp_declines = { n = 0, far = 0, enemy = 0, mental = 0, standing = 0, wounded = 0, smart_cover = 0, zombied = 0, other = 0 }
+
+local cfg = at_mcm.cfg
+
+local function _safe_save(id, name, key, val)
+    if not name then return end
+    se_save_var(id, name, key, val)
+end
+local function _safe_load(id, name, key)
+    if not name then return nil end
+    return se_load_var(id, name, key)
+end
+
 local function _get_rank_tier(npc)
     return _RANK_TO_TIER[ranks.get_obj_rank_name(npc)] or "novice"
 end
 
--- Calm = out of the danger mental state (anim.free) - the out-of-combat eligibility read.
 local function _is_calm(npc)
     return npc:mental_state() == anim.free
 end
 
--- One-shot medkit/bandage gesture. Gated on healing_anim toggle, on no visible
--- enemy (no anim during combat), on not-on-ground, and on STANDING STILL: a torso
--- gesture on a moving NPC suspends his leg animation while the body keeps
--- translating - the frozen-legs glide (reporter video 2026-07-25). movement_type
--- is the INTENT read, exactly right here: it answers "will his legs be animating".
--- The hurt pose belongs to LIMP, not here; HEAL is "I am applying an item" and
--- nothing else. The engine drains the queue when the gesture ends; action
--- transitions clear it on the way to action_wounded / action_critically_wounded
--- (stalker_base_action.cpp:24-29).
 local function _try_play_heal_anim(npc, gesture)
     if not cfg.healing_anim_enabled then return end
     if xcombat.actor_dist_sqr(npc) > ANIM_RADIUS_SQR then return end
@@ -128,12 +104,6 @@ local function _try_play_heal_anim(npc, gesture)
     if at_debug.on() then at_debug.dbg("[HEAL] anim id=%d gesture=%s", npc:id(), gesture) end
 end
 
--- t165: a fight must be able to end. True while the NPC is actively ENGAGED - a live enemy with
--- the weapon in his hands (the state_mgr.script:396 read: active_item + weapon_unstrapped), or an
--- enemy inside contact range regardless of weapon (a mutant mauling him; the reporter's melee-lock
--- case, where punch damage lost to a 3x heal refill and the fight could not resolve). One tick per
--- ~6s per healing NPC pays 2-4 luabind reads here.
-local ENGAGED_MELEE_SQR = 5 * 5
 local function _engaged(npc)
     local enemy = xcombat.get_best_enemy(npc)
     if not (enemy and enemy:alive()) then return false end
@@ -141,13 +111,6 @@ local function _engaged(npc)
     return npc:position():distance_to_sqr(enemy:position()) <= ENGAGED_MELEE_SQR
 end
 
--- t165 PAUSE while engaged: reset THIS event's timer so it stays queued (the caller returns false) -
--- no health applied, no tick consumed, the charge waits. Re-creating under the same key from
--- inside the callback would be a no-op (CreateTimeEvent skips existing keys, _g.script:345,
--- and the firing event is removed only after a true return, :374) and would kill the chain.
--- Healing resumes on the same cadence once the fight lets go. Bleed staunching (_patched_heal_bleed)
--- deliberately stays vanilla: pausing it would turn every pressed fight into a bleed-out
--- lottery - a larger balance swing than the unwinnable-stalemate fix needs.
 local function _try_pause_hp(npc, id, name, left)
     if not _engaged(npc) then return false end
     if at_debug.on() then at_debug.dbg("[HEAL] hp_pause id=%d left=%d engaged", id, left) end
@@ -155,7 +118,6 @@ local function _try_pause_hp(npc, id, name, left)
     return true
 end
 
--- Chain-end debug line: why this heal chain stopped (dead, despawned, or ticks spent).
 local function _log_hp_complete(timer, npc, id, left)
     if not at_debug.on() then return end
     local reason = "ticks_exhausted"
@@ -167,15 +129,11 @@ local function _log_hp_complete(timer, npc, id, left)
     at_debug.dbg("[HEAL] complete id=%d reason=%s left=%d [%.2fms]", id, reason, left, timer:get_ms())
 end
 
--- Vanilla xr_eat_medkit.heal_hp (script:188-201) with MCM rate multiplier.
--- Reschedules via xr_eat_medkit.heal_hp lookup so the chain stays on the patched function.
 local function _patched_heal_hp(id, left)
     local timer = xprofiler.new_if(at_debug.on()):start()
     local nextl = left - 1
     local npc = xobject.go(id)
     if npc and npc:alive() and nextl > 1 then
-        -- The master toggle is live: off = exact vanilla semantics (flat 0.05, no gesture) through
-        -- the same installed function, so an MCM flip applies on the next tick, no restart.
         local enabled = cfg.healing_enabled ~= false
         local name = npc:name()
         if enabled and _try_pause_hp(npc, id, name, left) then
@@ -202,16 +160,12 @@ local function _patched_heal_hp(id, left)
     return true
 end
 
--- Vanilla xr_eat_medkit.heal_bleed (script:203-215) with logging only.
--- Engine bleeding field is a hard set per tick, not a delta -- no multiplier.
 local function _patched_heal_bleed(id, left)
     local timer = xprofiler.new_if(at_debug.on()):start()
     local nextl = left - 1
     local npc = xobject.go(id)
     if npc and npc:alive() and nextl > 1 then
         npc.bleeding = 0.07
-        -- The gesture is the only above-vanilla piece here; the bleeding set matches vanilla, so
-        -- the live master toggle gates the gesture alone.
         if cfg.healing_enabled ~= false and left == HEAL_TICK_FIRST then
             _try_play_heal_anim(npc, HEAL_ANIM_BANDAGE)
         end
@@ -234,12 +188,6 @@ local function _patched_heal_bleed(id, left)
     end
     return true
 end
-
--- xr_eat_medkit.consume_medkit save-wrap, logging only: the real-item-vs-charge proof. A non-nil
--- medkit is a REAL inventory item the vanilla path is about to release (alife_release_id,
--- xr_eat_medkit.script:218-221); nil is the per-rank healing_charge fallback (no item existed).
--- This line is what distinguishes "they heal with real medkits" from silent magic healing.
-local _orig_consume
 
 local function _patched_consume(npc, medkit, kind)
     if at_debug.on() and npc then
@@ -266,16 +214,6 @@ local function _install_heal_patch()
     at_debug.info("[PATCH] xr_eat_medkit.consume_medkit wrapped (item-vs-charge trace)")
 end
 
--- Install-once guard for the wounded-consume wrap. Module-local, so it resets with the Lua VM on
--- every game start / load / level change (script-loading.md); it only matters under -keep_lua, where
--- the VM persists across loads and on_game_start re-runs against an already-wrapped method.
-local _wounded_wrapped = false
-
--- Hook one method on a luabind class object. Reading a method off the class returns the bound method
--- as a plain callable; luabind's __newindex accepts re-registering it, and every instance dispatches
--- through the class (there is no per-instance method copy), so the swap reaches instances created
--- afterward. Returns the captured original (call it as original(self, ...)), or nil if absent.
--- Kept local: this is AT's own mechanism, not an xlibs dependency.
 local function _hook_method(class_obj, name, wrapper)
     if not class_obj then return nil end
     local original = class_obj[name]
@@ -284,10 +222,6 @@ local function _hook_method(class_obj, name, wrapper)
     return original
 end
 
--- The four medkit sections Cwound_manager:eat_medkit releases, in its exact fallback priority
--- (xr_wounded.script:282-289). The wrapper reports whichever the NPC holds, or `none` for the faked
--- heal (health set to full with no medkit in inventory).
-local WOUNDED_MEDKITS = { "medkit_script", "medkit", "medkit_army", "medkit_scientic" }
 local function _held_medkit_section(npc)
     for i = 1, #WOUNDED_MEDKITS do
         if npc:object(WOUNDED_MEDKITS[i]) then return WOUNDED_MEDKITS[i] end
@@ -295,12 +229,6 @@ local function _held_medkit_section(npc)
     return "none"
 end
 
--- Wrapper for Cwound_manager:eat_medkit -- the wounded-DOWN recovery (xr_wounded.script:271-308),
--- distinct from xr_eat_medkit's standing self-heal. It sets health to full and releases one medkit,
--- firing no engine eat, so nothing else observes it: this trace is the only signal for medkits handed
--- to a wounded NPC via the help dialog or burned by the 90s autoheal. Read the held section BEFORE the
--- original releases it (sec is set only when tracing is on); log only on a true return (an actual
--- consume). Always calls through; trace-off is a pure pass-through.
 local function _patched_wounded_eat(orig, self)
     local sec
     if at_debug.on() and self and self.npc then
@@ -313,10 +241,6 @@ local function _patched_wounded_eat(orig, self)
     return ret
 end
 
--- Cwound_manager lives on the xr_wounded module table (not _G), so touch xr_wounded first to force
--- its chunk (which defines the class) to load, then wrap the method. Runs at on_game_start in a fresh
--- VM, so the captured original is always vanilla; the guard covers the -keep_lua re-run. A missing
--- class (non-standard xr_wounded overlay) degrades to a warn + no trace, never an error.
 local function _install_wounded_trace()
     if _wounded_wrapped then return end
     local _ = xr_wounded and xr_wounded.unlock_medkit
@@ -330,13 +254,8 @@ local function _install_wounded_trace()
     at_debug.info("[PATCH] xr_wounded.Cwound_manager.eat_medkit wrapped (wounded-consume trace)")
 end
 
--- Per-rank charge override of vanilla's flat 50% roll at xr_eat_medkit.script:36-44.
--- Vanilla's bug (re-roll on every save load) is suppressed in zzz_at_firstaid_patch.script.
 local function _on_net_spawn(npc, _se_obj)
     if not _heal_active then return end
-    -- Live master toggle: no charge roll (and no processed marker) while off, so a later ON rolls
-    -- this NPC on its next spawn. Vanilla's own roll stays unregistered either way
-    -- (zzz_at_firstaid_patch) - the re-roll bug must not return when the toggle is off.
     if cfg.healing_enabled == false then return end
     if not npc or not IsStalker(npc) or not npc:alive() then return end
     local timer = xprofiler.new_if(at_debug.on()):start()
@@ -363,7 +282,6 @@ local function _on_net_spawn(npc, _se_obj)
     end
 end
 
--- Hurt pose for the active weapon posture slot, variant by the commanded gait.
 local function _pick_limp_anim(npc, mt)
     local tbl = (mt == move.walk and LIMP_WALK_BY_SLOT)
              or (mt == move.run  and LIMP_RUN_BY_SLOT)
@@ -371,29 +289,16 @@ local function _pick_limp_anim(npc, mt)
     return tbl[npc:active_slot()] or tbl[0]
 end
 
--- Drop one NPC's record and release the skeleton. clear_animations wipes only the script queue
--- (script_game_object3.cpp:466-476); the next engine update resumes its own animation selection.
 local function _drop_limp(npc, id, reason, us)
     _limping[id] = nil
     if npc:alive() then npc:clear_animations() end
     if at_debug.on() then at_debug.dbg("[LIMP] lost id=%d hp=%.2f reason=%s [%dus]", id, npc.health, reason, us or -1) end
 end
 
--- In combat = an enemy is selected OR the NPC is no longer calm (mental left free). The limp only starts
--- while calm (the eligibility chain), so either flip means a fight began. One predicate so the start gate
--- and the fast drop share the same definition of "in combat".
 local function _in_combat(npc)
     return xcombat.get_best_enemy(npc) ~= nil or not _is_calm(npc)
 end
 
--- The drop detectors, on their own 200ms clock. While a script animation is queued the engine
--- SUSPENDS its whole animation selection: update_impl returns right after play_script
--- (stalker_animation_manager_update.cpp:232) so play_torso/play_legs never run, and the script bone
--- mask covers every part but the head (stalker_animation_manager.cpp:97). The legs only look alive
--- while the skeleton loops the last-fed cycle, so an overlay outliving its gait freezes or slides the
--- body. Detectors: wounded/dead; the commanded gait changed from the add-time one; a stand-variant
--- NPC drifted off its add-time anchor; a walk/run-variant NPC stopped displacing (path ended with the
--- command still up). Returns true when the record was dropped.
 local function _try_drop_limp(npc, id, rec, tg)
     local timer = xprofiler.new_if(at_debug.on()):start()
     if not npc:alive() or IsWounded(npc) or npc:critically_wounded() then
@@ -401,9 +306,6 @@ local function _try_drop_limp(npc, id, rec, tg)
         _drop_limp(npc, id, "wounded_or_dead", timer:get_us())
         return true
     end
-    -- Combat drop on the FAST clock (this detector runs every pass; the enemy/mental gate otherwise sits
-    -- on the throttled eligibility chain, ~1s): the instant a fight begins, drop the overlay now, not up to
-    -- a second later. A limp still playing when the NPC is shot is what pins the body and slides it.
     if _in_combat(npc) then
         timer:stop()
         _drop_limp(npc, id, "combat", timer:get_us())
@@ -438,14 +340,6 @@ local function _try_drop_limp(npc, id, rec, tg)
     return false
 end
 
--- [LIMP] decline aggregate, debug only: for HURT stalkers that failed eligibility, count the first
--- failing gate and summarize one line per window - the flood-free answer to "why is nobody limping"
--- (a per-decline line would be one per hurt NPC per second). The reads duplicate the eligibility
--- chain's, on the debug path only, so the live chain keeps its short-circuit shape.
-local _limp_declines = { n = 0, far = 0, enemy = 0, mental = 0, standing = 0, wounded = 0, smart_cover = 0, zombied = 0, other = 0 }
-local LIMP_DECLINE_WINDOW = 100
-
--- The first eligibility gate this hurt NPC fails, re-derived in the eligibility chain's order.
 local function _limp_decline_reason(npc)
     if xcombat.actor_dist_sqr(npc) > ANIM_RADIUS_SQR then return "far" end
     if xcombat.get_best_enemy(npc) then return "enemy" end
@@ -469,9 +363,6 @@ local function _limp_note_decline(npc)
     end
 end
 
--- One NPC's slice of the limp monitor pass: the drop detectors run on the pass itself (the pass
--- period IS the drop clock), the eligibility chain self-throttles to its slower period on the
--- roster record's stamp.
 local function _run_limp_check(npc, id, state, tg)
     local rec = _limping[id]
     if rec and _try_drop_limp(npc, id, rec, tg) then return end
@@ -525,19 +416,9 @@ local function _run_limp_check(npc, id, state, tg)
     end
 end
 
--- The limp monitor pass, a vanilla time event every MONITOR_PERIOD_SEC: run the drop detectors and
--- the throttled eligibility chain on each tracked stalker. Per frame the whole limp system costs one
--- timer compare inside vanilla's own ProcessEventQueue walk; with the toggle off, one boolean per
--- pass. xobject.go returns nil for a gone id - the roster entry dies with the NPC.
-local _monitor_active = false
-
 local function _run_monitor()
     if not _monitor_active then return true end
-    -- Re-arm FIRST: ProcessEventQueue has no error protection, so an expired event that errors would
-    -- re-fire and re-error every frame, starving every time event in the game. Re-armed, a fault costs
-    -- one aborted pass. Liveness inside the check (_try_drop_limp and the eligibility chain test alive
-    -- before any engine combat read).
-    ResetTimeEvent("at_firstaid", "monitor", MONITOR_PERIOD_SEC)
+    ResetTimeEvent("at_healing", "monitor", MONITOR_PERIOD_SEC)
     if not cfg.limping_anim_enabled then return end
     local tg = time_global()
     for id, state in pairs(_npc_states) do
@@ -546,8 +427,6 @@ local function _run_monitor()
     end
 end
 
--- Roster fill. Unconditional (the limp overlay is independent of the healing master toggle); the
--- per-rank charge roll rides the same spawn event behind its own _heal_active guard.
 local function _on_roster_spawn(npc, se_obj)
     if not npc or not IsStalker(npc) then return end
     _npc_states[npc:id()] = { eligibility_at = 0 }
@@ -558,8 +437,6 @@ local function _on_net_destroy(npc)
     if not npc then return end
     local id = npc:id()
     _npc_states[id] = nil
-    -- The script-queue overlay dies with the game object; a kept record would fire a spurious
-    -- drop off a stale anchor when the NPC re-onlines.
     _limping[id] = nil
 end
 
@@ -569,21 +446,16 @@ local function _on_entity_unregister(se_obj)
     _npc_states[se_obj.id] = nil
 end
 
-local function _refresh_log()
-    at_debug.refresh()
-end
-
--- Time events do not survive a save load (_g.script header), so the monitor arms here, per session.
 local function _on_actor_first_update()
     _limping = {}
-    _refresh_log()
+    at_debug.refresh()
     if not _monitor_active then
         _monitor_active = true
-        RemoveTimeEvent("at_firstaid", "monitor")
-        CreateTimeEvent("at_firstaid", "monitor", MONITOR_PERIOD_SEC, _run_monitor)
+        RemoveTimeEvent("at_healing", "monitor")
+        CreateTimeEvent("at_healing", "monitor", MONITOR_PERIOD_SEC, _run_monitor)
     end
     if not _heal_active then return end
-    at_debug.info("Health module initialized (heal_mult=%.2f tiers novice=%d%% experienced=%d%% veteran=%d%% master=%d%%)",
+    at_debug.info("Healing initialized (heal_mult=%.2f tiers novice=%d%% experienced=%d%% veteran=%d%% master=%d%%)",
         cfg.heal_rate_multiplier,
         cfg.charge_chance_novice,
         cfg.charge_chance_experienced,
@@ -596,11 +468,9 @@ function on_game_start()
     RegisterScriptCallback("npc_on_net_destroy",          _on_net_destroy)
     RegisterScriptCallback("server_entity_on_unregister", _on_entity_unregister)
     RegisterScriptCallback("actor_on_first_update",     _on_actor_first_update)
-    RegisterScriptCallback("on_option_change",          _refresh_log)
-    RegisterScriptCallback("mcm_option_restore_default", _refresh_log)
+    RegisterScriptCallback("on_option_change",          at_debug.refresh)
+    RegisterScriptCallback("mcm_option_restore_default", at_debug.refresh)
 
-    -- Installed unconditionally: the patched bodies read cfg.healing_enabled per tick, so the MCM
-    -- master toggle is live mid-session (off = exact vanilla semantics through the same functions).
     _install_heal_patch()
     _install_wounded_trace()
 end

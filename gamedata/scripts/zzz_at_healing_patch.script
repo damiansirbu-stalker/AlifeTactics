@@ -1,0 +1,7 @@
+--- zzz_at_healing_patch: unregister vanilla xr_eat_medkit.on_register (the save-load charge re-roll bug)
+
+function on_game_start()
+    if not xr_eat_medkit or not xr_eat_medkit.on_register then return end
+    UnregisterScriptCallback("server_entity_on_register", xr_eat_medkit.on_register)
+    at_debug.info("[PATCH] xr_eat_medkit.on_register suppressed (vanilla save-load re-roll bug)")
+end
