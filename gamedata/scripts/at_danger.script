@@ -1,78 +1,5 @@
 -- @override
--- The @override marker above is the stalker-manager tag for vanilla-derived code: it exempts
--- this module from AT-native style rules and from the stub-based load test (the danger scheme
--- depends on vanilla modules absent from the test stubs). It does NOT mean a VFS whole-file
--- override. This module is named at_danger.script, does not occupy the xr_danger.script slot,
--- and installs its functions onto the winning xr_danger at on_game_start.
 --- at_danger: AlifeTactics danger scheme, installed as a function-level patch.
---[[
-	scheme_type: generic (danger)
-	base:    Anomaly 1.5.3 vanilla xr_danger (Alundaio)
-	applied: AlifeTactics, at on_game_start, onto whichever xr_danger.script won the
-	         MO2 virtual filesystem (vanilla or any AI overhaul copy).
-
-	Composition
-	AlifeTactics no longer ships xr_danger.script, so it does not compete for that file
-	slot. This module keeps the full danger implementation privately (file-locals plus
-	at_-prefixed classes) and, at on_game_start, points the winning xr_danger's generic
-	scheme entry points at this module's versions:
-	    setup_generic_scheme, add_to_binder, configure_actions, reset_generic_scheme,
-	    get_danger_time, set_script_danger, has_danger.
-	Each of those is dispatched by a live _G["xr_danger"].fn lookup at bind/reset time
-	(modules.script:110,152,167,211; xr_logic.script:294), and every script runs under
-	setfenv to its own module table (script_storage.cpp:44-63), so the winning file's own
-	internal bare calls resolve to the patched members as well.
-
-	Feeder callbacks (npc_on_hear_callback, npc_on_death_callback) are left to the winning
-	file, which registers vanilla-derived versions of them. They route through the patched
-	set_script_danger and db.storage, feeding this module's evaluators. The winning file's
-	other danger callbacks (overhaul torch/weight or per-frame perception layers) keep
-	running untouched.
-
-	Vanilla bugs fixed (always on)
-	1. bd_types read three danger categories under the wrong config section, because the
-	   danger_perceive_type names visual/sound/hit collide with danger_type values 0/1/2 in
-	   the shared danger_object enum (danger_object.h:18-35, memory_space_script.cpp:130-147).
-	   This table drops the three perceive entries.
-	2. Corpse-death-time lookup returns 0 instead of crashing on a mutant corpse.
-	3. Danger evaluator guards a torn-down NPC reference.
-	4. Danger evaluator guards a non-numeric corpse-death return.
-	5. The vanilla hit callback passed an undefined who_id and corrupted the script-danger
-	   entry on every hit. It is not registered here, and set_script_danger rejects a nil
-	   who_id, so the winning file's copy of that callback cannot corrupt the entry either.
-	6. Danger-state transitions reset the lower-body animation tier too, not just the upper.
-	7. Danger finalize releases only this NPC's own level-vertex reservations instead of
-	   wiping the shared db.used_level_vertex_ids map.
-	8. The corpse action guards the teardown race: a corpse that despawns between the
-	   evaluator pass and the action execute no longer crashes on a nil danger object or
-	   a nil storage entry in the stage-6 look_position.
-	9. The corpse force-hostile loop no longer overwrites the acting NPC variable, so
-	   later corpse stages drive the right NPC.
-	10. Corpse stage 6 moves the NPC to the cover vertex it found instead of the cleared
-	   st.lvid (the found cover was never used).
-	11. Performance: the inertion and ignore-distance condlists are parsed once and
-	   memoized (_parse_cached); vanilla re-parsed the same fixed strings on every
-	   danger evaluation, per NPC per plan solve.
-	12. script_danger entries are dropped on entity unregister. Vanilla kept a dead
-	   perceiver's entry until expiry, so a recycled id inside the inertion window
-	   inherited a scripted danger the new NPC never perceived.
-
-	Extension callback
-	eval_danger fires npc_on_eval_danger before evaluating; a subscriber that sets
-	flags.ret_value = false suppresses danger for that NPC that tick.
-
-	Improvements (MCM-toggleable on the Effectiveness > Danger page)
-	1. danger_hit_bypass: a direct hit is danger at any distance (being hit is proof of range);
-	   bypasses the relation, combat-ignore and ignore-distance gates. Only the scripted
-	   combat-ignore override still suppresses it. Squad-level response to the same hit is
-	   at_disclosure's job; this is the victim's own reflex when combat cannot engage.
-	2. danger_actor_tables: dangers sourced from the actor read the separate [_actor] tables,
-	   where the installed config differentiates them (some AI overhauls do; vanilla ships copies).
-	3. danger_attack_sound: the attack-sound danger type gets a script-side handler, admitted by
-	   at_evaluator_check_danger while the toggle is on. Reaction distance is the winning config's
-	   attack_sound row.
-	Snap danger-state transitions (not toggleable) remove the reaction-delay blend.
---]]
 
 local _evaid = 188113
 local _actid = 188113
@@ -81,15 +8,8 @@ local time_global = time_global
 local IsStalker, IsMonster, IsWounded = IsStalker, IsMonster, IsWounded
 
 local _enabled = { hit_bypass = true, attack_sound = true, actor_tables = true, neutral_gunfire = true }
--- Actor-table liveness: [danger_object_actor] is honored only when the winning danger script consumed
--- it itself (its module carries the DangerIgnoreActor field, probed at _install_patches). Some danger
--- scripts ship the section with stale values and never read it - resurrecting it would override their
--- tuned base radii. Vanilla ships base and actor tables identical, so the probe changes nothing there.
 local _actor_tables_live = false
 
--- Non-enemy actor gunfire alert radius (t150), squared. Deliberately its own small constant instead
--- of the config's attack_sound row (up to 300m on vanilla tuning) - a neutral reacting at combat
--- ranges would alarm whole camps; 30m is earshot-of-concern.
 local NEUTRAL_GUNFIRE_RADIUS_SQR = 30 * 30
 
 local ini = ini_file("ai_tweaks\\xr_danger.ltx")
@@ -99,18 +19,10 @@ DangerInertionActor = utils_data.collect_section(ini,"danger_inertion_actor",tru
 DangerIgnoreActor = utils_data.collect_section(ini,"danger_object_actor",true)
 ini = nil
 
--- Parsed-condlist memo (fix 11): the inertion / ignore-distance strings are fixed after the DLTX
--- merge, but vanilla re-parsed them on EVERY danger evaluation (per NPC per plan solve). Parse each
--- distinct string once; keyed by the raw string so both the base and actor tables share entries.
--- parse_condlist's npc/section/field args feed only its error messages - the parsed structure is
--- npc-independent; the npc enters at pick_section_from_condlist time.
--- Vanilla xr_danger thresholds, kept as named values rather than inline numbers.
-local CORPSE_STALE_SEC = 12000      -- a body older than this stops being a danger
-local EVAL_BUDGET = 200             -- evaluations before the per-tick budget trips
-local HEAR_DIST_M = 70              -- past this a danger is heard, not seen
-local FAR_DIST_M = 150              -- past this the danger is ignored outright
-local GRENADE_CHANCE_PCT = 33       -- roll under this and the NPC throws
-local INVALID_SMART_ID = 65535      -- engine sentinel, xconst.INVALID_ENTITY_ID
+local CORPSE_STALE_SEC = 12000
+local EVAL_BUDGET = 200
+local FAR_DIST_M = 150
+local GRENADE_CHANCE_PCT = 33
 
 local _condlist_cache = {}
 local function _parse_cached(npc, bd_name, key, src)
@@ -140,14 +52,8 @@ function get_type_name(danger_type)
 	return bd_types[danger_type] or tostring(danger_type)
 end
 
--- 																PUBLIC
--- strength (optional, t163): the evidence grade the scripted reaction runs at - "faint" (stance
--- only) or "solid" (walk-investigate). Absent = the original assault reaction, so foreign callers
--- (the winning xr_danger's own feeds) are untouched. Assigned unconditionally: a later ungraded
--- stamp must not inherit a stale grade.
+--- Stamp a scripted danger on npc at pos for `time` ms; optional strength = the reaction grade (faint/solid)
 function set_script_danger(npc,time,who_id,pos,strength)
-	-- Bug 5 guard: the vanilla hit callback calls this with an undefined who_id.
-	-- Reject the nil-source write so that callback cannot corrupt the entry.
 	if not who_id then
 		return
 	end
@@ -163,12 +69,12 @@ function set_script_danger(npc,time,who_id,pos,strength)
 	end
 end
 
+--- True while the danger scheme's evaluator holds for npc
 function has_danger(npc)
 	local id = npc:id()
 	local st = db.storage[id]
 	return st and st.danger_flag == true
 end
--- 																PRIVATE
 function get_danger_time(danger,npc)
 	if (danger:type() == danger_object.entity_corpse) then
 		local corpse_object = danger:object()
@@ -214,10 +120,6 @@ local function is_danger(npc,best_danger,script)
 	local best_danger_object = best_danger:object()
 	local bd_type = best_danger:type()
 
-	--if (bd_type == danger_object.entity_corpse) then
-		--return false
-	--end
-
 	if (bd_type == danger_object.grenade) then
 		if not (best_danger:dependent_object() and not xcreature.is_zombied(npc)) then
 			return false
@@ -255,29 +157,16 @@ local function is_danger(npc,best_danger,script)
 		return false
 	end
 
-	--if (db.storage[npc:id()].active_scheme == "camper") then
-		--return false
-	--end
-
 	if (best_danger:dependent_object()) then
 		best_danger_object = best_danger:dependent_object()
 	end
 
-	-- Non-enemy actor gunfire (t150): a NEUTRAL or FRIENDLY stalker goes on alert to the PLAYER's
-	-- shots fired close by - the one admission through the relation gate below, and alert is ALL it
-	-- buys: the handler gives non-enemies a stance-and-look reaction (no repositioning), no relation
-	-- or goodwill is touched, and the entry decays with the danger inertion. Scoped to the actor
-	-- (NPC-vs-NPC neutral fire stays ignored - camps must not alarm to every friendly potshot) and
-	-- to its own short radius, never the config's combat-range attack_sound row.
 	if _enabled.neutral_gunfire and (bd_type == danger_object.attack_sound)
 		and best_danger_object and best_danger_object:id() == AC_ID
 		and npc:relation(db.actor) < game_object.enemy then
 		return (best_danger:position():distance_to_sqr(npc:position()) <= NEUTRAL_GUNFIRE_RADIUS_SQR)
 	end
 
-	-- A direct hit is proof of danger at any distance: no relation, combat-ignore or radius gate
-	-- applies (being hit already proves the shooter is in range). Only the scripted combat-ignore
-	-- override still suppresses it (quest-forced non-reaction must hold).
 	if _enabled.hit_bypass and best_danger_object and (best_danger:perceive_type() == danger_object.hit)
 		and not xr_combat_ignore.ignore_enemy_by_overrides(npc, best_danger_object) then
 		if at_debug.on() then at_debug.dbg("hit-type bypass npc=%s src=%s", npc:name(), best_danger_object:name()) end
@@ -312,16 +201,11 @@ local function check_script_danger(id)
 	return false
 end
 
--- 																EVALUATORS
 class "at_evaluator_danger" (property_evaluator)
 function at_evaluator_danger:__init(name, storage, npc) super (nil, name)
 	self.a = storage
 end
 
--- Slow-call attribution scratch: eval_danger stamps its segment costs here (debug only), and
--- evaluate() logs them when one call crosses SLOW_EVAL_US - so a rare multi-ms call names the
--- segment (engine read / callback / inertion resolve / is_danger) instead of hiding in the window.
--- Aligned with the 2ms budget ceiling: any over-ceiling eval gets its segment breakdown.
 local SLOW_EVAL_US = 2000
 local _seg_bd, _seg_cb, _seg_dtime, _seg_cond, _seg_is, _seg_name = -1, -1, -1, -1, -1, "-"
 
@@ -332,8 +216,6 @@ local function eval_danger(self)
 		return false
 	end
 
-	-- profile_timer ACCUMULATES across start/stop pairs (script_engine_script.cpp:186), so every
-	-- segment is a delta against the running total.
 	local prof = at_debug.on()
 	local timer, seg_mark
 	if prof then
@@ -348,11 +230,6 @@ local function eval_danger(self)
 	if prof then timer:stop() local now_us = timer:get_us() _seg_cb = now_us - seg_mark seg_mark = now_us end
 	if flags.ret_value == false then return false end
 
-	-- A live script-danger stamp activates the scheme ON ITS OWN. Without this the noise/impact
-	-- feeds only reacted when the engine coincidentally held a best_danger too - true on installs
-	-- whose engine hearing perceives the enemy, silently dead on modpacks that mute NPC sound
-	-- perception (reporter 2026-07-25: alerts stamped, zero reactions). The scripted reaction
-	-- consumes only the stamped position; it needs no engine danger object.
 	if check_script_danger(npc:id()) then
 		return true
 	end
@@ -405,14 +282,6 @@ local function eval_danger(self)
 		return false
 	end
 
-	--[[
-	local sim = alife()
-	local se_obj = sim:object(id)
-	if (se_obj and se_obj.m_smart_terrain_id ~= INVALID_SMART_ID) then
-		sim:object(se_obj.m_smart_terrain_id):set_alarm()
-	end
-	--]]
-
 	self.a.danger_time = danger_time
 	self.a.inertion = inertion
 	self.a.type = bd_type
@@ -420,17 +289,10 @@ local function eval_danger(self)
 	return true
 end
 
--- eval_danger duration aggregate: the evaluator runs per NPC per plan solve (too hot for a line
--- each), so durations accumulate and summarize every 200 evals. Pure-Lua counters; the timer is a
--- null object when debug is off. heap= is the Lua heap at window end with the delta across the
--- window: a rare 20ms+ max alongside a large negative delta is a garbage-collector step landing
--- inside a timed call, not eval_danger's own work (its measured per-call ceiling is ~0.3ms).
 local collectgarbage = collectgarbage
 local _eval_n, _eval_sum_us, _eval_max_us, _eval_heap_kb = 0, 0, 0, 0
 
 function at_evaluator_danger:evaluate()
-	-- Bug 3 guard, completed: eval_danger bails on a torn-down NPC, so the flag write must too,
-	-- or the deref below crashes on exactly the case the guard exists for.
 	local npc = self.object
 	if not npc then return false end
 	local timer = xprofiler.new_if(at_debug.on()):start()
@@ -443,9 +305,6 @@ function at_evaluator_danger:evaluate()
 		_eval_n = _eval_n + 1
 		_eval_sum_us = _eval_sum_us + us
 		if us > _eval_max_us then _eval_max_us = us end
-		-- Attribute a single slow call to its segment. The four segments should sum to ~us; a large
-		-- gap between us and (bd+cb+inert+is) is time the profile_timer never charged to any segment
-		-- (a pause between segments) = a VM stall (GC step, engine block), not eval_danger's code.
 		if us > SLOW_EVAL_US then
 			local seg_sum = math_max(0, _seg_bd) + math_max(0, _seg_cb) + math_max(0, _seg_dtime)
 				+ math_max(0, _seg_cond) + math_max(0, _seg_is)
@@ -462,7 +321,6 @@ function at_evaluator_danger:evaluate()
 	return danger
 end
 
--- 														ACTION
 class "at_action_danger" ( action_base )
 function at_action_danger:__init( name, storage )  super ( nil, name )
 	self.a = storage
@@ -477,7 +335,6 @@ function at_action_danger:initialize()
 end
 
 local function script_action_danger_scripted(npc,st)
-	--utils_data.debug_write("script_action_danger_scripted")
 	local id = npc:id()
 	local bdo = script_danger[id].id and db.storage[script_danger[id].id] and db.storage[script_danger[id].id].object
 
@@ -485,43 +342,8 @@ local function script_action_danger_scripted(npc,st)
 	local dist = bdo_pos and npc:position():distance_to_sqr(bdo_pos)
 	local tg = time_global()
 
-
 	local who_dist = bdo and bdo:position():distance_to_sqr(bdo_pos)
 
-	--[[
-	if (dist and dist >= HEAR_DIST_M) then
-		if (bdo and npc:relation(bdo) > 0 and npc:see(bdo)) then
-			state_mgr.set_state(npc,"hide_na",nil,nil,{look_object = bdo},{fast_set = true})
-			if (not utils_obj.squad_in_los(npc,bdo)) then
-				local wpn = npc:best_weapon()
-				if (wpn) then
-					local relation = npc:relation(bdo)
-					local look_pos = vector():set(bdo:position())
-
-					look_pos.y = relation >= 2 and look_pos.y + 1 or look_pos.y - (math_random(25,35)/100)
-					npc:set_sight(look.fire_point,look_pos)
-
-					if (npc:target_body_state() == move.crouch) then
-						st.__warning_shot_tmr = not st.__warning_shot_tmr and tg+500 or st.__warning_shot_tmr
-						if (tg < st.__warning_shot_tmr) then
-							npc:set_item(object.fire1,wpn,1,1)
-							xr_sound.set_sound_play(npc:id(),"tolls")
-						end
-					end
-				end
-			end
-			st.lvid = utils_obj.send_to_nearest_accessible_vertex(npc,npc:level_vertex_id())
-		end
-	end
-	--]]
-
-	-- t163 graded reaction: a sound is a position ESTIMATE, never a confirmed enemy, so no
-	-- sound-only stamp may produce a run state. FAINT (walk step, item handling): orient to the
-	-- heard position weapon-ready, no movement - the stamped position, not the source's live one
-	-- (facing a live position on a faint sound would track the actor through walls). SOLID
-	-- (reload, empty click, sprint, landing): the reposition below runs at "raid" (walk, weapon
-	-- up) instead of "assault". Absent strength (foreign set_script_danger callers): the original
-	-- assault path, byte-identical.
 	local strength = script_danger[id].strength
 	if at_debug.on() then at_debug.dbg("scripted danger reaction npc=%s strength=%s", npc:name(), tostring(strength)) end
 	if (strength == "faint") then
@@ -586,8 +408,6 @@ local function script_action_danger_scripted(npc,st)
 end
 
 local function script_action_danger_grenade(npc,st,bd,best_danger_object,dependent_object,bd_type)
-	--utils_data.debug_write("script_action_danger_grenade")
-	-- In this case dependent_object should be actual grenade object; best_danger_object should be nade thrower
 	local bdo = dependent_object or best_danger_object
 
 	local bdo_pos = bdo and bdo:position()
@@ -598,33 +418,7 @@ local function script_action_danger_grenade(npc,st,bd,best_danger_object,depende
 	local tg = time_global()
 
 	if (dist and dist >= FAR_DIST_M) then
-		--[[
-		if (be and npc:see(be)) then
-			state_mgr.set_state(npc,"hide_na",nil,nil,{look_object = be},{fast_set = true})
-			if (not utils_obj.squad_in_los(npc,be)) then
-				local wpn = npc:best_weapon()
-				if (wpn) then
-					local relation = npc:relation(be)
-					local look_pos = vector():set(be:position())
-
-					look_pos.y = relation >= 2 and look_pos.y + 1 or look_pos.y - (math_random(25,35)/100)
-					npc:set_sight(look.fire_point,look_pos)
-
-					if (npc:target_body_state() == move.crouch) then
-						st.__warning_shot_tmr = not st.__warning_shot_tmr and tg+500 or st.__warning_shot_tmr
-						if (tg < st.__warning_shot_tmr) then
-							npc:set_item(object.fire1,wpn,1,1)
-							xr_sound.set_sound_play(npc:id(),"tolls")
-						end
-					end
-
-					npc:set_body_state(move.crouch)
-				end
-			end
-		else
-			state_mgr.set_state(npc,"threat_danger",nil,nil,{look_position = bdo_pos},{fast_set = true})
-		end
-		--]]
+		
 		local sm = db.storage[npc:id()].state_mgr
 		if (sm and sm.target_state ~= "threat_danger") then
 			npc:clear_animations()
@@ -687,17 +481,12 @@ local function script_action_danger_grenade(npc,st,bd,best_danger_object,depende
 end
 
 local function script_action_danger_corpse(npc,st,bd,best_danger_object,dependent_object,bd_type)
-	--utils_data.debug_write("script_action_danger_corpse")
-	-- In this case corpse is best_danger_object; dependent_object should be killer or it's probably nil
 	local bdo = best_danger_object or dependent_object
 	if not bdo then return end
 
 	local dst = db.storage[bdo:id()]
 	local killer = dependent_object or dst and dst.death_by_id and (db.storage[dst.death_by_id] and db.storage[dst.death_by_id].object or level.object_by_id(dst.death_by_id))
 
-	-- force hostile to killer. (st.stage or 0): vanilla compares st.stage >= 4 bare (xr_danger.script:539)
-	-- and crashes when the corpse reaction fires before the scheme's initialize set the stage - and since
-	-- stage only ever holds 1 or 2 in this file, the bare compare could only ever crash, never pass.
 	if ((st.stage or 0) >= 4 and killer and killer:id() == AC_ID and killer:alive() and npc:relation(killer) < game_object.enemy and npc:see(killer)) then
 		local squad = xsquad.get_squad_by_member(npc:id())
 		if (squad) then
@@ -710,10 +499,8 @@ local function script_action_danger_corpse(npc,st,bd,best_danger_object,dependen
 		else
 			npc:force_set_goodwill( -1000, killer)
 		end
-		--printf("xr_danger.script_action_danger_corpse: forced enemies %s and %s",npc:name(), killer:name())
 	end
 
-	--printf("stage = %s",st.stage)
 	if (st.stage == 1) then
 		st.lvid = bdo:level_vertex_id()
 		st.lvid = utils_obj.send_to_nearest_accessible_vertex(npc,st.lvid)
@@ -805,11 +592,9 @@ local function script_action_danger_corpse(npc,st,bd,best_danger_object,dependen
 end
 
 local function script_action_danger_attacked(npc,st,bd,best_danger_object,dependent_object,bd_type)
-	--utils_data.debug_write("script_action_danger_attacked")
 	local bdo = dependent_object or best_danger_object
 	local tg = time_global()
 
-	--printf("stage = %s",st.stage)
 	if (st.stage == 1) then
 
 		if not (st.last_pos) then
@@ -847,7 +632,6 @@ local function script_action_danger_attacked(npc,st,bd,best_danger_object,depend
 	end
 end
 
--- script_action_danger_alert tunable. ALERT_CLOSE_DIST_SQR is in distance_to_sqr space (120 = ~11m).
 local ALERT_CLOSE_DIST_SQR = 120
 
 local function script_action_danger_alert(npc, st, bd, best_danger_object, dependent_object, bd_type)
@@ -860,12 +644,6 @@ local function script_action_danger_alert(npc, st, bd, best_danger_object, depen
 	local be = npc:best_enemy() or best_danger_object
 	local tg = time_global()
 
-	-- Non-enemy actor branch (t150): a NEUTRAL or FRIENDLY stalker hearing the player's shots close
-	-- by goes on alert and NOTHING more - weapon-ready stance, facing the sound, decaying with the
-	-- inertion. No repositioning (the strafe/cover dance below reads as aggression against a
-	-- non-enemy) and no relation write. An ENEMY source falls through to the full reaction, aimed
-	-- or not. Each population obeys its own toggle: with Enemy gunfire off, an enemy-source danger
-	-- admitted for the neutral toggle's sake must not leak into the full reaction, and vice versa.
 	if bdo:id() == db.actor:id() and npc:relation(db.actor) < game_object.enemy then
 		if not _enabled.neutral_gunfire then return end
 		state_mgr.set_state(npc, "threat_na", nil, nil, {look_position = bdo_pos}, {fast_set = true})
@@ -949,17 +727,10 @@ end
 function at_action_danger:execute()
 	action_base.execute(self)
 
-	--utils_data.debug_write("BEFORE scripted_danger_action_planner",true)
 	local npc = self.object
 
-	-- A dead subject faults npc:see (engine logs "cannot check visibility of dead object!",
-	-- script_game_object.cpp:314). A dead NPC has no danger reaction, so bail before the
-	-- dispatch. Same guard as at_maneuvers _run_npc_checks.
 	if not npc:alive() then return end
 
-	-- Script-danger first: the scripted reaction runs off the stamped position alone, so it must
-	-- not sit behind the engine best_danger bail (the evaluator can admit on a stamp with no
-	-- engine danger present at all).
 	if (check_script_danger(npc:id())) then
 		script_action_danger_scripted(npc,self.a)
 		return
@@ -988,7 +759,6 @@ function at_action_danger:execute()
 		if at_debug.on() then at_debug.dbg("attack_sound dispatch npc=%s src=%s", npc:name(), best_danger_object and best_danger_object:name() or "nil") end
 		script_action_danger_alert(npc,self.a,best_danger,best_danger_object,dependent_object,bd_type)
 	end
-	--utils_data.debug_write("AFTER scripted_danger_action_planner")
 end
 
 function at_action_danger:finalize()
@@ -997,9 +767,6 @@ function at_action_danger:finalize()
 		state_mgr.set_state(self.object,self.a.last_state)
 	end
 
-	-- db.used_level_vertex_ids is a shared reservation map; vanilla wiped
-	-- the whole table here, which clobbered every other system's claims.
-	-- Release only entries owned by this NPC.
 	local own_id = self.object:id()
 	for k,v in pairs(db.used_level_vertex_ids) do
 		if v == own_id then
@@ -1012,13 +779,11 @@ function at_action_danger:finalize()
 	action_base.finalize(self)
 end
 
--- false - engine danger, true - script danger
 class "at_evaluator_check_danger" (property_evaluator)
 function at_evaluator_check_danger:__init(name, storage) super (nil, name)
 	self.a = storage
 end
 function at_evaluator_check_danger:evaluate()
-	--utils_data.debug_write("eva_check_danger")
 
 	if (self.a.disable) then
 		return false
@@ -1049,8 +814,6 @@ function at_evaluator_check_danger:evaluate()
 		return false
 	end
 
-	-- Script stamp before the engine best_danger bail, same reorder as at_action_danger:execute:
-	-- a stamp must reach the scripted reaction with no engine danger present.
 	if (check_script_danger(id)) then
 		return true
 	end
@@ -1065,10 +828,6 @@ function at_evaluator_check_danger:evaluate()
 		return false
 	end
 
-	-- attack_sound is admitted while either gunfire improvement is on (Enemy gunfire, or the t150
-	-- neutral alert - the neutral case must not die with the enemy toggle): it routes the danger
-	-- action to script_action_danger_alert. Without this admission the dispatch in
-	-- at_action_danger:execute was unreachable (the 1.1.0 bug: the improvement never fired).
 	if not (bd_type == danger_object.attacked or bd_type == danger_object.entity_corpse or bd_type == danger_object.grenade
 		or ((_enabled.attack_sound or _enabled.neutral_gunfire) and bd_type == danger_object.attack_sound)) then
 		return false
@@ -1116,7 +875,6 @@ function at_position_node:select_best_vertex_id(object,dir,lvid,min_dist,max_dis
 	return close and self.node[close]
 end
 
--- BINDER
 function setup_generic_scheme(npc,ini,scheme,section,stype,temp)
 	local st = xr_logic.assign_storage_and_bind(npc,ini,"danger","danger",temp)
 	db.storage[npc:id()].danger_flag = false
@@ -1132,7 +890,6 @@ function add_to_binder(npc,ini,scheme,section,storage,temp)
 	local evaluator2 = at_evaluator_check_danger("script_danger",storage,npc)
 	if not evaluator1 or not evaluator2 then return end
 
-	--printf("ACTION_ALIFE_ID(xr_danger.add_to_binder): " .. tostring(stalker_ids.action_danger_planner))
 	local danger_action = manager:action(stalker_ids.action_danger_planner)
 	local danger_action_planner = cast_planner(danger_action)
 	if not danger_action or not danger_action_planner then return end
@@ -1155,7 +912,6 @@ function add_to_binder(npc,ini,scheme,section,storage,temp)
 	temp.action:add_precondition( wp(_evaid, true) )
 	temp.action:add_precondition( wp(stalker_ids.property_danger, true) )
 	temp.action:add_effect( wp(_evaid,false) )
-	--temp.action:add_effect( wp(stalker_ids.property_danger, false) )
 
 	manager:add_action(_actid,temp.action)
 end
@@ -1173,12 +929,10 @@ function configure_actions(npc,ini,scheme,section,stype,temp)
 	local action
 	local p = {
 				xr_actions_id.alife,
-				--xr_actions_id.state_mgr + 1,
 				xr_actions_id.state_mgr + 2
 	}
 
 	for i=1,#p do
-		--printf("ACTION_ALIFE_ID(xr_danger.configure_actions): " .. tostring(p[i]))
 		action = manager:action(p[i])
 		if (action) then
 			action:add_precondition( wp(_evaid,false) )
@@ -1192,9 +946,6 @@ function reset_generic_scheme(npc,scheme,section,stype,st)
 
 end
 
--- 															ON GAME START
--- Fix 12: drop a dead perceiver's scripted-danger entry, so a recycled id inside the
--- inertion window cannot inherit a danger the new NPC never perceived.
 local function _on_entity_unregister(se_obj)
 	if se_obj then script_danger[se_obj.id] = nil end
 end
@@ -1218,8 +969,6 @@ local _patched = false
 local function _install_patches()
 	if _patched then return end
 	_patched = true
-	-- xr_danger here is the winning MO2 file (vanilla or any overhaul copy).
-	-- Referencing it auto-loads that module first, so its table exists before we patch.
 	_actid = xr_danger.actid or _actid
 	xr_danger.setup_generic_scheme = setup_generic_scheme
 	xr_danger.add_to_binder        = add_to_binder
@@ -1228,8 +977,6 @@ local function _install_patches()
 	xr_danger.get_danger_time      = get_danger_time
 	xr_danger.set_script_danger    = set_script_danger
 	xr_danger.has_danger           = has_danger
-	-- Probed BEFORE our assignments could matter: the field belongs to the shipped module, we never
-	-- set it. Non-nil = that script read [danger_object_actor] itself, so the actor tables are live.
 	_actor_tables_live = xr_danger.DangerIgnoreActor ~= nil
 end
 
