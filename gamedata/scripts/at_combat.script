@@ -1,0 +1,235 @@
+--- at_combat: the Combat substrate - the per-NPC records, the hit/reload timestamps, the best_enemy facts, and the main loop that drives the combat systems
+
+local IsStalker, time_global, pairs, next = IsStalker, time_global, pairs, next
+local RegisterScriptCallback = RegisterScriptCallback
+
+local cfg = at_mcm.cfg
+
+local MONITOR_PERIOD_SEC = 0.2
+local MON_FLUSH_MS = 5000
+local BEST_ENEMY_REFRESH_MS = 600
+local COMPANION_INFO = "npcx_is_companion"
+
+local _npc_states = {}
+local _best_enemy_of = {}
+local _monitor_active = false
+local _mon = { ms = 0, max = 0, ticks = 0, last = 0 }
+
+-- The best_enemy facts. The loop is the only writer of the forward field and the reverse index.
+
+local function _drop_edge(state)
+    local bucket = state.best_enemy_id and _best_enemy_of[state.best_enemy_id]
+    if bucket then
+        bucket[state.id] = nil
+        if next(bucket) == nil then _best_enemy_of[state.best_enemy_id] = nil end
+    end
+end
+
+local function _refresh_best_enemy(npc, state, now)
+    if (now - (state.best_enemy_at or 0)) < BEST_ENEMY_REFRESH_MS then return end
+    state.best_enemy_at = now
+    local enemy = xcombat.get_best_enemy(npc)
+    local id = enemy and enemy:id() or nil
+    if id == state.best_enemy_id then return end
+    _drop_edge(state)
+    state.best_enemy_id = id
+    if id then
+        local bucket = _best_enemy_of[id]
+        if not bucket then bucket = {} _best_enemy_of[id] = bucket end
+        bucket[state.id] = now
+    end
+end
+
+-- The main loop: fixed 200ms, re-arms first, walks the records, calls each system explicitly.
+
+local function _rearm_monitor()
+    ResetTimeEvent("at_combat", "monitor", MONITOR_PERIOD_SEC)
+end
+
+local function _record_pass(ms, now)
+    if _mon.last == 0 then _mon.last = now end
+    _mon.ms = _mon.ms + ms
+    if ms > _mon.max then _mon.max = ms end
+    _mon.ticks = _mon.ticks + 1
+    if now - _mon.last >= MON_FLUSH_MS then
+        at_debug.dbg("[MON] window=%.0fs ticks=%d tick_avg=%.3fms tick_max=%.3fms",
+            (now - _mon.last) / 1000, _mon.ticks, _mon.ms / _mon.ticks, _mon.max)
+        _mon.ms, _mon.max, _mon.ticks, _mon.last = 0, 0, 0, now
+    end
+end
+
+local function _run_record(npc, state, now)
+    if not npc:alive() then
+        at_maneuvers.clear_npc(npc, state, "died", now)
+        at_behaviors.clear_npc(npc, state, "died", now)
+        return
+    end
+    _refresh_best_enemy(npc, state, now)
+    if state.gate == true then
+        at_maneuvers.continue_maneuver(npc, state, now)
+    else
+        at_maneuvers.try_maneuver(npc, state, now)
+    end
+    at_behaviors.sync_npc(npc, state, now)
+end
+
+local function _run_monitor()
+    if not _monitor_active then return true end
+    _rearm_monitor()
+    local now = time_global()
+    local timer = xprofiler.new_if(at_debug.on()):start()
+    at_behaviors.update_window(now)
+    for id, state in pairs(_npc_states) do
+        local npc = xobject.go(id)
+        if npc then _run_record(npc, state, now) end
+    end
+    timer:stop()
+    if at_debug.on() then _record_pass(timer:get_ms(), now) end
+end
+
+local function _start_monitor()
+    if _monitor_active then return end
+    _monitor_active = true
+    RemoveTimeEvent("at_combat", "monitor")
+    CreateTimeEvent("at_combat", "monitor", MONITOR_PERIOD_SEC, _run_monitor)
+end
+
+local function _stop_monitor()
+    _monitor_active = false
+    RemoveTimeEvent("at_combat", "monitor")
+end
+
+-- Events: the substrate writes the timestamps; the systems keep their own subscriptions for their reactions.
+
+local function _on_net_spawn(npc)
+    if not npc or not IsStalker(npc) then return end
+    if cfg.combat_ignore_companions and npc:has_info(COMPANION_INFO) then return end
+    local id = npc:id()
+    if _npc_states[id] then return end
+    _npc_states[id] = { id = id, ran_at = {} }
+end
+
+local function _on_hit(npc, amount, _local_direction, who)
+    if not npc or not amount or amount <= 0 then return end
+    local state = _npc_states[npc:id()]
+    if not state then return end
+    state.hit_at = time_global()
+    state.hit_by = who and who:id() or nil
+end
+
+local function _on_reload_start(npc, wpn)
+    if not npc then return end
+    local state = _npc_states[npc:id()]
+    if not state then return end
+    state.reloading = true
+    state.reload_at = time_global()
+    if at_debug.on() then
+        at_debug.dbg("[RELOAD] start id=%d wpn=%s mag_left=%d fighting=%s", state.id,
+            wpn and wpn:section() or "?", wpn and wpn:get_ammo_in_magazine() or -1,
+            npc:best_enemy() and "yes" or "no")
+    end
+end
+
+local function _on_reload_stop(npc)
+    if not npc then return end
+    local state = _npc_states[npc:id()]
+    if not state then return end
+    if at_debug.on() then
+        at_debug.dbg("[RELOAD] stop id=%d held=%dms", npc:id(),
+            state.reload_at and (time_global() - state.reload_at) or -1)
+    end
+    state.reloading = nil
+end
+
+-- Teardown: one owner, fixed sequence - maneuvers, behaviors, the index, the record.
+
+local function _on_net_destroy(npc)
+    if not npc then return end
+    local id = npc:id()
+    local state = _npc_states[id]
+    if state then
+        local now = time_global()
+        at_maneuvers.clear_npc(npc, state, "destroy", now)
+        at_behaviors.clear_npc(npc, state, "destroy", now)
+        _drop_edge(state)
+        _best_enemy_of[id] = nil
+        _npc_states[id] = nil
+    end
+    xcombat.release_takeover(npc)
+end
+
+local function _on_entity_unregister(se_obj)
+    if not se_obj then return end
+    local id = se_obj.id
+    local state = _npc_states[id]
+    if state then
+        local npc = xobject.go(id)
+        local now = time_global()
+        at_maneuvers.clear_npc(npc, state, "unregister", now)
+        at_behaviors.clear_npc(npc, state, "unregister", now)
+        _drop_edge(state)
+        _best_enemy_of[id] = nil
+        _npc_states[id] = nil
+    end
+    xcombat.release_takeover_id(id)
+end
+
+-- MCM: poll the client toggles; any active system runs the loop, none stops it.
+
+local function _apply_enabled()
+    local now = time_global()
+    at_behaviors.apply_enabled(now)
+    if not (cfg.push_enabled and cfg.pull_enabled) then
+        for _, state in pairs(_npc_states) do
+            at_behaviors.apply_enabled_npc(xobject.go(state.id), state, now)
+        end
+    end
+    if not cfg.combat_enabled then
+        for _, state in pairs(_npc_states) do at_maneuvers.apply_enabled_npc(state, now) end
+    end
+    if cfg.combat_enabled or cfg.push_enabled or cfg.pull_enabled then
+        _start_monitor()
+    else
+        _stop_monitor()
+    end
+end
+
+local function _on_option_change()
+    at_debug.refresh()
+    _apply_enabled()
+end
+
+local function _on_first_update()
+    _best_enemy_of = {}
+    at_debug.refresh()
+    _apply_enabled()
+end
+
+--- The per-NPC combat record for id, or nil when the substrate does not track it
+function get_record(id)
+    return _npc_states[id]
+end
+
+--- Best-enemy id fact for NPC id (the loop refreshes it per 600ms), or nil
+function get_best_enemy(id)
+    local state = _npc_states[id]
+    return state and state.best_enemy_id or nil
+end
+
+--- True when a hit landed on this NPC within window_ms (state.hit_at; window is caller policy)
+function has_recent_hit(state, tg, window_ms)
+    return state.hit_at ~= nil and (tg - state.hit_at) < window_ms
+end
+
+function on_game_start()
+    RegisterScriptCallback("npc_on_net_spawn",            _on_net_spawn)
+    RegisterScriptCallback("npc_on_hit_callback",         _on_hit)
+    RegisterScriptCallback("npc_on_net_destroy",          _on_net_destroy)
+    RegisterScriptCallback("server_entity_on_unregister", _on_entity_unregister)
+    RegisterScriptCallback("actor_on_first_update",       _on_first_update)
+    RegisterScriptCallback("on_option_change",            _on_option_change)
+    RegisterScriptCallback("mcm_option_restore_default",  _on_option_change)
+    if not (xcombat.on_reload_start(_on_reload_start) and xcombat.on_reload_stop(_on_reload_stop)) then
+        at_debug.info("Reload Cover INACTIVE: exe lacks the NPC reload events (PR #611); row inert")
+    end
+end

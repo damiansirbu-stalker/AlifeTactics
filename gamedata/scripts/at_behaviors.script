@@ -148,9 +148,8 @@ local function _write_push_band(state, advantage, dist, cause)
     end
 end
 
-local function _check_push_target(npc)
-    local enemy = xcombat.get_best_enemy(npc)
-    return enemy ~= nil and enemy:id() == AC_ID
+local function _check_push_target(state)
+    return state.best_enemy_id == AC_ID
 end
 
 local function _get_fire_band(dist)
@@ -166,7 +165,7 @@ local function _update_push_npc(npc, state, tg)
         return
     end
     if not at_faction.has_flavor(npc, "behavior_push") then return end
-    if not _check_push_target(npc) then
+    if not _check_push_target(state) then
         _clear_push_npc(npc, state, "not_fighting_target", tg)
         return
     end
@@ -182,7 +181,7 @@ end
 
 local function _get_pull_cause(npc, state, tg, held)
     if state.reloading and xcombat.is_reloading(npc) then return "reload" end
-    if not at_maneuvers.has_recent_hit(state, tg, HIT_FIGHT_MS) then return nil end
+    if not at_combat.has_recent_hit(state, tg, HIT_FIGHT_MS) then return nil end
     local bar = held and (PULL_WEAK_FRAC + PULL_WEAK_EXIT) or PULL_WEAK_FRAC
     if xcombat.get_health_frac(npc) <= bar then return "hurt" end
     return nil
@@ -204,7 +203,7 @@ local function _try_open_pull(npc, state, tg)
     if not at_faction.has_flavor(npc, "behavior_pull") then return end
     if tg < (state.pull_until or 0) then return end
     if _actor_frac < PULL_STRONG_FRAC then return end
-    if not _check_push_target(npc) then return end
+    if not _check_push_target(state) then return end
     if not at_conduct.is_spacing_active() then return end
     local cause = _get_pull_cause(npc, state, tg, false)
     if not cause then return end
@@ -233,7 +232,7 @@ local function _update_pull_npc(npc, state, tg)
         end
         return
     end
-    if state.reloading or at_maneuvers.has_recent_hit(state, tg, HIT_FIGHT_MS) then
+    if state.reloading or at_combat.has_recent_hit(state, tg, HIT_FIGHT_MS) then
         _try_open_pull(npc, state, tg)
     end
 end
@@ -258,14 +257,14 @@ end
 
 --- Push-window term on an NPC while an effector write is on him, or nil when untouched (HUD read)
 function get_push(id)
-    local state = at_maneuvers.get_state(id)
+    local state = at_combat.get_record(id)
     if not (state and (state.push_fire or state.push_band)) then return nil end
     return state.push_advantage or (_push and _push.cause) or "push"
 end
 
 --- Pull-window cause on an NPC while his band write is on, nil when untouched (HUD read)
 function get_pull(id)
-    local state = at_maneuvers.get_state(id)
+    local state = at_combat.get_record(id)
     return state and state.pull or nil
 end
 
@@ -287,8 +286,8 @@ function update_window(tg)
     if _push then _push.bleeding = xcombat.is_bleeding(actor) end
 end
 
---- Per-NPC effector maintenance on the monitor pass (transition-only writes against the state mirrors)
-function update_npc(npc, state, tg)
+--- Per-NPC effector sync on the monitor pass: applies and restores against the state mirrors, one idempotent call
+function sync_npc(npc, state, tg)
     _update_push_npc(npc, state, tg)
     _update_pull_npc(npc, state, tg)
 end
