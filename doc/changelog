@@ -28,13 +28,14 @@ next
       - Added Weapon spacing: a stalker's cover choices respect what his weapon is good at, submachine gunners accept closer cover so their fire stays effective
           and skilled snipers hold extra distance. Its own switch.
     Behaviors
-      - Added the Push, the first behavior on the new Behaviors page: the stalkers fighting you punish the moment you cannot answer instead of watching it pass.
-          Caught reloading, jammed, or with an empty magazine their fire thickens at close range within a burst cycle, and while you are badly hurt healthy attackers close in to finish the fight.
-          With a clear upper hand (you weakened, bleeding, or turned away) they also move to closer cover instead of trading from range.
-          Sprinting away after a reload no longer ends the press, the window stays open until you can actually fire back.
-          Everything reverts the moment you fire again or recover, the push moments stay rare rather than constant, with a master switch and a switch per cause.
-      - Added the Pull, the push's mirror: a stalker caught reloading or badly hurt under your fire falls back, his own cover choices landing farther from you until he recovers.
-          His self-preservation outranks his squad's push, and the takeover maneuvers (a reload dash to cover, a retreat) still take priority over it. Its own switch.
+      - Added the Push: a stalker whose enemy cannot answer presses him instead of watching the moment pass, whoever that enemy is - you or another combatant.
+          Caught reloading or with an empty magazine the target's attackers thicken their fire at close range within a burst cycle, and a badly hurt target draws
+          healthy attackers in to finish the fight. With a clear upper hand (the target weakened, bleeding, or turned away) they also move to closer cover.
+          Sprinting away after a reload does not end the press on you, it holds until you can actually fire back.
+          Everything reverts the moment the target can answer, and each attacker presses one target at a time, briefly, with a cooldown before he presses again -
+          the press stays a moment, never the fight's steady state. A master switch and a switch per cause.
+      - Added the Pull, the push's mirror: a stalker caught reloading or badly hurt while his enemy is strong falls back, his own cover choices landing farther
+          until he recovers. His self-preservation outranks the press on his target, and the takeover maneuvers still take priority over it. Its own switch.
 
   Effectiveness
     Disclosure

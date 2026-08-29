@@ -143,7 +143,7 @@ local function _candidate(id, record, show_idle)
     local npc = xobject.go(id)
     if not npc then return nil end
     if not npc:alive() then return nil end
-    if not at_maneuvers.in_gate(record) then return nil end
+    if not at_core.in_gate(record) then return nil end
     local maneuver = record.maneuver and record.maneuver.name or nil
     local is_combat = maneuver ~= nil or record.best_enemy_id ~= nil
     if not (show_idle or is_combat) then return nil end
@@ -156,7 +156,7 @@ local function _build_rows()
     if not actor then return {} end
 
     local at_list, fight_list, idle_list = {}, {}, {}
-    for id, record in pairs(at_combat.get_records()) do
+    for id, record in pairs(at_core.get_combat_records()) do
         local cand = _candidate(id, record, HUD_SHOW_IDLE)
         if cand then
             local list = (cand.at and at_list) or (cand.is_combat and fight_list) or idle_list

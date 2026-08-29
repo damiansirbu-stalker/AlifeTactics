@@ -84,31 +84,31 @@
   </string>
   <!-- ==================== PLANNED PAGE DESCRIPTIONS ==================== -->
   <string id="ui_mcm_at_behaviors_desc">
-    <text>Stalkers act on windows of opportunity in a fight, in both directions. The push: the stalkers fighting you punish the moment you cannot answer instead of watching it pass. The pull: a stalker caught vulnerable under your fire falls back until he recovers.</text>
+    <text>Stalkers act on weak moments in a fight, in both directions and against any enemy. The push: a stalker whose enemy cannot answer presses him, whether that enemy is you or another combatant. The pull: a stalker caught vulnerable while his enemy is strong falls back until he recovers.</text>
   </string>
   <string id="ui_mcm_at_behaviors_push_enabled">
     <text>Push vulnerable targets</text>
   </string>
   <string id="ui_mcm_at_behaviors_push_enabled_desc">
-    <text>When you are caught with your weapon down or badly hurt, the stalkers fighting you press the advantage: their fire thickens at close range, and with a clear upper hand they move to closer cover. Everything reverts the moment you can answer again. Shows as PUSH on the debug HUD.</text>
+    <text>A fighter caught with his weapon down or badly hurt gets pressed by his attackers: their fire thickens at close range, and with a clear upper hand they move to closer cover. Works against you and between NPCs alike. Everything reverts the moment the target can answer again. Shows as PUSH on the debug HUD.</text>
   </string>
   <string id="ui_mcm_at_behaviors_push_reload">
-    <text>Push on reload, jam, and empty mag</text>
+    <text>Push on reload and empty mag</text>
   </string>
   <string id="ui_mcm_at_behaviors_push_reload_desc">
-    <text>Opens the push window when your weapon goes down mid-fight: a reload, a jam, or an empty magazine. It closes when you fire again or the weapon comes back up.</text>
+    <text>Presses a fighter whose weapon is down mid-fight: a reload or an empty magazine. The press ends when the weapon comes back up.</text>
   </string>
   <string id="ui_mcm_at_behaviors_push_finisher">
     <text>Push weakened targets</text>
   </string>
   <string id="ui_mcm_at_behaviors_push_finisher_desc">
-    <text>Opens the push window while you are badly hurt: healthy attackers close in to finish the fight instead of trading shots from range. It closes when you recover.</text>
+    <text>Presses a badly hurt fighter: healthy attackers close in to finish the fight instead of trading shots from range. It ends when he recovers.</text>
   </string>
   <string id="ui_mcm_at_behaviors_pull_enabled">
     <text>Pull back while vulnerable</text>
   </string>
   <string id="ui_mcm_at_behaviors_pull_enabled_desc">
-    <text>The mirror of the push: a stalker caught reloading or badly hurt under your fire falls back, his own cover choices land farther from you until he recovers. His self-preservation outranks his squad's push. Shows as PULL on the debug HUD.</text>
+    <text>The mirror of the push: a stalker caught reloading or badly hurt while his enemy is strong falls back, his own cover choices land farther until he recovers. His self-preservation outranks the press on his target. Shows as PULL on the debug HUD.</text>
   </string>
   <string id="ui_mcm_at_commitment_desc">
     <text>Vanilla stalkers re-plan their fight every moment. Any small change makes a stalker abandon what he was doing and choose again: a cover spot that scores a little better, sight dropping for an instant, a teammate crossing the firing line. That constant re-deciding is the twitchy strafing and cover-hopping you see in a firefight. Commitment stops it without taking the stalker over. While what he is doing still makes sense he keeps at it instead of trading it for a marginally better move, and he switches the instant it stops making sense, when he loses sight or the shot is blocked or the enemy is gone. He keeps up his fire and finishes what he started instead of second-guessing every frame. Requires a recent engine build. On older builds the toggle has no effect and vanilla behavior applies.</text>

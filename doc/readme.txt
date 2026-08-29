@@ -107,11 +107,11 @@ It reads the game's own cover map toward the enemy, and short-weapon carriers an
 Weapon spacing: a stalker's cover choices respect what his weapon is good at, submachine gunners accept closer cover so their fire stays effective, and skilled snipers hold extra distance.
 
 Behaviors:
-Stalkers act on windows of opportunity in the fight, in both directions.
-The Push: the stalkers fighting you punish the moment you cannot answer instead of watching it pass.
-Caught reloading, jammed, out of ammo, or badly hurt, their fire thickens at close range, and with a clear upper hand (you weakened, bleeding, or turned away) the attackers move to closer cover.
-The Pull is the mirror: a stalker caught reloading or badly hurt under your fire falls back, his own cover choices landing farther from you until he recovers.
-Everything reverts the moment the window closes, the moments stay rare rather than constant, and each cause has its own switch.
+Stalkers act on weak moments in the fight, in both directions and against any enemy, you or another combatant.
+The Push: a stalker whose enemy cannot answer presses him instead of watching the moment pass.
+Caught reloading, out of ammo, or badly hurt, the target's attackers thicken their fire at close range, and with a clear upper hand (the target weakened, bleeding, or turned away) they move to closer cover.
+The Pull is the mirror: a stalker caught reloading or badly hurt while his enemy is strong falls back, his own cover choices landing farther until he recovers.
+Everything reverts the moment the target can answer, each attacker presses briefly with a cooldown before pressing again, and each cause has its own switch.
 
 Effectiveness
 

@@ -1,27 +1,29 @@
-; AlifeTactics Behaviors (Combat > Behaviors) tuning - the Push and Pull windows. Paired with
+; AlifeTactics Behaviors (Combat > Behaviors) tuning - the Push and the Pull. Paired with
 ; gamedata/scripts/at_behaviors.script. All keys have script-side fallback defaults.
 
 [at_behaviors]
-hit_fight_ms = 5000        ; a landed hit counts as incoming pressure this long (the pull's hurt-cause window)
+hit_fight_ms = 5000        ; a landed hit counts as incoming pressure this long (the pull's hurt cause)
 
-; The Push window: stalkers fighting the actor punish his vulnerable window (reload / no_ammo / jam edges,
-; or the standing finisher when the actor is weak). Fire bump range-gated; band bump needs an advantage.
+; The Push: a stalker whose committed target - the player or an NPC - cannot answer (reloading or
+; dry, polled through the one vulnerability check, or standing weak) presses him. Fire bump
+; range-gated; band bump needs an advantage. Per attacker: one press per target, capped and
+; cooled down on his own record.
 push_close_m       = 15    ; fire bump close band: burst size x push_size_k AND interval x push_interval_k
 push_far_m         = 45    ; fire bump far band: interval x push_interval_k only; beyond = untouched
 push_size_k        = 1.5   ; burst-size scale on the rank discipline value inside the close band
 push_interval_k    = 0.6   ; inter-burst-pause scale on the rank discipline value inside both bands
-push_weak_frac     = 0.35  ; finisher opens with the actor's health at or below this fraction (closes 0.10 above it)
+push_weak_frac     = 0.35  ; weak cause: the target's health at or below this fraction (clears 0.10 above it)
 push_self_frac     = 0.5   ; finisher band bump only for pushers at or above this health fraction themselves
 push_band_k        = 0.6   ; band bump: cover maximum caps at this fraction of the NPC's current distance
 push_band_floor_m  = 8     ; the band cap never drops below this
-push_back_deg      = 135   ; back-turned advantage: actor facing at least this far off the NPC
-push_window_max_ms = 8000  ; hard cap on a press window; a mid-window cause change stays on the original clock
-push_press_cooldown_ms = 15000 ; after a press window closes, no new one opens for this long
+push_back_deg      = 135   ; back-turned advantage: the target facing at least this far off the NPC
+push_window_max_ms = 8000  ; hard cap on one attacker's press against one target
+push_press_cooldown_ms = 15000 ; after an attacker's press ends, he does not press again for this long
 
-; The Pull window, the mirror: a stalker caught in his OWN vulnerable window while the actor is strong
-; falls back - his cover minimum rises past his current distance. No fire side.
+; The Pull, the mirror: a stalker caught in his OWN weak moment - reloading or hurt - while his
+; target is strong falls back; his cover minimum rises past his current distance. No fire side.
 pull_weak_frac    = 0.35  ; hurt cause: the NPC's own health at or below this fraction (closes 0.10 above it)
-pull_strong_frac  = 0.5   ; pull only while the actor's health is at or above this fraction
+pull_strong_frac  = 0.5   ; pull only while the target's health is at or above this fraction
 pull_band_k       = 1.2   ; his cover minimum rises to this fraction of his current distance
 pull_band_floor_m = 8     ; the raised minimum never drops below this
 pull_band_cap_m   = 45    ; the raised minimum never exceeds this

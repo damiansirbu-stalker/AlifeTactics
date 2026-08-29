@@ -21,7 +21,6 @@ local REPEAT_MOVE_SQR = REPEAT_MOVE_M * REPEAT_MOVE_M
 local INVALID_LEVEL_VERTEX_ID = 4294967295
 
 local BEGIN_PERIOD_MS, UPDATE_PERIOD_MS, END_PERIOD_MS, HIT_FIGHT_MS
-local GATE_RADIUS_M, GATE_RADIUS_SQR
 local HURT_FRAC, STALL_MS, STALL_MOVE_SQR, STALL_CLOSE_M
 local KITE_ARC_DEG, KITE_SPREAD_DEG, KITE_DISTANCE_M
 local FLEE_MIN_DIST_M, FLEE_BASE_MIN_DIST_M, RETREAT_REAR_M, UNDER_FIRE_MS
@@ -35,7 +34,7 @@ local BEGIN_CHECK, UPDATE_CHECK, END_CHECK
 local CATALOG = {}
 
 local function _patched_get_queue_params(npc, st, override)
-    local state = npc and at_combat.get_record(npc:id())
+    local state = npc and at_core.get_combat_record(npc:id())
     if state and state.maneuver then
         local band
         if state.maneuver.name == "pickoff" then
@@ -65,7 +64,7 @@ end
 
 local function _is_fighting(enemy, state, tg)
     if enemy ~= nil then return true end
-    return at_combat.has_recent_hit(state, tg, HIT_FIGHT_MS)
+    return at_core.has_recent_hit(state, tg, HIT_FIGHT_MS)
 end
 
 local function _manages(npc)
@@ -120,18 +119,12 @@ local function _find_kite_lane(npc, _enemy, state, _tg, memo)
 end
 
 local function _is_under_fire(npc, enemy, state, tg)
-    return at_combat.has_recent_hit(state, tg, UNDER_FIRE_MS)
+    return at_core.has_recent_hit(state, tg, UNDER_FIRE_MS)
         or xcombat.is_under_fire(npc, enemy, tg, UNDER_FIRE_MS)
 end
 
--- The gate (t214): one radius for everything - the five maneuvers' scope and the debug HUD's
--- display set both compare the record's actor_dist_sqr fact against it.
-local function _in_gate(state)
-    return state.actor_dist_sqr ~= nil and state.actor_dist_sqr <= GATE_RADIUS_SQR
-end
-
 -- The threat set (t214): candidates = my selection + everyone holding me as best enemy (the
--- substrate's reverse index) + the player while hostile to me. Candidates only - every predicate
+-- core's reverse index) + the player while hostile to me. Candidates only - every predicate
 -- runs live at the decision; a stale index entry costs one failed compare.
 local function _get_threats(npc, state, memo)
     local list = memo.threats
@@ -146,7 +139,7 @@ local function _get_threats(npc, state, memo)
         if obj then list[#list + 1] = obj end
     end
     add(state.best_enemy_id)
-    local bucket = at_combat.get_best_enemy_of(state.id)
+    local bucket = at_core.get_best_enemy_of(state.id)
     if bucket then
         for id in pairs(bucket) do add(id) end
     end
@@ -414,7 +407,7 @@ local function _reset_memo(state, npc, enemy)
     memo.actor_pos, memo.actor_enemy = nil, nil
     memo.threats, memo.staged, memo.staged_pos, memo.staged_dist = nil, nil, nil, nil
     memo.actor_fight = state.enemy_id == AC_ID
-    memo.in_gate = _in_gate(state)
+    memo.in_gate = at_core.in_gate(state)
     local np, ep = npc:position(), enemy:position()
     memo.npc_pos, memo.enemy_pos = np, ep
     local dx, dz = ep.x - np.x, ep.z - np.z
@@ -563,7 +556,7 @@ local function _trace_reenter(state, maneuver, tg)
 end
 
 local function _begin_maneuver(npc)
-    local state = at_combat.get_record(npc:id())
+    local state = at_core.get_combat_record(npc:id())
     if not state or not state.maneuver then return end
     local tg = time_global()
     local maneuver = state.maneuver
@@ -581,7 +574,7 @@ local function _begin_maneuver(npc)
 end
 
 local function _on_release(npc)
-    local state = at_combat.get_record(npc:id())
+    local state = at_core.get_combat_record(npc:id())
     if not (state and state.maneuver_at) then return end
     local tg = time_global()
     state.released_at = tg
@@ -594,7 +587,7 @@ end
 local SPEC = {
     gate = function(npc)
         if not cfg.combat_enabled then return false end
-        local state = at_combat.get_record(npc:id())
+        local state = at_core.get_combat_record(npc:id())
         return state ~= nil and state.gate == true
     end,
     on_begin = _begin_maneuver,
@@ -613,7 +606,7 @@ end
 local function _seize_blocked(npc)
     local can_seize, seize_block = _can_seize(npc)
     if not can_seize then return "cannot_seize", seize_block end
-    if not at_combat.any_start_open() then return "at_cap" end
+    if not at_core.any_start_open() then return "at_cap" end
     return nil
 end
 
@@ -624,13 +617,13 @@ local function _grant_maneuver(npc, state, maneuver, dest, tg)
     local staged = state.memo and state.memo.staged
     local target_id = (maneuver.vs_actor and AC_ID) or (staged and staged:id()) or state.enemy_id
     local bucket = target_id == AC_ID and "vs_player" or "vs_npc"
-    if not at_combat.check_start(bucket) then
+    if not at_core.check_start(bucket) then
         _release_cover(state)
         at_debug.dbg("[CMB] limited id=%s maneuver=%s bucket=%s",
             show(state.id), show(maneuver.name), bucket)
         return false
     end
-    at_combat.add_start(bucket)
+    at_core.add_start(bucket)
     xcombat.topup_takeover_block(npc)
     state.gate = true
     state.maneuver = maneuver
@@ -754,7 +747,7 @@ local function _update_hold(npc, state, tg)
         if state.move_hold then _apply_hold(npc, state, false, "disabled") end
         return
     end
-    if not state.move_hold and not at_combat.has_recent_hit(state, tg, HOLD_WINDOW_MS) then return end
+    if not state.move_hold and not at_core.has_recent_hit(state, tg, HOLD_WINDOW_MS) then return end
     local hold, why = _check_hold(npc)
     _apply_hold(npc, state, hold, why or "released")
 end
@@ -781,7 +774,7 @@ end
 local function _on_hit(npc, amount)
     if not npc or not amount or amount <= 0 then return end
     if not (cfg.combat_enabled and cfg.combat_hit_hold) then return end
-    local state = at_combat.get_record(npc:id())
+    local state = at_core.get_combat_record(npc:id())
     if not state then return end
     local hold, why = _check_hold(npc)
     if not hold and npc:movement_type() == move.stand then hold, why = true, "hit" end
@@ -796,8 +789,6 @@ local function _load_config()
     UPDATE_PERIOD_MS    = read_int("update_period_ms",    200)
     END_PERIOD_MS       = read_int("end_period_ms",       200)
     HIT_FIGHT_MS        = read_int("hit_fight_ms",        5000)
-    GATE_RADIUS_M       = read_float("gate_radius_m", 150)
-    GATE_RADIUS_SQR     = GATE_RADIUS_M * GATE_RADIUS_M
     HURT_FRAC      = read_float("hurt_frac",     0.40)
     STALL_MS       = read_int("stall_ms",        4000)
     local move_m   = read_float("stall_move_m",  2)
@@ -859,38 +850,32 @@ local function _load_config()
 end
 
 local function _on_first_update()
-    at_debug.info("Maneuvers monitor initialized (enabled=%s dbg=%s gate=%.0fm queue_patch=%s push=%s band=%s)",
-        tostring(cfg.combat_enabled), tostring(at_debug.on()), GATE_RADIUS_M,
+    at_debug.info("Maneuvers monitor initialized (enabled=%s dbg=%s queue_patch=%s push=%s band=%s)",
+        tostring(cfg.combat_enabled), tostring(at_debug.on()),
         _orig_get_queue_params and "installed" or "missing",
         tostring(cfg.push_enabled), at_conduct.is_spacing_active() and "active" or "INACTIVE")
 end
 
 --- Current maneuver name for an NPC, or nil when AT is not driving one
 function get_maneuver(id)
-    local state = at_combat.get_record(id)
+    local state = at_core.get_combat_record(id)
     return state and state.maneuver and state.maneuver.name
 end
 
---- True when this record sits inside the gate radius of the player - the one radius: the
---- maneuvers' scope and the debug HUD's display set compare the same fact against it
-function in_gate(state)
-    return _in_gate(state)
-end
-
---- Evaluate a maneuver start for an NPC with no open gate (at_combat's loop, every pass; the begin decision self-throttles to begin_period_ms)
+--- Evaluate a maneuver start for an NPC with no open gate (at_core's loop, every pass; the begin decision self-throttles to begin_period_ms)
 function try_maneuver(npc, state, now)
     _update_hold(npc, state, now)
     _run_check(BEGIN_CHECK, npc, state, now)
 end
 
---- Drive the open maneuver and check its end (at_combat's loop, every pass)
+--- Drive the open maneuver and check its end (at_core's loop, every pass)
 function continue_maneuver(npc, state, now)
     _update_hold(npc, state, now)
     _run_check(UPDATE_CHECK, npc, state, now)
     _run_check(END_CHECK, npc, state, now)
 end
 
---- Release everything Maneuvers holds on one NPC: movement hold, open maneuver, gate, claimed cover (at_combat's teardown, why = died|destroy|unregister)
+--- Release everything Maneuvers holds on one NPC: movement hold, open maneuver, gate, claimed cover (at_core's teardown, why = died|destroy|unregister)
 function clear_npc(npc, state, why, now)
     if state.move_hold then
         if npc then _apply_hold(npc, state, false, why) else state.move_hold = nil end
@@ -900,7 +885,7 @@ function clear_npc(npc, state, why, now)
     _release_cover(state)
 end
 
---- Toggle-off restore for one record when the Combat master goes off (at_combat's option-change sweep)
+--- Toggle-off restore for one record when the Combat master goes off (at_core's option-change sweep)
 function apply_enabled_npc(state, now)
     if state.maneuver then _end_maneuver(state, now, "disabled") end
     if not state.move_hold then return end

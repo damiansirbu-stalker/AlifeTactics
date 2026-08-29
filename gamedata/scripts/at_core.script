@@ -1,20 +1,20 @@
---- at_combat: the Combat substrate - the per-NPC records, the hit/reload timestamps, the best_enemy facts, and the main loop that drives the combat systems
+--- at_core: the combat core - the per-stalker combat records, the timestamps, the best_enemy facts, the shared checks, the main loop, and the start budget
 
 local IsStalker, time_global, pairs, next = IsStalker, time_global, pairs, next
-local RegisterScriptCallback, math_floor = RegisterScriptCallback, math.floor
+local RegisterScriptCallback, math_floor, AC_ID = RegisterScriptCallback, math.floor, AC_ID
 local ini_file = ini_file
 
 local cfg = at_mcm.cfg
 
 local LTX_PATH    = "alifetactics\\at_maneuvers_config.ltx"
-local LTX_SECTION = "at_combat"
+local LTX_SECTION = "at_core"
 
 local MONITOR_PERIOD_SEC = 0.2
 local MON_FLUSH_MS = 5000
 local BEST_ENEMY_REFRESH_MS = 600
 local COMPANION_INFO = "npcx_is_companion"
 
-local STARTS_CAP, STARTS_WINDOW_SEC
+local GATE_RADIUS_SQR, STARTS_CAP, STARTS_WINDOW_SEC
 
 local _npc_states = {}
 local _best_enemy_of = {}
@@ -23,12 +23,14 @@ local _monitor_active = false
 local _mon = { ms = 0, max = 0, ticks = 0, last = 0 }
 
 -- The shared start budget (user ruling 2026-08-29): one sliding-window pool for everything the
--- loop starts - a maneuver grant, a push join, a pull open - split into a vs-player and a vs-npc
--- bucket. Starts only ever spend; continuing never counts.
+-- loop starts - a maneuver grant, a press, a pull - split into a vs-player and a vs-npc bucket.
+-- Starts only ever spend; continuing never counts.
 
 local function _load_config()
     local ini = ini_file(LTX_PATH)
     local function read_int(k, d) local v = ini:r_float_ex(LTX_SECTION, k) return v and math_floor(v) or d end
+    local gate_m = ini:r_float_ex(LTX_SECTION, "gate_radius_m") or 150
+    GATE_RADIUS_SQR = gate_m * gate_m
     STARTS_CAP = {
         vs_player = read_int("starts_per_window_vs_player", 6),
         vs_npc    = read_int("starts_per_window_vs_npc",    6),
@@ -82,7 +84,7 @@ end
 -- The main loop: fixed 200ms, re-arms first, walks the records, calls each system explicitly.
 
 local function _rearm_monitor()
-    ResetTimeEvent("at_combat", "monitor", MONITOR_PERIOD_SEC)
+    ResetTimeEvent("at_core", "monitor", MONITOR_PERIOD_SEC)
 end
 
 local function _record_pass(ms, now)
@@ -118,7 +120,6 @@ local function _run_monitor()
     _rearm_monitor()
     local now = time_global()
     local timer = xprofiler.new_if(at_debug.on()):start()
-    at_behaviors.update_window(now)
     local actor_pos = db.actor and db.actor:position() or nil
     for id, state in pairs(_npc_states) do
         local npc = xobject.go(id)
@@ -131,13 +132,13 @@ end
 local function _start_monitor()
     if _monitor_active then return end
     _monitor_active = true
-    RemoveTimeEvent("at_combat", "monitor")
-    CreateTimeEvent("at_combat", "monitor", MONITOR_PERIOD_SEC, _run_monitor)
+    RemoveTimeEvent("at_core", "monitor")
+    CreateTimeEvent("at_core", "monitor", MONITOR_PERIOD_SEC, _run_monitor)
 end
 
 local function _stop_monitor()
     _monitor_active = false
-    RemoveTimeEvent("at_combat", "monitor")
+    RemoveTimeEvent("at_core", "monitor")
 end
 
 -- Events: the substrate writes the timestamps; the systems keep their own subscriptions for their reactions.
@@ -219,7 +220,6 @@ end
 
 local function _apply_enabled()
     local now = time_global()
-    at_behaviors.apply_enabled(now)
     if not (cfg.push_enabled and cfg.pull_enabled) then
         for _, state in pairs(_npc_states) do
             at_behaviors.apply_enabled_npc(xobject.go(state.id), state, now)
@@ -247,13 +247,13 @@ local function _on_first_update()
     _apply_enabled()
 end
 
---- The per-NPC combat record for id, or nil when the substrate does not track it
-function get_record(id)
+--- The combat record for stalker id, or nil when the core does not track it
+function get_combat_record(id)
     return _npc_states[id]
 end
 
---- The whole record store, read-only, for walkers (the debug HUD). Never write through this.
-function get_records()
+--- The whole combat record store, read-only, for walkers (the debug HUD). Never write through this.
+function get_combat_records()
     return _npc_states
 end
 
@@ -272,6 +272,30 @@ end
 --- True when a hit landed on this NPC within window_ms (state.hit_at; window is caller policy)
 function has_recent_hit(state, tg, window_ms)
     return state.hit_at ~= nil and (tg - state.hit_at) < window_ms
+end
+
+--- Can this enemy answer fire right now - the one vulnerability business rule, branched per kind
+function is_enemy_vulnerable(enemy)
+    if not enemy then return false end
+    if enemy:id() == AC_ID then
+        local term = xcombat.get_weapon_block_term(enemy)
+        if term then return true, term end
+        if xcombat.is_actor_sprinting() then return true, "sprinting" end
+        if xcombat.is_actor_climbing() then return true, "climbing" end
+        return false
+    end
+    if IsStalker(enemy) then
+        local term = xcombat.get_weapon_block_term(enemy)
+        if term then return true, term end
+        return xcombat.is_body_busy(enemy)
+    end
+    return false
+end
+
+--- True when this record sits inside the gate radius of the player - the one radius: the
+--- combat systems' scope and the debug HUD's display set compare the same fact against it
+function in_gate(state)
+    return state.actor_dist_sqr ~= nil and state.actor_dist_sqr <= GATE_RADIUS_SQR
 end
 
 function on_game_start()

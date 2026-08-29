@@ -81,7 +81,7 @@ end
 local function _try_extend_hold(hold, enemy, tg, id, label)
     if not cfg.commitment_liquidate then return false end
     if tg - hold.since > _hold_cap_ms + VULNERABLE_EXTEND_MS then return false end
-    local vuln, why = at_behaviors.is_enemy_vulnerable(enemy)
+    local vuln, why = at_core.is_enemy_vulnerable(enemy)
     if not vuln then return false end
     hold.vuln = true
     if at_debug.on() and not hold.vuln_logged then
