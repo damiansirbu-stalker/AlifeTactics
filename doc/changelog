@@ -1,5 +1,5 @@
 next
-  Summary: Faction flavor, Push and Pull windows, Weapon spacing, Glide stop, Disclosure rework, target priority dial, Zombie stance, Gear toggles, Discipline menu, Danger fix
+  Summary: Faction flavor, Push and Pull windows, Weapon spacing, Glide stop, Disclosure rework, target priority dial, Zombie stance, Gear toggles, Discipline menu, Danger fix, danger trace
 
   Combat
     Faction flavor
@@ -51,6 +51,7 @@ next
   Development
     - The debug HUD's Commitment token reads LIQUIDATE while a stalker holds fire on an enemy who cannot answer, and LIQUIDATED in the afterglow, so sub-second holds stay readable.
     - The debug HUD shows PUSH in its own amber row colour on every stalker the push window is currently bumping, and PULL on a stalker falling back through his own window.
+    - The world trace's held-danger line now shows whether the alert stalker entered AlifeTactics' own danger scheme or the engine alone is holding a stale sound perception, and re-logs when that flips, separating our reaction from a distant weapon sound the engine keeps alive.
 
 1.2.0
   Summary: Difficulty rebalance, Tracking Lock, Gear, Vision Range, Reload Cover, cover posture, Perception menu, maneuver fixes, Useful Idiots compatibility, Ballistics Overhaul compatibility
