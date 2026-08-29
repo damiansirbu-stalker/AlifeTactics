@@ -64,26 +64,14 @@
     <text>Development</text>
   </string>
   <!-- ==================== FIXES TO VANILLA SUB-PAGES ==================== -->
-  <string id="ui_mcm_menu_vf_targeting">
-    <text>Target selection</text>
-  </string>
   <string id="ui_mcm_menu_vf_danger">
-    <text>Danger reactions</text>
+    <text>Danger scheme</text>
   </string>
   <string id="ui_mcm_menu_vf_corpse">
     <text>Corpse investigation</text>
   </string>
-  <string id="ui_mcm_menu_vf_movement">
-    <text>Movement and animation</text>
-  </string>
   <string id="ui_mcm_menu_vf_healing">
     <text>Healing</text>
-  </string>
-  <string id="ui_mcm_menu_vf_accuracy">
-    <text>Accuracy</text>
-  </string>
-  <string id="ui_mcm_menu_vf_performance">
-    <text>Performance</text>
   </string>
   <!-- ==================== PLANNED SUB-PAGES ==================== -->
   <string id="ui_mcm_menu_behaviors">
@@ -1006,20 +994,8 @@
     <text>The corpse reaction no longer crashes when it fires before its investigation stage is set.</text>
   </string>
   <!-- ==================== FIXES TO VANILLA PAGE ==================== -->
-  <string id="ui_mcm_at_vf_targeting_desc">
-    <text>Vanilla target-selection fixes. The live controls are on the Disclosure page, named here so each fix is on record.</text>
-  </string>
-  <string id="ui_mcm_at_vf_ptr_sticky">
-    <text>Sticky targeting, on the Disclosure page</text>
-  </string>
-  <string id="ui_mcm_at_vf_ptr_player_bias">
-    <text>Player bias, on the Disclosure page</text>
-  </string>
-  <string id="ui_mcm_at_vf_ptr_distant_hits">
-    <text>Distant hits, on the Danger page</text>
-  </string>
   <string id="ui_mcm_at_vf_danger_desc">
-    <text>Crashes and misreads in the vanilla danger check. The locked ones run always on. The distant-hit reaction is tuned on the Danger page.</text>
+    <text>Always-on fixes to the vanilla danger scheme (xr_danger): crashes, misreads, and stale state. These cannot be turned off. Toggleable vanilla fixes live on their own system pages.</text>
   </string>
   <string id="ui_mcm_at_danger_fix_dead_eval">
     <text>Dead-stalker danger eval</text>
@@ -1028,43 +1004,16 @@
     <text>A stalker is no longer evaluated for danger after he dies, which stops a repeated engine visibility error until the body despawns.</text>
   </string>
   <string id="ui_mcm_at_vf_corpse_desc">
-    <text>Fixes to the vanilla corpse investigation. These run always on and cannot be turned off.</text>
-  </string>
-  <string id="ui_mcm_at_vf_movement_desc">
-    <text>Vanilla movement and animation fixes. The locked ones run always on. The rest are tuned on their own pages.</text>
-  </string>
-  <string id="ui_mcm_at_vf_ptr_hit_slide">
-    <text>Hit-reaction slide, on the Maneuvers page</text>
-  </string>
-  <string id="ui_mcm_at_vf_ptr_bandage">
-    <text>Bandage slide, on the Healing page</text>
-  </string>
-  <string id="ui_mcm_at_vf_ptr_limp">
-    <text>Combat limp, on the Healing page</text>
-  </string>
-  <string id="ui_mcm_at_vf_ptr_low_cover">
-    <text>Low cover shot check, on the Conduct page</text>
+    <text>Always-on fixes to vanilla corpse investigation (xr_danger). These cannot be turned off. Toggleable vanilla fixes live on their own system pages.</text>
   </string>
   <string id="ui_mcm_at_vf_healing_desc">
-    <text>Vanilla healing fixes. The save-load charge re-roll is locked on. The dropped heal lists are restored on the Healing page.</text>
+    <text>Always-on fixes to vanilla item healing (xr_eat_medkit). These cannot be turned off. Toggleable vanilla fixes live on their own system pages.</text>
   </string>
   <string id="ui_mcm_at_healing_fix_medkit_reroll">
     <text>Medkit save-load re-roll</text>
   </string>
   <string id="ui_mcm_at_healing_fix_medkit_reroll_desc">
     <text>A stalker's healing charge no longer re-rolls across a save and load.</text>
-  </string>
-  <string id="ui_mcm_at_vf_ptr_heal_lists">
-    <text>Dropped heal lists restored, on the Healing page</text>
-  </string>
-  <string id="ui_mcm_at_vf_accuracy_desc">
-    <text>The vanilla rank accuracy fix. Tuned on the Accuracy page, named here so the fix is on record.</text>
-  </string>
-  <string id="ui_mcm_at_vf_ptr_rank_accuracy">
-    <text>Rank accuracy clamp, on the Accuracy page</text>
-  </string>
-  <string id="ui_mcm_at_vf_performance_desc">
-    <text>Vanilla performance fixes. These run always on and cannot be turned off.</text>
   </string>
   <!-- ==================== JAMMING PAGE ==================== -->
   <string id="ui_mcm_at_jam_desc">

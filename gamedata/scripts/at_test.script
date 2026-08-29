@@ -378,8 +378,9 @@ end
 
 local function _arena_start(mode, count)
     if not db.actor then _tip("AT.ARENA: not in game") return end
+    if not count or count < 2 then _tip("AT.ARENA: pass a total combatant count - at_test.at_arena(40)") return end
     _arena_mode = mode
-    _arena_want = count or 16
+    _arena_want = count
     _arena_center_lvid = db.actor:level_vertex_id()
     _arena_gvid = db.actor:game_vertex_id()
     _arena_side_dir = math_random() * 2 * math_pi

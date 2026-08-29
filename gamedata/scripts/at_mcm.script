@@ -283,10 +283,10 @@ local _key_to_tab = {
     fix_investigate_target = "vanilla_fixes/vf_corpse",
     fix_corpse_order       = "vanilla_fixes/vf_corpse",
     fix_id_reuse           = "vanilla_fixes/vf_corpse",
-    fix_anim_cleanup       = "vanilla_fixes/vf_movement",
-    fix_cover_scope        = "vanilla_fixes/vf_movement",
+    fix_anim_cleanup       = "vanilla_fixes/vf_danger",
+    fix_cover_scope        = "vanilla_fixes/vf_danger",
     fix_medkit_reroll      = "vanilla_fixes/vf_healing",
-    fix_config_cache       = "vanilla_fixes/vf_performance",
+    fix_config_cache       = "vanilla_fixes/vf_danger",
     jam_enabled         = "mechanics/jam",
     ammo_enabled        = "mechanics/ammo",
     gear_enabled           = "mechanics/gear",
@@ -752,17 +752,6 @@ function on_mcm_load()
                 id = "vanilla_fixes",
                 gr = {
                     {
-                        id = "vf_targeting",
-                        sh = true,
-                        gr = {
-                            { id = "title", type = "slide", link = "at_mcm_banner",
-                                text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
-                            { id = "desc", type = "desc", text = "ui_mcm_at_vf_targeting_desc" },
-                            { id = "ptr_sticky", type = "desc", text = "ui_mcm_at_vf_ptr_sticky" },
-                            { id = "ptr_player_bias", type = "desc", text = "ui_mcm_at_vf_ptr_player_bias" },
-                        },
-                    },
-                    {
                         id = "vf_danger",
                         sh = true,
                         gr = {
@@ -775,8 +764,9 @@ function on_mcm_load()
                             { id = "fix_time_value", type = "check", val = 1, def = true, hint = "at_danger_fix_time_value", ui_hook_functor = { at_mcm.render_locked_check } },
                             { id = "fix_hit_memory", type = "check", val = 1, def = true, hint = "at_danger_fix_hit_memory", ui_hook_functor = { at_mcm.render_locked_check } },
                             { id = "fix_dead_eval", type = "check", val = 1, def = true, hint = "at_danger_fix_dead_eval", ui_hook_functor = { at_mcm.render_locked_check } },
-                            { id = "div_vf_danger_ptr", type = "line" },
-                            { id = "ptr_distant_hits", type = "desc", text = "ui_mcm_at_vf_ptr_distant_hits" },
+                            { id = "fix_anim_cleanup", type = "check", val = 1, def = true, hint = "at_danger_fix_anim_cleanup", ui_hook_functor = { at_mcm.render_locked_check } },
+                            { id = "fix_cover_scope", type = "check", val = 1, def = true, hint = "at_danger_fix_cover_scope", ui_hook_functor = { at_mcm.render_locked_check } },
+                            { id = "fix_config_cache", type = "check", val = 1, def = true, hint = "at_danger_fix_config_cache", ui_hook_functor = { at_mcm.render_locked_check } },
                         },
                     },
                     {
@@ -794,22 +784,6 @@ function on_mcm_load()
                         },
                     },
                     {
-                        id = "vf_movement",
-                        sh = true,
-                        gr = {
-                            { id = "title", type = "slide", link = "at_mcm_banner",
-                                text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
-                            { id = "desc", type = "desc", text = "ui_mcm_at_vf_movement_desc" },
-                            { id = "fix_anim_cleanup", type = "check", val = 1, def = true, hint = "at_danger_fix_anim_cleanup", ui_hook_functor = { at_mcm.render_locked_check } },
-                            { id = "fix_cover_scope", type = "check", val = 1, def = true, hint = "at_danger_fix_cover_scope", ui_hook_functor = { at_mcm.render_locked_check } },
-                            { id = "div_vf_move_ptr", type = "line" },
-                            { id = "ptr_hit_slide", type = "desc", text = "ui_mcm_at_vf_ptr_hit_slide" },
-                            { id = "ptr_bandage", type = "desc", text = "ui_mcm_at_vf_ptr_bandage" },
-                            { id = "ptr_limp", type = "desc", text = "ui_mcm_at_vf_ptr_limp" },
-                            { id = "ptr_low_cover", type = "desc", text = "ui_mcm_at_vf_ptr_low_cover" },
-                        },
-                    },
-                    {
                         id = "vf_healing",
                         sh = true,
                         gr = {
@@ -817,28 +791,6 @@ function on_mcm_load()
                                 text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
                             { id = "desc", type = "desc", text = "ui_mcm_at_vf_healing_desc" },
                             { id = "fix_medkit_reroll", type = "check", val = 1, def = true, hint = "at_healing_fix_medkit_reroll", ui_hook_functor = { at_mcm.render_locked_check } },
-                            { id = "div_vf_heal_ptr", type = "line" },
-                            { id = "ptr_heal_lists", type = "desc", text = "ui_mcm_at_vf_ptr_heal_lists" },
-                        },
-                    },
-                    {
-                        id = "vf_accuracy",
-                        sh = true,
-                        gr = {
-                            { id = "title", type = "slide", link = "at_mcm_banner",
-                                text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
-                            { id = "desc", type = "desc", text = "ui_mcm_at_vf_accuracy_desc" },
-                            { id = "ptr_rank_accuracy", type = "desc", text = "ui_mcm_at_vf_ptr_rank_accuracy" },
-                        },
-                    },
-                    {
-                        id = "vf_performance",
-                        sh = true,
-                        gr = {
-                            { id = "title", type = "slide", link = "at_mcm_banner",
-                                text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
-                            { id = "desc", type = "desc", text = "ui_mcm_at_vf_performance_desc" },
-                            { id = "fix_config_cache", type = "check", val = 1, def = true, hint = "at_danger_fix_config_cache", ui_hook_functor = { at_mcm.render_locked_check } },
                         },
                     },
                 },

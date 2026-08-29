@@ -202,7 +202,9 @@ end
 local function _on_unregister(se_obj)
     if not se_obj then return end
     local id = se_obj.id
-    _slide[id], _watch[id], _speed[id] = nil, nil, nil
+    _slide[id] = nil
+    _watch[id] = nil
+    _speed[id] = nil
     _dtrace[id] = nil
 end
 
@@ -435,11 +437,6 @@ function report()
     for kind, hist in pairs(_bursts) do
         log.info("bursts kind=%-10s %s", tostring(kind), _hist_line(hist))
     end
-end
-
---- Zero the ballistics counters and restart the session clock - the bench-run boundary
-function reset()
-    _reset()
 end
 
 local function _report_tick()

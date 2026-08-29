@@ -12,12 +12,11 @@ local _actor_tables_live = false
 
 local NEUTRAL_GUNFIRE_RADIUS_SQR = 30 * 30
 
-local ini = ini_file("ai_tweaks\\xr_danger.ltx")
-DangerInertion = utils_data.collect_section(ini,"danger_inertion",true)
-DangerIgnore = utils_data.collect_section(ini,"danger_object",true)
-DangerInertionActor = utils_data.collect_section(ini,"danger_inertion_actor",true)
-DangerIgnoreActor = utils_data.collect_section(ini,"danger_object_actor",true)
-ini = nil
+local danger_ini = ini_file("ai_tweaks\\xr_danger.ltx")
+DangerInertion = utils_data.collect_section(danger_ini,"danger_inertion",true)
+DangerIgnore = utils_data.collect_section(danger_ini,"danger_object",true)
+DangerInertionActor = utils_data.collect_section(danger_ini,"danger_inertion_actor",true)
+DangerIgnoreActor = utils_data.collect_section(danger_ini,"danger_object_actor",true)
 
 local CORPSE_STALE_SEC = 12000
 local EVAL_BUDGET = 200
@@ -237,9 +236,7 @@ local function eval_danger(self)
 
 	local a = self.a
 	if (type(a.inertion) == "number" and type(a.danger_time) == "number") then
-		if (a.type ~= bd_type and cur_danger_time > a.danger_time) then
-
-		else
+		if not (a.type ~= bd_type and cur_danger_time > a.danger_time) then
 			if (tg < a.danger_time + a.inertion) then
 				return true
 			elseif (cur_danger_time <= a.danger_time) then
@@ -322,8 +319,6 @@ local function script_action_danger_scripted(npc,st)
 	local bdo = script_danger[id].id and db.storage[script_danger[id].id] and db.storage[script_danger[id].id].object
 
 	local bdo_pos = script_danger[id].position
-	local dist = bdo_pos and npc:position():distance_to_sqr(bdo_pos)
-	local tg = time_global()
 
 	local who_dist = bdo and bdo:position():distance_to_sqr(bdo_pos)
 
@@ -398,10 +393,8 @@ local function script_action_danger_grenade(npc,st,bd,best_danger_object,depende
 
 	local be = npc:best_enemy() or best_danger_object and npc:relation(best_danger_object) > 0 and best_danger_object
 
-	local tg = time_global()
-
 	if (dist and dist >= FAR_DIST_M) then
-		
+
 		local sm = db.storage[npc:id()].state_mgr
 		if (sm and sm.target_state ~= "threat_danger") then
 			npc:clear_animations()
@@ -525,14 +518,16 @@ local function script_action_danger_corpse(npc,st,bd,best_danger_object,dependen
 
 		local dist_to_killer = dst and dst.killer_last_known_position and npc:position():distance_to_sqr(dst.killer_last_known_position) or 30
 
-		local new_vid = random_choice(utils_obj.try_to_strafe(npc),utils_obj.try_go_backward(npc,6),utils_obj.try_go_cover(npc,dst and dst.killer_last_known_position or bdo and bdo:position() or npc:position()))
+		local new_vid = random_choice(utils_obj.try_to_strafe(npc), utils_obj.try_go_backward(npc,6),
+			utils_obj.try_go_cover(npc, dst and dst.killer_last_known_position or bdo and bdo:position() or npc:position()))
 
 		if (new_vid and (not st.lvid or new_vid ~= st.lvid))then
 			st.lvid = new_vid
 		end
 
 		if not (new_vid) then
-			local dir = dst and dst.killer_last_known_position and vector():set(dst.killer_last_known_position):sub(npc:position()) or killer and vector():set(killer:position()):sub(npc:position()) or npc:direction()
+			local dir = dst and dst.killer_last_known_position and vector():set(dst.killer_last_known_position):sub(npc:position())
+				or killer and vector():set(killer:position()):sub(npc:position()) or npc:direction()
 			local node = at_position_node(3)
 			node = node:select_best_vertex_id(npc,dir,npc:level_vertex_id(),10,dist_to_killer/2)
 
@@ -584,8 +579,6 @@ local function script_action_danger_attacked(npc,st,bd,best_danger_object,depend
 			st.last_pos = bdo and vector():set(bdo:position())
 		end
 
-		local dir = st.last_pos and vector():set(st.last_pos):sub(npc:position()) or vector():set(npc:direction())
-		local dist_to_bdo = st.last_pos and npc:position():distance_to_sqr(st.last_pos) or 30
 
 		local target_vertex_id = random_choice(utils_obj.try_to_strafe(npc),utils_obj.try_go_backward(npc,6),utils_obj.try_go_cover(npc,st.last_pos or npc:position()))
 
@@ -859,7 +852,7 @@ function at_position_node:select_best_vertex_id(object,dir,lvid,min_dist,max_dis
 end
 
 function setup_generic_scheme(npc,ini,scheme,section,stype,temp)
-	local st = xr_logic.assign_storage_and_bind(npc,ini,"danger","danger",temp)
+	xr_logic.assign_storage_and_bind(npc,ini,"danger","danger",temp)
 	db.storage[npc:id()].danger_flag = false
 	db.storage[npc:id()].danger_flag_scripted = nil
 end
