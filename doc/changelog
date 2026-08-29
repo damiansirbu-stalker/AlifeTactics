@@ -13,8 +13,9 @@ next
       - Maneuvers now run in every stalker fight near you, not only your own. Any combatant within 150 m (tunable) can be borrowed for one maneuver,
           and each maneuver keys on whichever enemy makes it real: the man whose weapon reach covers him for a retreat, the watcher over his reload,
           the enemy inside his minimum for a kite. Fights against mutants and fights beyond that range stay vanilla.
-      - The takeover is bounded. Separate concurrency and start budgets for maneuvers against you and maneuvers against NPCs, so a mass battle
-          can never drown either side. All numbers live in at_maneuvers_config.ltx.
+      - One shared budget bounds everything AlifeTactics starts near you: maneuver starts, press joins, and pull-backs draw from the same
+          per-window allowance, split between actions against you and actions against NPCs, so a mass battle can never drown either side
+          and your total pressure is one tunable number. All numbers live in at_maneuvers_config.ltx.
       - Reload Cover reacts to any watching enemy, yours included, and the cover hides from that watcher. Pickoff breaks off in his target's sight,
           whoever that target is.
       - The debug HUD shows exactly the set the mod governs: the tracked combatants inside the same 150 m.

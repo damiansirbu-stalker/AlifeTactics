@@ -158,6 +158,17 @@ local function _get_fire_band(dist)
     return nil
 end
 
+local function _apply_push_writes(npc, state, win)
+    local dist = npc:position():distance_to(db.actor:position())
+    local want_fire = _get_fire_band(dist)
+    if want_fire ~= state.push_fire then _write_push_fire(npc, state, want_fire, dist, win.cause) end
+    if not state.push_band and at_conduct.is_spacing_active()
+        and xcombat.get_weapon_kind(npc) ~= "w_sniper" then
+        local advantage = _get_push_advantage(win, npc)
+        if advantage then _write_push_band(state, advantage, dist, win.cause) end
+    end
+end
+
 local function _update_push_npc(npc, state, tg)
     local win = _push
     if not win or state.maneuver then
@@ -169,13 +180,11 @@ local function _update_push_npc(npc, state, tg)
         _clear_push_npc(npc, state, "not_fighting_target", tg)
         return
     end
-    local dist = npc:position():distance_to(db.actor:position())
-    local want_fire = _get_fire_band(dist)
-    if want_fire ~= state.push_fire then _write_push_fire(npc, state, want_fire, dist, win.cause) end
-    if not state.push_band and at_conduct.is_spacing_active()
-        and xcombat.get_weapon_kind(npc) ~= "w_sniper" then
-        local advantage = _get_push_advantage(win, npc)
-        if advantage then _write_push_band(state, advantage, dist, win.cause) end
+    local joined = state.push_fire ~= nil or state.push_band ~= nil
+    if not joined and not at_combat.check_start("vs_player") then return end
+    _apply_push_writes(npc, state, win)
+    if not joined and (state.push_fire ~= nil or state.push_band ~= nil) then
+        at_combat.add_start("vs_player")
     end
 end
 
@@ -207,6 +216,8 @@ local function _try_open_pull(npc, state, tg)
     if not at_conduct.is_spacing_active() then return end
     local cause = _get_pull_cause(npc, state, tg, false)
     if not cause then return end
+    if not at_combat.check_start("vs_player") then return end
+    at_combat.add_start("vs_player")
     local dist = npc:position():distance_to(db.actor:position())
     local min_m = dist * PULL_BAND_K
     if min_m < PULL_BAND_FLOOR_M then min_m = PULL_BAND_FLOOR_M end

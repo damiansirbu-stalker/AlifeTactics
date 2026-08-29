@@ -79,7 +79,7 @@ These maneuvers cover the moments vanilla fumbles:
   Kite backs a stalker out of an enemy that closed too near, still firing.
   Pickoff plants a stalker who has his enemy outranged and picks him off with deliberate single shots, breaking off the moment the threat returns.
 
-Maneuvers run in every stalker fight within 150 meters of you, tunable, whether or not you are the target. Fights against mutants and fights beyond that range stay vanilla, and separate budgets bound the maneuvers against you and against NPCs so neither side drowns the other.
+Maneuvers run in every stalker fight within 150 meters of you, tunable, whether or not you are the target. Fights against mutants and fights beyond that range stay vanilla, and one shared allowance bounds everything AlifeTactics starts, against you and against NPCs separately, so a mass battle never drowns either side.
 A maneuver fires when its problem is real and ends when it is solved. Keep creating the problem, such as pressing a shotgunner's minimum range, and the answer keeps coming.
 The decisions come out looking human. Nobody turns his back on a shooter, two men never take the same cover, nobody plants in his enemy's sight.
 Maneuver fire bursts by weapon and by skill: burst length and pauses vary shot to shot inside the game's own per-weapon ranges and tighten with rank.

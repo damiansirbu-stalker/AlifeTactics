@@ -21,15 +21,13 @@ local REPEAT_MOVE_SQR = REPEAT_MOVE_M * REPEAT_MOVE_M
 local INVALID_LEVEL_VERTEX_ID = 4294967295
 
 local BEGIN_PERIOD_MS, UPDATE_PERIOD_MS, END_PERIOD_MS, HIT_FIGHT_MS
-local GATE_RADIUS_M, GATE_RADIUS_SQR, CONCURRENT_CAP, STARTS_CAP, STARTS_WINDOW_SEC
+local GATE_RADIUS_M, GATE_RADIUS_SQR
 local HURT_FRAC, STALL_MS, STALL_MOVE_SQR, STALL_CLOSE_M
 local KITE_ARC_DEG, KITE_SPREAD_DEG, KITE_DISTANCE_M
 local FLEE_MIN_DIST_M, FLEE_BASE_MIN_DIST_M, RETREAT_REAR_M, UNDER_FIRE_MS
 local COUNTERFLANK_ACTOR_DIST_SQR, PICKOFF_TARGETED_DEG, PICKOFF_ENTER_FACTOR
 local REPEAT_LIMIT, RELOAD_STALE_MS, RELOAD_COVER_CONE_DEG
 
-local _open_by_bucket = { vs_player = 0, vs_npc = 0 }
-local _starts
 local _queue_band_by_kind = {}
 local _pickoff_band
 local _orig_get_queue_params
@@ -130,20 +128,6 @@ end
 -- display set both compare the record's actor_dist_sqr fact against it.
 local function _in_gate(state)
     return state.actor_dist_sqr ~= nil and state.actor_dist_sqr <= GATE_RADIUS_SQR
-end
-
--- The limiters (t214): concurrent cap and starts-per-window, each split into a vs-player and a
--- vs-npc bucket so neither class can starve the other. Checked at the pick site.
-local function _bucket_full(bucket)
-    local cap = CONCURRENT_CAP[bucket]
-    return cap > 0 and _open_by_bucket[bucket] >= cap
-end
-
-local function _limiter_admits(bucket)
-    if _bucket_full(bucket) then return false, "concurrent" end
-    local cap = STARTS_CAP[bucket]
-    if cap > 0 and _starts:count(bucket) >= cap then return false, "rate" end
-    return true
 end
 
 -- The threat set (t214): candidates = my selection + everyone holding me as best enemy (the
@@ -514,12 +498,6 @@ end
 
 local function _drop_gate(state)
     if state and state.gate then
-        local bucket = state.bucket
-        if bucket and _open_by_bucket[bucket] then
-            _open_by_bucket[bucket] = _open_by_bucket[bucket] - 1
-            if _open_by_bucket[bucket] < 0 then _open_by_bucket[bucket] = 0 end
-        end
-        state.bucket = nil
         state.gate = false
     end
 end
@@ -635,28 +613,26 @@ end
 local function _seize_blocked(npc)
     local can_seize, seize_block = _can_seize(npc)
     if not can_seize then return "cannot_seize", seize_block end
-    if _bucket_full("vs_player") and _bucket_full("vs_npc") then return "at_cap" end
+    if not at_combat.any_start_open() then return "at_cap" end
     return nil
 end
 
---- The pick site: the limiter admits or refuses the picked maneuver by its bucket, then the
---- grant stages the committed target and raises the gate.
+--- The pick site: the shared start budget admits or refuses the picked maneuver by its bucket,
+--- then the grant stages the committed target and raises the gate. Starts only spend; the
+--- engine re-grants of an open maneuver never come through here.
 local function _grant_maneuver(npc, state, maneuver, dest, tg)
     local staged = state.memo and state.memo.staged
     local target_id = (maneuver.vs_actor and AC_ID) or (staged and staged:id()) or state.enemy_id
     local bucket = target_id == AC_ID and "vs_player" or "vs_npc"
-    local admitted, limit_why = _limiter_admits(bucket)
-    if not admitted then
+    if not at_combat.check_start(bucket) then
         _release_cover(state)
-        at_debug.dbg("[CMB] limited id=%s maneuver=%s bucket=%s why=%s",
-            show(state.id), show(maneuver.name), bucket, show(limit_why))
+        at_debug.dbg("[CMB] limited id=%s maneuver=%s bucket=%s",
+            show(state.id), show(maneuver.name), bucket)
         return false
     end
-    _starts:add(bucket)
+    at_combat.add_start(bucket)
     xcombat.topup_takeover_block(npc)
     state.gate = true
-    state.bucket = bucket
-    _open_by_bucket[bucket] = _open_by_bucket[bucket] + 1
     state.maneuver = maneuver
     state.dest = dest
     state.maneuver_at = nil
@@ -822,16 +798,6 @@ local function _load_config()
     HIT_FIGHT_MS        = read_int("hit_fight_ms",        5000)
     GATE_RADIUS_M       = read_float("gate_radius_m", 150)
     GATE_RADIUS_SQR     = GATE_RADIUS_M * GATE_RADIUS_M
-    CONCURRENT_CAP = {
-        vs_player = read_int("max_concurrent_vs_player", 10),
-        vs_npc    = read_int("max_concurrent_vs_npc",    10),
-    }
-    STARTS_CAP = {
-        vs_player = read_int("starts_per_window_vs_player", 6),
-        vs_npc    = read_int("starts_per_window_vs_npc",    6),
-    }
-    STARTS_WINDOW_SEC = read_int("starts_window_sec", 10)
-    _starts = xttltable.create_ttl_counter({ ttl = STARTS_WINDOW_SEC })
     HURT_FRAC      = read_float("hurt_frac",     0.40)
     STALL_MS       = read_int("stall_ms",        4000)
     local move_m   = read_float("stall_move_m",  2)
@@ -893,11 +859,8 @@ local function _load_config()
 end
 
 local function _on_first_update()
-    _open_by_bucket.vs_player, _open_by_bucket.vs_npc = 0, 0
-    if _starts then _starts:clear() end
-    at_debug.info("Maneuvers monitor initialized (enabled=%s dbg=%s gate=%.0fm cap=%d/%d queue_patch=%s push=%s band=%s)",
+    at_debug.info("Maneuvers monitor initialized (enabled=%s dbg=%s gate=%.0fm queue_patch=%s push=%s band=%s)",
         tostring(cfg.combat_enabled), tostring(at_debug.on()), GATE_RADIUS_M,
-        CONCURRENT_CAP.vs_player, CONCURRENT_CAP.vs_npc,
         _orig_get_queue_params and "installed" or "missing",
         tostring(cfg.push_enabled), at_conduct.is_spacing_active() and "active" or "INACTIVE")
 end

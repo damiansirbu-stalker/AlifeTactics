@@ -8,16 +8,9 @@ update_period_ms = 200     ; update_maneuver check: re-run the row's update (fir
 end_period_ms    = 200     ; end_maneuver check: watch for arrival / the time cap / a broken premise, hand back
 hit_fight_ms      = 5000    ; a recent hit counts as "fighting" this long (far-shooter entry, best_enemy still nil)
 
-; The gate and the limiters (t214). The gate admits any combatant within gate_radius_m of the
-; player; the debug HUD shows exactly the gated set - one radius for everything. The limiters
-; bound the takeover at the pick site, split into a vs-player and a vs-npc bucket so neither
-; class can starve the other.
+; The gate (t214). It admits any combatant within gate_radius_m of the player; the debug HUD
+; shows exactly the gated set - one radius for everything.
 gate_radius_m = 150            ; the sniper band maximum; the gate never excludes a fight the weapon bands model
-max_concurrent_vs_player = 10  ; open maneuvers whose committed target is the player (0 = no cap)
-max_concurrent_vs_npc    = 10  ; open maneuvers whose committed target is an NPC (0 = no cap)
-starts_per_window_vs_player = 6  ; maneuver starts allowed per window in the vs-player bucket (0 = no limit)
-starts_per_window_vs_npc    = 6  ; same bound for the vs-npc bucket
-starts_window_sec = 10           ; the sliding window the start limiter counts over
 
 ; Needs (when AT seizes - only where vanilla is weak).
 hurt_frac     = 0.40       ; flee/retreat need below this HP fraction, with a threat whose weapon reach covers the NPC (0.25 fired too late, 2026-07-11 playtest)
@@ -62,3 +55,12 @@ kite_distance_m_w_smg       = 6
 kite_distance_m_w_rifle     = 8
 kite_distance_m_w_sniper    = 15
 kite_distance_m_w_explosive = 8
+
+; The shared start budget (at_combat.script reads this section): one sliding-window pool for
+; everything the main loop starts - a maneuver grant, a push join, a pull open - split into a
+; vs-player and a vs-npc bucket so neither class can starve the other. Starts only ever spend;
+; a running maneuver or an open window never counts again.
+[at_combat]
+starts_per_window_vs_player = 6  ; starts allowed per window against the player (0 = no limit)
+starts_per_window_vs_npc    = 6  ; starts allowed per window against NPCs (0 = no limit)
+starts_window_sec = 10           ; the sliding window the budget counts over

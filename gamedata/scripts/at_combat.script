@@ -1,19 +1,58 @@
 --- at_combat: the Combat substrate - the per-NPC records, the hit/reload timestamps, the best_enemy facts, and the main loop that drives the combat systems
 
 local IsStalker, time_global, pairs, next = IsStalker, time_global, pairs, next
-local RegisterScriptCallback = RegisterScriptCallback
+local RegisterScriptCallback, math_floor = RegisterScriptCallback, math.floor
+local ini_file = ini_file
 
 local cfg = at_mcm.cfg
+
+local LTX_PATH    = "alifetactics\\at_maneuvers_config.ltx"
+local LTX_SECTION = "at_combat"
 
 local MONITOR_PERIOD_SEC = 0.2
 local MON_FLUSH_MS = 5000
 local BEST_ENEMY_REFRESH_MS = 600
 local COMPANION_INFO = "npcx_is_companion"
 
+local STARTS_CAP, STARTS_WINDOW_SEC
+
 local _npc_states = {}
 local _best_enemy_of = {}
+local _starts
 local _monitor_active = false
 local _mon = { ms = 0, max = 0, ticks = 0, last = 0 }
+
+-- The shared start budget (user ruling 2026-08-29): one sliding-window pool for everything the
+-- loop starts - a maneuver grant, a push join, a pull open - split into a vs-player and a vs-npc
+-- bucket. Starts only ever spend; continuing never counts.
+
+local function _load_config()
+    local ini = ini_file(LTX_PATH)
+    local function read_int(k, d) local v = ini:r_float_ex(LTX_SECTION, k) return v and math_floor(v) or d end
+    STARTS_CAP = {
+        vs_player = read_int("starts_per_window_vs_player", 6),
+        vs_npc    = read_int("starts_per_window_vs_npc",    6),
+    }
+    STARTS_WINDOW_SEC = read_int("starts_window_sec", 10)
+    _starts = xttltable.create_ttl_counter({ ttl = STARTS_WINDOW_SEC })
+end
+
+--- True while the bucket's start budget has room in the current window (0 = no limit)
+function check_start(bucket)
+    local cap = STARTS_CAP[bucket]
+    if not cap or cap <= 0 then return true end
+    return _starts:count(bucket) < cap
+end
+
+--- Spend one start from the bucket's window budget
+function add_start(bucket)
+    _starts:add(bucket)
+end
+
+--- True while at least one bucket still admits a start - the cheap pre-walk bail
+function any_start_open()
+    return check_start("vs_player") or check_start("vs_npc")
+end
 
 -- The best_enemy facts. The loop is the only writer of the forward field and the reverse index.
 
@@ -203,6 +242,7 @@ end
 
 local function _on_first_update()
     _best_enemy_of = {}
+    if _starts then _starts:clear() end
     at_debug.refresh()
     _apply_enabled()
 end
@@ -235,6 +275,7 @@ function has_recent_hit(state, tg, window_ms)
 end
 
 function on_game_start()
+    _load_config()
     RegisterScriptCallback("npc_on_net_spawn",            _on_net_spawn)
     RegisterScriptCallback("npc_on_hit_callback",         _on_hit)
     RegisterScriptCallback("npc_on_net_destroy",          _on_net_destroy)
