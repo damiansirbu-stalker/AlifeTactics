@@ -20,7 +20,7 @@ starts_per_window_vs_npc    = 6  ; same bound for the vs-npc bucket
 starts_window_sec = 10           ; the sliding window the start limiter counts over
 
 ; Needs (when AT seizes - only where vanilla is weak).
-hurt_frac     = 0.40       ; flee/retreat need below this HP fraction, with the enemy inside his own weapon's reach (0.25 fired too late, 2026-07-11 playtest)
+hurt_frac     = 0.40       ; flee/retreat need below this HP fraction, with a threat whose weapon reach covers the NPC (0.25 fired too late, 2026-07-11 playtest)
 stall_ms      = 4000       ; held position with the enemy not closing this long fires the stalled need (measured SINCE the last maneuver)
 stall_move_m  = 2          ; movement under this counts as "held position"
 stall_close_m = 2          ; enemy gaining more than this much ground resets the stall timer
@@ -43,9 +43,9 @@ kite_arc_deg    = 45       ; back-lane fan step: try straight-back, then +-45, t
 kite_spread_deg = 90       ; max fan to either side when the straight-back lane is blocked
 retreat_rear_m  = 8        ; retreat centers its cover search this far behind the NPC; MUST exceed the 7m search radius (2026-07-11 playtest)
 under_fire_ms   = 2000     ; flee and pickoff decline while a hit landed or a shot was perceived within this window
-reload_cover_cone_deg = 60 ; reload_cover fires when the player faces the reloader within this cone with a clear shot line
+reload_cover_cone_deg = 60 ; reload_cover fires when a watching threat faces the reloader within this cone with a clear shot line
 reload_stale_ms = 6000     ; a reload start-edge older than this is stale (the stop edge is best-effort)
-pickoff_targeted_deg = 10  ; pickoff declines (and an open hold ends) while the actor's aim is within this many degrees
+pickoff_targeted_deg = 10  ; pickoff declines (and an open hold ends) while his target's aim is within this many degrees with a clear line
 pickoff_enter_factor = 1.2 ; hysteresis: plant only past the enemy's EFFECTIVE range x this; the hold ends inside 1.0x
 maneuver_max_ms = 8000     ; stuck cap - a committed maneuver hands back after this even if it never arrives
 pickoff_hold_ms = 8000     ; pickoff is a deliberate-fire hold (ends_on=time)
