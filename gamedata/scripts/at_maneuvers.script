@@ -109,15 +109,19 @@ local function _find_kite_lane(npc, _enemy, state, _tg, memo)
     return vid
 end
 
-local function _pickoff_blocked(npc, enemy, state, tg, npc_pos)
-    if at_combat.has_recent_hit(state, tg, UNDER_FIRE_MS) then return "under_fire" end
-    if xcombat.is_under_fire(npc, enemy, tg, UNDER_FIRE_MS) then return "under_fire" end
-    if db.actor and xcombat.is_facing(db.actor, npc_pos, PICKOFF_TARGETED_DEG) then return "targeted" end
+local function _is_under_fire(npc, enemy, state, tg)
+    return at_combat.has_recent_hit(state, tg, UNDER_FIRE_MS)
+        or xcombat.is_under_fire(npc, enemy, tg, UNDER_FIRE_MS)
+end
+
+local function _pickoff_blocked(npc, enemy, state, tg)
+    if _is_under_fire(npc, enemy, state, tg) then return "under_fire" end
+    if xcombat.is_in_sight(db.actor, npc, PICKOFF_TARGETED_DEG) then return "targeted" end
     return nil
 end
 
-local function _find_pickoff_spot(npc, enemy, state, tg, memo)
-    local blocked = _pickoff_blocked(npc, enemy, state, tg, memo.npc_pos)
+local function _find_pickoff_spot(npc, enemy, state, tg, _memo)
+    local blocked = _pickoff_blocked(npc, enemy, state, tg)
     if blocked then
         at_debug.dbg("[CMB] can_pickoff id=%s name=%s dist=%.1f enemy_max=unknown result=%s",
             show(state.id), show(state.name), state.dist or -1, show(blocked))
@@ -133,10 +137,10 @@ local function _find_pickoff_spot(npc, enemy, state, tg, memo)
 end
 
 local function _check_end_pickoff(npc, enemy, state, tg)
-    local pos = npc:position()
-    local blocked = _pickoff_blocked(npc, enemy, state, tg, pos)
+    local blocked = _pickoff_blocked(npc, enemy, state, tg)
     if blocked then return blocked end
-    if state.pickoff_exit_sqr and enemy and xmath.dist_flat_sqr(pos, enemy:position()) < state.pickoff_exit_sqr then
+    if state.pickoff_exit_sqr and enemy
+        and xmath.dist_flat_sqr(npc:position(), enemy:position()) < state.pickoff_exit_sqr then
         return "in_effective_range"
     end
     return nil
@@ -153,7 +157,7 @@ local function _find_reload_cover(npc, _enemy, state, _tg, memo)
         at_debug.dbg("[CMB] can_reload_cover id=%s name=%s path=not_reloading cover=-", show(state.id), show(state.name))
         return nil
     end
-    if not xcombat.is_in_actor_sight(npc, RELOAD_COVER_CONE_DEG) then
+    if not xcombat.is_in_sight(db.actor, npc, RELOAD_COVER_CONE_DEG) then
         at_debug.dbg("[CMB] can_reload_cover id=%s name=%s path=not_in_sight cover=-", show(state.id), show(state.name))
         return nil
     end
@@ -212,9 +216,7 @@ end
 
 local function _flee_blocked(npc, enemy, state)
     if not xsquad.is_last_man(npc:id()) then return "squad_stands" end
-    local tg = time_global()
-    if at_combat.has_recent_hit(state, tg, UNDER_FIRE_MS) then return "under_fire" end
-    if xcombat.is_under_fire(npc, enemy, tg, UNDER_FIRE_MS) then return "under_fire" end
+    if _is_under_fire(npc, enemy, state, time_global()) then return "under_fire" end
     return nil
 end
 
@@ -263,7 +265,7 @@ end
 
 local function _check_too_close(npc, _enemy, state, _tg, memo)
     if memo.kind == nil then memo.kind = xcombat.get_weapon_kind(npc) or "w_rifle" end
-    if xcombat.is_inside_minimum(state.dist, memo.kind) then return "too_close" end
+    if xcombat.get_range_band(state.dist, memo.kind) == "too_close" then return "too_close" end
     return nil
 end
 
@@ -277,7 +279,7 @@ local function _check_hurt(npc, enemy, state, _tg, memo)
     if memo.hurt == nil then memo.hurt = xcombat.get_health_frac(npc) < HURT_FRAC end
     if not memo.hurt then return nil end
     if memo.enemy_kind == nil then memo.enemy_kind = xcombat.get_weapon_kind(enemy) or "w_rifle" end
-    if xcombat.is_inside_reach(state.dist, memo.enemy_kind) then return "hurt" end
+    if xcombat.get_range_band(state.dist, memo.enemy_kind) ~= "out" then return "hurt" end
     return nil
 end
 
