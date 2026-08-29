@@ -1,6 +1,6 @@
 --- at_maneuvers: the intermittent takeover - seize one NPC for one committed maneuver, hand back; catalog rows in at_maneuvers_config
 
-local IsStalker, IsWounded, time_global, tostring = IsStalker, IsWounded, time_global, tostring
+local IsStalker, IsWounded, time_global, tostring, pairs = IsStalker, IsWounded, time_global, tostring, pairs
 local math_floor, math_random, RegisterScriptCallback, AC_ID = math.floor, math.random, RegisterScriptCallback, AC_ID
 local string_match, string_find, tonumber = string.match, string.find, tonumber
 local math_sqrt, vector, table_concat = math.sqrt, vector, table.concat
@@ -83,8 +83,9 @@ local function _can_seize(npc)
 end
 
 local function _find_kite_lane(npc, _enemy, state, _tg, memo)
-    local np, ep = memo.npc_pos, memo.enemy_pos
-    local dist = state.dist
+    local np = memo.npc_pos
+    local ep = memo.staged_pos or memo.enemy_pos
+    local dist = memo.staged_dist or state.dist
     local dir
     if dist > 0 then
         dir = vector():set((np.x - ep.x) / dist, 0, (np.z - ep.z) / dist)
@@ -114,9 +115,54 @@ local function _is_under_fire(npc, enemy, state, tg)
         or xcombat.is_under_fire(npc, enemy, tg, UNDER_FIRE_MS)
 end
 
+-- The threat set (t214): candidates = my selection + everyone holding me as best enemy (the
+-- substrate's reverse index) + the player while hostile to me. Candidates only - every predicate
+-- runs live at the decision; a stale index entry costs one failed compare.
+local function _get_threats(npc, state, memo)
+    local list = memo.threats
+    if list then return list end
+    list = {}
+    local seen = {}
+    local function add(id)
+        if not id or seen[id] then return end
+        seen[id] = true
+        if id == AC_ID and not xcreature.is_enemy_to_actor(npc) then return end
+        local obj = xcombat.resolve_enemy(id)
+        if obj then list[#list + 1] = obj end
+    end
+    add(state.best_enemy_id)
+    local bucket = at_combat.get_best_enemy_of(state.id)
+    if bucket then
+        for id in pairs(bucket) do add(id) end
+    end
+    add(AC_ID)
+    memo.threats = list
+    return list
+end
+
+-- Closest threat-set member passing qualify(member, dist_m), with its distance; nil when none.
+local function _closest_threat(npc, state, memo, qualify)
+    local best, best_dist
+    local np = memo.npc_pos
+    local threats = _get_threats(npc, state, memo)
+    for i = 1, #threats do
+        local member = threats[i]
+        local member_dist = math_sqrt(xmath.dist_flat_sqr(np, member:position()))
+        if (best_dist == nil or member_dist < best_dist) and qualify(member, member_dist) then
+            best, best_dist = member, member_dist
+        end
+    end
+    return best, best_dist
+end
+
+-- The maneuver declares its member here; the shell stages him as the committed target on the pick.
+local function _stage_threat(memo, obj, dist)
+    memo.staged, memo.staged_pos, memo.staged_dist = obj, obj:position(), dist
+end
+
 local function _pickoff_blocked(npc, enemy, state, tg)
     if _is_under_fire(npc, enemy, state, tg) then return "under_fire" end
-    if xcombat.is_in_sight(db.actor, npc, PICKOFF_TARGETED_DEG) then return "targeted" end
+    if xcombat.is_in_sight(enemy, npc, PICKOFF_TARGETED_DEG) then return "targeted" end
     return nil
 end
 
@@ -157,11 +203,15 @@ local function _find_reload_cover(npc, _enemy, state, _tg, memo)
         at_debug.dbg("[CMB] can_reload_cover id=%s name=%s path=not_reloading cover=-", show(state.id), show(state.name))
         return nil
     end
-    if not xcombat.is_in_sight(db.actor, npc, RELOAD_COVER_CONE_DEG) then
+    local watcher, watcher_dist = _closest_threat(npc, state, memo, function(member, _dist)
+        return xcombat.is_in_sight(member, npc, RELOAD_COVER_CONE_DEG)
+    end)
+    if not watcher then
         at_debug.dbg("[CMB] can_reload_cover id=%s name=%s path=not_in_sight cover=-", show(state.id), show(state.name))
         return nil
     end
-    local vid = xcombat.find_cover(npc, memo.enemy_pos, { selection = "nearest", firing = false, radius = 5, search_pos = npc:position() })
+    _stage_threat(memo, watcher, watcher_dist)
+    local vid = xcombat.find_cover(npc, memo.staged_pos, { selection = "nearest", firing = false, radius = 5, search_pos = npc:position() })
     if not vid then
         at_debug.dbg("[CMB] can_reload_cover id=%s name=%s path=no_cover cover=-", show(state.id), show(state.name))
         return nil
@@ -181,12 +231,14 @@ local function _check_end_reload_cover(_npc, _enemy, state, _tg)
 end
 
 local function _find_retreat_cover(npc, _enemy, state, _tg, memo)
-    local np, ep = memo.npc_pos, memo.enemy_pos
+    local np = memo.npc_pos
+    local ep = memo.staged_pos or memo.enemy_pos
+    local away_dist = memo.staged_dist or state.dist
     local dx, dz = np.x - ep.x, np.z - ep.z
     local dist_sqr = dx * dx + dz * dz
     local center = np
     if dist_sqr > 0 then
-        local inv = RETREAT_REAR_M / state.dist
+        local inv = RETREAT_REAR_M / away_dist
         center = vector():set(np.x + dx * inv, np.y, np.z + dz * inv)
     end
     local vid = xcombat.find_cover(npc, ep, { selection = "best", firing = true, radius = 7, search_pos = center })
@@ -200,7 +252,7 @@ local function _find_retreat_cover(npc, _enemy, state, _tg, memo)
     local cover_dist_sqr = vdx * vdx + vdz * vdz
     if cover_dist_sqr <= dist_sqr then
         at_debug.dbg("[CMB] can_retreat id=%s name=%s path=toward_enemy cover=%s cover_dist=%.1f npc_dist=%.1f",
-            show(state.id), show(state.name), show(vid), math_sqrt(cover_dist_sqr), state.dist or -1)
+            show(state.id), show(state.name), show(vid), math_sqrt(cover_dist_sqr), away_dist or -1)
         return nil
     end
     if not xcombat.claim_cover(vid, state.id) then
@@ -209,7 +261,7 @@ local function _find_retreat_cover(npc, _enemy, state, _tg, memo)
         return nil
     end
     at_debug.dbg("[CMB] can_retreat id=%s name=%s path=taken cover=%s cover_dist=%.1f npc_dist=%.1f",
-        show(state.id), show(state.name), show(vid), math_sqrt(cover_dist_sqr), state.dist or -1)
+        show(state.id), show(state.name), show(vid), math_sqrt(cover_dist_sqr), away_dist or -1)
     state.cover_lvid = vid
     return vid
 end
@@ -221,18 +273,19 @@ local function _flee_blocked(npc, enemy, state)
 end
 
 local function _find_flee_base(npc, enemy, state, _tg, memo)
-    local blocked = _flee_blocked(npc, enemy, state)
+    local threat = memo.staged or enemy
+    local blocked = _flee_blocked(npc, threat, state)
     if blocked then
         at_debug.dbg("[CMB] can_flee id=%s name=%s path=%s", show(state.id), show(state.name), show(blocked))
         return nil
     end
-    if state.dist < FLEE_MIN_DIST_M then
+    if (memo.staged_dist or state.dist) < FLEE_MIN_DIST_M then
         at_debug.dbg("[CMB] can_flee id=%s name=%s path=too_close", show(state.id), show(state.name))
         return nil
     end
     if memo.faction == nil then memo.faction = xcreature.community(npc) end
     local base = xsmart.find_friendly_base(memo.faction, memo.npc_pos,
-        { level_id = xlevel.get_actor_level_id(), away_from_pos = memo.enemy_pos, min_distance = FLEE_BASE_MIN_DIST_M })
+        { level_id = xlevel.get_actor_level_id(), away_from_pos = memo.staged_pos or memo.enemy_pos, min_distance = FLEE_BASE_MIN_DIST_M })
     if base then
         at_debug.dbg("[CMB] can_flee id=%s name=%s path=base", show(state.id), show(state.name))
         local vid = base.m_level_vertex_id
@@ -265,8 +318,12 @@ end
 
 local function _check_too_close(npc, _enemy, state, _tg, memo)
     if memo.kind == nil then memo.kind = xcombat.get_weapon_kind(npc) or "w_rifle" end
-    if xcombat.get_range_band(state.dist, memo.kind) == "too_close" then return "too_close" end
-    return nil
+    local member, member_dist = _closest_threat(npc, state, memo, function(_member, dist)
+        return xcombat.get_range_band(dist, memo.kind) == "too_close"
+    end)
+    if not member then return nil end
+    _stage_threat(memo, member, member_dist)
+    return "too_close"
 end
 
 local function _check_reloading(_npc, _enemy, state, tg, _memo)
@@ -275,12 +332,15 @@ local function _check_reloading(_npc, _enemy, state, tg, _memo)
     return "reloading"
 end
 
-local function _check_hurt(npc, enemy, state, _tg, memo)
+local function _check_hurt(npc, _enemy, state, _tg, memo)
     if memo.hurt == nil then memo.hurt = xcombat.get_health_frac(npc) < HURT_FRAC end
     if not memo.hurt then return nil end
-    if memo.enemy_kind == nil then memo.enemy_kind = xcombat.get_weapon_kind(enemy) or "w_rifle" end
-    if xcombat.get_range_band(state.dist, memo.enemy_kind) ~= "out" then return "hurt" end
-    return nil
+    local member, member_dist = _closest_threat(npc, state, memo, function(threat, dist)
+        return xcombat.get_range_band(dist, xcombat.get_weapon_kind(threat) or "w_rifle") ~= "out"
+    end)
+    if not member then return nil end
+    _stage_threat(memo, member, member_dist)
+    return "hurt"
 end
 
 local function _check_stalled(npc, _enemy, state, tg, memo)
@@ -333,6 +393,7 @@ local function _reset_memo(state, npc, enemy)
     if not memo then memo = {} state.memo = memo end
     memo.faction, memo.kind, memo.enemy_kind, memo.hurt = nil, nil, nil, nil
     memo.actor_pos, memo.actor_enemy = nil, nil
+    memo.threats, memo.staged, memo.staged_pos, memo.staged_dist = nil, nil, nil, nil
     memo.actor_fight = state.enemy_id == AC_ID
     local np, ep = npc:position(), enemy:position()
     memo.npc_pos, memo.enemy_pos = np, ep
@@ -522,10 +583,10 @@ local SPEC = {
     on_release = _on_release,
 }
 
-local function _trace_decision(state, enemy, result)
+local function _trace_decision(state, _enemy, result)
     if not at_debug.on() then return end
     if not (result or (state.rows and string_find(state.rows, "/", 1, true))) then return end
-    state.enemy_name = xcreature.get_name(enemy:id())
+    state.enemy_name = xcreature.get_name(state.enemy_id)
     at_debug.dbg("[CMB] monitor id=%s name=%s target=%s(%s) distance=%.1f rows=%s walk=%dus result=%s",
         show(state.id), show(state.name), show(state.enemy_id), show(state.enemy_name), state.dist or -1,
         show(state.rows), state.walk_us or -1, result or "none")
@@ -563,9 +624,14 @@ local function _try_begin_maneuver(npc, state, tg)
         state.dest = dest
         state.maneuver_at = nil
         state.begin_at = tg
+        local staged = state.memo and state.memo.staged
+        if maneuver.vs_actor then
+            state.enemy_id = AC_ID
+        elseif staged then
+            state.enemy_id = staged:id()
+        end
     end
     _trace_decision(state, enemy, maneuver and maneuver.name)
-    if maneuver and maneuver.vs_actor then state.enemy_id = AC_ID end
 end
 
 local function _check_sight_lost(state, maneuver, sight_id)

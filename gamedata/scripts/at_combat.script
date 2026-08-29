@@ -216,6 +216,12 @@ function get_best_enemy(id)
     return state and state.best_enemy_id or nil
 end
 
+--- The reverse-index bucket for target id: { [npc_id] = written_at }, or nil when nobody holds it
+--- as best enemy. Candidates only - the reader verifies every predicate live at its decision.
+function get_best_enemy_of(id)
+    return _best_enemy_of[id]
+end
+
 --- True when a hit landed on this NPC within window_ms (state.hit_at; window is caller policy)
 function has_recent_hit(state, tg, window_ms)
     return state.hit_at ~= nil and (tg - state.hit_at) < window_ms
