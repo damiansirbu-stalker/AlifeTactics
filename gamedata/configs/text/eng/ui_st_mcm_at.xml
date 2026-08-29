@@ -18,7 +18,7 @@
     <text>Mechanics</text>
   </string>
   <string id="ui_mcm_menu_vanilla_fixes">
-    <text>Fixes to Vanilla</text>
+    <text>Fixes</text>
   </string>
   <string id="ui_mcm_menu_effects">
     <text>Effects</text>
@@ -62,16 +62,6 @@
   </string>
   <string id="ui_mcm_menu_development">
     <text>Development</text>
-  </string>
-  <!-- ==================== FIXES TO VANILLA SUB-PAGES ==================== -->
-  <string id="ui_mcm_menu_vf_danger">
-    <text>Danger scheme</text>
-  </string>
-  <string id="ui_mcm_menu_vf_corpse">
-    <text>Corpse investigation</text>
-  </string>
-  <string id="ui_mcm_menu_vf_healing">
-    <text>Healing</text>
   </string>
   <!-- ==================== PLANNED SUB-PAGES ==================== -->
   <string id="ui_mcm_menu_behaviors">
@@ -862,7 +852,7 @@
     <text>How a stalker's eyes scale with rank: how fast he turns a glimpse into a confirmed threat (speed), and how far out he begins to notice one (range). Both are reaction and experience, not raw eyesight, and sit in a tight band around your setup's baseline. Range needs a recent engine build with the per-stalker view-distance bind; on older builds only the speed curve applies.</text>
   </string>
   <string id="ui_mcm_at_perception_danger_desc">
-    <text>How stalkers react to being hit. The distant-hit response and the player-range tuning toggle below. The vanilla danger-check and corpse fixes moved to the Fixes to Vanilla page. AlifeTactics installs as a runtime patch onto whichever danger script your modpack ships.</text>
+    <text>How stalkers react to being hit. The distant-hit response and the player-range tuning toggle below. The vanilla danger-check and corpse fixes moved to the Fixes tab. AlifeTactics installs as a runtime patch onto whichever danger script your modpack ships.</text>
   </string>
   <string id="ui_mcm_at_danger_sound_desc">
     <text>How stalkers react to what they hear. Gunfire reactions use your setup's danger config distances; your own noise (movement, handling) uses short built-in radii. Runtime patch onto whichever danger script your modpack ships - works with other combat AI, replaces nothing. Compatible with stealth mods: stealth is about being SEEN (light, cover, stance), and the sound system never touches vision or detection - hearing only adds the short-range sense vanilla lacks, and crouched movement is silent, so a stealth approach plays exactly as your stealth setup intends.</text>
@@ -994,8 +984,11 @@
     <text>The corpse reaction no longer crashes when it fires before its investigation stage is set.</text>
   </string>
   <!-- ==================== FIXES TO VANILLA PAGE ==================== -->
-  <string id="ui_mcm_at_vf_danger_desc">
-    <text>Always-on fixes to the vanilla danger scheme (xr_danger): crashes, misreads, and stale state. These cannot be turned off. Toggleable vanilla fixes live on their own system pages.</text>
+  <string id="ui_mcm_at_vanilla_fixes_desc">
+    <text>Every vanilla Anomaly and xray bug AlifeTactics fixes, grouped by system, each shown as a locked toggle. The always-on ones cannot be turned off. The rest are switched on their own pages, named in each line.</text>
+  </string>
+  <string id="ui_mcm_at_vf_hdr_danger">
+    <text>Danger scheme (xr_danger)</text>
   </string>
   <string id="ui_mcm_at_danger_fix_dead_eval">
     <text>Dead-stalker danger eval</text>
@@ -1003,17 +996,101 @@
   <string id="ui_mcm_at_danger_fix_dead_eval_desc">
     <text>A stalker is no longer evaluated for danger after he dies, which stops a repeated engine visibility error until the body despawns.</text>
   </string>
-  <string id="ui_mcm_at_vf_corpse_desc">
-    <text>Always-on fixes to vanilla corpse investigation (xr_danger). These cannot be turned off. Toggleable vanilla fixes live on their own system pages.</text>
+  <string id="ui_mcm_at_vf_hdr_corpse">
+    <text>Corpse investigation (xr_danger)</text>
   </string>
-  <string id="ui_mcm_at_vf_healing_desc">
-    <text>Always-on fixes to vanilla item healing (xr_eat_medkit). These cannot be turned off. Toggleable vanilla fixes live on their own system pages.</text>
+  <string id="ui_mcm_at_vf_hdr_target">
+    <text>Target selection (CEnemyManager)</text>
+  </string>
+  <string id="ui_mcm_at_vf_sticky_targeting">
+    <text>Sticky targeting</text>
+  </string>
+  <string id="ui_mcm_at_vf_sticky_targeting_desc">
+    <text>A shot-at stalker turns on the man who hit him, not a distant target he can see. Needs the Turn on the shooter toggle on Disclosure.</text>
+  </string>
+  <string id="ui_mcm_at_vf_player_bias">
+    <text>Player bias</text>
+  </string>
+  <string id="ui_mcm_at_vf_player_bias_desc">
+    <text>NPCs no longer converge on you about three times harder than on each other. Needs the Player target pull toggle on Disclosure.</text>
+  </string>
+  <string id="ui_mcm_at_vf_hdr_accuracy">
+    <text>Accuracy (shot dispersion)</text>
+  </string>
+  <string id="ui_mcm_at_vf_rank_accuracy">
+    <text>Rank accuracy</text>
+  </string>
+  <string id="ui_mcm_at_vf_rank_accuracy_desc">
+    <text>A real per-rank accuracy curve replaces vanilla's flat clamp. Needs the Enable Dispersion toggle on Accuracy.</text>
+  </string>
+  <string id="ui_mcm_at_vf_hdr_combat">
+    <text>Combat</text>
+  </string>
+  <string id="ui_mcm_at_vf_cover_posture">
+    <text>Cover posture</text>
+  </string>
+  <string id="ui_mcm_at_vf_cover_posture_desc">
+    <text>A stalker no longer fires into the low cover he ducks behind. Needs the Cover posture toggle on Conduct.</text>
+  </string>
+  <string id="ui_mcm_at_vf_hdr_movement">
+    <text>Movement and animation</text>
+  </string>
+  <string id="ui_mcm_at_vf_hit_hold">
+    <text>Hit-reaction slide</text>
+  </string>
+  <string id="ui_mcm_at_vf_hit_hold_desc">
+    <text>A hit no longer slides a standing stalker across the ground while the animation plays. Needs the Hit reaction hold toggle on Maneuvers and PR #645.</text>
+  </string>
+  <string id="ui_mcm_at_vf_anim_body">
+    <text>Maneuver on an animating body</text>
+  </string>
+  <string id="ui_mcm_at_vf_anim_body_desc">
+    <text>A maneuver never starts on a stalker still playing a hit or script animation. Runs with Maneuvers on builds carrying PR #629.</text>
+  </string>
+  <string id="ui_mcm_at_vf_hdr_healing">
+    <text>Healing (xr_eat_medkit)</text>
   </string>
   <string id="ui_mcm_at_healing_fix_medkit_reroll">
     <text>Medkit save-load re-roll</text>
   </string>
   <string id="ui_mcm_at_healing_fix_medkit_reroll_desc">
     <text>A stalker's healing charge no longer re-rolls across a save and load.</text>
+  </string>
+  <string id="ui_mcm_at_vf_bandage">
+    <text>Bandage slide</text>
+  </string>
+  <string id="ui_mcm_at_vf_bandage_desc">
+    <text>The bandage gesture waits until the stalker stands still, so his legs no longer freeze and slide. Runs with Healing.</text>
+  </string>
+  <string id="ui_mcm_at_vf_limp">
+    <text>Combat limp</text>
+  </string>
+  <string id="ui_mcm_at_vf_limp_desc">
+    <text>A hurt stalker drops his limp the instant a fight starts. Runs with Healing.</text>
+  </string>
+  <string id="ui_mcm_at_vf_heal_freeze">
+    <text>Healing freeze</text>
+  </string>
+  <string id="ui_mcm_at_vf_heal_freeze_desc">
+    <text>A healing stalker no longer freezes in place or ignores an enemy that appears mid-gesture. Runs with Healing.</text>
+  </string>
+  <string id="ui_mcm_at_vf_distant_hits">
+    <text>Distant hits</text>
+  </string>
+  <string id="ui_mcm_at_vf_distant_hits_desc">
+    <text>A stalker sniped from far off reacts and seeks cover, where a distance gate left him standing. Needs the Distant hits toggle on Danger.</text>
+  </string>
+  <string id="ui_mcm_at_vf_low_cover">
+    <text>Low cover shot check</text>
+  </string>
+  <string id="ui_mcm_at_vf_low_cover_desc">
+    <text>A stalker fires over low cover he can shoot across. The shot check reads eye height, not chest height. Runs with Maneuvers.</text>
+  </string>
+  <string id="ui_mcm_at_vf_heal_lists">
+    <text>Dropped heal lists</text>
+  </string>
+  <string id="ui_mcm_at_vf_heal_lists_desc">
+    <text>The medkit and bandage item lists the engine dropped are restored, so NPCs heal reliably. Needs the Healing toggle.</text>
   </string>
   <!-- ==================== JAMMING PAGE ==================== -->
   <string id="ui_mcm_at_jam_desc">
@@ -1166,6 +1243,9 @@
   </string>
   <string id="ui_mcm_at_development_reset_warning">
     <text>Warning: save or discard pending MCM changes first, otherwise they override the reset on the next Accept.</text>
+  </string>
+  <string id="ui_mcm_at_reset_footer">
+    <text> </text>
   </string>
   <string id="st_at_reset_all_done">
     <text>AlifeTactics: all settings restored to defaults.</text>

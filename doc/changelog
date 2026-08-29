@@ -57,7 +57,7 @@ next
       - Added a separate toggle for each gear effect: damage resistance, outgoing damage, aim steadiness, and health regeneration, each switchable on its own.
 
   MCM
-    - Added a Fixes to Vanilla page listing every vanilla and xray fix by category, the always-on ones as locked toggles.
+    - Added a Fixes tab listing every vanilla and xray fix by system, each as a locked toggle.
       The danger-check and corpse fixes moved there from Perception. Those settings reset to defaults once.
 
   Development

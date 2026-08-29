@@ -219,44 +219,48 @@ Binoculars extend his sight range by day and night-vision by night.
 Effect strengths and the artefact class tables are tunable in configs/alifetactics/at_gear_config.ltx.
 
 Fixes to Vanilla:
-AlifeTactics corrects dozens of vanilla Anomaly and xray defects, grouped below by the system each repairs. The always-on fixes cannot be turned off and show as locked toggles on the Fixes to Vanilla page.
+AlifeTactics corrects dozens of vanilla Anomaly and xray defects, grouped below by the system each repairs. Each shows as a locked toggle on the Fixes tab. The always-on ones cannot be turned off. The rest are switched on their own pages.
 
-Target selection:
-- Sticky targeting: a shot-at stalker turns on the man who hit him, not a distant target he can see.
-- Player bias: the vanilla pull that draws NPCs onto you far harder than onto each other is now a dial.
-
-Danger reactions:
-- Config isolation: three danger categories shared one range key, so a ricochet read at 150m, not its own 4m. Each now reads its own range.
+Danger scheme:
+- A name collision made three danger categories read the wrong range, so a ricochet read at 150m, not its own 4m. Each now reads its own range.
 - A mutant corpse no longer crashes the danger time check.
 - A torn-down NPC reference no longer crashes the evaluator.
 - A bad danger time value no longer crashes the evaluator.
 - The hit callback no longer corrupts danger memory with a missing shooter.
 - A stalker is no longer evaluated for danger after he dies.
-- Distant hits: a sniped stalker reacts at range where vanilla left him standing. Tuned on the Danger page.
+- A danger transition no longer leaves a stale lower-body animation playing.
+- Leaving danger clears only its own cover reservation, not every stalker's.
+- The danger check parses its config once and caches the result.
+- A stalker sniped from far off reacts and seeks cover, where vanilla left him standing.
 
 Corpse investigation:
 - A despawning corpse no longer crashes the investigator.
-- The squad member who found the body investigates it and walks to the cover he found.
+- The squad member who found the body investigates it, not the wrong one.
+- The investigator walks to the cover it found, not a cleared spot.
 - The corpse reaction survives firing before its stage is set.
 - A dead stalker's danger no longer lingers on a reused id.
 
+Target selection:
+- A shot-at stalker turns on the man who hit him, not a distant target he can see.
+- NPCs no longer converge on you far harder than on each other.
+
+Accuracy:
+- A real per-rank accuracy curve replaces vanilla's flat clamp.
+
+Combat:
+- A stalker no longer fires into the low cover he ducks behind.
+- A stalker fires over low cover he can shoot across. The shot check reads eye height, not chest height.
+
 Movement and animation:
-- A hit no longer slides a standing stalker.
-- Danger transitions clear stale lower-body animation.
-- The bandage gesture waits until the stalker stands still.
-- A hurt stalker drops his limp in a fight.
-- The shot check reads eye height, so he fires over low cover.
-- Leaving danger clears only its own cover reservation.
+- A hit no longer slides a standing stalker across the ground.
+- A maneuver never starts on a stalker still playing an animation.
 
 Healing:
 - The medkit and bandage lists the engine dropped are restored.
+- The bandage gesture waits until the stalker stands still.
+- A hurt stalker drops his limp in a fight.
+- A healing stalker no longer freezes or ignores an enemy that appears mid-gesture.
 - The save-load charge re-roll is suppressed.
-
-Accuracy:
-- The rank curve that clamps every NPC to one dispersion becomes a real per-rank curve.
-
-Performance:
-- The danger check parses its config once and caches the result.
 
 Effects (planned):
 Player-facing combat feedback, starting with concussion: tinnitus and blur.

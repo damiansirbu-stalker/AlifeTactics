@@ -1093,4 +1093,119 @@
   <string id="ui_mcm_at_gear_gear_regen_enabled_desc">
     <text>Вкл: химические артефакты дают носителю пассивное восстановление здоровья. Выкл: без регенерации от снаряжения.</text>
   </string>
+  <!-- ==================== FIXES TAB ==================== -->
+  <string id="ui_mcm_menu_vanilla_fixes">
+    <text>Исправления</text>
+  </string>
+  <string id="ui_mcm_at_reset_footer">
+    <text> </text>
+  </string>
+  <string id="ui_mcm_at_vanilla_fixes_desc">
+    <text>Все исправленные ошибки ванильной Anomaly и xray, сгруппированные по системам, каждая как заблокированный переключатель. Постоянные исправления нельзя отключить. Остальные включаются на своих страницах.</text>
+  </string>
+  <string id="ui_mcm_at_vf_hdr_danger">
+    <text>Схема опасности (xr_danger)</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_dead_eval">
+    <text>Оценка опасности у мёртвого</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_dead_eval_desc">
+    <text>Сталкер больше не оценивается на опасность после смерти, что прекращает повторяющуюся ошибку видимости движка до исчезновения тела.</text>
+  </string>
+  <string id="ui_mcm_at_vf_hdr_corpse">
+    <text>Осмотр трупов (xr_danger)</text>
+  </string>
+  <string id="ui_mcm_at_vf_hdr_target">
+    <text>Выбор цели (CEnemyManager)</text>
+  </string>
+  <string id="ui_mcm_at_vf_sticky_targeting">
+    <text>Залипание на цели</text>
+  </string>
+  <string id="ui_mcm_at_vf_sticky_targeting_desc">
+    <text>Обстрелянный сталкер поворачивается к тому, кто его ударил, а не к дальней видимой цели. Настраивается на своей странице.</text>
+  </string>
+  <string id="ui_mcm_at_vf_player_bias">
+    <text>Смещение на игрока</text>
+  </string>
+  <string id="ui_mcm_at_vf_player_bias_desc">
+    <text>НПС больше не стягиваются на вас втрое сильнее, чем друг на друга. Настраивается на своей странице.</text>
+  </string>
+  <string id="ui_mcm_at_vf_hdr_accuracy">
+    <text>Точность (разброс выстрела)</text>
+  </string>
+  <string id="ui_mcm_at_vf_rank_accuracy">
+    <text>Точность по рангу</text>
+  </string>
+  <string id="ui_mcm_at_vf_rank_accuracy_desc">
+    <text>Настоящая кривая точности по рангу заменяет плоский зажим ванили. Настраивается на своей странице.</text>
+  </string>
+  <string id="ui_mcm_at_vf_hdr_combat">
+    <text>Бой</text>
+  </string>
+  <string id="ui_mcm_at_vf_cover_posture">
+    <text>Поза за укрытием</text>
+  </string>
+  <string id="ui_mcm_at_vf_cover_posture_desc">
+    <text>Сталкер больше не стреляет в низкое укрытие, за которое присел. Настраивается на своей странице.</text>
+  </string>
+  <string id="ui_mcm_at_vf_low_cover">
+    <text>Выстрел из-за низкого укрытия</text>
+  </string>
+  <string id="ui_mcm_at_vf_low_cover_desc">
+    <text>Сталкер стреляет поверх низкого укрытия, через которое может стрелять. Проверка выстрела берёт высоту глаз, а не груди. Работает с манёврами.</text>
+  </string>
+  <string id="ui_mcm_at_vf_hdr_movement">
+    <text>Движение и анимация</text>
+  </string>
+  <string id="ui_mcm_at_vf_hit_hold">
+    <text>Скольжение при попадании</text>
+  </string>
+  <string id="ui_mcm_at_vf_hit_hold_desc">
+    <text>Попадание больше не скользит стоящего сталкера по земле, пока играет анимация. Настраивается на своей странице, требует PR #645.</text>
+  </string>
+  <string id="ui_mcm_at_vf_anim_body">
+    <text>Манёвр на анимируемом теле</text>
+  </string>
+  <string id="ui_mcm_at_vf_anim_body_desc">
+    <text>Манёвр не начинается на сталкере, ещё проигрывающем анимацию удара или скрипта. Работает с манёврами на сборках с PR #629.</text>
+  </string>
+  <string id="ui_mcm_at_vf_hdr_healing">
+    <text>Лечение (xr_eat_medkit)</text>
+  </string>
+  <string id="ui_mcm_at_healing_fix_medkit_reroll">
+    <text>Пере-розыгрыш заряда при сохранении</text>
+  </string>
+  <string id="ui_mcm_at_healing_fix_medkit_reroll_desc">
+    <text>Заряд лечения сталкера больше не разыгрывается заново при сохранении и загрузке.</text>
+  </string>
+  <string id="ui_mcm_at_vf_bandage">
+    <text>Скольжение при бинтовании</text>
+  </string>
+  <string id="ui_mcm_at_vf_bandage_desc">
+    <text>Жест бинтования ждёт, пока сталкер встанет неподвижно, поэтому его ноги больше не замирают и не скользят. Работает с лечением.</text>
+  </string>
+  <string id="ui_mcm_at_vf_limp">
+    <text>Хромота в бою</text>
+  </string>
+  <string id="ui_mcm_at_vf_limp_desc">
+    <text>Раненый сталкер сбрасывает хромоту в момент начала боя. Работает с лечением.</text>
+  </string>
+  <string id="ui_mcm_at_vf_heal_freeze">
+    <text>Замирание при лечении</text>
+  </string>
+  <string id="ui_mcm_at_vf_heal_freeze_desc">
+    <text>Лечащийся сталкер больше не замирает на месте и не игнорирует врага, появившегося посреди жеста. Работает с лечением.</text>
+  </string>
+  <string id="ui_mcm_at_vf_heal_lists">
+    <text>Восстановленные списки лечения</text>
+  </string>
+  <string id="ui_mcm_at_vf_heal_lists_desc">
+    <text>Списки аптечек и бинтов, потерянные движком, восстановлены, поэтому НПС лечатся надёжно. Работает с лечением.</text>
+  </string>
+  <string id="ui_mcm_at_vf_distant_hits">
+    <text>Дальние попадания</text>
+  </string>
+  <string id="ui_mcm_at_vf_distant_hits_desc">
+    <text>Сталкер, обстрелянный издалека, реагирует и ищет укрытие, там где ограничение по дистанции оставляло его стоять. Настраивается на своей странице.</text>
+  </string>
 </string_table>
