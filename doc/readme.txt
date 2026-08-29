@@ -73,15 +73,15 @@ Planned: whole squads coordinating their movement and fire, each faction favorin
 
 These maneuvers cover the moments vanilla fumbles:
   Counterflank snaps a stalker around when a hostile player stands at contact range while he shoots someone far away.
-  Reload Cover sends a stalker caught reloading in your line of fire to the nearest cover instead of standing in the open, and his weapon finishes reloading on the way.
+  Reload Cover sends a stalker caught reloading in a watching enemy's line of fire, yours included, to the cover that hides him from that watcher, and his weapon finishes reloading on the way.
   Flee routs a flee-prone faction to a distant friendly base, because a coward runs before he fights.
   Retreat pulls a steadier one to cover under pressure, and a coward whose escape is cut off does the same.
   Kite backs a stalker out of an enemy that closed too near, still firing.
   Pickoff plants a stalker who has his enemy outranged and picks him off with deliberate single shots, breaking off the moment the threat returns.
 
-Maneuvers run only in fights the player is part of, and NPC-only fights stay vanilla.
+Maneuvers run in every stalker fight within 150 meters of you, tunable, whether or not you are the target. Fights against mutants and fights beyond that range stay vanilla, and separate budgets bound the maneuvers against you and against NPCs so neither side drowns the other.
 A maneuver fires when its problem is real and ends when it is solved. Keep creating the problem, such as pressing a shotgunner's minimum range, and the answer keeps coming.
-The decisions come out looking human. Nobody turns his back on a shooter, two men never take the same cover, nobody plants under your crosshair.
+The decisions come out looking human. Nobody turns his back on a shooter, two men never take the same cover, nobody plants in his enemy's sight.
 Maneuver fire bursts by weapon and by skill: burst length and pauses vary shot to shot inside the game's own per-weapon ranges and tighten with rank.
 That replaces the uniform burst the game's script machinery applies to every weapon it drives.
 Stalkers keep their footing under fire: a hit mid reaction no longer slides a standing stalker across the ground, he stays planted while the animation plays and moves the moment it ends.
@@ -185,13 +185,8 @@ Both are per-rank MCM slider curves under one Vision toggle, on their own Vision
 Danger:
 A stalker hit from far off reacts even when vanilla would have him stand still, so sniped at 200m he turns and seeks cover.
 The reaction is the duck, and returning fire at that range is the planned Range page above.
-A set of always-on fixes clears long-standing crashes and misreads across the danger check and the corpse investigation, and these are not optional, shown as locked toggles.
 One tuning toggle lets danger you cause read your setup's separate player-specific ranges where the config provides them.
-One of those fixes shortens reactions instead of lengthening them.
-Vanilla's danger table gives three of its entries the same key, so two threat types are read under the wrong range.
-A ricochet reads at the 150m sight range instead of its own 4m, and an attacked ally at 150m instead of 50m.
-That is why a vanilla stalker can wheel around at a spark off a wall halfway across the map.
-AlifeTactics separates the keys, so both reactions happen at the distance they were written for. A modpack that already corrected this sees no change.
+The vanilla danger-check and corpse-investigation fixes are listed under Fixes to Vanilla below.
 
 Mechanics
 
@@ -222,6 +217,46 @@ A chemical artefact instead heals its carrier slowly over time, in place of the 
 Any artefact carrier warps the air around his body, so a distorting stalker is a real, huntable artefact drop.
 Binoculars extend his sight range by day and night-vision by night.
 Effect strengths and the artefact class tables are tunable in configs/alifetactics/at_gear_config.ltx.
+
+Fixes to Vanilla:
+AlifeTactics corrects dozens of vanilla Anomaly and xray defects, grouped below by the system each repairs. The always-on fixes cannot be turned off and show as locked toggles on the Fixes to Vanilla page.
+
+Target selection:
+- Sticky targeting: a shot-at stalker turns on the man who hit him, not a distant target he can see.
+- Player bias: the vanilla pull that draws NPCs onto you far harder than onto each other is now a dial.
+
+Danger reactions:
+- Config isolation: three danger categories shared one range key, so a ricochet read at 150m, not its own 4m. Each now reads its own range.
+- A mutant corpse no longer crashes the danger time check.
+- A torn-down NPC reference no longer crashes the evaluator.
+- A bad danger time value no longer crashes the evaluator.
+- The hit callback no longer corrupts danger memory with a missing shooter.
+- A stalker is no longer evaluated for danger after he dies.
+- Distant hits: a sniped stalker reacts at range where vanilla left him standing. Tuned on the Danger page.
+
+Corpse investigation:
+- A despawning corpse no longer crashes the investigator.
+- The squad member who found the body investigates it and walks to the cover he found.
+- The corpse reaction survives firing before its stage is set.
+- A dead stalker's danger no longer lingers on a reused id.
+
+Movement and animation:
+- A hit no longer slides a standing stalker.
+- Danger transitions clear stale lower-body animation.
+- The bandage gesture waits until the stalker stands still.
+- A hurt stalker drops his limp in a fight.
+- The shot check reads eye height, so he fires over low cover.
+- Leaving danger clears only its own cover reservation.
+
+Healing:
+- The medkit and bandage lists the engine dropped are restored.
+- The save-load charge re-roll is suppressed.
+
+Accuracy:
+- The rank curve that clamps every NPC to one dispersion becomes a real per-rank curve.
+
+Performance:
+- The danger check parses its config once and caches the result.
 
 Effects (planned):
 Player-facing combat feedback, starting with concussion: tinnitus and blur.

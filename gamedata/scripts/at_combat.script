@@ -58,12 +58,13 @@ local function _record_pass(ms, now)
     end
 end
 
-local function _run_record(npc, state, now)
+local function _run_record(npc, state, now, actor_pos)
     if not npc:alive() then
         at_maneuvers.clear_npc(npc, state, "died", now)
         at_behaviors.clear_npc(npc, state, "died", now)
         return
     end
+    state.actor_dist_sqr = actor_pos and actor_pos:distance_to_sqr(npc:position()) or nil
     _refresh_best_enemy(npc, state, now)
     if state.gate == true then
         at_maneuvers.continue_maneuver(npc, state, now)
@@ -79,9 +80,10 @@ local function _run_monitor()
     local now = time_global()
     local timer = xprofiler.new_if(at_debug.on()):start()
     at_behaviors.update_window(now)
+    local actor_pos = db.actor and db.actor:position() or nil
     for id, state in pairs(_npc_states) do
         local npc = xobject.go(id)
-        if npc then _run_record(npc, state, now) end
+        if npc then _run_record(npc, state, now, actor_pos) end
     end
     timer:stop()
     if at_debug.on() then _record_pass(timer:get_ms(), now) end
@@ -208,6 +210,11 @@ end
 --- The per-NPC combat record for id, or nil when the substrate does not track it
 function get_record(id)
     return _npc_states[id]
+end
+
+--- The whole record store, read-only, for walkers (the debug HUD). Never write through this.
+function get_records()
+    return _npc_states
 end
 
 --- Best-enemy id fact for NPC id (the loop refreshes it per 600ms), or nil

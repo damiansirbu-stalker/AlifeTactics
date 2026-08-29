@@ -17,6 +17,9 @@
   <string id="ui_mcm_menu_mechanics">
     <text>Mechanics</text>
   </string>
+  <string id="ui_mcm_menu_vanilla_fixes">
+    <text>Fixes to Vanilla</text>
+  </string>
   <string id="ui_mcm_menu_effects">
     <text>Effects</text>
   </string>
@@ -59,6 +62,28 @@
   </string>
   <string id="ui_mcm_menu_development">
     <text>Development</text>
+  </string>
+  <!-- ==================== FIXES TO VANILLA SUB-PAGES ==================== -->
+  <string id="ui_mcm_menu_vf_targeting">
+    <text>Target selection</text>
+  </string>
+  <string id="ui_mcm_menu_vf_danger">
+    <text>Danger reactions</text>
+  </string>
+  <string id="ui_mcm_menu_vf_corpse">
+    <text>Corpse investigation</text>
+  </string>
+  <string id="ui_mcm_menu_vf_movement">
+    <text>Movement and animation</text>
+  </string>
+  <string id="ui_mcm_menu_vf_healing">
+    <text>Healing</text>
+  </string>
+  <string id="ui_mcm_menu_vf_accuracy">
+    <text>Accuracy</text>
+  </string>
+  <string id="ui_mcm_menu_vf_performance">
+    <text>Performance</text>
   </string>
   <!-- ==================== PLANNED SUB-PAGES ==================== -->
   <string id="ui_mcm_menu_behaviors">
@@ -775,7 +800,7 @@
     <text>Enable combat takeover</text>
   </string>
   <string id="ui_mcm_at_combat_combat_enabled_desc">
-    <text>When off, AlifeTactics never touches combat and every fight runs on your existing AI. When on, it may briefly borrow a stalker for one maneuver.</text>
+    <text>When off, AlifeTactics never touches combat and every fight runs on your existing AI. When on, it may briefly borrow a stalker from any fight near you - his enemy can be you or another combatant - for one committed maneuver, then hand him back. Covers fights within 150 m of you by default.</text>
   </string>
   <string id="ui_mcm_at_combat_combat_ignore_companions">
     <text>Ignore companions</text>
@@ -802,7 +827,7 @@
     <text>Reload Cover</text>
   </string>
   <string id="ui_mcm_at_combat_maneuver_reload_cover_desc">
-    <text>A stalker caught reloading in your line of fire runs to the nearest cover instead of standing in the open, and his weapon finishes reloading on the way. Reloading out of your sight or aim stays where it is. Needs a recent engine build.</text>
+    <text>A stalker caught reloading in a watching enemy's line of fire - yours or another combatant's - runs to the nearest cover that hides him from that watcher, and his weapon finishes reloading on the way. Reloading unobserved, he stays where he is. Needs a recent engine build.</text>
   </string>
   <string id="ui_mcm_at_combat_maneuver_kite">
     <text>Kite</text>
@@ -826,7 +851,7 @@
     <text>Pickoff</text>
   </string>
   <string id="ui_mcm_at_combat_maneuver_pickoff_desc">
-    <text>A stalker who has his enemy outranged in a standoff stands his ground and picks him off with deliberate single shots. He only plants comfortably beyond his enemy's effective range, breaks off the moment the enemy closes back in, and never holds while taking fire or under your crosshair.</text>
+    <text>A stalker who has his enemy outranged in a standoff stands his ground and picks him off with deliberate single shots. He only plants comfortably beyond his enemy's effective range, breaks off the moment the enemy closes back in, and never holds while taking fire or in his target's sight.</text>
   </string>
   <!-- ==================== CROSSFIRE PAGE ==================== -->
   <string id="ui_mcm_at_crossfire_desc">
@@ -849,7 +874,7 @@
     <text>How a stalker's eyes scale with rank: how fast he turns a glimpse into a confirmed threat (speed), and how far out he begins to notice one (range). Both are reaction and experience, not raw eyesight, and sit in a tight band around your setup's baseline. Range needs a recent engine build with the per-stalker view-distance bind; on older builds only the speed curve applies.</text>
   </string>
   <string id="ui_mcm_at_perception_danger_desc">
-    <text>How stalkers react to being hit, plus the always-on fixes to the danger check and corpse investigation. The distant-hit response and the player-range tuning toggle below; the crash and misread fixes are locked on and listed. AlifeTactics installs as a runtime patch onto whichever danger script your modpack ships.</text>
+    <text>How stalkers react to being hit. The distant-hit response and the player-range tuning toggle below. The vanilla danger-check and corpse fixes moved to the Fixes to Vanilla page. AlifeTactics installs as a runtime patch onto whichever danger script your modpack ships.</text>
   </string>
   <string id="ui_mcm_at_danger_sound_desc">
     <text>How stalkers react to what they hear. Gunfire reactions use your setup's danger config distances; your own noise (movement, handling) uses short built-in radii. Runtime patch onto whichever danger script your modpack ships - works with other combat AI, replaces nothing. Compatible with stealth mods: stealth is about being SEEN (light, cover, stance), and the sound system never touches vision or detection - hearing only adds the short-range sense vanilla lacks, and crouched movement is silent, so a stealth approach plays exactly as your stealth setup intends.</text>
@@ -901,9 +926,6 @@
   </string>
   <string id="ui_mcm_at_fixes_danger_danger_actor_tables_desc">
     <text>Danger caused by you reads the separate actor tables where your setup's danger config differentiates them (some combat AI mods do). Applies only when your installed danger script itself uses those tables - a config that ships the section unused, or with identical tables, keeps its own tuning.</text>
-  </string>
-  <string id="ui_mcm_at_danger_hdr_fixes">
-    <text>Always-on bug fixes (not toggleable)</text>
   </string>
   <string id="ui_mcm_at_danger_fix_config_isolation">
     <text>Danger config isolation</text>
@@ -982,6 +1004,67 @@
   </string>
   <string id="ui_mcm_at_danger_fix_corpse_order_desc">
     <text>The corpse reaction no longer crashes when it fires before its investigation stage is set.</text>
+  </string>
+  <!-- ==================== FIXES TO VANILLA PAGE ==================== -->
+  <string id="ui_mcm_at_vf_targeting_desc">
+    <text>Vanilla target-selection fixes. The live controls are on the Disclosure page, named here so each fix is on record.</text>
+  </string>
+  <string id="ui_mcm_at_vf_ptr_sticky">
+    <text>Sticky targeting, on the Disclosure page</text>
+  </string>
+  <string id="ui_mcm_at_vf_ptr_player_bias">
+    <text>Player bias, on the Disclosure page</text>
+  </string>
+  <string id="ui_mcm_at_vf_ptr_distant_hits">
+    <text>Distant hits, on the Danger page</text>
+  </string>
+  <string id="ui_mcm_at_vf_danger_desc">
+    <text>Crashes and misreads in the vanilla danger check. The locked ones run always on. The distant-hit reaction is tuned on the Danger page.</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_dead_eval">
+    <text>Dead-stalker danger eval</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_dead_eval_desc">
+    <text>A stalker is no longer evaluated for danger after he dies, which stops a repeated engine visibility error until the body despawns.</text>
+  </string>
+  <string id="ui_mcm_at_vf_corpse_desc">
+    <text>Fixes to the vanilla corpse investigation. These run always on and cannot be turned off.</text>
+  </string>
+  <string id="ui_mcm_at_vf_movement_desc">
+    <text>Vanilla movement and animation fixes. The locked ones run always on. The rest are tuned on their own pages.</text>
+  </string>
+  <string id="ui_mcm_at_vf_ptr_hit_slide">
+    <text>Hit-reaction slide, on the Maneuvers page</text>
+  </string>
+  <string id="ui_mcm_at_vf_ptr_bandage">
+    <text>Bandage slide, on the Healing page</text>
+  </string>
+  <string id="ui_mcm_at_vf_ptr_limp">
+    <text>Combat limp, on the Healing page</text>
+  </string>
+  <string id="ui_mcm_at_vf_ptr_low_cover">
+    <text>Low cover shot check, on the Conduct page</text>
+  </string>
+  <string id="ui_mcm_at_vf_healing_desc">
+    <text>Vanilla healing fixes. The save-load charge re-roll is locked on. The dropped heal lists are restored on the Healing page.</text>
+  </string>
+  <string id="ui_mcm_at_healing_fix_medkit_reroll">
+    <text>Medkit save-load re-roll</text>
+  </string>
+  <string id="ui_mcm_at_healing_fix_medkit_reroll_desc">
+    <text>A stalker's healing charge no longer re-rolls across a save and load.</text>
+  </string>
+  <string id="ui_mcm_at_vf_ptr_heal_lists">
+    <text>Dropped heal lists restored, on the Healing page</text>
+  </string>
+  <string id="ui_mcm_at_vf_accuracy_desc">
+    <text>The vanilla rank accuracy fix. Tuned on the Accuracy page, named here so the fix is on record.</text>
+  </string>
+  <string id="ui_mcm_at_vf_ptr_rank_accuracy">
+    <text>Rank accuracy clamp, on the Accuracy page</text>
+  </string>
+  <string id="ui_mcm_at_vf_performance_desc">
+    <text>Vanilla performance fixes. These run always on and cannot be turned off.</text>
   </string>
   <!-- ==================== JAMMING PAGE ==================== -->
   <string id="ui_mcm_at_jam_desc">

@@ -3,12 +3,11 @@
 local pairs, table_sort, table_concat, math_floor, tostring = pairs, table.sort, table.concat, math.floor, tostring
 local time_global = time_global
 local string_sub, string_format, string_upper = string.sub, string.format, string.upper
-local IsStalker, RegisterScriptCallback = IsStalker, RegisterScriptCallback
+local RegisterScriptCallback = RegisterScriptCallback
 
 local cfg = at_mcm.cfg
 
 local REFRESH_INTERVAL_SEC = 0.5
-local HUD_RADIUS_M  = 100
 local HUD_SHOW_IDLE = false
 
 local ROW_H    = 13
@@ -133,43 +132,38 @@ local function _derive(npc, st)
             _truncate(npc:character_name() or npc:name(), SUBJECT_NAME_MAX),
             math_floor((npc.health or 0) * 100)),
         target  = _get_target_cell(npc, enemy),
-        engine  = (st.active_scheme and (_truncate(st.active_scheme, SCHEME_MAX) .. " ") or "")
+        engine  = ((st and st.active_scheme) and (_truncate(st.active_scheme, SCHEME_MAX) .. " ") or "")
             .. _mental_name(npc),
         systems = systems,
         is_combat = enemy ~= nil,
     }
 end
 
-local function _candidate(id, st, ax, r2, actor_id, show_idle)
-    if id == actor_id then return nil end
-    local npc = st.object or xobject.go(id)
+local function _candidate(id, record, show_idle)
+    local npc = xobject.go(id)
     if not npc then return nil end
-    if not IsStalker(npc) then return nil end
     if not npc:alive() then return nil end
-    local dist_sqr = ax:distance_to_sqr(npc:position())
-    if dist_sqr >= r2 then return nil end
-    local maneuver = at_maneuvers.get_maneuver(id)
-    local is_combat = maneuver ~= nil or npc:best_enemy() ~= nil
+    if not at_maneuvers.in_gate(record) then return nil end
+    local maneuver = record.maneuver and record.maneuver.name or nil
+    local is_combat = maneuver ~= nil or record.best_enemy_id ~= nil
     if not (show_idle or is_combat) then return nil end
-    return { npc = npc, st = st, dist_sqr = dist_sqr, at = maneuver ~= nil, is_combat = is_combat }
+    return { npc = npc, st = db.storage[id], dist_sqr = record.actor_dist_sqr,
+        at = maneuver ~= nil, is_combat = is_combat }
 end
 
 local function _build_rows()
     local actor = db.actor
     if not actor then return {} end
-    local ax = actor:position()
-    local r2 = HUD_RADIUS_M * HUD_RADIUS_M
-    local actor_id = actor:id()
 
     local at_list, fight_list, idle_list = {}, {}, {}
-    for id, st in pairs(db.storage) do
-        local cand = _candidate(id, st, ax, r2, actor_id, HUD_SHOW_IDLE)
+    for id, record in pairs(at_combat.get_records()) do
+        local cand = _candidate(id, record, HUD_SHOW_IDLE)
         if cand then
             local list = (cand.at and at_list) or (cand.is_combat and fight_list) or idle_list
             list[#list + 1] = cand
         end
     end
-    local by_dist = function(a, b) return a.dist_sqr < b.dist_sqr end
+    local by_dist = function(a, b) return (a.dist_sqr or 0) < (b.dist_sqr or 0) end
     table_sort(at_list, by_dist)
     table_sort(fight_list, by_dist)
     table_sort(idle_list, by_dist)
@@ -333,8 +327,8 @@ local function _start()
     _tick_active = true
     RemoveTimeEvent("at_hud", "tick")
     CreateTimeEvent("at_hud", "tick", REFRESH_INTERVAL_SEC, _tick)
-    at_debug.info("Debug HUD enabled (position=%s, radius=%dm, show_idle=%s)",
-        cfg.hud_position or "center_right", HUD_RADIUS_M, tostring(HUD_SHOW_IDLE))
+    at_debug.info("Debug HUD enabled (position=%s, radius=gate, show_idle=%s)",
+        cfg.hud_position or "center_right", tostring(HUD_SHOW_IDLE))
 end
 
 local function _stop()

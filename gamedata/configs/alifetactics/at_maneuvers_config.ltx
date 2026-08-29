@@ -7,7 +7,17 @@ begin_period_ms  = 600     ; begin_maneuver check: no maneuver open, look for a 
 update_period_ms = 200     ; update_maneuver check: re-run the row's update (fire re-check / holster re-assert)
 end_period_ms    = 200     ; end_maneuver check: watch for arrival / the time cap / a broken premise, hand back
 hit_fight_ms      = 5000    ; a recent hit counts as "fighting" this long (far-shooter entry, best_enemy still nil)
-max_concurrent_maneuvers = 20 ; runaway failsafe, never a behavior lever (0 = no cap)
+
+; The gate and the limiters (t214). The gate admits any combatant within gate_radius_m of the
+; player; the debug HUD shows exactly the gated set - one radius for everything. The limiters
+; bound the takeover at the pick site, split into a vs-player and a vs-npc bucket so neither
+; class can starve the other.
+gate_radius_m = 150            ; the sniper band maximum; the gate never excludes a fight the weapon bands model
+max_concurrent_vs_player = 10  ; open maneuvers whose committed target is the player (0 = no cap)
+max_concurrent_vs_npc    = 10  ; open maneuvers whose committed target is an NPC (0 = no cap)
+starts_per_window_vs_player = 6  ; maneuver starts allowed per window in the vs-player bucket (0 = no limit)
+starts_per_window_vs_npc    = 6  ; same bound for the vs-npc bucket
+starts_window_sec = 10           ; the sliding window the start limiter counts over
 
 ; Needs (when AT seizes - only where vanilla is weak).
 hurt_frac     = 0.40       ; flee/retreat need below this HP fraction, with the enemy inside his own weapon's reach (0.25 fired too late, 2026-07-11 playtest)

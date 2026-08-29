@@ -1,5 +1,5 @@
 next
-  Summary: Faction flavor, Push and Pull windows, Weapon spacing, Glide stop, Disclosure rework, target priority dial, Zombie stance, Gear toggles, Discipline menu, Danger fix, danger trace
+  Summary: Combat substrate, maneuvers widened to every nearby fight, Faction flavor, Push and Pull windows, Weapon spacing, Glide stop, Disclosure rework, target priority dial, Zombie stance, Gear toggles, Discipline menu, Danger fix, danger trace
 
   Combat
     Faction flavor
@@ -10,8 +10,14 @@ next
     Maneuvers
       - Stalkers hit mid reaction no longer slide across the ground with their feet still. A standing stalker is held planted while the hit animation plays
           and resumes his route the moment it ends. Its own Hit reaction hold switch. Needs a modded exes build carrying PR #645, older builds keep vanilla movement.
-      - Reload Cover now checks that your weapon is actually in your hands: a stalker reloading while your rifle is holstered, or while you hold a knife or nothing,
-          reloads in place instead of running for cover from a player who cannot shoot him.
+      - Maneuvers now run in every stalker fight near you, not only your own. Any combatant within 150 m (tunable) can be borrowed for one maneuver,
+          and each maneuver keys on whichever enemy makes it real: the man whose weapon reach covers him for a retreat, the watcher over his reload,
+          the enemy inside his minimum for a kite. Fights against mutants and fights beyond that range stay vanilla.
+      - The takeover is bounded. Separate concurrency and start budgets for maneuvers against you and maneuvers against NPCs, so a mass battle
+          can never drown either side. All numbers live in at_maneuvers_config.ltx.
+      - Reload Cover reacts to any watching enemy, yours included, and the cover hides from that watcher. Pickoff breaks off in his target's sight,
+          whoever that target is.
+      - The debug HUD shows exactly the set the mod governs: the tracked combatants inside the same 150 m.
     Commitment
       - Added Liquidate: a stalker whose enemy is caught reloading, out of ammo, staggered, disarmed, or sprinting weapon-down keeps firing through that window
           instead of breaking off to reposition, and moves again once the enemy can answer. The extra hold is bounded, nobody stays planted for long.
@@ -31,22 +37,27 @@ next
 
   Effectiveness
     Disclosure
-      - Disclosure is reworked from forced squad awareness to engine perception. A hit victim now turns on a close attacker through the engine's own target selection and returns fire on real line of sight,
-          with nothing revealed through walls. Only squadmates within earshot of a suppressed hit walk over to investigate the shooter's position, and they engage when they actually spot him.
-          Distant patrol members are never told, a loud shot is left to the engine's own gunfire hearing, and a clean instant kill tells no one.
-          The victim turn needs a modded exes build carrying PR #636, older builds keep a scripted orient toward the shooter instead.
-      - Added a Player target pull dial: how strongly NPCs prioritize you over other combatants once you are seen, down to treating you like anyone else. Needs a build carrying PR #637.
+      - Fixed vanilla bug "sticky targeting". A shot-at NPC keeps firing at a distant enemy in view while the man who hit him closes in.
+          The hit now outweighs a far target, so he turns and answers. Needs PR #636. Older exes keep the scripted orient.
+      - Fixed vanilla bug "player bias". Vanilla scores you at 900 when an NPC picks a target and another NPC at 300, so NPCs converge on you about 3 times harder.
+          A Player target pull dial sets that weight, from vanilla down to no pull. Needs PR #637.
+      - Reworked disclosure from forced squad awareness to engine perception. Only squadmates within earshot of a suppressed hit investigate.
+          They open fire when they spot the shooter. A clean kill tells no one.
       - Removed the retention and survivor gate settings. A clean kill staying quiet is now built into the model, and there is no longer a squad-wide pin to retain.
     Discipline
       - The fire discipline controls, burst size and fire cadence, now live on their own Discipline page under Effectiveness instead of the Reaction page.
 
   Perception
     Danger
-      - Fixed the danger scheme still evaluating a stalker after he died, which made the engine log a repeated visibility-check error until his body despawned.
+      - Fixed vanilla bug "dead-stalker eval". The danger scheme kept evaluating a stalker after he died, which made the engine log a repeated visibility error until the body despawned.
 
   Mechanics
     Gear
       - Added a separate toggle for each gear effect: damage resistance, outgoing damage, aim steadiness, and health regeneration, each switchable on its own.
+
+  MCM
+    - Added a Fixes to Vanilla page listing every vanilla and xray fix by category, the always-on ones as locked toggles.
+      The danger-check and corpse fixes moved there from Perception. Those settings reset to defaults once.
 
   Development
     - The debug HUD's Commitment token reads LIQUIDATE while a stalker holds fire on an enemy who cannot answer, and LIQUIDATED in the afterglow, so sub-second holds stay readable.
