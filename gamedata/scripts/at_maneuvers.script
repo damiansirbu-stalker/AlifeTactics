@@ -123,9 +123,7 @@ local function _is_under_fire(npc, enemy, state, tg)
         or xcombat.is_under_fire(npc, enemy, tg, UNDER_FIRE_MS)
 end
 
--- The threat set (t214): candidates = my selection + everyone holding me as best enemy (the
--- core's reverse index) + the player while hostile to me. Candidates only - every predicate
--- runs live at the decision; a stale index entry costs one failed compare.
+-- Threat-set candidates: my selection + everyone holding me as best enemy + the hostile player.
 local function _get_threats(npc, state, memo)
     local list = memo.threats
     if list then return list end
@@ -610,9 +608,7 @@ local function _seize_blocked(npc)
     return nil
 end
 
---- The pick site: the shared start budget admits or refuses the picked maneuver by its bucket,
---- then the grant stages the committed target and raises the gate. Starts only spend; the
---- engine re-grants of an open maneuver never come through here.
+--- Admit the picked maneuver through its budget bucket, stage the committed target, raise the gate
 local function _grant_maneuver(npc, state, maneuver, dest, tg)
     local staged = state.memo and state.memo.staged
     local target_id = (maneuver.vs_actor and AC_ID) or (staged and staged:id()) or state.enemy_id

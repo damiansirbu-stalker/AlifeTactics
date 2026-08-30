@@ -127,9 +127,7 @@ local function _log_held_danger(npc, id, tg)
     local src = danger:object()
     local src_id = src and src:id() or -1
     local bt = danger:type()
-    -- danger_flag = did the NPC enter AT's danger scheme, or is this engine perception only?
-    -- Nil-safe (has_danger reads db.storage[id].danger_flag). In the dedup key so the line re-emits
-    -- when the scheme flips on the same held danger -- the transition that tells us if AT reacts.
+    -- danger_flag in the dedup key: the line re-emits when the scheme flips on the same held danger
     local flag = at_danger.has_danger(npc)
     local prev = _dtrace[id]
     if prev and prev.bt == bt and prev.src == src_id and prev.flag == flag then return end

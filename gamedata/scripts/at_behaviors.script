@@ -1,6 +1,6 @@
 --- at_behaviors: the Push and Pull (Combat > Behaviors) - engine bumps on vanilla-driven NPCs, scanned per record; no windows, no events
 
-local math_floor, AC_ID = math.floor, AC_ID
+local math_floor, AC_ID, IsStalker = math.floor, AC_ID, IsStalker
 local ini_file = ini_file
 
 local cfg = at_mcm.cfg
@@ -48,7 +48,7 @@ local function _get_actor()
     return db.actor
 end
 
--- My committed target as an object, actor included; nil when I have none or he is gone.
+-- The best-enemy fact resolved to a live object, actor included; nil when none or he is gone.
 local function _get_target(state)
     local id = state.best_enemy_id
     if not id then return nil end
@@ -58,6 +58,14 @@ end
 
 local function _get_bucket(state)
     return state.best_enemy_id == AC_ID and "vs_player" or "vs_npc"
+end
+
+-- True when the record's bucket admits a start; the refusal traces under the caller's tag.
+local function _admit_start(state, sys)
+    local bucket = _get_bucket(state)
+    if at_core.check_start(bucket) then return true end
+    at_debug.dbg("%s limited id=%s bucket=%s", sys, show(state.id), bucket)
+    return false
 end
 
 local function _clear_push_npc(npc, state, why, _tg)
@@ -119,8 +127,7 @@ local function _get_fire_band(dist)
     return nil
 end
 
--- The press cause on my committed target, polled: the weapon-block terms through the one
--- vulnerability check, or the standing weak condition with its exit hysteresis. No events.
+-- The press cause, polled from the target: the vulnerability terms or standing weak with hysteresis.
 local function _get_press_cause(state, target, joined)
     if cfg.push_reload then
         local vuln, term = at_core.is_enemy_vulnerable(target)
@@ -144,10 +151,18 @@ local function _apply_push_writes(npc, state, target, cause)
     end
 end
 
+local function _can_open_push(npc, state, tg)
+    return at_core.in_gate(state) and tg >= (state.push_until or 0)
+        and at_faction.has_flavor(npc, "behavior_push")
+end
+
 local function _update_push_npc(npc, state, tg)
     local joined = state.push_fire ~= nil or state.push_band ~= nil
+    if not joined and not _can_open_push(npc, state, tg) then return end
     local target = _get_target(state)
-    if not cfg.push_enabled or state.maneuver or not target then
+    local human = target ~= nil and (target:id() == AC_ID or IsStalker(target))
+    if not cfg.push_enabled or state.maneuver or not human then
+        if joined and state.maneuver then state.push_until = tg + PUSH_PRESS_COOLDOWN_MS end
         _clear_push_npc(npc, state,
             (not cfg.push_enabled and "off") or (state.maneuver and "seized") or "no_target", tg)
         return
@@ -157,10 +172,6 @@ local function _update_push_npc(npc, state, tg)
         _clear_push_npc(npc, state, "cap", tg)
         return
     end
-    if not joined then
-        if tg < (state.push_until or 0) then return end
-        if not at_faction.has_flavor(npc, "behavior_push") then return end
-    end
     local cause = _get_press_cause(state, target, joined)
     if not cause then
         if joined then
@@ -169,7 +180,7 @@ local function _update_push_npc(npc, state, tg)
         end
         return
     end
-    if not joined and not at_core.check_start(_get_bucket(state)) then return end
+    if not joined and not _admit_start(state, "[PUSH]") then return end
     _apply_push_writes(npc, state, target, cause)
     if not joined and (state.push_fire ~= nil or state.push_band ~= nil) then
         state.push_cause, state.push_at = cause, tg
@@ -203,11 +214,12 @@ local function _try_open_pull(npc, state, tg)
     if tg < (state.pull_until or 0) then return end
     local target = _get_target(state)
     if not target then return end
+    if target:id() ~= AC_ID and not IsStalker(target) then return end
     if xcombat.get_health_frac(target) < PULL_STRONG_FRAC then return end
     if not at_conduct.is_spacing_active() then return end
     local cause = _get_pull_cause(npc, state, tg, false)
     if not cause then return end
-    if not at_core.check_start(_get_bucket(state)) then return end
+    if not _admit_start(state, "[PULL]") then return end
     at_core.add_start(_get_bucket(state))
     local dist = npc:position():distance_to(target:position())
     local min_m = dist * PULL_BAND_K
@@ -234,6 +246,7 @@ local function _update_pull_npc(npc, state, tg)
         end
         return
     end
+    if not at_core.in_gate(state) then return end
     if state.reloading or at_core.has_recent_hit(state, tg, HIT_FIGHT_MS) then
         _try_open_pull(npc, state, tg)
     end
@@ -253,21 +266,21 @@ function get_pull(id)
 end
 
 --- Per-NPC effector sync on the monitor pass: applies and restores against the state mirrors, one idempotent call
-function sync_npc(npc, state, tg)
-    _update_push_npc(npc, state, tg)
-    _update_pull_npc(npc, state, tg)
+function sync_npc(npc, state, now)
+    _update_push_npc(npc, state, now)
+    _update_pull_npc(npc, state, now)
 end
 
 --- Restore every push and pull write on one NPC (death, despawn, unregister, seize paths)
-function clear_npc(npc, state, why, tg)
-    _clear_push_npc(npc, state, why, tg)
-    _clear_pull_npc(npc, state, why, tg)
+function clear_npc(npc, state, why, now)
+    _clear_push_npc(npc, state, why, now)
+    _clear_pull_npc(npc, state, why, now)
 end
 
 --- Per-record toggle-off restore for the option-change sweep
-function apply_enabled_npc(npc, state, tg)
-    if not cfg.push_enabled then _clear_push_npc(npc, state, "disabled", tg) end
-    if not cfg.pull_enabled and state.pull then _clear_pull_npc(npc, state, "disabled", tg) end
+function apply_enabled_npc(npc, state, now)
+    if not cfg.push_enabled then _clear_push_npc(npc, state, "disabled", now) end
+    if not cfg.pull_enabled and state.pull then _clear_pull_npc(npc, state, "disabled", now) end
 end
 
 function on_game_start()

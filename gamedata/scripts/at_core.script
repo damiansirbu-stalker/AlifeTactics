@@ -22,9 +22,7 @@ local _starts
 local _monitor_active = false
 local _mon = { ms = 0, max = 0, ticks = 0, last = 0 }
 
--- The shared start budget (user ruling 2026-08-29): one sliding-window pool for everything the
--- loop starts - a maneuver grant, a press, a pull - split into a vs-player and a vs-npc bucket.
--- Starts only ever spend; continuing never counts.
+-- The shared start budget: one sliding-window pool, vs_player | vs_npc buckets; starts only spend.
 
 local function _load_config()
     local ini = ini_file(LTX_PATH)
@@ -151,7 +149,8 @@ local function _on_net_spawn(npc)
     _npc_states[id] = { id = id, ran_at = {} }
 end
 
-local function _on_hit(npc, amount, _local_direction, who)
+local function _on_hit(npc, amount, _local_direction, who, bone_index)
+    if bone_index == "from_death_callback" then return end
     if not npc or not amount or amount <= 0 then return end
     local state = _npc_states[npc:id()]
     if not state then return end
@@ -231,6 +230,7 @@ local function _apply_enabled()
     if cfg.combat_enabled or cfg.push_enabled or cfg.pull_enabled then
         _start_monitor()
     else
+        for _, state in pairs(_npc_states) do state.actor_dist_sqr = nil end
         _stop_monitor()
     end
 end
@@ -242,6 +242,7 @@ end
 
 local function _on_first_update()
     _best_enemy_of = {}
+    for _, state in pairs(_npc_states) do state.best_enemy_id, state.best_enemy_at = nil, nil end
     if _starts then _starts:clear() end
     at_debug.refresh()
     _apply_enabled()
@@ -270,8 +271,8 @@ function get_best_enemy_of(id)
 end
 
 --- True when a hit landed on this NPC within window_ms (state.hit_at; window is caller policy)
-function has_recent_hit(state, tg, window_ms)
-    return state.hit_at ~= nil and (tg - state.hit_at) < window_ms
+function has_recent_hit(state, now, window_ms)
+    return state.hit_at ~= nil and (now - state.hit_at) < window_ms
 end
 
 --- Can this enemy answer fire right now - the one vulnerability business rule, branched per kind

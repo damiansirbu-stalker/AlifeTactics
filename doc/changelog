@@ -33,7 +33,8 @@ next
           healthy attackers in to finish the fight. With a clear upper hand (the target weakened, bleeding, or turned away) they also move to closer cover.
           Sprinting away after a reload does not end the press on you, it holds until you can actually fire back.
           Everything reverts the moment the target can answer, and each attacker presses one target at a time, briefly, with a cooldown before he presses again -
-          the press stays a moment, never the fight's steady state. A master switch and a switch per cause.
+          the press stays a moment, never the fight's steady state. Presses open only in the same 150 m the maneuvers cover, and never against a mutant.
+          A master switch and a switch per cause.
       - Added the Pull, the push's mirror: a stalker caught reloading or badly hurt while his enemy is strong falls back, his own cover choices landing farther
           until he recovers. His self-preservation outranks the press on his target, and the takeover maneuvers still take priority over it. Its own switch.
 
