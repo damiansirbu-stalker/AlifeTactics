@@ -1130,9 +1130,6 @@
   <string id="ui_mcm_menu_vanilla_fixes">
     <text>Исправления</text>
   </string>
-  <string id="ui_mcm_at_reset_footer">
-    <text> </text>
-  </string>
   <string id="ui_mcm_at_vanilla_fixes_desc">
     <text>Все исправленные ошибки ванильной Anomaly и xray, сгруппированные по системам, каждая как заблокированный переключатель. Постоянные исправления нельзя отключить. Остальные включаются на своих страницах.</text>
   </string>

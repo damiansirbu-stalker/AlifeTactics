@@ -878,7 +878,7 @@ function on_mcm_load()
                     { id = "div_reset", type = "line" },
                     { id = "warn_reset", type = "desc", text = "ui_mcm_at_development_reset_warning", clr = {255, 240, 200, 80} },
                     { id = "btn_reset_all", type = "button", functor_ui = { btn_reset_all }, spacing = 30 },
-                    { id = "reset_footer", type = "desc", text = "ui_mcm_at_reset_footer", spacing = 40 },
+                    { id = "div_reset_footer", type = "line", spacing = 40 },
 
                 },
             },
