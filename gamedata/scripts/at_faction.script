@@ -15,8 +15,8 @@ function get_faction_chance(faction, key)
     local ck = faction .. "/" .. key
     local chance = _chances[ck]
     if chance == nil then
-        chance = xltx.num(_ini, faction, key)
-        if chance == nil then chance = xltx.num(_ini, "default", key) end
+        chance = xltx.read_num(_ini, faction, key)
+        if chance == nil then chance = xltx.read_num(_ini, "default", key) end
         if chance == nil then chance = 1 end
         _chances[ck] = chance
     end
@@ -26,7 +26,7 @@ end
 --- Does THIS stalker carry the behavior: his faction's chance, rolled once per NPC per key and
 --- held ROLL_TTL_S so he never flip-flops within a fight; 0 and 1 answer without rolling
 function has_flavor(npc, key)
-    local chance = get_faction_chance(xcreature.community(npc), key)
+    local chance = get_faction_chance(xcreature.get_community(npc), key)
     if chance >= 1 then return true end
     if chance <= 0 then return false end
     local rk = npc:id() .. "/" .. key

@@ -132,7 +132,7 @@ end
 local function _patched_heal_hp(id, left)
     local timer = xprofiler.new_if(at_debug.on()):start()
     local nextl = left - 1
-    local npc = xobject.go(id)
+    local npc = xobject.get_go(id)
     if npc and npc:alive() and nextl > 1 then
         local enabled = cfg.healing_enabled ~= false
         local name = npc:name()
@@ -163,7 +163,7 @@ end
 local function _patched_heal_bleed(id, left)
     local timer = xprofiler.new_if(at_debug.on()):start()
     local nextl = left - 1
-    local npc = xobject.go(id)
+    local npc = xobject.get_go(id)
     if npc and npc:alive() and nextl > 1 then
         npc.bleeding = 0.07
         if cfg.healing_enabled ~= false and left == HEAL_TICK_FIRST then
@@ -422,7 +422,7 @@ local function _run_monitor()
     if not cfg.limping_anim_enabled then return end
     local tg = time_global()
     for id, state in pairs(_npc_states) do
-        local npc = xobject.go(id)
+        local npc = xobject.get_go(id)
         if npc then _run_limp_check(npc, id, state, tg) end
     end
 end

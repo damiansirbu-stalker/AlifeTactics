@@ -120,7 +120,7 @@ local function _run_monitor()
     local timer = xprofiler.new_if(at_debug.on()):start()
     local actor_pos = db.actor and db.actor:position() or nil
     for id, state in pairs(_npc_states) do
-        local npc = xobject.go(id)
+        local npc = xobject.get_go(id)
         if npc then _run_record(npc, state, now, actor_pos) end
     end
     timer:stop()
@@ -204,7 +204,7 @@ local function _on_entity_unregister(se_obj)
     local id = se_obj.id
     local state = _npc_states[id]
     if state then
-        local npc = xobject.go(id)
+        local npc = xobject.get_go(id)
         local now = time_global()
         at_maneuvers.clear_npc(npc, state, "unregister", now)
         at_behaviors.clear_npc(npc, state, "unregister", now)
@@ -221,7 +221,7 @@ local function _apply_enabled()
     local now = time_global()
     if not (cfg.push_enabled and cfg.pull_enabled) then
         for _, state in pairs(_npc_states) do
-            at_behaviors.apply_enabled_npc(xobject.go(state.id), state, now)
+            at_behaviors.apply_enabled_npc(xobject.get_go(state.id), state, now)
         end
     end
     if not cfg.combat_enabled then

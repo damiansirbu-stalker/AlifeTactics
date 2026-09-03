@@ -156,7 +156,7 @@ local function _monitor()
     if not ac then return false end
     local ap, tg = ac:position(), time_global()
     for i = 1, #db.OnlineStalkers do
-        _monitor_one(xobject.go(db.OnlineStalkers[i]), ap, tg)
+        _monitor_one(xobject.get_go(db.OnlineStalkers[i]), ap, tg)
     end
     return false
 end
@@ -188,7 +188,7 @@ local function _watch_poll()
     local tg = time_global()
     local dropped = 0
     for id, w in pairs(_watch) do
-        local npc = xobject.go(id)
+        local npc = xobject.get_go(id)
         local drop = true
         if npc and IsStalker(npc) and npc:alive() then drop = _watch_step(npc, id, w, tg) end
         if drop then dropped = dropped + 1; _drop[dropped] = id end
@@ -359,7 +359,7 @@ local function _on_impact(bullet)
     local ctx = _ctx[parent_id]
     if not ctx then return end
 
-    local shooter = xobject.go(parent_id)
+    local shooter = xobject.get_go(parent_id)
     if shooter then
         _record_angle(bullet, shooter, _get_tier_row(ctx.tier))
         _record_wrongway(bullet, shooter, ctx)

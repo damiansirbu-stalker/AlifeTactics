@@ -289,7 +289,7 @@ local function _find_flee_base(npc, enemy, state, _tg, memo)
         at_debug.dbg("[CMB] can_flee id=%s name=%s path=too_close", show(state.id), show(state.name))
         return nil
     end
-    if memo.faction == nil then memo.faction = xcreature.community(npc) end
+    if memo.faction == nil then memo.faction = xcreature.get_community(npc) end
     local base = xsmart.find_friendly_base(memo.faction, memo.npc_pos,
         { level_id = xlevel.get_actor_level_id(), away_from_pos = memo.staged_pos or memo.enemy_pos, min_distance = FLEE_BASE_MIN_DIST_M })
     if base then
@@ -506,7 +506,7 @@ end
 
 local function _trace_end(state, tg, reason)
     local row = state.maneuver
-    local npc = xobject.go(state.id)
+    local npc = xobject.get_go(state.id)
     local need_cleared
     if row and row.need_recheck ~= false and state.trigger and npc then
         local enemy = xcombat.resolve_enemy(state.enemy_id)
@@ -885,7 +885,7 @@ end
 function apply_enabled_npc(state, now)
     if state.maneuver then _end_maneuver(state, now, "disabled") end
     if not state.move_hold then return end
-    local npc = xobject.go(state.id)
+    local npc = xobject.get_go(state.id)
     if npc then _apply_hold(npc, state, false, "disabled") else state.move_hold = nil end
 end
 

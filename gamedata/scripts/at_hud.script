@@ -140,7 +140,7 @@ local function _derive(npc, st)
 end
 
 local function _candidate(id, record, show_idle)
-    local npc = xobject.go(id)
+    local npc = xobject.get_go(id)
     if not npc then return nil end
     if not npc:alive() then return nil end
     if not at_core.in_gate(record) then return nil end

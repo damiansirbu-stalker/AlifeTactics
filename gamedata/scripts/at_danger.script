@@ -132,14 +132,14 @@ local function is_danger(npc,best_danger,script)
 	end
 
 	if (bd_type == danger_object.entity_corpse) then
-		if (best_danger_object and IsStalker(best_danger_object) and xcreature.community(best_danger_object) == xcreature.community(npc)) then
+		if (best_danger_object and IsStalker(best_danger_object) and xcreature.get_community(best_danger_object) == xcreature.get_community(npc)) then
 			local corpse_st = db.storage[best_danger_object:id()]
 			if not (corpse_st and corpse_st.death_time and corpse_st.death_by_id) then
 				return false
 			end
 
 			local killer = db.storage[corpse_st.death_by_id] and db.storage[corpse_st.death_by_id].object
-			if not (killer and (IsMonster(killer) or IsStalker(killer)) and killer:alive() and npc:relation(killer) > 0 and xcreature.community(killer) ~= xcreature.community(npc)) then
+			if not (killer and (IsMonster(killer) or IsStalker(killer)) and killer:alive() and npc:relation(killer) > 0 and xcreature.get_community(killer) ~= xcreature.get_community(npc)) then
 				return false
 			end
 
