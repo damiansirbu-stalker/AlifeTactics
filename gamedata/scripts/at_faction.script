@@ -30,7 +30,7 @@ function has_flavor(npc, key)
     if chance >= 1 then return true end
     if chance <= 0 then return false end
     local rk = npc:id() .. "/" .. key
-    if _rolls:remaining_ttl(rk) ~= nil then return _rolls:get(rk) end
+    if _rolls:get_remaining_ttl(rk) ~= nil then return _rolls:get(rk) end
     local held = math_random() < chance
     _rolls:set(rk, held)
     return held

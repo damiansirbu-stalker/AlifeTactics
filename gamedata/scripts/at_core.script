@@ -41,7 +41,7 @@ end
 function check_start(bucket)
     local cap = STARTS_CAP[bucket]
     if not cap or cap <= 0 then return true end
-    return _starts:count(bucket) < cap
+    return _starts:get_count(bucket) < cap
 end
 
 --- Spend one start from the bucket's window budget
