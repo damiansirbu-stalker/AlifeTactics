@@ -1,5 +1,5 @@
--- @override
 --- at_danger: AlifeTactics danger scheme, installed as a function-level patch.
+-- @novalidate(reason:"full-file copy of vanilla xr_danger with AlifeTactics changes")
 
 local _evaid = 188113
 local _actid = 188113

@@ -172,103 +172,103 @@ local function _spawn_set(label, entries)
     at_debug.info("[SPAWN] set=%s count=%d", label, #entries)
 end
 
---- @export console
+--- @novalidate(code.unused_export, reason:"console command")
 function at_spawn()
     _spawn(DEFAULT_SECTION, DEFAULT_DISTANCE, 0)
 end
 
---- @export console
+--- @novalidate(code.unused_export, reason:"console command")
 function at_spawn_near()
     _spawn(DEFAULT_SECTION, 20, 0)
 end
 
---- @export console
+--- @novalidate(code.unused_export, reason:"console command")
 function at_spawn_mid()
     _spawn(DEFAULT_SECTION, 40, 0)
 end
 
---- @export console
+--- @novalidate(code.unused_export, reason:"console command")
 function at_spawn_far()
     _spawn(DEFAULT_SECTION, 100, 0)
 end
 
---- @export console
+--- @novalidate(code.unused_export, reason:"console command")
 function at_spawn_very_far()
     _spawn(DEFAULT_SECTION, 150, 0)
 end
 
---- @export console
+--- @novalidate(code.unused_export, reason:"console command")
 function at_spawn_behind()
     _spawn(DEFAULT_SECTION, 50, 180)
 end
 
---- @export console
+--- @novalidate(code.unused_export, reason:"console command")
 function at_spawn_left()
     _spawn(DEFAULT_SECTION, 50, -90)
 end
 
---- @export console
+--- @novalidate(code.unused_export, reason:"console command")
 function at_spawn_right()
     _spawn(DEFAULT_SECTION, 50, 90)
 end
 
---- @export console
+--- @novalidate(code.unused_export, reason:"console command")
 function at_spawn_veteran()
     _spawn("bandit_sim_squad_veteran", DEFAULT_DISTANCE, 0)
 end
 
---- @export console
+--- @novalidate(code.unused_export, reason:"console command")
 function at_spawn_master()
     _spawn("bandit_sim_squad_alpha", DEFAULT_DISTANCE, 0)
 end
 
---- @export console
+--- @novalidate(code.unused_export, reason:"console command")
 function at_spawn_mil()
     _spawn("army_sim_squad_novice", 60, 0, 3)
 end
 
---- @export console
+--- @novalidate(code.unused_export, reason:"console command")
 function at_spawn_mono()
     _spawn("monolith_sim_squad_novice", 60, 0)
 end
 
---- @export console
+--- @novalidate(code.unused_export, reason:"console command")
 function at_spawn_merc()
     _spawn("merc_sim_squad_novice", 50, 0)
 end
 
---- @export console
+--- @novalidate(code.unused_export, reason:"console command")
 function at_spawn_duty()
     _spawn("duty_sim_squad_novice", 50, 0)
 end
 
---- @export console
+--- @novalidate(code.unused_export, reason:"console command")
 function at_spawn_freedom()
     _spawn("freedom_sim_squad_novice", 50, 0)
 end
 
---- @export console
+--- @novalidate(code.unused_export, reason:"console command")
 function at_spawn_zomb()
     _spawn("zombied_sim_squad_novice", 40, 0)
 end
 
---- @export console
+--- @novalidate(code.unused_export, reason:"console command")
 function at_spawn_csky()
     _spawn("csky_sim_squad_novice", 50, 0)
 end
 
---- @export console
+--- @novalidate(code.unused_export, reason:"console command")
 function at_spawn_ecolog()
     _spawn("ecolog_sim_squad_novice", 50, 0)
 end
 
---- @export console
+--- @novalidate(code.unused_export, reason:"console command")
 function at_spawn_renegade()
     _spawn("renegade_sim_squad_novice", 50, 0)
 end
 
 --- Give the actor a Fort-17 + three boxes of 9x18 (engage a spawned squad, hurt them - the flee test)
---- @export console
+--- @novalidate(code.unused_export, reason:"console command")
 function at_give_pistol()
     local id = db.actor and db.actor:id()
     if not id then return end
@@ -278,7 +278,7 @@ function at_give_pistol()
 end
 
 --- Spawn an armed military squad, strip every weapon 3s later - proves the unarmed seize decline
---- @export console
+--- @novalidate(code.unused_export, reason:"console command")
 function at_spawn_unarmed()
     local squad = _spawn("army_sim_squad_novice", 40, 0)
     if not squad then return end
@@ -391,19 +391,19 @@ local function _arena_start(mode, count)
 end
 
 --- Keep n/2 side-a (army + cowardly ecolog/csky/renegade) vs n/2 monolith fighting around you, all geared
---- @export console
+--- @novalidate(code.unused_export, reason:"console command")
 function at_arena(count)
     _arena_start("war", count)
 end
 
 --- Keep n monolith around you, hostile to everything including you, all geared
---- @export console
+--- @novalidate(code.unused_export, reason:"console command")
 function at_arena_me(count)
     _arena_start("me", count)
 end
 
 --- Stop the arena and release every NPC it spawned
---- @export console
+--- @novalidate(code.unused_export, reason:"console command")
 function at_arena_stop()
     _arena_on = false
     RemoveTimeEvent("at_arena", "tick")
@@ -437,7 +437,7 @@ local function _arm_ap(npc)
 end
 
 --- Arm every online stalker within 120m with AP for its weapon plus a veteran rank
---- @export console
+--- @novalidate(code.unused_export, reason:"console command")
 function at_arm_ap()
     if not db.actor then return end
     local apos = db.actor:position()
@@ -510,7 +510,7 @@ local function _lab_pass()
 end
 
 --- One harness pass: stock every nearby stalker (meds, AP + rank, squad weapons)
---- @export console
+--- @novalidate(code.unused_export, reason:"console command")
 function at_lab()
     _lab_pass()
 end
@@ -522,7 +522,7 @@ local function _lab_tick()
 end
 
 --- Toggle the periodic harness: a stocking pass every 30s until toggled off
---- @export console
+--- @novalidate(code.unused_export, reason:"console command")
 function at_lab_loop()
     if _lab_loop_on then
         _lab_loop_on = false
@@ -540,7 +540,7 @@ function at_lab_loop()
 end
 
 --- Three bandit squads in a line ahead
---- @export console
+--- @novalidate(code.unused_export, reason:"console command")
 function at_spawn_horde()
     _spawn_set("horde", {
         { "bandit_sim_squad_novice", 30,  0 },
@@ -550,7 +550,7 @@ function at_spawn_horde()
 end
 
 --- Two squads on opposite flanks
---- @export console
+--- @novalidate(code.unused_export, reason:"console command")
 function at_spawn_pincer()
     _spawn_set("pincer", {
         { "bandit_sim_squad_novice", 60, -90 },
@@ -559,7 +559,7 @@ function at_spawn_pincer()
 end
 
 --- Four squads in a circle around the actor (cover-reservation stress)
---- @export console
+--- @novalidate(code.unused_export, reason:"console command")
 function at_spawn_swarm()
     _spawn_set("swarm", {
         { "bandit_sim_squad_novice", 50,    0 },
@@ -570,7 +570,7 @@ function at_spawn_swarm()
 end
 
 --- Mixed faction wave: bandits ahead, military flank, monolith behind
---- @export console
+--- @novalidate(code.unused_export, reason:"console command")
 function at_spawn_mixed()
     _spawn_set("mixed", {
         { "bandit_sim_squad_novice",    60,    0 },
@@ -580,7 +580,7 @@ function at_spawn_mixed()
 end
 
 --- Dump the disclosure counters to the log and a tip
---- @export console
+--- @novalidate(code.unused_export, reason:"console command")
 function at_dump()
     if not db.actor then return end
     local stats = at_disclosure.get_stats()
