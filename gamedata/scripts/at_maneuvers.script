@@ -86,8 +86,8 @@ local function _trace_kite(state, memo, dist, vid, result)
     local np = memo.npc_pos
     local ep = memo.staged_pos or memo.enemy_pos
     local vp = vid and level.vertex_position(vid)
-    local lane_m       = vp and math_sqrt(xmath.dist_flat_sqr(vp, np)) or -1
-    local dest_enemy_m = vp and math_sqrt(xmath.dist_flat_sqr(vp, ep)) or -1
+    local lane_m       = vp and math_sqrt(xmath.get_flat_dist_sqr(vp, np)) or -1
+    local dest_enemy_m = vp and math_sqrt(xmath.get_flat_dist_sqr(vp, ep)) or -1
     at_debug.dbg("[CMB] can_kite id=%s name=%s dist=%.1f min_m=%.1f back_m=%.1f dest_enemy_m=%.2f lane_m=%.2f lane=%s result=%s",
         show(state.id), show(state.name), dist or -1, xcombat.get_weapon_range(memo.kind).min,
         KITE_DISTANCE_M[memo.kind] or KITE_DISTANCE_M.w_rifle, dest_enemy_m, lane_m,
@@ -109,7 +109,7 @@ local function _find_kite_lane(npc, _enemy, state, _tg, memo)
     local vid = xcombat.find_flee_lane(npc, dir, back_m, KITE_ARC_DEG, KITE_SPREAD_DEG)
     local min_m        = xcombat.get_weapon_range(memo.kind).min
     local vp           = vid and level.vertex_position(vid)
-    local dest_enemy_m = vp and math_sqrt(xmath.dist_flat_sqr(vp, ep)) or -1
+    local dest_enemy_m = vp and math_sqrt(xmath.get_flat_dist_sqr(vp, ep)) or -1
     if vid and dest_enemy_m <= min_m then
         _trace_kite(state, memo, dist, vid, "short")
         return nil
@@ -153,7 +153,7 @@ local function _closest_threat(npc, state, memo, qualify)
     local threats = _get_threats(npc, state, memo)
     for i = 1, #threats do
         local member = threats[i]
-        local member_dist = math_sqrt(xmath.dist_flat_sqr(np, member:position()))
+        local member_dist = math_sqrt(xmath.get_flat_dist_sqr(np, member:position()))
         if (best_dist == nil or member_dist < best_dist) and qualify(member, member_dist) then
             best, best_dist = member, member_dist
         end
@@ -192,7 +192,7 @@ local function _check_end_pickoff(npc, enemy, state, tg)
     local blocked = _pickoff_blocked(npc, enemy, state, tg)
     if blocked then return blocked end
     if state.pickoff_exit_sqr and enemy
-        and xmath.dist_flat_sqr(npc:position(), enemy:position()) < state.pickoff_exit_sqr then
+        and xmath.get_flat_dist_sqr(npc:position(), enemy:position()) < state.pickoff_exit_sqr then
         return "in_effective_range"
     end
     return nil
@@ -310,7 +310,7 @@ end
 
 local function _eval_stalled(state, tg, npc_pos, dist)
     if not state.stall_pos then state.stall_pos = vector() end
-    local held    = state.stall_set and xmath.dist_flat_sqr(npc_pos, state.stall_pos) <= STALL_MOVE_SQR
+    local held    = state.stall_set and xmath.get_flat_dist_sqr(npc_pos, state.stall_pos) <= STALL_MOVE_SQR
     local closing = state.stall_dist and dist < state.stall_dist - STALL_CLOSE_M
     if not held or closing then
         state.stall_pos:set(npc_pos)
@@ -426,7 +426,7 @@ end
 local function _check_repeat_limit(state, situation, npc_pos)
     if REPEAT_LIMIT <= 0 then return false end
     local stuck = state.repeat_situation == situation and state.repeat_pos ~= nil
-        and xmath.dist_flat_sqr(npc_pos, state.repeat_pos) <= REPEAT_MOVE_SQR
+        and xmath.get_flat_dist_sqr(npc_pos, state.repeat_pos) <= REPEAT_MOVE_SQR
     if stuck then
         state.repeat_count = state.repeat_count + 1
     else
