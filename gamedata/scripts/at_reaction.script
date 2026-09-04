@@ -244,7 +244,7 @@ local function _on_enemy_selected(npc, new_enemy)
 
     local tier = _get_obj_rank_name(npc) or "?"
     local dist = npc:position():distance_to(new_enemy:position())
-    local seen = xcombat.sees(npc, new_enemy)
+    local seen = xcombat.can_see(npc, new_enemy)
     local unseen_ms = xcombat.get_unseen_ms(npc, new_enemy, time_global())
     at_debug.dbg("[VIS] select id=%d name=%s tier=%s dist=%.0fm seen=%s unseen_ms=%d",
         id, name, tier, dist, seen and "yes" or "no", unseen_ms)

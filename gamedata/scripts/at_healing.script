@@ -83,7 +83,7 @@ end
 
 local function _try_play_heal_anim(npc, gesture)
     if not cfg.healing_anim_enabled then return end
-    if xcombat.actor_dist_sqr(npc) > ANIM_RADIUS_SQR then return end
+    if xcombat.get_actor_dist_sqr(npc) > ANIM_RADIUS_SQR then return end
     if xcombat.get_best_enemy(npc) then
         if at_debug.on() then at_debug.dbg("[HEAL] anim skipped id=%d reason=combat", npc:id()) end
         return
@@ -341,7 +341,7 @@ local function _try_drop_limp(npc, id, rec, tg)
 end
 
 local function _limp_decline_reason(npc)
-    if xcombat.actor_dist_sqr(npc) > ANIM_RADIUS_SQR then return "far" end
+    if xcombat.get_actor_dist_sqr(npc) > ANIM_RADIUS_SQR then return "far" end
     if xcombat.get_best_enemy(npc) then return "enemy" end
     if not _is_calm(npc) then return "mental" end
     if npc:body_state() ~= move.standing then return "standing" end
@@ -371,7 +371,7 @@ local function _run_limp_check(npc, id, state, tg)
     local timer = xprofiler.new_if(at_debug.on()):start()
     local eligible = IsStalker(npc)
         and npc:alive()
-        and xcombat.actor_dist_sqr(npc) <= ANIM_RADIUS_SQR
+        and xcombat.get_actor_dist_sqr(npc) <= ANIM_RADIUS_SQR
         and not npc:in_smart_cover()
         and npc.health < cfg.limping_health_threshold
         and not xcombat.get_best_enemy(npc)

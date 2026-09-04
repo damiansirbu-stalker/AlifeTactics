@@ -114,7 +114,7 @@ local function _census_switch(npc, from_op, to_op)
     local prev = _census_at[id]
     if prev and prev.from == from_op and prev.to == to_op and (tg - prev.at) < CENSUS_LOG_MS then return end
     _census_at[id] = { from = from_op, to = to_op, at = tg }
-    local sees = at_debug.flag(xcombat.sees(npc, enemy))
+    local sees = at_debug.flag(xcombat.can_see(npc, enemy))
     local cke, fms = "-", "-"
     if _attack_ops[from_op] then
         cke = at_debug.flag(xcombat.can_kill_enemy(npc, enemy))
@@ -147,7 +147,7 @@ local function _on_action_switch(npc, from_op, to_op, flags)
     local id = npc:id()
     local enemy = xcombat.get_best_enemy(npc)
     if not enemy then _log_decline(npc, id, "no_enemy") return end
-    local sees = xcombat.sees(npc, enemy)
+    local sees = xcombat.can_see(npc, enemy)
 
     if is_flank_exit then
         if sees then _log_decline(npc, id, "flank_resighted") return end
@@ -203,7 +203,7 @@ local function _on_action_changed(npc, prev_op, new_op)
     if not enemy then return end
     if not _op_names then _resolve_ops() end
     at_debug.dbg("[CMT] switch id=%d %s->%s sees=%s dist=%.0f", id, _op_name(prev_op), _op_name(new_op),
-        xcombat.sees(npc, enemy) and "yes" or "no", npc:position():distance_to(enemy:position()))
+        xcombat.can_see(npc, enemy) and "yes" or "no", npc:position():distance_to(enemy:position()))
 end
 
 local function _forget(id)
@@ -235,7 +235,7 @@ local function _on_cover_repick(npc, flags)
     if not at_faction.has_flavor(npc, "commitment") then return end
     local enemy = xcombat.get_best_enemy(npc)
     if not enemy then _log_decline(npc, id, "cover_no_enemy") return end
-    if not xcombat.sees(npc, enemy) then _log_decline(npc, id, "cover_no_sight") return end
+    if not xcombat.can_see(npc, enemy) then _log_decline(npc, id, "cover_no_sight") return end
     if xcombat.can_kill_member(npc, enemy:position()) then _log_decline(npc, id, "cover_lane_blocked") return end
     if not xcombat.fire_make_sense(npc, enemy) then _log_decline(npc, id, "cover_out_of_range") return end
 

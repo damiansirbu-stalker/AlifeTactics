@@ -88,7 +88,7 @@ local function _trace_turn(victim_id, who_id)
         if victim and victim:alive() then
             local best = victim:best_enemy()
             local best_id = best and best:id() or -1
-            local best_seen = best ~= nil and xcombat.sees(victim, best) or false
+            local best_seen = best ~= nil and xcombat.can_see(victim, best) or false
             local dist = -1
             local who = xobject.get_go(who_id)
             if who then dist = victim:position():distance_to(who:position()) end

@@ -80,10 +80,10 @@ local function _on_npc_before_hit(npc, shit, _bone_id, _flags)
     if not (npc and shit) then return end
     local timer = xprofiler.new_if(at_debug.on()):start()
     local before = shit.power
-    xcombat.scale_hit_power(shit, resolve(npc, EFFECT.DAMAGE_RESIST))
+    xcombat.apply_hit_power(shit, resolve(npc, EFFECT.DAMAGE_RESIST))
     local attacker = shit.draftsman
     if attacker and IsStalker(attacker) then
-        xcombat.scale_hit_power(shit, resolve(attacker, EFFECT.DAMAGE_DEALT))
+        xcombat.apply_hit_power(shit, resolve(attacker, EFFECT.DAMAGE_DEALT))
     end
     timer:stop()
     if at_debug.on() and before ~= shit.power then
@@ -98,7 +98,7 @@ local function _on_actor_before_hit(shit, _bone_id, _flags)
     if not (attacker and IsStalker(attacker)) then return end
     local timer = xprofiler.new_if(at_debug.on()):start()
     local before = shit.power
-    xcombat.scale_hit_power(shit, resolve(attacker, EFFECT.DAMAGE_DEALT))
+    xcombat.apply_hit_power(shit, resolve(attacker, EFFECT.DAMAGE_DEALT))
     timer:stop()
     if at_debug.on() and before ~= shit.power then
         at_debug.dbg("[EFF] hit victim=actor attacker=%d power=%.3f->%.3f [%.3fms]",
@@ -112,7 +112,7 @@ local function _on_shot_dispersion(obj, _wpn, _body_state, _move_type, temp_disp
     if not factor then return end
     local timer = xprofiler.new_if(at_debug.on()):start()
     local before = temp_disp.dispersion
-    xcombat.scale_dispersion(temp_disp, factor)
+    xcombat.apply_dispersion(temp_disp, factor)
     timer:stop()
     if at_debug.on() then
         at_debug.dbg("[EFF] disp id=%d factor=%.3f cone=%.5f->%.5f [%.3fms]",

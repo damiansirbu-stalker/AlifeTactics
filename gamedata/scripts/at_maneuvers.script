@@ -222,7 +222,7 @@ local function _find_reload_cover(npc, _enemy, state, _tg, memo)
         at_debug.dbg("[CMB] can_reload_cover id=%s name=%s path=no_cover cover=-", show(state.id), show(state.name))
         return nil
     end
-    if not xcombat.claim_cover(vid, state.id) then
+    if not xcombat.register_cover(vid, state.id) then
         at_debug.dbg("[CMB] can_reload_cover id=%s name=%s path=claim_lost cover=%s", show(state.id), show(state.name), show(vid))
         return nil
     end
@@ -261,7 +261,7 @@ local function _find_retreat_cover(npc, _enemy, state, _tg, memo)
             show(state.id), show(state.name), show(vid), math_sqrt(cover_dist_sqr), away_dist or -1)
         return nil
     end
-    if not xcombat.claim_cover(vid, state.id) then
+    if not xcombat.register_cover(vid, state.id) then
         at_debug.dbg("[CMB] can_retreat id=%s name=%s path=claim_lost cover=%s cover_dist=-1.0 npc_dist=-1.0",
             show(state.id), show(state.name), show(vid))
         return nil
@@ -565,7 +565,7 @@ local function _begin_maneuver(npc)
     state.granted_at = tg
     local enemy = xcombat.resolve_enemy(state.enemy_id)
     if not enemy then _end_maneuver(state, tg, "target_lost") return end
-    state.sent = xcombat.send_to(npc, state.dest)
+    state.sent = xcombat.set_destination(npc, state.dest)
     local fire = _apply_state(npc, maneuver, enemy)
     state.maneuver_at = tg
     _trace_begin(npc, state, fire)
@@ -620,7 +620,7 @@ local function _grant_maneuver(npc, state, maneuver, dest, tg)
         return false
     end
     at_core.add_start(bucket)
-    xcombat.topup_takeover_block(npc)
+    xcombat.apply_takeover_block(npc)
     state.gate = true
     state.maneuver = maneuver
     state.dest = dest
@@ -763,7 +763,7 @@ end
 local function _install(npc)
     if not npc or not IsStalker(npc) then return end
     if cfg.combat_ignore_companions and npc:has_info(COMPANION_INFO) then return end
-    xcombat.install_takeover(npc, SPEC)
+    xcombat.register_takeover(npc, SPEC)
     if at_debug.on() then at_debug.dbg("[CMB] installed id=%d name=%s", npc:id(), npc:name()) end
 end
 

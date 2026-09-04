@@ -64,7 +64,7 @@ local function _truncate(s, limit)
 end
 
 local function _get_sight_flag(npc, enemy)
-    if not xcombat.sees(npc, enemy) then return "blind" end
+    if not xcombat.can_see(npc, enemy) then return "blind" end
     if not xcombat.is_facing(npc, enemy:position(), FACING_DEG) then return "aims-off" end
     return "sees"
 end
