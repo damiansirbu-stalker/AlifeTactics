@@ -40,7 +40,7 @@ end
 
 local function _attach_first(obj, bones)
     for i = 1, #bones do
-        if xcreature.attach_particle(obj, _aura, bones[i]) then return bones[i] end
+        if xcreature.start_particle(obj, _aura, bones[i]) then return bones[i] end
     end
     return nil
 end
@@ -48,7 +48,7 @@ end
 local function _start_aura(id, obj)
     if _aura == "" or _emitting[id] then return end
     if not obj:alive() then return end
-    local bone = xcreature.attach_particle(obj, _aura, _aura_bone) and _aura_bone or _attach_first(obj, AURA_BONES)
+    local bone = xcreature.start_particle(obj, _aura, _aura_bone) and _aura_bone or _attach_first(obj, AURA_BONES)
     if not bone then return end
     _emitting[id] = bone
     if at_debug.on() then at_debug.dbg("[EFF] aura id=%d particle=%s bone=%s", id, _aura, bone) end
