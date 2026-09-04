@@ -6,7 +6,7 @@ local math_random = math.random
 local LTX_PATH   = "alifetactics\\at_faction_config.ltx"
 local ROLL_TTL_S = 300
 
-local _ini = xltx.open(LTX_PATH)
+local _ini = xltx.resolve_handle(LTX_PATH)
 local _chances = {}
 local _rolls = xttltable.create_ttl_table({ default_ttl = ROLL_TTL_S })
 
