@@ -19,6 +19,7 @@ local SPACING_TTL_MS
 local SPACING_FLUSH_MS = 5000
 
 local SPACING_KINDS = { "w_pistol", "w_shotgun", "w_rifle", "w_smg", "w_sniper" }
+local W_SNIPER = "w_sniper"
 local SPACING_RANKS = { "novice", "trainee", "experienced", "professional",
                         "veteran", "expert", "master", "legend" }
 
@@ -165,7 +166,7 @@ local function _get_spacing_row(npc, id, tg)
     if not kind then
         row = { at = tg, skip = true }
     else
-        local min_k = kind == "w_sniper"
+        local min_k = kind == W_SNIPER
             and SPACING_SNIPER_MIN_K[ranks.get_obj_rank_name(npc) or ""] or nil
         if min_k == 1.0 then min_k = nil end
         row = { at = tg, min_k = min_k, max_k = SPACING_MAX_K[kind] }

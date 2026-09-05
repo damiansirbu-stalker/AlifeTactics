@@ -20,6 +20,7 @@ local REPEAT_MOVE_M   = 2
 local REPEAT_MOVE_SQR = REPEAT_MOVE_M * REPEAT_MOVE_M
 local INVALID_LEVEL_VERTEX_ID = 4294967295
 local STAGE_PICKED, STAGE_DECLINED = "picked", "declined"
+local MANEUVER_PICKOFF, RANGE_TOO_CLOSE, ENDS_ON_ARRIVAL = "pickoff", "too_close", "arrival"
 
 local BEGIN_PERIOD_MS, UPDATE_PERIOD_MS, END_PERIOD_MS, HIT_FIGHT_MS
 local HURT_FRAC, STALL_MS, STALL_MOVE_SQR, STALL_CLOSE_M
@@ -38,7 +39,7 @@ local function _compute_queue_params(npc, st, override)
     local state = npc and at_core.get_combat_record(npc:id())
     if state and state.maneuver then
         local band
-        if state.maneuver.name == "pickoff" then
+        if state.maneuver.name == MANEUVER_PICKOFF then
             band = _pickoff_band
         else
             local kind = xcombat.get_weapon_kind(npc)
@@ -326,7 +327,7 @@ end
 local function _check_too_close(npc, _enemy, state, _tg, memo)
     if memo.kind == nil then memo.kind = xcombat.get_weapon_kind(npc) or "w_rifle" end
     local member, member_dist = _find_closest_threat(npc, state, memo, function(_member, dist)
-        return xcombat.get_range_band(dist, memo.kind) == "too_close"
+        return xcombat.get_range_band(dist, memo.kind) == RANGE_TOO_CLOSE
     end)
     if not member then return nil end
     _set_staged_threat(memo, member, member_dist)
@@ -705,7 +706,7 @@ local function _get_end_reason(npc, enemy, state, tg)
     local begun = maneuver ~= nil and state.maneuver_at ~= nil
     local broken = begun and maneuver.check_end and maneuver.check_end(npc, enemy, state, tg)
     if broken then return broken end
-    if begun and maneuver.ends_on == "arrival" and xcombat.is_arrived(npc) then return "arrived" end
+    if begun and maneuver.ends_on == ENDS_ON_ARRIVAL and xcombat.is_arrived(npc) then return "arrived" end
     if (tg - (state.begin_at or tg)) >= ((maneuver and maneuver.timeout) or MANEUVER_CAP_MS) then return "cap" end
     return nil
 end
