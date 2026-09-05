@@ -133,7 +133,7 @@ local function _on_first_update()
     at_debug.info("Effects resolver initialized (aura=%s)", _aura ~= "" and _aura or "none")
 end
 
---- Register a provider (fn(npc) -> value|nil) against an effect; resolve keeps the strongest, order free
+--- Register a provider (fn(npc) -> value|nil) against an effect; resolve keeps the strongest, order free.
 function register(effect, fn)
     local list = _providers[effect]
     if not list then
@@ -143,7 +143,7 @@ function register(effect, fn)
     list[#list + 1] = fn
 end
 
---- Resolve an effect for one NPC: the strongest contribution across providers, or nil when none contributes
+--- Resolve an effect for one NPC: the strongest contribution across providers, or nil when none contributes.
 function resolve(npc, effect)
     local list = _providers[effect]
     if not list then return nil end
@@ -164,7 +164,7 @@ function resolve(npc, effect)
     return best
 end
 
---- Re-apply the spawn-bound effects (VISION_RANGE, aura) for one NPC after a source invalidated its cache
+--- Re-apply the spawn-bound effects (VISION_RANGE, aura) for one NPC after a source invalidated its cache.
 function apply_binds(npc)
     if not (npc and npc:alive()) then return end
     _apply_binds(npc)

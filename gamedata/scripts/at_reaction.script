@@ -294,7 +294,7 @@ local function _on_first_update()
         cfg.lead_enabled and "on" or "off", cfg.discipline_enabled and "on" or "off")
 end
 
---- Fire-discipline scales for one NPC ((1,1) when off or tierless, so callers multiply blindly)
+--- Fire-discipline scales for one NPC ((1,1) when off or tierless, so callers multiply blindly).
 function get_queue_scales(npc)
     if not cfg.discipline_enabled then return 1, 1 end
     local id = npc:id()
@@ -310,7 +310,7 @@ function get_queue_scales(npc)
     return sk, ik
 end
 
---- Apply the rank curves to one NPC now (the spawn body; a runtime rank change needs this re-key)
+--- Apply the rank curves to one NPC now (the spawn body; a runtime rank change needs this re-key).
 function apply(npc)
     if not (npc and npc:alive()) then return end
     if not at_faction.has_flavor(npc, "reaction") then return end

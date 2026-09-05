@@ -608,7 +608,7 @@ local function _check_seize_block(npc)
     return nil
 end
 
---- Admit the picked maneuver through its budget bucket, stage the committed target, raise the gate
+--- Admit the picked maneuver through its budget bucket, stage the committed target, raise the gate.
 local function _try_seize(npc, state, maneuver, dest, tg)
     local staged = state.memo and state.memo.staged
     local target_id = (maneuver.vs_actor and AC_ID) or (staged and staged:id()) or state.enemy_id
@@ -852,26 +852,26 @@ local function _on_first_update()
         tostring(cfg.push_enabled), at_conduct.is_spacing_active() and "active" or "INACTIVE")
 end
 
---- Current maneuver name for an NPC, or nil when AT is not driving one
+--- Current maneuver name for an NPC, or nil when AT is not driving one.
 function get_maneuver(id)
     local state = at_core.get_combat_record(id)
     return state and state.maneuver and state.maneuver.name
 end
 
---- Evaluate a maneuver start for an NPC with no open gate (at_core's loop, every pass; the begin decision self-throttles to begin_period_ms)
+--- Evaluate a maneuver start for an NPC with no open gate (at_core's loop, every pass; the begin decision self-throttles to begin_period_ms).
 function try_maneuver(npc, state, now)
     _update_hold(npc, state, now)
     _run_check(BEGIN_CHECK, npc, state, now)
 end
 
---- Drive the open maneuver and check its end (at_core's loop, every pass)
+--- Drive the open maneuver and check its end (at_core's loop, every pass).
 function run_maneuver(npc, state, now)
     _update_hold(npc, state, now)
     _run_check(UPDATE_CHECK, npc, state, now)
     _run_check(END_CHECK, npc, state, now)
 end
 
---- Release everything Maneuvers holds on one NPC: movement hold, open maneuver, gate, claimed cover (at_core's teardown, why = died|destroy|unregister)
+--- Release everything Maneuvers holds on one NPC: movement hold, open maneuver, gate, claimed cover (at_core's teardown, why = died|destroy|unregister).
 function clear_npc(npc, state, why, now)
     if state.move_hold then
         if npc then _apply_hold(npc, state, false, why) else state.move_hold = nil end
@@ -881,7 +881,7 @@ function clear_npc(npc, state, why, now)
     _release_cover(state)
 end
 
---- Toggle-off restore for one record when the Combat master goes off (at_core's option-change sweep)
+--- Toggle-off restore for one record when the Combat master goes off (at_core's option-change sweep).
 function apply_enabled_npc(state, now)
     if state.maneuver then _stop_maneuver(state, now, "disabled") end
     if not state.move_hold then return end

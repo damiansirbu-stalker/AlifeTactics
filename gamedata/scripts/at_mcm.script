@@ -362,7 +362,7 @@ end
 local function _disable_ctrl(ctrl) ctrl:Enable(false) end
 local function _set_cap_color(cap, clr) cap:TextControl():SetTextColor(clr) end
 
---- Render a check as a permanent ON, greyed, non-interactive toggle (the always-on danger fixes)
+--- Render a check as a permanent ON, greyed, non-interactive toggle (the always-on danger fixes).
 --- @safety SAFE - each call is pcall-guarded against a handler MCM omits on some build
 function render_locked_check(_anchor, handlers)
     if type(handlers) ~= "table" then return end
@@ -370,7 +370,7 @@ function render_locked_check(_anchor, handlers)
     if handlers.cap then pcall(_set_cap_color, handlers.cap, GetARGB(255, 120, 120, 120)) end
 end
 
---- Build the option tree (the canonical six-category structure; paths and hints per the architecture)
+--- Build the option tree (the canonical six-category structure; paths and hints per the architecture).
 function on_mcm_load()
     local rct_fb = {
         aim_novice = 0.24, aim_trainee = 0.40, aim_experienced = 0.54, aim_professional = 0.66,

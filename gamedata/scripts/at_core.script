@@ -37,19 +37,19 @@ local function _load_config()
     _starts = xttltable.create_ttl_counter({ ttl = STARTS_WINDOW_SEC })
 end
 
---- True while the bucket's start budget has room in the current window (0 = no limit)
+--- True while the bucket's start budget has room in the current window (0 = no limit).
 function check_start(bucket)
     local cap = STARTS_CAP[bucket]
     if not cap or cap <= 0 then return true end
     return _starts:get_count(bucket) < cap
 end
 
---- Spend one start from the bucket's window budget
+--- Spend one start from the bucket's window budget.
 function add_start(bucket)
     _starts:add(bucket)
 end
 
---- True while at least one bucket still admits a start - the cheap pre-walk bail
+--- True while at least one bucket still admits a start - the cheap pre-walk bail.
 function can_start()
     return check_start("vs_player") or check_start("vs_npc")
 end
@@ -248,7 +248,7 @@ local function _on_first_update()
     _apply_enabled()
 end
 
---- The combat record for stalker id, or nil when the core does not track it
+--- The combat record for stalker id, or nil when the core does not track it.
 function get_combat_record(id)
     return _npc_states[id]
 end
@@ -258,7 +258,7 @@ function get_combat_records()
     return _npc_states
 end
 
---- Best-enemy id fact for NPC id (the loop refreshes it per 600ms), or nil
+--- Best-enemy id fact for NPC id (the loop refreshes it per 600ms), or nil.
 function get_best_enemy(id)
     local state = _npc_states[id]
     return state and state.best_enemy_id or nil
@@ -270,12 +270,12 @@ function get_threats(id)
     return _best_enemy_of[id]
 end
 
---- True when a hit landed on this NPC within window_ms (state.hit_at; window is caller policy)
+--- True when a hit landed on this NPC within window_ms (state.hit_at; window is caller policy).
 function has_recent_hit(state, now, window_ms)
     return state.hit_at ~= nil and (now - state.hit_at) < window_ms
 end
 
---- Can this enemy answer fire right now - the one vulnerability business rule, branched per kind
+--- Can this enemy answer fire right now - the one vulnerability business rule, branched per kind.
 function is_enemy_vulnerable(enemy)
     if not enemy then return false end
     if enemy:id() == AC_ID then

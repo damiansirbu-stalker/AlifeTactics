@@ -1,6 +1,6 @@
 --- at_maneuvers_config: the maneuver catalog - array order is priority; at_maneuvers binds the methods
 
---- Build the catalog rows over the method table and LTX reader at_maneuvers passes in
+--- Build the catalog rows over the method table and LTX reader at_maneuvers passes in.
 function get_catalog(fn, read_int)
     return {
         {

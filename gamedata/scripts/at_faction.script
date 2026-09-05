@@ -9,7 +9,7 @@ local _ini = xltx.resolve_handle(LTX_PATH)
 local _chances = {}
 local _rolls = xttltable.create_ttl_table({ default_ttl = ROLL_TTL_S })
 
---- The configured chance for one faction and key; 1 when neither the faction nor default carries it
+--- The configured chance for one faction and key; 1 when neither the faction nor default carries it.
 function get_faction_chance(faction, key)
     local ck = faction .. "/" .. key
     local chance = _chances[ck]

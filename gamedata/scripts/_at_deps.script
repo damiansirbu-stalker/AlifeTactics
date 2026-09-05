@@ -19,12 +19,12 @@ local function _build_tag(build)
     return math_floor(build / 10000) .. "." .. (math_floor(build / 100) % 100) .. "." .. (build % 100)
 end
 
---- Version string
+--- Version string.
 function get_version()
     return _VERSION
 end
 
---- Platform status line + verdict for the boot log and the MCM footer
+--- Platform status line + verdict for the boot log and the MCM footer.
 function get_platform_status()
     local xver = (xlibs and xlibs.get_version and xlibs.get_version()) or "?"
     local line = MOD_NAME .. " " .. _VERSION .. ", xlibs " .. xver
@@ -47,7 +47,7 @@ function get_platform_status()
     return line .. " (fully compatible)", "full"
 end
 
---- MCM ui_hook_functor for the footer row: writes get_platform_status into the desc widget
+--- MCM ui_hook_functor for the footer row: writes get_platform_status into the desc widget.
 function get_platform_functor()
     return function(_anchor, handlers)
         if not _footer_clr then

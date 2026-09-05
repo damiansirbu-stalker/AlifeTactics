@@ -252,32 +252,32 @@ local function _update_pull_npc(npc, state, tg)
     end
 end
 
---- Push term on an NPC while an effector write is on him, or nil when untouched (HUD read)
+--- Push term on an NPC while an effector write is on him, or nil when untouched (HUD read).
 function get_push(id)
     local state = at_core.get_combat_record(id)
     if not (state and (state.push_fire or state.push_band)) then return nil end
     return state.push_advantage or state.push_cause or "push"
 end
 
---- Pull cause on an NPC while his band write is on, nil when untouched (HUD read)
+--- Pull cause on an NPC while his band write is on, nil when untouched (HUD read).
 function get_pull(id)
     local state = at_core.get_combat_record(id)
     return state and state.pull or nil
 end
 
---- Per-NPC effector sync on the monitor pass: applies and restores against the state mirrors, one idempotent call
+--- Per-NPC effector sync on the monitor pass: applies and restores against the state mirrors, one idempotent call.
 function update_npc(npc, state, now)
     _update_push_npc(npc, state, now)
     _update_pull_npc(npc, state, now)
 end
 
---- Restore every push and pull write on one NPC (death, despawn, unregister, seize paths)
+--- Restore every push and pull write on one NPC (death, despawn, unregister, seize paths).
 function clear_npc(npc, state, why, now)
     _clear_push_npc(npc, state, why, now)
     _clear_pull_npc(npc, state, why, now)
 end
 
---- Per-record toggle-off restore for the option-change sweep
+--- Per-record toggle-off restore for the option-change sweep.
 function apply_enabled_npc(npc, state, now)
     if not cfg.push_enabled then _clear_push_npc(npc, state, "disabled", now) end
     if not cfg.pull_enabled and state.pull then _clear_pull_npc(npc, state, "disabled", now) end

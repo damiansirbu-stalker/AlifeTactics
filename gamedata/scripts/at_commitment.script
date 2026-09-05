@@ -299,19 +299,19 @@ local function _on_first_update()
         cfg.commitment_enabled and "true" or "false", _hold_cap_ms)
 end
 
---- True while the cover pin holds this NPC; second return true while the pin is deferred by target vulnerability
+--- True while the cover pin holds this NPC; second return true while the pin is deferred by target vulnerability.
 function is_cover_pinned(id)
     local hold = _cover_hold[id]
     if not hold then return false end
     return true, hold.vuln
 end
 
---- The open hold window for id ({ op, since, denies }) or nil (HUD read)
+--- The open hold window for id ({ op, since, denies }) or nil (HUD read).
 function get_hold(id)
     return _hold[id]
 end
 
---- The last closed hold for id while fresh ({ op, held_ms, denies, at }) or nil; lazily purged on read
+--- The last closed hold for id while fresh ({ op, held_ms, denies, at }) or nil; lazily purged on read.
 function get_recent_hold(id)
     local rec = _last[id]
     if not rec then return nil end

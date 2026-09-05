@@ -8,45 +8,45 @@ local DEBUG_LEVEL = 5
 local _lvl = 0
 local _levels = xlog.get_levels()
 
---- Re-read the log level and flush mode from MCM - actor first update and every option change
+--- Re-read the log level and flush mode from MCM - actor first update and every option change.
 function at_debug.update_config()
     log.set_level(at_mcm.get_config("log_level") or "WARN")
     _lvl = log.get_level() or 0
     log._logger.flush_on_level = at_mcm.get_config("log_flush") and _levels.TRACE or _levels.ERROR
 end
 
---- True when DEBUG tracing is live - the guard in front of an expensive trace site
+--- True when DEBUG tracing is live - the guard in front of an expensive trace site.
 function at_debug.is_on()
     return _lvl >= DEBUG_LEVEL
 end
 
---- A DEBUG line; noops below DEBUG
+--- A DEBUG line; noops below DEBUG.
 function at_debug.debug(fmt, ...)
     if _lvl >= DEBUG_LEVEL then log.debug(fmt, ...) end
 end
 
---- An INFO line: a milestone the log carries whenever tracing is on at all
+--- An INFO line: a milestone the log carries whenever tracing is on at all.
 function at_debug.info(fmt, ...)
     log.info(fmt, ...)
 end
 
---- A WARN line: a real problem worth surfacing above the trace noise
+--- A WARN line: a real problem worth surfacing above the trace noise.
 function at_debug.warn(fmt, ...)
     log.warn(fmt, ...)
 end
 
---- Flush the buffered log - level transitions and teardown
+--- Flush the buffered log - level transitions and teardown.
 function at_debug.flush()
     log.flush()
 end
 
---- Tri-state flag: y / n / ? (nil = unknowable)
+--- Tri-state flag: y / n / ? (nil = unknowable).
 function at_debug.format_flag(v)
     if v == nil then return "?" end
     return v and "y" or "n"
 end
 
---- A value, or "unknown" when nil - never a bare nil in a line
+--- A value, or "unknown" when nil - never a bare nil in a line.
 function at_debug.show(v)
     return v ~= nil and tostring(v) or "unknown"
 end

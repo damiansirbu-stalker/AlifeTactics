@@ -169,7 +169,7 @@ local function _on_first_update()
         at_debug.is_on() and "true" or "false")
 end
 
---- Counters snapshot for diagnostics (at_test.at_dump)
+--- Counters snapshot for diagnostics (at_test.at_dump).
 function get_stats()
     return {
         hits = _stat.hits, loud = _stat.loud, stamps = _stat.stamps,

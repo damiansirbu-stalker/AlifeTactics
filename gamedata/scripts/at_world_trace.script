@@ -409,7 +409,7 @@ local function _format_hist_line(hist)
     return table_concat(parts, " ")
 end
 
---- Write the ballistics minute tables now (also runs on the 60s tick and at level exit)
+--- Write the ballistics minute tables now (also runs on the 60s tick and at level exit).
 function write_report()
     local minutes = (time_global() - _t0) / 60000
     if minutes <= 0 then return end

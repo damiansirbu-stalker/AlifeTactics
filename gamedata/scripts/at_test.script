@@ -267,7 +267,7 @@ function at_spawn_renegade()
     _spawn("renegade_sim_squad_novice", 50, 0)
 end
 
---- Give the actor a Fort-17 + three boxes of 9x18 (engage a spawned squad, hurt them - the flee test)
+--- Give the actor a Fort-17 + three boxes of 9x18 (engage a spawned squad, hurt them - the flee test).
 --- @novalidate(code.unused_export, reason:"console command")
 function at_give_pistol()
     local id = db.actor and db.actor:id()
@@ -277,7 +277,7 @@ function at_give_pistol()
     _tip("AT.TEST: Fort-17 + 3 boxes 9x18 given")
 end
 
---- Spawn an armed military squad, strip every weapon 3s later - proves the unarmed seize decline
+--- Spawn an armed military squad, strip every weapon 3s later - proves the unarmed seize decline.
 --- @novalidate(code.unused_export, reason:"console command")
 function at_spawn_unarmed()
     local squad = _spawn("army_sim_squad_novice", 40, 0)
@@ -390,19 +390,19 @@ local function _arena_start(mode, count)
     _tip(string_format("AT.ARENA: maintaining %d geared NPCs (%s)", _arena_want, mode))
 end
 
---- Keep n/2 side-a (army + cowardly ecolog/csky/renegade) vs n/2 monolith fighting around you, all geared
+--- Keep n/2 side-a (army + cowardly ecolog/csky/renegade) vs n/2 monolith fighting around you, all geared.
 --- @novalidate(code.unused_export, reason:"console command")
 function at_arena(count)
     _arena_start("war", count)
 end
 
---- Keep n monolith around you, hostile to everything including you, all geared
+--- Keep n monolith around you, hostile to everything including you, all geared.
 --- @novalidate(code.unused_export, reason:"console command")
 function at_arena_me(count)
     _arena_start("me", count)
 end
 
---- Stop the arena and release every NPC it spawned
+--- Stop the arena and release every NPC it spawned.
 --- @novalidate(code.unused_export, reason:"console command")
 function at_arena_stop()
     _arena_on = false
@@ -436,7 +436,7 @@ local function _arm_ap(npc)
     return true
 end
 
---- Arm every online stalker within 120m with AP for its weapon plus a veteran rank
+--- Arm every online stalker within 120m with AP for its weapon plus a veteran rank.
 --- @novalidate(code.unused_export, reason:"console command")
 function at_arm_ap()
     if not db.actor then return end
@@ -509,7 +509,7 @@ local function _lab_pass()
     _tip(string_format("AT.LAB: %d NPCs stocked, %d items, %d AP-armed, %d squad weapons", seen, items, aps, weapons))
 end
 
---- One harness pass: stock every nearby stalker (meds, AP + rank, squad weapons)
+--- One harness pass: stock every nearby stalker (meds, AP + rank, squad weapons).
 --- @novalidate(code.unused_export, reason:"console command")
 function at_lab()
     _lab_pass()
@@ -521,7 +521,7 @@ local function _lab_tick()
     ResetTimeEvent("at_lab", "loop", LAB_PERIOD_SEC)
 end
 
---- Toggle the periodic harness: a stocking pass every 30s until toggled off
+--- Toggle the periodic harness: a stocking pass every 30s until toggled off.
 --- @novalidate(code.unused_export, reason:"console command")
 function at_lab_loop()
     if _lab_loop_on then
@@ -539,7 +539,7 @@ function at_lab_loop()
     _tip("AT.LAB: loop started (a pass every " .. LAB_PERIOD_SEC .. "s)")
 end
 
---- Three bandit squads in a line ahead
+--- Three bandit squads in a line ahead.
 --- @novalidate(code.unused_export, reason:"console command")
 function at_spawn_horde()
     _spawn_set("horde", {
@@ -549,7 +549,7 @@ function at_spawn_horde()
     })
 end
 
---- Two squads on opposite flanks
+--- Two squads on opposite flanks.
 --- @novalidate(code.unused_export, reason:"console command")
 function at_spawn_pincer()
     _spawn_set("pincer", {
@@ -558,7 +558,7 @@ function at_spawn_pincer()
     })
 end
 
---- Four squads in a circle around the actor (cover-reservation stress)
+--- Four squads in a circle around the actor (cover-reservation stress).
 --- @novalidate(code.unused_export, reason:"console command")
 function at_spawn_swarm()
     _spawn_set("swarm", {
@@ -569,7 +569,7 @@ function at_spawn_swarm()
     })
 end
 
---- Mixed faction wave: bandits ahead, military flank, monolith behind
+--- Mixed faction wave: bandits ahead, military flank, monolith behind.
 --- @novalidate(code.unused_export, reason:"console command")
 function at_spawn_mixed()
     _spawn_set("mixed", {
@@ -579,7 +579,7 @@ function at_spawn_mixed()
     })
 end
 
---- Dump the disclosure counters to the log and a tip
+--- Dump the disclosure counters to the log and a tip.
 --- @novalidate(code.unused_export, reason:"console command")
 function at_dump()
     if not db.actor then return end

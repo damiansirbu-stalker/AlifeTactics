@@ -212,7 +212,7 @@ local function _on_first_update()
         format_state(cfg.gear_binoc_enabled), format_state(cfg.gear_nvg_enabled), _n039 and "on" or "off/unprobed")
 end
 
---- Re-resolve one NPC's gear now, for a caller that granted items with no take event
+--- Re-resolve one NPC's gear now, for a caller that granted items with no take event.
 function apply_gear(npc)
     if not (cfg.gear_enabled and npc and IsStalker(npc)) then return end
     _apply_effects(npc)
