@@ -51,7 +51,7 @@ local function _load_tunables()
     PEACE_DEBOUNCE_MS = read("peace_debounce_ms", 15000)
 end
 
-local function _engine_unlimited_ammo()
+local function _is_unlimited_ammo()
     if _unlimited_cvar == nil then
         _unlimited_cvar = get_console():get_string("g_ai_unlimited_ammo") ~= nil
     end
@@ -85,7 +85,7 @@ local function _find_ap(wpn, ammo_class)
     return nil, nil
 end
 
-local function _decay_chance(npc, wpn_sec)
+local function _compute_decay_chance(npc, wpn_sec)
     local span = RANK_CEILING - MIN_AP_RANK
     local progress = (span > 0) and math_max(0, math_min(1, (npc:character_rank() - MIN_AP_RANK) / span)) or 0
     local rank_weight = 1.0 - progress * (1.0 - RANK_WEIGHT_FLOOR)
@@ -93,7 +93,7 @@ local function _decay_chance(npc, wpn_sec)
     return math_max(0, math_min(1, chance))
 end
 
-local function _delete_one_ap_box(npc, section)
+local function _remove_ap_box(npc, section)
     local target_id
     npc:iterate_inventory(function(_owner, item)
         if not target_id and item and item:is_ammo() and item:section() == section then
@@ -109,19 +109,19 @@ local function _try_rekey_depleted(npc, wpn, wpn_sec, ammo_class)
     local cur = wpn:get_ammo_type()
     if cur ~= 0 and AP_SECTIONS[ammo_class[cur + 1]] then
         wpn:set_ammo_type(0)
-        if at_debug.on() then at_debug.dbg("[AP] rekey npc=%d wpn=%s ap depleted, back to type 0", npc:id(), wpn_sec) end
+        if at_debug.is_on() then at_debug.debug("[AP] rekey npc=%d wpn=%s ap depleted, back to type 0", npc:id(), wpn_sec) end
     end
 end
 
 local function _on_combat_tick(npc, wpn, wpn_sec, ammo_class, st, now)
     if not st.fighting or st.wpn_sec ~= wpn_sec then
-        local timer = xprofiler.new_if(at_debug.on()):start()
+        local timer = xprofiler.new_if(at_debug.is_on()):start()
         st.fighting = true
         st.wpn_sec = wpn_sec
         st.idx, st.sec = _find_ap(wpn, ammo_class)
         if not st.idx then _try_rekey_depleted(npc, wpn, wpn_sec, ammo_class) end
         timer:stop()
-        if at_debug.on() then at_debug.dbg("[AP] engage npc=%d wpn=%s ap=%s [%dus]", npc:id(), wpn_sec, st.sec or "none", timer:get_us()) end
+        if at_debug.is_on() then at_debug.debug("[AP] engage npc=%d wpn=%s ap=%s [%dus]", npc:id(), wpn_sec, st.sec or "none", timer:get_us()) end
     end
     st.last_seen = now
     if st.idx and wpn:get_ammo_type() ~= st.idx then
@@ -134,18 +134,18 @@ local function _on_peace_tick(npc, wpn, wpn_sec, st, now)
     if now - (st.last_seen or 0) < PEACE_DEBOUNCE_MS then return end
     st.fighting = false
     if not st.idx then return end
-    local timer = xprofiler.new_if(at_debug.on()):start()
-    local chance = _decay_chance(npc, st.wpn_sec)
+    local timer = xprofiler.new_if(at_debug.is_on()):start()
+    local chance = _compute_decay_chance(npc, st.wpn_sec)
     local dropped = math_random() < chance
-    if dropped then _delete_one_ap_box(npc, st.sec) end
+    if dropped then _remove_ap_box(npc, st.sec) end
     local left = -1
     if st.wpn_sec == wpn_sec then
         left = wpn:get_ammo_count_for_type(st.idx)
         if left <= 0 and wpn:get_ammo_type() ~= 0 then wpn:set_ammo_type(0) end
     end
     timer:stop()
-    if at_debug.on() then
-        at_debug.dbg("[AP] disengage npc=%d ap=%s p=%.2f %s left=%d%s [%.2fms]", npc:id(), st.sec, chance,
+    if at_debug.is_on() then
+        at_debug.debug("[AP] disengage npc=%d ap=%s p=%.2f %s left=%d%s [%.2fms]", npc:id(), st.sec, chance,
             dropped and "DROP" or "keep", left, (left == 0) and " fmj" or "", timer:get_ms())
     end
 end
@@ -157,7 +157,7 @@ local function _run_monitor()
     local now = time_global()
     for id in pairs(_npc_ids) do
         local npc = xobject.get_go(id)
-        if npc then pick(npc, now) end
+        if npc then update_npc(npc, now) end
     end
 end
 
@@ -185,14 +185,14 @@ local function _on_entity_unregister(se_obj)
     _npc_ids[id] = nil
 end
 
-local function _refresh_cfg()
+local function _update_cfg()
     _enabled = at_mcm.get_config("ammo_enabled") ~= false
 end
 
 --- Run one tick of the ammo state machine on `npc`. Public so test helpers drive it.
-function pick(npc, now)
+function update_npc(npc, now)
     if not _enabled then return end
-    if not _engine_unlimited_ammo() then
+    if not _is_unlimited_ammo() then
         if not _inert_logged then
             _inert_logged = true
             at_debug.info("[AP] inert: g_ai_unlimited_ammo is 0, the engine consumes real rounds (box decay would double-consume)")
@@ -221,11 +221,11 @@ end
 
 function on_game_start()
     _load_tunables()
-    _refresh_cfg()
+    _update_cfg()
     RegisterScriptCallback("npc_on_net_spawn",            _on_net_spawn)
     RegisterScriptCallback("npc_on_net_destroy",          _on_net_destroy)
     RegisterScriptCallback("actor_on_first_update",       _on_first_update)
     RegisterScriptCallback("server_entity_on_unregister", _on_entity_unregister)
-    RegisterScriptCallback("on_option_change",            _refresh_cfg)
-    RegisterScriptCallback("mcm_option_restore_default",  _refresh_cfg)
+    RegisterScriptCallback("on_option_change",            _update_cfg)
+    RegisterScriptCallback("mcm_option_restore_default",  _update_cfg)
 end

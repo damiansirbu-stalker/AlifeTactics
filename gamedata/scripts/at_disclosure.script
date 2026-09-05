@@ -31,7 +31,7 @@ local function _load_config()
     RESTAMP_MS        = read_num("restamp_ms", 4000)
 end
 
-local function _shot_is_suppressed(who)
+local function _is_shot_suppressed(who)
     if not (IsStalker(who) or who:id() == AC_ID) then return true end
     local wpn = who:active_item()
     if not (wpn and IsWeapon(wpn)) then return true end
@@ -47,13 +47,13 @@ local function _apply_selection_levers(npc)
     local applied = xcombat.set_hit_redirect(npc, turn_on and TURN_MAX or -1, TURN_FALLOFF_M)
     if _has_redirect == nil then _has_redirect = applied end
     xcombat.set_visible_enemy_bias(npc, cfg.selection_actor_bias, -1)
-    if at_debug.on() then
-        at_debug.dbg("[LEVER] id=%d redirect=%d bias=%d bind=%s",
+    if at_debug.is_on() then
+        at_debug.debug("[LEVER] id=%d redirect=%d bias=%d bind=%s",
             npc:id(), turn_on and TURN_MAX or -1, cfg.selection_actor_bias, tostring(applied))
     end
 end
 
-local function _stamp_one(member_id, victim_pos, who_id, who_pos, tg)
+local function _try_stamp_member(member_id, victim_pos, who_id, who_pos, tg)
     local member = xobject.get_go(member_id)
     if not member then return false end
     if not member:alive() then return false end
@@ -66,7 +66,7 @@ local function _stamp_one(member_id, victim_pos, who_id, who_pos, tg)
     return true
 end
 
-local function _stamp_squad(victim, victim_id, who_id, who_pos)
+local function _apply_squad_stamps(victim, victim_id, who_id, who_pos)
     local squad = xsquad.get_squad_by_member(victim_id)
     if not squad then return 0 end
     if squad:npc_count() == 0 then return 0 end
@@ -74,7 +74,7 @@ local function _stamp_squad(victim, victim_id, who_id, who_pos)
     local victim_pos = victim:position()
     local stamped = 0
     for member in squad:squad_members() do
-        if member.id ~= victim_id and _stamp_one(member.id, victim_pos, who_id, who_pos, tg) then
+        if member.id ~= victim_id and _try_stamp_member(member.id, victim_pos, who_id, who_pos, tg) then
             stamped = stamped + 1
         end
     end
@@ -92,7 +92,7 @@ local function _trace_turn(victim_id, who_id)
             local dist = -1
             local who = xobject.get_go(who_id)
             if who then dist = victim:position():distance_to(who:position()) end
-            at_debug.dbg("[TURN] victim=%d best=%d seen=%s shooter=%d dist=%.0f flipped=%s",
+            at_debug.debug("[TURN] victim=%d best=%d seen=%s shooter=%d dist=%.0f flipped=%s",
                 victim_id, best_id, tostring(best_seen), who_id, dist, tostring(best_id == who_id))
         end
         return true
@@ -103,7 +103,7 @@ local function _resolve_hit(victim_id, who_id)
     local victim = xobject.get_go(victim_id)
     if not victim then return end
     if not victim:alive() then
-        if at_debug.on() then at_debug.dbg("[HIT] suppressed-kill seeds nothing victim=%d shooter=%d", victim_id, who_id) end
+        if at_debug.is_on() then at_debug.debug("[HIT] suppressed-kill seeds nothing victim=%d shooter=%d", victim_id, who_id) end
         return
     end
     local who = xobject.get_go(who_id)
@@ -116,10 +116,10 @@ local function _resolve_hit(victim_id, who_id)
         _stat.victim_seeds = _stat.victim_seeds + 1
     end
 
-    local stamped = _stamp_squad(victim, victim_id, who_id, who_pos)
+    local stamped = _apply_squad_stamps(victim, victim_id, who_id, who_pos)
     _stat.stamps = _stat.stamps + stamped
-    if at_debug.on() then
-        at_debug.dbg("[HIT] victim=%d shooter=%d stamped=%d victim_seed=%s",
+    if at_debug.is_on() then
+        at_debug.debug("[HIT] victim=%d shooter=%d stamped=%d victim_seed=%s",
             victim_id, who_id, stamped, tostring(_has_redirect == false and cfg.disclosure_turn))
         _trace_turn(victim_id, who_id)
     end
@@ -135,9 +135,9 @@ local function _on_hit(npc, amount, _local_direction, who, bone_index)
     if not xcreature.is_enemy(npc, who) then return end
 
     _stat.hits = _stat.hits + 1
-    if not _shot_is_suppressed(who) then
+    if not _is_shot_suppressed(who) then
         _stat.loud = _stat.loud + 1
-        if at_debug.on() then at_debug.dbg("[HIT] loud shooter=%d - engine hearing owns it", who:id()) end
+        if at_debug.is_on() then at_debug.debug("[HIT] loud shooter=%d - engine hearing owns it", who:id()) end
         return
     end
 
@@ -161,12 +161,12 @@ end
 local function _on_first_update()
     _stamp_at = {}
     _stat = { hits = 0, loud = 0, stamps = 0, victim_seeds = 0 }
-    at_debug.refresh()
+    at_debug.update_config()
     at_debug.info("Disclosure initialized (enabled=%s, turn=%s, actor_bias=%d, dbg=%s)",
         cfg.disclosure_enabled and "true" or "false",
         cfg.disclosure_turn and "true" or "false",
         cfg.selection_actor_bias,
-        at_debug.on() and "true" or "false")
+        at_debug.is_on() and "true" or "false")
 end
 
 --- Counters snapshot for diagnostics (at_test.at_dump)

@@ -14,13 +14,13 @@ local function _on_before_hit(npc, shit, _bone_id, _flags)
     if attacker_id == npc:id() then return end
     if not (IsStalker(attacker) and IsStalker(npc)) then return end
     if not at_faction.has_flavor(npc, "crossfire") then return end
-    local timer = xprofiler.new_if(at_debug.on()):start()
+    local timer = xprofiler.new_if(at_debug.is_on()):start()
     if xcreature.is_enemy(attacker, npc) then timer:stop() return end
     local before = shit.power
     shit.power = before * cfg.crossfire_factor
     timer:stop()
-    if at_debug.on() and before > 0 then
-        at_debug.dbg("[CROSSFIRE] blocked attacker=%d victim=%d power=%.3f->%.3f [%dus]",
+    if at_debug.is_on() and before > 0 then
+        at_debug.debug("[CROSSFIRE] blocked attacker=%d victim=%d power=%.3f->%.3f [%dus]",
             attacker:id(), npc:id(), before, shit.power, timer:get_us())
     end
 end

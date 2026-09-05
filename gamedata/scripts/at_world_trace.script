@@ -45,23 +45,23 @@ local _ctx = {}
 local _avx, _avz = 0, 0
 local _apx, _apz, _at = nil, nil, 0
 
-local function _driver(id)
+local function _get_driver(id)
     local maneuver = at_maneuvers.get_maneuver(id)
     if maneuver then return maneuver end
     if at_commitment.get_hold(id) then return "commit" end
     return "vanilla"
 end
 
-local function _mt_name(v)
+local function _get_mt_name(v)
     if not _MOVE then _MOVE = { [move.walk] = "walk", [move.run] = "run", [move.stand] = "stand", [move.steal] = "steal" } end
     return _MOVE[v] or tostring(v)
 end
 
-local function _locomoting(mt)
+local function _is_locomoting(mt)
     return mt == move.walk or mt == move.run or mt == move.steal
 end
 
-local function _derive_ceiling()
+local function _compute_ceiling()
     local max_v = 0
     local line_count = ini_sys:line_count("stalker_movement_speeds") or 0
     for i = 0, line_count - 1 do
@@ -86,7 +86,7 @@ local function _check_speed(npc, id, tg, pos, mt)
         if not prev.logged then
             prev.logged = true
             log.info("[WORLD] id=%d %s FLAGS=FAST drv=%s mps=%.1f ceiling=%.1f mt=%s dt=%dms",
-                id, npc:name() or "?", _driver(id), mps, _speed_ceiling, _mt_name(mt), dt)
+                id, npc:name() or "?", _get_driver(id), mps, _speed_ceiling, _get_mt_name(mt), dt)
         end
     else
         prev.logged = false
@@ -95,7 +95,7 @@ local function _check_speed(npc, id, tg, pos, mt)
 end
 
 local function _check(npc, id, tg, pos, mt)
-    if _locomoting(mt) then
+    if _is_locomoting(mt) then
         _slide[id] = nil
         return
     end
@@ -109,11 +109,11 @@ local function _check(npc, id, tg, pos, mt)
     if dist >= SLIDE_TOTAL_M then
         anchor.logged = true
         log.info("[WORLD] id=%d %s FLAGS=SLIDE drv=%s moved=%.2fm over=%dms mt=%s",
-            id, npc:name() or "?", _driver(id), dist, tg - anchor.t, _mt_name(mt))
+            id, npc:name() or "?", _get_driver(id), dist, tg - anchor.t, _get_mt_name(mt))
     end
 end
 
-local function _near(npc, ap)
+local function _is_near(npc, ap)
     local pos = npc:position()
     return (pos.x - ap.x) ^ 2 + (pos.z - ap.z) ^ 2 <= RADIUS_SQR
 end
@@ -127,7 +127,6 @@ local function _log_held_danger(npc, id, tg)
     local src = danger:object()
     local src_id = src and src:id() or -1
     local bt = danger:type()
-    -- danger_flag in the dedup key: the line re-emits when the scheme flips on the same held danger
     local flag = at_danger.has_danger(npc)
     local prev = _dtrace[id]
     if prev and prev.bt == bt and prev.src == src_id and prev.flag == flag then return end
@@ -138,8 +137,8 @@ local function _log_held_danger(npc, id, tg)
         math_sqrt((dp.x - np.x) ^ 2 + (dp.z - np.z) ^ 2), tg - danger:time(), tostring(flag))
 end
 
-local function _monitor_one(npc, ap, tg)
-    if not (npc and IsStalker(npc) and npc:alive() and _near(npc, ap)) then return end
+local function _update_npc(npc, ap, tg)
+    if not (npc and IsStalker(npc) and npc:alive() and _is_near(npc, ap)) then return end
     local id = npc:id()
     _log_held_danger(npc, id, tg)
     if not npc:best_enemy() then return end
@@ -149,14 +148,14 @@ local function _monitor_one(npc, ap, tg)
     _check_speed(npc, id, tg, pos, mt)
 end
 
-local function _monitor()
+local function _run_monitor()
     if not _enabled then return true end
     ResetTimeEvent("at_world_trace", "monitor", SAMPLE_SEC)
     local ac = db.actor
     if not ac then return false end
     local ap, tg = ac:position(), time_global()
     for i = 1, #db.OnlineStalkers do
-        _monitor_one(xobject.get_go(db.OnlineStalkers[i]), ap, tg)
+        _update_npc(xobject.get_go(db.OnlineStalkers[i]), ap, tg)
     end
     return false
 end
@@ -166,23 +165,23 @@ local function _on_hit(npc, amount, _local_direction, _who, bone_index)
     local id = npc:id()
     if _watch[id] then return end
     local pos = npc:position()
-    _watch[id] = { t0 = time_global(), x = pos.x, z = pos.z, anims0 = npc:animation_count(), drv0 = _driver(id),
+    _watch[id] = { t0 = time_global(), x = pos.x, z = pos.z, anims0 = npc:animation_count(), drv0 = _get_driver(id),
                    hp0 = npc.health, mt0 = npc:movement_type(), amount = amount or 0, bone = bone_index or -1 }
 end
 
-local function _watch_step(npc, id, w, tg)
+local function _update_watch(npc, id, w, tg)
     local pos = npc:position()
     w.maxd = math_max(w.maxd or 0, math_sqrt((pos.x - w.x) ^ 2 + (pos.z - w.z) ^ 2))
-    if _locomoting(npc:movement_type()) then w.walked = true end
+    if _is_locomoting(npc:movement_type()) then w.walked = true end
     if tg - w.t0 < WATCH_MS then return false end
     log.info("[WORLD] hit id=%d %s drv=%s amount=%.2f bone=%d hp0=%.2f hp1=%.2f anims0=%d anims1=%d" ..
         " mt0=%s mt1=%s moved=%.2f walked=%s over=%dms",
         id, npc:name() or "?", w.drv0, w.amount, w.bone, w.hp0, npc.health, w.anims0, npc:animation_count(),
-        _mt_name(w.mt0), _mt_name(npc:movement_type()), w.maxd, w.walked and "y" or "n", tg - w.t0)
+        _get_mt_name(w.mt0), _get_mt_name(npc:movement_type()), w.maxd, w.walked and "y" or "n", tg - w.t0)
     return true
 end
 
-local function _watch_poll()
+local function _run_watch()
     if not _enabled then return true end
     ResetTimeEvent("at_world_trace", "watch", WATCH_SEC)
     local tg = time_global()
@@ -190,7 +189,7 @@ local function _watch_poll()
     for id, w in pairs(_watch) do
         local npc = xobject.get_go(id)
         local drop = true
-        if npc and IsStalker(npc) and npc:alive() then drop = _watch_step(npc, id, w, tg) end
+        if npc and IsStalker(npc) and npc:alive() then drop = _update_watch(npc, id, w, tg) end
         if drop then dropped = dropped + 1; _drop[dropped] = id end
     end
     for i = 1, dropped do _watch[_drop[i]] = nil; _drop[i] = nil end
@@ -224,7 +223,7 @@ local function _get_tier_row(tier)
     return row
 end
 
-local function _drive_row(name)
+local function _get_drive_row(name)
     local row = _drive[name]
     if not row then
         row = { shots = 0, hits = 0 }
@@ -233,7 +232,7 @@ local function _drive_row(name)
     return row
 end
 
-local function _close_burst(id, entry)
+local function _stop_burst(id, entry)
     if entry.count > 0 and entry.kind then
         local hist = _bursts[entry.kind]
         if not hist then
@@ -254,7 +253,7 @@ local function _on_shot(obj, wpn, body_state, move_type, temp_disp)
     local tier = ranks.get_obj_rank_name(obj)
     if not tier or tier == "" then return end
 
-    local timer = xprofiler.new_if(at_debug.on()):start()
+    local timer = xprofiler.new_if(at_debug.is_on()):start()
     local moving = move_type ~= nil and move_type <= MT_RUN
     local drive = "vanilla"
     if at_maneuvers.get_maneuver(id) then
@@ -267,12 +266,12 @@ local function _on_shot(obj, wpn, body_state, move_type, temp_disp)
     local row = _get_tier_row(tier)
     row.shots = row.shots + 1
     if moving then row.mv_shots = row.mv_shots + 1 else row.st_shots = row.st_shots + 1 end
-    _drive_row(drive).shots = _drive_row(drive).shots + 1
+    _get_drive_row(drive).shots = _get_drive_row(drive).shots + 1
 
     local tg = time_global()
     local entry = _open[id]
     if entry and (tg - entry.last_ms) > GAP_MS then
-        _close_burst(id, entry)
+        _stop_burst(id, entry)
         entry = nil
     end
     if not entry then
@@ -284,13 +283,13 @@ local function _on_shot(obj, wpn, body_state, move_type, temp_disp)
 
     _ctx[id] = { tier = tier, moving = moving, drive = drive }
     timer:stop()
-    if at_debug.on() then
+    if at_debug.is_on() then
         log.debug("[BAL] shot id=%d tier=%s kind=%s moving=%s drive=%s [%.3fms]",
             id, tier, tostring(kind), tostring(moving), drive, timer:get_ms())
     end
 end
 
-local function _poll_velocity()
+local function _update_velocity()
     if not _enabled then return true end
     if db and db.actor then
         local apos = db.actor:position()
@@ -306,7 +305,7 @@ local function _poll_velocity()
     return false
 end
 
-local function _record_angle(bullet, shooter, row)
+local function _collect_angle(bullet, shooter, row)
     local dir = bullet.direction
     if not dir then return end
     local apos = db.actor:position()
@@ -330,7 +329,7 @@ local function _record_angle(bullet, shooter, row)
     end
 end
 
-local function _record_wrongway(bullet, shooter, ctx)
+local function _collect_wrongway(bullet, shooter, ctx)
     local enemy = shooter:best_enemy()
     local dir = bullet.direction
     if not (enemy and dir) then return end
@@ -346,7 +345,7 @@ local function _record_wrongway(bullet, shooter, ctx)
     row.aim_off_sum = row.aim_off_sum + off
     if off <= WRONGWAY_DEG then return end
     row.wrongway = row.wrongway + 1
-    if at_debug.on() then
+    if at_debug.is_on() then
         log.debug("[BAL] wrongway id=%d tier=%s off=%.0fdeg enemy=%d edist=%.0f drive=%s",
             shooter:id(), ctx.tier, off, enemy:id(), edist, ctx.drive)
     end
@@ -361,8 +360,8 @@ local function _on_impact(bullet)
 
     local shooter = xobject.get_go(parent_id)
     if shooter then
-        _record_angle(bullet, shooter, _get_tier_row(ctx.tier))
-        _record_wrongway(bullet, shooter, ctx)
+        _collect_angle(bullet, shooter, _get_tier_row(ctx.tier))
+        _collect_wrongway(bullet, shooter, ctx)
     end
 
     local hit = bullet.target_id == AC_ID
@@ -381,9 +380,9 @@ local function _on_impact(bullet)
         row.hits = row.hits + 1
         row.conv = row.conv + 1
         if ctx.moving then row.mv_hits = row.mv_hits + 1 else row.st_hits = row.st_hits + 1 end
-        _drive_row(ctx.drive).hits = _drive_row(ctx.drive).hits + 1
+        _get_drive_row(ctx.drive).hits = _get_drive_row(ctx.drive).hits + 1
     end
-    if at_debug.on() then
+    if at_debug.is_on() then
         log.debug("[BAL] impact id=%d tier=%s hit=%s drive=%s", parent_id, ctx.tier, tostring(hit), ctx.drive)
     end
 end
@@ -400,7 +399,7 @@ local function _get_percent(hits, shots)
     return shots > 0 and (100 * hits / shots) or 0
 end
 
-local function _hist_line(hist)
+local function _format_hist_line(hist)
     local parts = {}
     for len = 1, 10 do
         if hist[len] then
@@ -411,7 +410,7 @@ local function _hist_line(hist)
 end
 
 --- Write the ballistics minute tables now (also runs on the 60s tick and at level exit)
-function report()
+function write_report()
     local minutes = (time_global() - _t0) / 60000
     if minutes <= 0 then return end
     log.info("=== ballistics %dm%02ds ===", math_floor(minutes), math_floor((minutes % 1) * 60))
@@ -433,13 +432,13 @@ function report()
         log.info("drive=%-8s shots=%-5d hits=%-4d hit=%.1f%%", name, row.shots, row.hits, _get_percent(row.hits, row.shots))
     end
     for kind, hist in pairs(_bursts) do
-        log.info("bursts kind=%-10s %s", tostring(kind), _hist_line(hist))
+        log.info("bursts kind=%-10s %s", tostring(kind), _format_hist_line(hist))
     end
 end
 
-local function _report_tick()
+local function _run_report()
     if not _enabled then return true end
-    report()
+    write_report()
     ResetTimeEvent("at_world_trace", "report", REPORT_SEC)
     return false
 end
@@ -450,7 +449,7 @@ local function _apply_enabled()
     _enabled = want
     if _enabled then
         _slide, _watch, _speed = {}, {}, {}
-        _speed_ceiling = _speed_ceiling or _derive_ceiling()
+        _speed_ceiling = _speed_ceiling or _compute_ceiling()
         _reset()
         RegisterScriptCallback("npc_on_hit_callback", _on_hit)
         RegisterScriptCallback("server_entity_on_unregister", _on_unregister)
@@ -458,13 +457,13 @@ local function _apply_enabled()
         RegisterScriptCallback("bullet_on_impact",      _on_impact)
         RegisterScriptCallback("actor_on_hit_callback", _on_actor_hit)
         RemoveTimeEvent("at_world_trace", "monitor")
-        CreateTimeEvent("at_world_trace", "monitor", SAMPLE_SEC, _monitor)
+        CreateTimeEvent("at_world_trace", "monitor", SAMPLE_SEC, _run_monitor)
         RemoveTimeEvent("at_world_trace", "watch")
-        CreateTimeEvent("at_world_trace", "watch", WATCH_SEC, _watch_poll)
+        CreateTimeEvent("at_world_trace", "watch", WATCH_SEC, _run_watch)
         RemoveTimeEvent("at_world_trace", "report")
-        CreateTimeEvent("at_world_trace", "report", REPORT_SEC, _report_tick)
+        CreateTimeEvent("at_world_trace", "report", REPORT_SEC, _run_report)
         RemoveTimeEvent("at_world_trace", "velpoll")
-        CreateTimeEvent("at_world_trace", "velpoll", 0.2, _poll_velocity)
+        CreateTimeEvent("at_world_trace", "velpoll", 0.2, _update_velocity)
         log.info("World trace enabled (slide sample=%dms radius=70m, ballistics report=%ds)",
             math_floor(SAMPLE_SEC * 1000), REPORT_SEC)
     else
@@ -477,24 +476,24 @@ local function _apply_enabled()
         RemoveTimeEvent("at_world_trace", "watch")
         RemoveTimeEvent("at_world_trace", "report")
         RemoveTimeEvent("at_world_trace", "velpoll")
-        report()
+        write_report()
         log.flush()
         log.info("World trace disabled")
     end
 end
 
-local function _refresh_config()
+local function _update_config()
     log.set_level(at_mcm.get_config("log_level") or "WARN")
     _apply_enabled()
 end
 
 local function _on_first_update()
-    _refresh_config()
+    _update_config()
 end
 
 local function _on_actor_net_destroy()
     if _enabled then
-        report()
+        write_report()
         log.flush()
     end
 end
@@ -502,6 +501,6 @@ end
 function on_game_start()
     RegisterScriptCallback("actor_on_first_update",      _on_first_update)
     RegisterScriptCallback("actor_on_net_destroy",       _on_actor_net_destroy)
-    RegisterScriptCallback("on_option_change",           _refresh_config)
-    RegisterScriptCallback("mcm_option_restore_default", _refresh_config)
+    RegisterScriptCallback("on_option_change",           _update_config)
+    RegisterScriptCallback("mcm_option_restore_default", _update_config)
 end

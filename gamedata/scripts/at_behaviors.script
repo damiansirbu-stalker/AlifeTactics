@@ -61,10 +61,10 @@ local function _get_bucket(state)
 end
 
 -- True when the record's bucket admits a start; the refusal traces under the caller's tag.
-local function _admit_start(state, sys)
+local function _check_start(state, sys)
     local bucket = _get_bucket(state)
     if at_core.check_start(bucket) then return true end
-    at_debug.dbg("%s limited id=%s bucket=%s", sys, show(state.id), bucket)
+    at_debug.debug("%s limited id=%s bucket=%s", sys, show(state.id), bucket)
     return false
 end
 
@@ -74,10 +74,10 @@ local function _clear_push_npc(npc, state, why, _tg)
         xcombat.set_fire_queue_scale(npc, at_reaction.get_queue_scales(npc))
     end
     if state.push_band then at_conduct.clear_push_max(state.id) end
-    if at_debug.on() then
+    if at_debug.is_on() then
         local actor = _get_actor()
         local dist_close = (npc and actor) and npc:position():distance_to(actor:position()) or -1
-        at_debug.dbg("[PUSH] restore id=%s why=%s d=%.1f->%.1fm fire=%s band=%s",
+        at_debug.debug("[PUSH] restore id=%s why=%s d=%.1f->%.1fm fire=%s band=%s",
             show(state.id), show(why), state.push_dist or -1, dist_close,
             show(state.push_fire), show(state.push_band))
     end
@@ -93,8 +93,8 @@ local function _write_push_fire(npc, state, want_fire, dist, cause)
     state.push_fire = want_fire
     state.push_dist = state.push_dist or dist
     if not (want_fire or state.push_band) then state.push_dist = nil end
-    if at_debug.on() then
-        at_debug.dbg("[PUSH] fire id=%s cause=%s band=%s d=%.1fm size_k=%.2f interval_k=%.2f",
+    if at_debug.is_on() then
+        at_debug.debug("[PUSH] fire id=%s cause=%s band=%s d=%.1fm size_k=%.2f interval_k=%.2f",
             show(state.id), cause, show(want_fire), dist, sk, ik)
     end
 end
@@ -115,8 +115,8 @@ local function _write_push_band(state, advantage, dist, cause)
     state.push_band = band
     state.push_advantage = advantage
     state.push_dist = state.push_dist or dist
-    if at_debug.on() then
-        at_debug.dbg("[PUSH] band id=%s cause=%s advantage=%s d=%.1fm max=%.1fm",
+    if at_debug.is_on() then
+        at_debug.debug("[PUSH] band id=%s cause=%s advantage=%s d=%.1fm max=%.1fm",
             show(state.id), cause, advantage, dist, band)
     end
 end
@@ -152,7 +152,7 @@ local function _apply_push_writes(npc, state, target, cause)
 end
 
 local function _can_open_push(npc, state, tg)
-    return at_core.in_gate(state) and tg >= (state.push_until or 0)
+    return at_core.is_in_gate(state) and tg >= (state.push_until or 0)
         and at_faction.has_flavor(npc, "behavior_push")
 end
 
@@ -180,7 +180,7 @@ local function _update_push_npc(npc, state, tg)
         end
         return
     end
-    if not joined and not _admit_start(state, "[PUSH]") then return end
+    if not joined and not _check_start(state, "[PUSH]") then return end
     _apply_push_writes(npc, state, target, cause)
     if not joined and (state.push_fire ~= nil or state.push_band ~= nil) then
         state.push_cause, state.push_at = cause, tg
@@ -200,10 +200,10 @@ local function _clear_pull_npc(npc, state, why, tg)
     if not state.pull then return end
     at_conduct.clear_pull_band(state.id)
     state.pull_until = tg + PULL_COOLDOWN_MS
-    if at_debug.on() then
+    if at_debug.is_on() then
         local actor = _get_actor()
         local dist_close = (npc and actor) and npc:position():distance_to(actor:position()) or -1
-        at_debug.dbg("[PULL] restore id=%s why=%s d=%.1f->%.1fm cause=%s",
+        at_debug.debug("[PULL] restore id=%s why=%s d=%.1f->%.1fm cause=%s",
             show(state.id), show(why), state.pull_dist or -1, dist_close, show(state.pull))
     end
     state.pull, state.pull_at, state.pull_dist = nil, nil, nil
@@ -219,7 +219,7 @@ local function _try_open_pull(npc, state, tg)
     if not at_conduct.is_spacing_active() then return end
     local cause = _get_pull_cause(npc, state, tg, false)
     if not cause then return end
-    if not _admit_start(state, "[PULL]") then return end
+    if not _check_start(state, "[PULL]") then return end
     at_core.add_start(_get_bucket(state))
     local dist = npc:position():distance_to(target:position())
     local min_m = dist * PULL_BAND_K
@@ -229,8 +229,8 @@ local function _try_open_pull(npc, state, tg)
     state.pull = cause
     state.pull_at = tg
     state.pull_dist = dist
-    if at_debug.on() then
-        at_debug.dbg("[PULL] set id=%s cause=%s d=%.1fm min=%.1fm", show(state.id), cause, dist, min_m)
+    if at_debug.is_on() then
+        at_debug.debug("[PULL] set id=%s cause=%s d=%.1fm min=%.1fm", show(state.id), cause, dist, min_m)
     end
 end
 
@@ -246,7 +246,7 @@ local function _update_pull_npc(npc, state, tg)
         end
         return
     end
-    if not at_core.in_gate(state) then return end
+    if not at_core.is_in_gate(state) then return end
     if state.reloading or at_core.has_recent_hit(state, tg, HIT_FIGHT_MS) then
         _try_open_pull(npc, state, tg)
     end
@@ -266,7 +266,7 @@ function get_pull(id)
 end
 
 --- Per-NPC effector sync on the monitor pass: applies and restores against the state mirrors, one idempotent call
-function sync_npc(npc, state, now)
+function update_npc(npc, state, now)
     _update_push_npc(npc, state, now)
     _update_pull_npc(npc, state, now)
 end

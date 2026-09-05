@@ -8,7 +8,7 @@ local _original
 local _jam_enabled = true
 local _suppressed = 0
 
-local function _install()
+local function _register_patch()
     _original = xr_weapon_jam and xr_weapon_jam.GetConditionMisfireProbability
     if type(_original) ~= "function" then
         at_debug.warn("xr_weapon_jam.GetConditionMisfireProbability not present; NPC misfire suppression inert")
@@ -20,20 +20,20 @@ local function _install()
         end
         _suppressed = _suppressed + 1
         if _suppressed % SUMMARY_EVERY == 0 then
-            at_debug.dbg("[JAM] suppressed=%d NPC misfire rolls this session", _suppressed)
+            at_debug.debug("[JAM] suppressed=%d NPC misfire rolls this session", _suppressed)
         end
         return 0
     end
     at_debug.info("xr_weapon_jam.GetConditionMisfireProbability patched (NPC misfire suppression active)")
 end
 
-local function _refresh_config()
+local function _update_config()
     _jam_enabled = at_mcm.get_config("jam_enabled") ~= false
 end
 
 function on_game_start()
-    _install()
-    RegisterScriptCallback("actor_on_first_update",      _refresh_config)
-    RegisterScriptCallback("on_option_change",           _refresh_config)
-    RegisterScriptCallback("mcm_option_restore_default", _refresh_config)
+    _register_patch()
+    RegisterScriptCallback("actor_on_first_update",      _update_config)
+    RegisterScriptCallback("on_option_change",           _update_config)
+    RegisterScriptCallback("mcm_option_restore_default", _update_config)
 end

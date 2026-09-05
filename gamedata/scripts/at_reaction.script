@@ -140,7 +140,7 @@ local function _resolve_min_angle(tier)
     return angle
 end
 
-local function _ammo_speed_k(wpn, sect)
+local function _get_ammo_speed_k(wpn, sect)
     local idx = wpn:get_ammo_type()
     if not idx then return 1.0 end
     local list = _wpn_ammo[sect]
@@ -156,13 +156,13 @@ local function _ammo_speed_k(wpn, sect)
     if not ammo_sect then return 1.0 end
     local k = _ammok[ammo_sect]
     if k == nil then
-        k = ini_sys:r_float_ex(ammo_sect, "k_bullet_speed") or 1.0
+        k = ini_sys:r_float_ex(ammo_sect, "k_get_bullet_speed") or 1.0
         _ammok[ammo_sect] = k
     end
     return k
 end
 
-local function _bullet_speed(obj, wpn)
+local function _get_bullet_speed(obj, wpn)
     local sect = wpn and wpn:section()
     if sect then
         local bs = _bspeed[sect]
@@ -170,7 +170,7 @@ local function _bullet_speed(obj, wpn)
             bs = ini_sys:r_float_ex(sect, "bullet_speed") or false
             _bspeed[sect] = bs
         end
-        if bs then return bs * _ammo_speed_k(wpn, sect), "section" end
+        if bs then return bs * _get_ammo_speed_k(wpn, sect), "section" end
     end
     return KIND_BSPEED[xcombat.get_weapon_kind(obj)], "fallback"
 end
@@ -190,8 +190,8 @@ local function _apply_discipline(npc, tier)
     if sk == 1.0 and ik == 1.0 then return end
     if ik < DISC_INT_FLOOR then ik = DISC_INT_FLOOR end
     local ok = xcombat.set_fire_queue_scale(npc, sk, ik)
-    if at_debug.on() then
-        at_debug.dbg("[RCT] disc id=%d tier=%s size_k=%.2f interval_k=%.2f applied=%s",
+    if at_debug.is_on() then
+        at_debug.debug("[RCT] disc id=%d tier=%s size_k=%.2f interval_k=%.2f applied=%s",
             npc:id(), tier, sk, ik, ok and "yes" or "no")
     end
     return ok
@@ -213,7 +213,7 @@ local function _on_shot_lead(obj, wpn, body_state, move_type, temp_disp)
     if not tier or tier == "" then return end
     local err = _lead[tier]
     if not err then return end
-    local bs, src = _bullet_speed(obj, wpn)
+    local bs, src = _get_bullet_speed(obj, wpn)
     if not bs or bs <= 0 then return end
 
     local range = obj:position():distance_to(enemy:position())
@@ -225,19 +225,19 @@ local function _on_shot_lead(obj, wpn, body_state, move_type, temp_disp)
     local ok = xcombat.set_aim_params(obj, -1, track, aim, predict)
     _log_lead_once(ok, bs, src, predict)
 
-    if at_debug.on() then
-        at_debug.dbg("[RCT] lead id=%d tier=%s range=%.1f bs=%.0f src=%s err=%.2f predict=%.3f applied=%s",
+    if at_debug.is_on() then
+        at_debug.debug("[RCT] lead id=%d tier=%s range=%.1f bs=%.0f src=%s err=%.2f predict=%.3f applied=%s",
             id, tier, range, bs, src, err, predict, ok and "yes" or "no")
     end
 end
 
 local function _on_enemy_selected(npc, new_enemy)
-    if not at_debug.on() or not npc then return end
+    if not at_debug.is_on() or not npc then return end
 
     local id = npc:id()
     local name = npc:name()
     if not new_enemy then
-        at_debug.dbg("[VIS] drop id=%d name=%s", id, name)
+        at_debug.debug("[VIS] drop id=%d name=%s", id, name)
         return
     end
     if new_enemy:id() ~= AC_ID then return end
@@ -246,11 +246,11 @@ local function _on_enemy_selected(npc, new_enemy)
     local dist = npc:position():distance_to(new_enemy:position())
     local seen = xcombat.can_see(npc, new_enemy)
     local unseen_ms = xcombat.get_unseen_ms(npc, new_enemy, time_global())
-    at_debug.dbg("[VIS] select id=%d name=%s tier=%s dist=%.0fm seen=%s unseen_ms=%d",
+    at_debug.debug("[VIS] select id=%d name=%s tier=%s dist=%.0fm seen=%s unseen_ms=%d",
         id, name, tier, dist, seen and "yes" or "no", unseen_ms)
 end
 
-local function _vision_range_provider(npc)
+local function _compute_vision_range(npc)
     if not cfg.vision_enabled then return nil end
     if not at_faction.has_flavor(npc, "reaction") then return nil end
     local tier = _get_obj_rank_name(npc)
@@ -272,8 +272,8 @@ local function _load_config()
     end
 end
 
-local function _refresh_config()
-    at_debug.refresh()
+local function _update_config()
+    at_debug.update_config()
     for i = 1, #TIERS do
         local tier = TIERS[i]
         _aim[tier]       = at_mcm.get_config("rct_aim_" .. tier)       or _aim[tier]
@@ -288,7 +288,7 @@ end
 
 local function _on_first_update()
     _tier_cache, _next_lead = {}, {}
-    _refresh_config()
+    _update_config()
     at_debug.info("Reaction hook initialized (aim=%s vision=%s lead=%s discipline=%s)",
         cfg.aim_enabled and "on" or "off", cfg.vision_enabled and "on" or "off",
         cfg.lead_enabled and "on" or "off", cfg.discipline_enabled and "on" or "off")
@@ -333,20 +333,20 @@ function apply(npc)
 
     _log_binds_once(ok_aim, ok_vision, ok_disc)
 
-    if at_debug.on() then
-        at_debug.dbg("[RCT] id=%d tier=%s applied_aim=%s applied_vision=%s",
+    if at_debug.is_on() then
+        at_debug.debug("[RCT] id=%d tier=%s applied_aim=%s applied_vision=%s",
             npc:id(), tier, ok_aim and "yes" or "no", ok_vision and "yes" or "no")
     end
 end
 
 function on_game_start()
     _load_config()
-    at_effects_resolver.register(at_effects_resolver.EFFECT.VISION_RANGE, _vision_range_provider)
+    at_effects_resolver.register(at_effects_resolver.EFFECT.VISION_RANGE, _compute_vision_range)
     RegisterScriptCallback("npc_on_net_spawn",           apply)
     RegisterScriptCallback("npc_shot_dispersion",        _on_shot_lead)
     RegisterScriptCallback("npc_on_enemy_selected",      _on_enemy_selected)
     RegisterScriptCallback("server_entity_on_unregister", _on_entity_unregister)
     RegisterScriptCallback("actor_on_first_update",      _on_first_update)
-    RegisterScriptCallback("on_option_change",           _refresh_config)
-    RegisterScriptCallback("mcm_option_restore_default", _refresh_config)
+    RegisterScriptCallback("on_option_change",           _update_config)
+    RegisterScriptCallback("mcm_option_restore_default", _update_config)
 end

@@ -5,15 +5,15 @@ local at_effects_resolver, xcombat, at_debug, db = at_effects_resolver, xcombat,
 local RESIST = at_effects_resolver.EFFECT.DAMAGE_RESIST
 
 local function _trace_result(npc, before, applied, factor)
-    if not at_debug.on() then return end
-    at_debug.dbg("[COMPAT] gbo_resist id=%d before=%.3f applied=%.4f factor=%.3f hp=%.3f",
+    if not at_debug.is_on() then return end
+    at_debug.debug("[COMPAT] gbo_resist id=%d before=%.3f applied=%.4f factor=%.3f hp=%.3f",
         npc:id(), before, applied, factor, xcombat.get_health_frac(npc))
 end
 
-local function _wrap_gbo_npc_hit()
+local function _register_gbo_wrapper()
     if type(grok_bo) ~= "table" or type(grok_bo.npc_on_before_hit) ~= "function" then return false end
     local orig = grok_bo.npc_on_before_hit
-    local function wrapper(npc, shit, bone_id, flags)
+    local function _apply_resist(npc, shit, bone_id, flags)
         local who = shit and shit.draftsman
         if not (npc and who and db.actor and who:id() == db.actor:id() and npc:alive()) then
             return orig(npc, shit, bone_id, flags)
@@ -27,12 +27,12 @@ local function _wrap_gbo_npc_hit()
         _trace_result(npc, before, applied, factor)
     end
     UnregisterScriptCallback("npc_on_before_hit", orig)
-    RegisterScriptCallback("npc_on_before_hit", wrapper)
+    RegisterScriptCallback("npc_on_before_hit", _apply_resist)
     return true
 end
 
 local function _on_actor_first_update()
-    if _wrap_gbo_npc_hit() then
+    if _register_gbo_wrapper() then
         at_debug.info("[COMPAT] grok_bo npc_on_before_hit wrapped: NPC artefact resistance restored for player hits")
     end
 end

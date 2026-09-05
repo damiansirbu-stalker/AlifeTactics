@@ -61,19 +61,19 @@ local function _resolve_ops()
     }
 end
 
-local function _op_name(op)
+local function _get_op_name(op)
     return (_op_names and _op_names[op]) or tostring(op)
 end
 
 local function _format_refused(refused)
     if not refused then return "-" end
     local parts = {}
-    for op, count in pairs(refused) do parts[#parts + 1] = string_format("%s=%d", _op_name(op), count) end
+    for op, count in pairs(refused) do parts[#parts + 1] = string_format("%s=%d", _get_op_name(op), count) end
     return table_concat(parts, " ")
 end
 
-local function _track_refused(hold, to_op)
-    if not at_debug.on() then return end
+local function _log_refused(hold, to_op)
+    if not at_debug.is_on() then return end
     hold.refused = hold.refused or {}
     hold.refused[to_op] = (hold.refused[to_op] or 0) + 1
 end
@@ -84,29 +84,29 @@ local function _try_extend_hold(hold, enemy, tg, id, label)
     local vuln, why = at_core.is_enemy_vulnerable(enemy)
     if not vuln then return false end
     hold.vuln = true
-    if at_debug.on() and not hold.vuln_logged then
+    if at_debug.is_on() and not hold.vuln_logged then
         hold.vuln_logged = true
-        at_debug.dbg("[CMT] %s id=%d why=%s held=%dms", label, id, why, tg - hold.since)
+        at_debug.debug("[CMT] %s id=%d why=%s held=%dms", label, id, why, tg - hold.since)
     end
     return true
 end
 
-local function _close_hold(id, hold, tg)
+local function _stop_hold(id, hold, tg)
     _last[id] = { op = hold.op, held_ms = tg - hold.since, denies = hold.denies, at = tg, vuln = hold.vuln }
     _hold[id] = nil
 end
 
 local function _log_decline(npc, id, reason)
-    if not at_debug.on() then return end
+    if not at_debug.is_on() then return end
     local tg = time_global()
     if _decline_at[id] and tg - _decline_at[id] < DECLINE_LOG_MS then return end
     _decline_at[id] = tg
     local name = npc:name()
-    at_debug.dbg("[CMT] decline id=%d name=%s reason=%s", id, name, reason)
+    at_debug.debug("[CMT] decline id=%d name=%s reason=%s", id, name, reason)
 end
 
-local function _census_switch(npc, from_op, to_op)
-    if not at_debug.on() then return end
+local function _log_census(npc, from_op, to_op)
+    if not at_debug.is_on() then return end
     local enemy = npc:best_enemy()
     if not enemy then return end
     local id = npc:id()
@@ -114,21 +114,21 @@ local function _census_switch(npc, from_op, to_op)
     local prev = _census_at[id]
     if prev and prev.from == from_op and prev.to == to_op and (tg - prev.at) < CENSUS_LOG_MS then return end
     _census_at[id] = { from = from_op, to = to_op, at = tg }
-    local sees = at_debug.flag(xcombat.can_see(npc, enemy))
+    local sees = at_debug.format_flag(xcombat.can_see(npc, enemy))
     local cke, fms = "-", "-"
     if _attack_ops[from_op] then
-        cke = at_debug.flag(xcombat.can_kill_enemy(npc, enemy))
-        fms = at_debug.flag(xcombat.fire_make_sense(npc, enemy))
+        cke = at_debug.format_flag(xcombat.can_kill_enemy(npc, enemy))
+        fms = at_debug.format_flag(xcombat.fire_make_sense(npc, enemy))
     end
     local hit = _hit_at[id]
-    local fire = at_debug.flag(hit ~= nil and (tg - hit) < CENSUS_UNDER_FIRE_MS)
-    at_debug.dbg("[CMT] census id=%d %s->%s sees=%s cke=%s fms=%s fire=%s hp=%.2f dist=%.0f enemy=%d",
-        id, _op_name(from_op), _op_name(to_op), sees, cke, fms, fire,
+    local fire = at_debug.format_flag(hit ~= nil and (tg - hit) < CENSUS_UNDER_FIRE_MS)
+    at_debug.debug("[CMT] census id=%d %s->%s sees=%s cke=%s fms=%s fire=%s hp=%.2f dist=%.0f enemy=%d",
+        id, _get_op_name(from_op), _get_op_name(to_op), sees, cke, fms, fire,
         npc.health, npc:position():distance_to(enemy:position()), enemy:id())
 end
 
 local function _on_hit(npc, amount, _local_direction, _who, bone_index)
-    if not at_debug.on() then return end
+    if not at_debug.is_on() then return end
     if bone_index == "from_death_callback" then return end
     if not (npc and amount and amount > 0) then return end
     _hit_at[npc:id()] = time_global()
@@ -137,7 +137,7 @@ end
 local function _on_action_switch(npc, from_op, to_op, flags)
     if flags.allow == false then return end
     if not _attack_ops then _resolve_ops() end
-    _census_switch(npc, from_op, to_op)
+    _log_census(npc, from_op, to_op)
     if not cfg.commitment_enabled then return end
     if not at_faction.has_flavor(npc, "commitment") then return end
     local is_fire_exit  = _attack_ops[from_op] and _cover_ops[to_op]
@@ -164,23 +164,23 @@ local function _on_action_switch(npc, from_op, to_op, flags)
     if not hold or hold.op ~= from_op then
         hold = { op = from_op, since = tg, denies = 0 }
         _hold[id] = hold
-        if at_debug.on() then
-            at_debug.dbg("[CMT] hold id=%d name=%s op=%s refused=%s enemy=%d clear_shot=%s",
-                id, npc:name(), _op_name(from_op), _op_name(to_op), enemy:id(),
+        if at_debug.is_on() then
+            at_debug.debug("[CMT] hold id=%d name=%s op=%s refused=%s enemy=%d clear_shot=%s",
+                id, npc:name(), _get_op_name(from_op), _get_op_name(to_op), enemy:id(),
                 xcombat.can_kill_enemy(npc, enemy) and "yes" or "no")
         end
     end
     if tg - hold.since > _hold_cap_ms and not _try_extend_hold(hold, enemy, tg, id, "vuln-defer") then
-        if at_debug.on() then
-            at_debug.dbg("[CMT] cap id=%d op=%s after=%dms denies=%d refused=%s",
-                id, _op_name(hold.op), tg - hold.since, hold.denies, _format_refused(hold.refused))
+        if at_debug.is_on() then
+            at_debug.debug("[CMT] cap id=%d op=%s after=%dms denies=%d refused=%s",
+                id, _get_op_name(hold.op), tg - hold.since, hold.denies, _format_refused(hold.refused))
         end
-        _close_hold(id, hold, tg)
+        _stop_hold(id, hold, tg)
         return
     end
 
     hold.denies = hold.denies + 1
-    _track_refused(hold, to_op)
+    _log_refused(hold, to_op)
     flags.allow = false
 end
 
@@ -191,22 +191,22 @@ local function _on_action_changed(npc, prev_op, new_op)
     local hold = _hold[id]
     if hold then
         local tg = time_global()
-        if at_debug.on() then
-            at_debug.dbg("[CMT] release id=%d op=%s held=%dms denies=%d refused=%s switched_to=%s",
-                id, _op_name(hold.op), tg - hold.since, hold.denies, _format_refused(hold.refused), _op_name(new_op))
+        if at_debug.is_on() then
+            at_debug.debug("[CMT] release id=%d op=%s held=%dms denies=%d refused=%s switched_to=%s",
+                id, _get_op_name(hold.op), tg - hold.since, hold.denies, _format_refused(hold.refused), _get_op_name(new_op))
         end
-        _close_hold(id, hold, tg)
+        _stop_hold(id, hold, tg)
         return
     end
-    if not at_debug.on() then return end
+    if not at_debug.is_on() then return end
     local enemy = npc:best_enemy()
     if not enemy then return end
     if not _op_names then _resolve_ops() end
-    at_debug.dbg("[CMT] switch id=%d %s->%s sees=%s dist=%.0f", id, _op_name(prev_op), _op_name(new_op),
+    at_debug.debug("[CMT] switch id=%d %s->%s sees=%s dist=%.0f", id, _get_op_name(prev_op), _get_op_name(new_op),
         xcombat.can_see(npc, enemy) and "yes" or "no", npc:position():distance_to(enemy:position()))
 end
 
-local function _forget(id)
+local function _clear_npc(id)
     _hold[id] = nil
     _last[id] = nil
     _decline_at[id] = nil
@@ -218,11 +218,11 @@ end
 
 local function _on_death(npc)
     if not npc then return end
-    _forget(npc:id())
+    _clear_npc(npc:id())
 end
 
 local function _on_entity_unregister(se_obj)
-    if se_obj then _forget(se_obj.id) end
+    if se_obj then _clear_npc(se_obj.id) end
 end
 
 local function _on_cover_repick(npc, flags)
@@ -244,14 +244,14 @@ local function _on_cover_repick(npc, flags)
     if not hold then
         hold = { since = tg, denies = 0 }
         _cover_hold[id] = hold
-        if at_debug.on() then
-            at_debug.dbg("[CMT] cover-hold id=%d name=%s op=%s enemy=%d",
-                id, npc:name(), _op_name(_cur_op[id]), enemy:id())
+        if at_debug.is_on() then
+            at_debug.debug("[CMT] cover-hold id=%d name=%s op=%s enemy=%d",
+                id, npc:name(), _get_op_name(_cur_op[id]), enemy:id())
         end
     end
     if tg - hold.since > _hold_cap_ms and not _try_extend_hold(hold, enemy, tg, id, "cover-vuln-defer") then
-        if at_debug.on() then
-            at_debug.dbg("[CMT] cover-cap id=%d after=%dms denies=%d", id, tg - hold.since, hold.denies)
+        if at_debug.is_on() then
+            at_debug.debug("[CMT] cover-cap id=%d after=%dms denies=%d", id, tg - hold.since, hold.denies)
         end
         _cover_hold[id] = nil
         return
@@ -265,13 +265,13 @@ local function _on_best_cover_changed(npc, cover_pos, is_smart_cover, smart_cove
     local id = npc:id()
     local chold = _cover_hold[id]
     if chold then
-        if at_debug.on() then
-            at_debug.dbg("[CMT] cover-release id=%d held=%dms denies=%d",
+        if at_debug.is_on() then
+            at_debug.debug("[CMT] cover-release id=%d held=%dms denies=%d",
                 id, time_global() - chold.since, chold.denies)
         end
         _cover_hold[id] = nil
     end
-    if not at_debug.on() then return end
+    if not at_debug.is_on() then return end
     local maneuver = at_maneuvers.get_maneuver(id)
     local watched = _hold[id] ~= nil or maneuver ~= nil
     if not watched then
@@ -279,22 +279,22 @@ local function _on_best_cover_changed(npc, cover_pos, is_smart_cover, smart_cove
         watched = enemy ~= nil
     end
     if not watched then return end
-    at_debug.dbg("[CMT] cover id=%d name=%s pos=%s smart=%s hold=%s maneuver=%s",
+    at_debug.debug("[CMT] cover id=%d name=%s pos=%s smart=%s hold=%s maneuver=%s",
         id, npc:name(),
         cover_pos and string_format("%.0f,%.0f,%.0f", cover_pos.x, cover_pos.y, cover_pos.z) or "lost",
         is_smart_cover and (smart_cover_name or "yes") or "no",
         _hold[id] and "open" or "-", maneuver or "-")
 end
 
-local function _refresh_config()
-    at_debug.refresh()
+local function _update_config()
+    at_debug.update_config()
     local hold_s = at_mcm.get_config("commitment_hold_s")
     if hold_s then _hold_cap_ms = hold_s * 1000 end
 end
 
 local function _on_first_update()
     _hold, _last, _decline_at, _census_at, _hit_at, _cur_op, _cover_hold = {}, {}, {}, {}, {}, {}, {}
-    _refresh_config()
+    _update_config()
     at_debug.info("Commitment initialized (enabled=%s, hold_cap=%dms)",
         cfg.commitment_enabled and "true" or "false", _hold_cap_ms)
 end
@@ -327,8 +327,8 @@ function on_game_start()
     RegisterScriptCallback("npc_on_best_cover_changed",      _on_best_cover_changed)
     RegisterScriptCallback("server_entity_on_unregister",    _on_entity_unregister)
     RegisterScriptCallback("actor_on_first_update",          _on_first_update)
-    RegisterScriptCallback("on_option_change",               _refresh_config)
-    RegisterScriptCallback("mcm_option_restore_default",     _refresh_config)
+    RegisterScriptCallback("on_option_change",               _update_config)
+    RegisterScriptCallback("mcm_option_restore_default",     _update_config)
     if not xcombat.on_action_switch(_on_action_switch) then
         at_debug.info("Commitment INACTIVE: exe lacks the action-switch veto (PR #595); toggle inert")
         return

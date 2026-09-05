@@ -328,16 +328,16 @@ local _key_to_tab = {
     world_trace_enabled = "development",
 }
 
-local function path_builder(key)
+local function build_path(key)
     return "at/" .. (_key_to_tab[key] or "development") .. "/" .. key
 end
 
-cfg, get_config, load_config = xmcm.create_config("at", defaults, path_builder)
+cfg, get_config, load_config = xmcm.create_config("at", defaults, build_path)
 
 local function _apply_defaults(gui, msg)
     local config = axr_main.config
     for k, v in pairs(defaults) do
-        config:w_value("mcm", path_builder(k), v)
+        config:w_value("mcm", build_path(k), v)
     end
     config:save()
     load_config()
@@ -360,14 +360,14 @@ function btn_reset_all(gui)
 end
 
 local function _disable_ctrl(ctrl) ctrl:Enable(false) end
-local function _grey_cap(cap, clr) cap:TextControl():SetTextColor(clr) end
+local function _set_cap_color(cap, clr) cap:TextControl():SetTextColor(clr) end
 
 --- Render a check as a permanent ON, greyed, non-interactive toggle (the always-on danger fixes)
 --- @safety SAFE - each call is pcall-guarded against a handler MCM omits on some build
 function render_locked_check(_anchor, handlers)
     if type(handlers) ~= "table" then return end
     if handlers.ctrl then pcall(_disable_ctrl, handlers.ctrl) end
-    if handlers.cap then pcall(_grey_cap, handlers.cap, GetARGB(255, 120, 120, 120)) end
+    if handlers.cap then pcall(_set_cap_color, handlers.cap, GetARGB(255, 120, 120, 120)) end
 end
 
 --- Build the option tree (the canonical six-category structure; paths and hints per the architecture)
@@ -391,10 +391,10 @@ function on_mcm_load()
     local RCT_CONFIG_PATH    = "alifetactics\\at_reaction_config.ltx"
     local RCT_CONFIG_SECTION = "at_reaction"
     local rct_ini = ini_file(RCT_CONFIG_PATH)
-    local function rct_def(key)
+    local function get_rct(key)
         return rct_ini:r_float_ex(RCT_CONFIG_SECTION, key) or rct_fb[key]
     end
-    local function wip_page(id)
+    local function build_wip_page(id)
         return {
             id = id,
             sh = true,
@@ -549,41 +549,41 @@ function on_mcm_load()
                             { id = "div_reaction_aim", type = "line" },
                             { id = "hdr_reaction_aim", type = "desc", text = "ui_mcm_at_hdr_reaction_aim", clr = {255, 200, 200, 200} },
                             { id = "aim_enabled", type = "check", val = 1, def = true, hint = "at_reaction_aim_enabled" },
-                            { id = "rct_aim_novice",       type = "track", val = 2, min = 0.24, max = 2.50, step = 0.02, def = rct_def("aim_novice"), hint = "at_reaction_rct_aim_novice" },
-                            { id = "rct_aim_trainee",      type = "track", val = 2, min = 0.24, max = 2.50, step = 0.02, def = rct_def("aim_trainee"), hint = "at_reaction_rct_aim_trainee" },
-                            { id = "rct_aim_experienced",  type = "track", val = 2, min = 0.24, max = 2.50, step = 0.02, def = rct_def("aim_experienced"), hint = "at_reaction_rct_aim_experienced" },
-                            { id = "rct_aim_professional", type = "track", val = 2, min = 0.24, max = 2.50, step = 0.02, def = rct_def("aim_professional"), hint = "at_reaction_rct_aim_professional" },
-                            { id = "rct_aim_veteran",      type = "track", val = 2, min = 0.24, max = 2.50, step = 0.02, def = rct_def("aim_veteran"), hint = "at_reaction_rct_aim_veteran" },
-                            { id = "rct_aim_expert",       type = "track", val = 2, min = 0.24, max = 2.50, step = 0.02, def = rct_def("aim_expert"), hint = "at_reaction_rct_aim_expert" },
-                            { id = "rct_aim_master",       type = "track", val = 2, min = 0.24, max = 2.50, step = 0.02, def = rct_def("aim_master"), hint = "at_reaction_rct_aim_master" },
-                            { id = "rct_aim_legend",       type = "track", val = 2, min = 0.24, max = 2.50, step = 0.02, def = rct_def("aim_legend"), hint = "at_reaction_rct_aim_legend" },
+                            { id = "rct_aim_novice",       type = "track", val = 2, min = 0.24, max = 2.50, step = 0.02, def = get_rct("aim_novice"), hint = "at_reaction_rct_aim_novice" },
+                            { id = "rct_aim_trainee",      type = "track", val = 2, min = 0.24, max = 2.50, step = 0.02, def = get_rct("aim_trainee"), hint = "at_reaction_rct_aim_trainee" },
+                            { id = "rct_aim_experienced",  type = "track", val = 2, min = 0.24, max = 2.50, step = 0.02, def = get_rct("aim_experienced"), hint = "at_reaction_rct_aim_experienced" },
+                            { id = "rct_aim_professional", type = "track", val = 2, min = 0.24, max = 2.50, step = 0.02, def = get_rct("aim_professional"), hint = "at_reaction_rct_aim_professional" },
+                            { id = "rct_aim_veteran",      type = "track", val = 2, min = 0.24, max = 2.50, step = 0.02, def = get_rct("aim_veteran"), hint = "at_reaction_rct_aim_veteran" },
+                            { id = "rct_aim_expert",       type = "track", val = 2, min = 0.24, max = 2.50, step = 0.02, def = get_rct("aim_expert"), hint = "at_reaction_rct_aim_expert" },
+                            { id = "rct_aim_master",       type = "track", val = 2, min = 0.24, max = 2.50, step = 0.02, def = get_rct("aim_master"), hint = "at_reaction_rct_aim_master" },
+                            { id = "rct_aim_legend",       type = "track", val = 2, min = 0.24, max = 2.50, step = 0.02, def = get_rct("aim_legend"), hint = "at_reaction_rct_aim_legend" },
 
                             { id = "div_reaction_track", type = "line" },
                             { id = "hdr_reaction_track", type = "desc", text = "ui_mcm_at_hdr_reaction_track", clr = {255, 200, 200, 200} },
-                            { id = "rct_track_novice",       type = "track", val = 2, min = 0.10, max = 0.78, step = 0.005, def = rct_def("track_novice"), hint = "at_reaction_rct_track_novice" },
-                            { id = "rct_track_trainee",      type = "track", val = 2, min = 0.10, max = 0.78, step = 0.005, def = rct_def("track_trainee"), hint = "at_reaction_rct_track_trainee" },
+                            { id = "rct_track_novice",       type = "track", val = 2, min = 0.10, max = 0.78, step = 0.005, def = get_rct("track_novice"), hint = "at_reaction_rct_track_novice" },
+                            { id = "rct_track_trainee",      type = "track", val = 2, min = 0.10, max = 0.78, step = 0.005, def = get_rct("track_trainee"), hint = "at_reaction_rct_track_trainee" },
                             { id = "rct_track_experienced",  type = "track", val = 2, min = 0.10, max = 0.78, step = 0.005,
-                                def = rct_def("track_experienced"), hint = "at_reaction_rct_track_experienced" },
+                                def = get_rct("track_experienced"), hint = "at_reaction_rct_track_experienced" },
                             { id = "rct_track_professional", type = "track", val = 2, min = 0.10, max = 0.78, step = 0.005,
-                                def = rct_def("track_professional"), hint = "at_reaction_rct_track_professional" },
-                            { id = "rct_track_veteran",      type = "track", val = 2, min = 0.10, max = 0.78, step = 0.005, def = rct_def("track_veteran"), hint = "at_reaction_rct_track_veteran" },
-                            { id = "rct_track_expert",       type = "track", val = 2, min = 0.10, max = 0.78, step = 0.005, def = rct_def("track_expert"), hint = "at_reaction_rct_track_expert" },
-                            { id = "rct_track_master",       type = "track", val = 2, min = 0.10, max = 0.78, step = 0.005, def = rct_def("track_master"), hint = "at_reaction_rct_track_master" },
-                            { id = "rct_track_legend",       type = "track", val = 2, min = 0.10, max = 0.78, step = 0.005, def = rct_def("track_legend"), hint = "at_reaction_rct_track_legend" },
+                                def = get_rct("track_professional"), hint = "at_reaction_rct_track_professional" },
+                            { id = "rct_track_veteran",      type = "track", val = 2, min = 0.10, max = 0.78, step = 0.005, def = get_rct("track_veteran"), hint = "at_reaction_rct_track_veteran" },
+                            { id = "rct_track_expert",       type = "track", val = 2, min = 0.10, max = 0.78, step = 0.005, def = get_rct("track_expert"), hint = "at_reaction_rct_track_expert" },
+                            { id = "rct_track_master",       type = "track", val = 2, min = 0.10, max = 0.78, step = 0.005, def = get_rct("track_master"), hint = "at_reaction_rct_track_master" },
+                            { id = "rct_track_legend",       type = "track", val = 2, min = 0.10, max = 0.78, step = 0.005, def = get_rct("track_legend"), hint = "at_reaction_rct_track_legend" },
 
                             { id = "div_reaction_lead", type = "line" },
                             { id = "hdr_reaction_lead", type = "desc", text = "ui_mcm_at_hdr_reaction_lead", clr = {255, 200, 200, 200} },
                             { id = "lead_enabled", type = "check", val = 1, def = true, hint = "at_reaction_lead_enabled" },
-                            { id = "rct_lead_novice",       type = "track", val = 2, min = 0.50, max = 3.00, step = 0.05, def = rct_def("lead_novice"), hint = "at_reaction_rct_lead_novice" },
-                            { id = "rct_lead_trainee",      type = "track", val = 2, min = 0.50, max = 3.00, step = 0.05, def = rct_def("lead_trainee"), hint = "at_reaction_rct_lead_trainee" },
+                            { id = "rct_lead_novice",       type = "track", val = 2, min = 0.50, max = 3.00, step = 0.05, def = get_rct("lead_novice"), hint = "at_reaction_rct_lead_novice" },
+                            { id = "rct_lead_trainee",      type = "track", val = 2, min = 0.50, max = 3.00, step = 0.05, def = get_rct("lead_trainee"), hint = "at_reaction_rct_lead_trainee" },
                             { id = "rct_lead_experienced",  type = "track", val = 2, min = 0.50, max = 3.00, step = 0.05,
-                                def = rct_def("lead_experienced"), hint = "at_reaction_rct_lead_experienced" },
+                                def = get_rct("lead_experienced"), hint = "at_reaction_rct_lead_experienced" },
                             { id = "rct_lead_professional", type = "track", val = 2, min = 0.50, max = 3.00, step = 0.05,
-                                def = rct_def("lead_professional"), hint = "at_reaction_rct_lead_professional" },
-                            { id = "rct_lead_veteran",      type = "track", val = 2, min = 0.50, max = 3.00, step = 0.05, def = rct_def("lead_veteran"), hint = "at_reaction_rct_lead_veteran" },
-                            { id = "rct_lead_expert",       type = "track", val = 2, min = 0.50, max = 3.00, step = 0.05, def = rct_def("lead_expert"), hint = "at_reaction_rct_lead_expert" },
-                            { id = "rct_lead_master",       type = "track", val = 2, min = 0.50, max = 3.00, step = 0.05, def = rct_def("lead_master"), hint = "at_reaction_rct_lead_master" },
-                            { id = "rct_lead_legend",       type = "track", val = 2, min = 0.50, max = 3.00, step = 0.05, def = rct_def("lead_legend"), hint = "at_reaction_rct_lead_legend" },
+                                def = get_rct("lead_professional"), hint = "at_reaction_rct_lead_professional" },
+                            { id = "rct_lead_veteran",      type = "track", val = 2, min = 0.50, max = 3.00, step = 0.05, def = get_rct("lead_veteran"), hint = "at_reaction_rct_lead_veteran" },
+                            { id = "rct_lead_expert",       type = "track", val = 2, min = 0.50, max = 3.00, step = 0.05, def = get_rct("lead_expert"), hint = "at_reaction_rct_lead_expert" },
+                            { id = "rct_lead_master",       type = "track", val = 2, min = 0.50, max = 3.00, step = 0.05, def = get_rct("lead_master"), hint = "at_reaction_rct_lead_master" },
+                            { id = "rct_lead_legend",       type = "track", val = 2, min = 0.50, max = 3.00, step = 0.05, def = get_rct("lead_legend"), hint = "at_reaction_rct_lead_legend" },
                         },
                     },
                     {
@@ -597,38 +597,38 @@ function on_mcm_load()
                             { id = "div_discipline_burst", type = "line" },
                             { id = "hdr_discipline_burst", type = "desc", text = "ui_mcm_at_hdr_reaction_trigger", clr = {255, 200, 200, 200} },
                             { id = "discipline_enabled", type = "check", val = 1, def = true, hint = "at_reaction_discipline_enabled" },
-                            { id = "rct_qsize_novice",       type = "track", val = 2, min = 0.50, max = 1.50, step = 0.05, def = rct_def("qsize_novice"), hint = "at_reaction_rct_qsize_novice" },
-                            { id = "rct_qsize_trainee",      type = "track", val = 2, min = 0.50, max = 1.50, step = 0.05, def = rct_def("qsize_trainee"), hint = "at_reaction_rct_qsize_trainee" },
+                            { id = "rct_qsize_novice",       type = "track", val = 2, min = 0.50, max = 1.50, step = 0.05, def = get_rct("qsize_novice"), hint = "at_reaction_rct_qsize_novice" },
+                            { id = "rct_qsize_trainee",      type = "track", val = 2, min = 0.50, max = 1.50, step = 0.05, def = get_rct("qsize_trainee"), hint = "at_reaction_rct_qsize_trainee" },
                             { id = "rct_qsize_experienced",  type = "track", val = 2, min = 0.50, max = 1.50, step = 0.05,
-                                def = rct_def("qsize_experienced"), hint = "at_reaction_rct_qsize_experienced" },
+                                def = get_rct("qsize_experienced"), hint = "at_reaction_rct_qsize_experienced" },
                             { id = "rct_qsize_professional", type = "track", val = 2, min = 0.50, max = 1.50, step = 0.05,
-                                def = rct_def("qsize_professional"), hint = "at_reaction_rct_qsize_professional" },
-                            { id = "rct_qsize_veteran",      type = "track", val = 2, min = 0.50, max = 1.50, step = 0.05, def = rct_def("qsize_veteran"), hint = "at_reaction_rct_qsize_veteran" },
-                            { id = "rct_qsize_expert",       type = "track", val = 2, min = 0.50, max = 1.50, step = 0.05, def = rct_def("qsize_expert"), hint = "at_reaction_rct_qsize_expert" },
-                            { id = "rct_qsize_master",       type = "track", val = 2, min = 0.50, max = 1.50, step = 0.05, def = rct_def("qsize_master"), hint = "at_reaction_rct_qsize_master" },
-                            { id = "rct_qsize_legend",       type = "track", val = 2, min = 0.50, max = 1.50, step = 0.05, def = rct_def("qsize_legend"), hint = "at_reaction_rct_qsize_legend" },
+                                def = get_rct("qsize_professional"), hint = "at_reaction_rct_qsize_professional" },
+                            { id = "rct_qsize_veteran",      type = "track", val = 2, min = 0.50, max = 1.50, step = 0.05, def = get_rct("qsize_veteran"), hint = "at_reaction_rct_qsize_veteran" },
+                            { id = "rct_qsize_expert",       type = "track", val = 2, min = 0.50, max = 1.50, step = 0.05, def = get_rct("qsize_expert"), hint = "at_reaction_rct_qsize_expert" },
+                            { id = "rct_qsize_master",       type = "track", val = 2, min = 0.50, max = 1.50, step = 0.05, def = get_rct("qsize_master"), hint = "at_reaction_rct_qsize_master" },
+                            { id = "rct_qsize_legend",       type = "track", val = 2, min = 0.50, max = 1.50, step = 0.05, def = get_rct("qsize_legend"), hint = "at_reaction_rct_qsize_legend" },
 
                             { id = "div_discipline_cadence", type = "line" },
                             { id = "hdr_discipline_cadence", type = "desc", text = "ui_mcm_at_hdr_reaction_qinterval", clr = {255, 200, 200, 200} },
                             { id = "rct_qinterval_novice",       type = "track", val = 2, min = 0.60, max = 1.50, step = 0.05,
-                                def = rct_def("qinterval_novice"), hint = "at_reaction_rct_qinterval_novice" },
+                                def = get_rct("qinterval_novice"), hint = "at_reaction_rct_qinterval_novice" },
                             { id = "rct_qinterval_trainee",      type = "track", val = 2, min = 0.60, max = 1.50, step = 0.05,
-                                def = rct_def("qinterval_trainee"), hint = "at_reaction_rct_qinterval_trainee" },
+                                def = get_rct("qinterval_trainee"), hint = "at_reaction_rct_qinterval_trainee" },
                             { id = "rct_qinterval_experienced",  type = "track", val = 2, min = 0.60, max = 1.50, step = 0.05,
-                                def = rct_def("qinterval_experienced"), hint = "at_reaction_rct_qinterval_experienced" },
+                                def = get_rct("qinterval_experienced"), hint = "at_reaction_rct_qinterval_experienced" },
                             { id = "rct_qinterval_professional", type = "track", val = 2, min = 0.60, max = 1.50, step = 0.05,
-                                def = rct_def("qinterval_professional"), hint = "at_reaction_rct_qinterval_professional" },
+                                def = get_rct("qinterval_professional"), hint = "at_reaction_rct_qinterval_professional" },
                             { id = "rct_qinterval_veteran",      type = "track", val = 2, min = 0.60, max = 1.50, step = 0.05,
-                                def = rct_def("qinterval_veteran"), hint = "at_reaction_rct_qinterval_veteran" },
+                                def = get_rct("qinterval_veteran"), hint = "at_reaction_rct_qinterval_veteran" },
                             { id = "rct_qinterval_expert",       type = "track", val = 2, min = 0.60, max = 1.50, step = 0.05,
-                                def = rct_def("qinterval_expert"), hint = "at_reaction_rct_qinterval_expert" },
+                                def = get_rct("qinterval_expert"), hint = "at_reaction_rct_qinterval_expert" },
                             { id = "rct_qinterval_master",       type = "track", val = 2, min = 0.60, max = 1.50, step = 0.05,
-                                def = rct_def("qinterval_master"), hint = "at_reaction_rct_qinterval_master" },
+                                def = get_rct("qinterval_master"), hint = "at_reaction_rct_qinterval_master" },
                             { id = "rct_qinterval_legend",       type = "track", val = 2, min = 0.60, max = 1.50, step = 0.05,
-                                def = rct_def("qinterval_legend"), hint = "at_reaction_rct_qinterval_legend" },
+                                def = get_rct("qinterval_legend"), hint = "at_reaction_rct_qinterval_legend" },
                         },
                     },
-                    wip_page("range"),
+                    build_wip_page("range"),
                 },
             },
             {
@@ -665,29 +665,29 @@ function on_mcm_load()
 
                             { id = "div_vision_speed", type = "line" },
                             { id = "hdr_vision_speed", type = "desc", text = "ui_mcm_at_hdr_reaction_vision", clr = {255, 200, 200, 200} },
-                            { id = "rct_vision_novice",       type = "track", val = 2, min = 0.85, max = 1.25, step = 0.01, def = rct_def("vision_novice"), hint = "at_reaction_rct_vision_novice" },
-                            { id = "rct_vision_trainee",      type = "track", val = 2, min = 0.85, max = 1.25, step = 0.01, def = rct_def("vision_trainee"), hint = "at_reaction_rct_vision_trainee" },
+                            { id = "rct_vision_novice",       type = "track", val = 2, min = 0.85, max = 1.25, step = 0.01, def = get_rct("vision_novice"), hint = "at_reaction_rct_vision_novice" },
+                            { id = "rct_vision_trainee",      type = "track", val = 2, min = 0.85, max = 1.25, step = 0.01, def = get_rct("vision_trainee"), hint = "at_reaction_rct_vision_trainee" },
                             { id = "rct_vision_experienced",  type = "track", val = 2, min = 0.85, max = 1.25, step = 0.01,
-                                def = rct_def("vision_experienced"), hint = "at_reaction_rct_vision_experienced" },
+                                def = get_rct("vision_experienced"), hint = "at_reaction_rct_vision_experienced" },
                             { id = "rct_vision_professional", type = "track", val = 2, min = 0.85, max = 1.25, step = 0.01,
-                                def = rct_def("vision_professional"), hint = "at_reaction_rct_vision_professional" },
-                            { id = "rct_vision_veteran",      type = "track", val = 2, min = 0.85, max = 1.25, step = 0.01, def = rct_def("vision_veteran"), hint = "at_reaction_rct_vision_veteran" },
-                            { id = "rct_vision_expert",       type = "track", val = 2, min = 0.85, max = 1.25, step = 0.01, def = rct_def("vision_expert"), hint = "at_reaction_rct_vision_expert" },
-                            { id = "rct_vision_master",       type = "track", val = 2, min = 0.85, max = 1.25, step = 0.01, def = rct_def("vision_master"), hint = "at_reaction_rct_vision_master" },
-                            { id = "rct_vision_legend",       type = "track", val = 2, min = 0.85, max = 1.25, step = 0.01, def = rct_def("vision_legend"), hint = "at_reaction_rct_vision_legend" },
+                                def = get_rct("vision_professional"), hint = "at_reaction_rct_vision_professional" },
+                            { id = "rct_vision_veteran",      type = "track", val = 2, min = 0.85, max = 1.25, step = 0.01, def = get_rct("vision_veteran"), hint = "at_reaction_rct_vision_veteran" },
+                            { id = "rct_vision_expert",       type = "track", val = 2, min = 0.85, max = 1.25, step = 0.01, def = get_rct("vision_expert"), hint = "at_reaction_rct_vision_expert" },
+                            { id = "rct_vision_master",       type = "track", val = 2, min = 0.85, max = 1.25, step = 0.01, def = get_rct("vision_master"), hint = "at_reaction_rct_vision_master" },
+                            { id = "rct_vision_legend",       type = "track", val = 2, min = 0.85, max = 1.25, step = 0.01, def = get_rct("vision_legend"), hint = "at_reaction_rct_vision_legend" },
 
                             { id = "div_vision_range", type = "line" },
                             { id = "hdr_vision_range", type = "desc", text = "ui_mcm_at_hdr_vision_range", clr = {255, 200, 200, 200} },
-                            { id = "rct_vrange_novice",       type = "track", val = 2, min = 0.85, max = 1.25, step = 0.01, def = rct_def("vrange_novice"), hint = "at_reaction_rct_vrange_novice" },
-                            { id = "rct_vrange_trainee",      type = "track", val = 2, min = 0.85, max = 1.25, step = 0.01, def = rct_def("vrange_trainee"), hint = "at_reaction_rct_vrange_trainee" },
+                            { id = "rct_vrange_novice",       type = "track", val = 2, min = 0.85, max = 1.25, step = 0.01, def = get_rct("vrange_novice"), hint = "at_reaction_rct_vrange_novice" },
+                            { id = "rct_vrange_trainee",      type = "track", val = 2, min = 0.85, max = 1.25, step = 0.01, def = get_rct("vrange_trainee"), hint = "at_reaction_rct_vrange_trainee" },
                             { id = "rct_vrange_experienced",  type = "track", val = 2, min = 0.85, max = 1.25, step = 0.01,
-                                def = rct_def("vrange_experienced"), hint = "at_reaction_rct_vrange_experienced" },
+                                def = get_rct("vrange_experienced"), hint = "at_reaction_rct_vrange_experienced" },
                             { id = "rct_vrange_professional", type = "track", val = 2, min = 0.85, max = 1.25, step = 0.01,
-                                def = rct_def("vrange_professional"), hint = "at_reaction_rct_vrange_professional" },
-                            { id = "rct_vrange_veteran",      type = "track", val = 2, min = 0.85, max = 1.25, step = 0.01, def = rct_def("vrange_veteran"), hint = "at_reaction_rct_vrange_veteran" },
-                            { id = "rct_vrange_expert",       type = "track", val = 2, min = 0.85, max = 1.25, step = 0.01, def = rct_def("vrange_expert"), hint = "at_reaction_rct_vrange_expert" },
-                            { id = "rct_vrange_master",       type = "track", val = 2, min = 0.85, max = 1.25, step = 0.01, def = rct_def("vrange_master"), hint = "at_reaction_rct_vrange_master" },
-                            { id = "rct_vrange_legend",       type = "track", val = 2, min = 0.85, max = 1.25, step = 0.01, def = rct_def("vrange_legend"), hint = "at_reaction_rct_vrange_legend" },
+                                def = get_rct("vrange_professional"), hint = "at_reaction_rct_vrange_professional" },
+                            { id = "rct_vrange_veteran",      type = "track", val = 2, min = 0.85, max = 1.25, step = 0.01, def = get_rct("vrange_veteran"), hint = "at_reaction_rct_vrange_veteran" },
+                            { id = "rct_vrange_expert",       type = "track", val = 2, min = 0.85, max = 1.25, step = 0.01, def = get_rct("vrange_expert"), hint = "at_reaction_rct_vrange_expert" },
+                            { id = "rct_vrange_master",       type = "track", val = 2, min = 0.85, max = 1.25, step = 0.01, def = get_rct("vrange_master"), hint = "at_reaction_rct_vrange_master" },
+                            { id = "rct_vrange_legend",       type = "track", val = 2, min = 0.85, max = 1.25, step = 0.01, def = get_rct("vrange_legend"), hint = "at_reaction_rct_vrange_legend" },
                         },
                     },
                     {
@@ -896,7 +896,7 @@ local function _log_mcm_settings()
 end
 
 local function _on_first_update()
-    at_debug.refresh()
+    at_debug.update_config()
     at_debug.info("AlifeTactics MCM loaded (log_level=%s)", get_config("log_level") or "WARN")
     _log_mcm_settings()
 end

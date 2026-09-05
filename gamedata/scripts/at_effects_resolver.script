@@ -38,7 +38,7 @@ local function _load_config()
     _aura_bone = ini:r_string_ex(GEAR_SECTION, "aura_bone") or ""
 end
 
-local function _attach_first(obj, bones)
+local function _find_aura_bone(obj, bones)
     for i = 1, #bones do
         if xcreature.start_particle(obj, _aura, bones[i]) then return bones[i] end
     end
@@ -48,10 +48,10 @@ end
 local function _start_aura(id, obj)
     if _aura == "" or _emitting[id] then return end
     if not obj:alive() then return end
-    local bone = xcreature.start_particle(obj, _aura, _aura_bone) and _aura_bone or _attach_first(obj, AURA_BONES)
+    local bone = xcreature.start_particle(obj, _aura, _aura_bone) and _aura_bone or _find_aura_bone(obj, AURA_BONES)
     if not bone then return end
     _emitting[id] = bone
-    if at_debug.on() then at_debug.dbg("[EFF] aura id=%d particle=%s bone=%s", id, _aura, bone) end
+    if at_debug.is_on() then at_debug.debug("[EFF] aura id=%d particle=%s bone=%s", id, _aura, bone) end
 end
 
 local function _apply_aura(npc)
@@ -59,13 +59,13 @@ local function _apply_aura(npc)
 end
 
 local function _apply_binds(npc)
-    local timer = xprofiler.new_if(at_debug.on()):start()
+    local timer = xprofiler.new_if(at_debug.is_on()):start()
     local vrange = resolve(npc, EFFECT.VISION_RANGE)
     xcombat.set_view_distance_factor(npc, vrange or 1.0)
     _apply_aura(npc)
     timer:stop()
-    if at_debug.on() then
-        at_debug.dbg("[EFF] spawn id=%d vrange=%s aura=%s [%.3fms]",
+    if at_debug.is_on() then
+        at_debug.debug("[EFF] spawn id=%d vrange=%s aura=%s [%.3fms]",
             npc:id(), tostring(vrange), _emitting[npc:id()] and "on" or "off", timer:get_ms())
     end
 end
@@ -78,7 +78,7 @@ end
 
 local function _on_npc_before_hit(npc, shit, _bone_id, _flags)
     if not (npc and shit) then return end
-    local timer = xprofiler.new_if(at_debug.on()):start()
+    local timer = xprofiler.new_if(at_debug.is_on()):start()
     local before = shit.power
     xcombat.apply_hit_power(shit, resolve(npc, EFFECT.DAMAGE_RESIST))
     local attacker = shit.draftsman
@@ -86,8 +86,8 @@ local function _on_npc_before_hit(npc, shit, _bone_id, _flags)
         xcombat.apply_hit_power(shit, resolve(attacker, EFFECT.DAMAGE_DEALT))
     end
     timer:stop()
-    if at_debug.on() and before ~= shit.power then
-        at_debug.dbg("[EFF] hit victim=%d attacker=%s power=%.3f->%.3f [%.3fms]",
+    if at_debug.is_on() and before ~= shit.power then
+        at_debug.debug("[EFF] hit victim=%d attacker=%s power=%.3f->%.3f [%.3fms]",
             npc:id(), attacker and attacker:id() or "none", before, shit.power, timer:get_ms())
     end
 end
@@ -96,12 +96,12 @@ local function _on_actor_before_hit(shit, _bone_id, _flags)
     if not shit then return end
     local attacker = shit.draftsman
     if not (attacker and IsStalker(attacker)) then return end
-    local timer = xprofiler.new_if(at_debug.on()):start()
+    local timer = xprofiler.new_if(at_debug.is_on()):start()
     local before = shit.power
     xcombat.apply_hit_power(shit, resolve(attacker, EFFECT.DAMAGE_DEALT))
     timer:stop()
-    if at_debug.on() and before ~= shit.power then
-        at_debug.dbg("[EFF] hit victim=actor attacker=%d power=%.3f->%.3f [%.3fms]",
+    if at_debug.is_on() and before ~= shit.power then
+        at_debug.debug("[EFF] hit victim=actor attacker=%d power=%.3f->%.3f [%.3fms]",
             attacker:id(), before, shit.power, timer:get_ms())
     end
 end
@@ -110,12 +110,12 @@ local function _on_shot_dispersion(obj, _wpn, _body_state, _move_type, temp_disp
     if not (obj and temp_disp) then return end
     local factor = resolve(obj, EFFECT.SHOT_DISPERSION)
     if not factor then return end
-    local timer = xprofiler.new_if(at_debug.on()):start()
+    local timer = xprofiler.new_if(at_debug.is_on()):start()
     local before = temp_disp.dispersion
     xcombat.apply_dispersion(temp_disp, factor)
     timer:stop()
-    if at_debug.on() then
-        at_debug.dbg("[EFF] disp id=%d factor=%.3f cone=%.5f->%.5f [%.3fms]",
+    if at_debug.is_on() then
+        at_debug.debug("[EFF] disp id=%d factor=%.3f cone=%.5f->%.5f [%.3fms]",
             obj:id(), factor, before or -1, temp_disp.dispersion or -1, timer:get_ms())
     end
 end
@@ -129,7 +129,7 @@ local function _on_entity_unregister(se_obj)
 end
 
 local function _on_first_update()
-    at_debug.refresh()
+    at_debug.update_config()
     at_debug.info("Effects resolver initialized (aura=%s)", _aura ~= "" and _aura or "none")
 end
 
@@ -165,7 +165,7 @@ function resolve(npc, effect)
 end
 
 --- Re-apply the spawn-bound effects (VISION_RANGE, aura) for one NPC after a source invalidated its cache
-function refresh(npc)
+function apply_binds(npc)
     if not (npc and npc:alive()) then return end
     _apply_binds(npc)
 end

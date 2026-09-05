@@ -1,5 +1,4 @@
---- at_faction: faction flavor - the chance a faction's stalker carries each behavior, read from
---- at_faction_config.ltx ([<faction>] key, else [default] key, else 1)
+--- at_faction: faction flavor - the chance a faction's stalker carries each behavior, from at_faction_config.ltx
 
 local math_random = math.random
 
@@ -23,8 +22,8 @@ function get_faction_chance(faction, key)
     return chance
 end
 
---- Does THIS stalker carry the behavior: his faction's chance, rolled once per NPC per key and
---- held ROLL_TTL_S so he never flip-flops within a fight; 0 and 1 answer without rolling
+--- Does THIS stalker carry the behavior, by his faction's chance rolled once per NPC per key.
+--- Held ROLL_TTL_S so he never flip-flops within a fight; 0 and 1 answer without rolling.
 function has_flavor(npc, key)
     local chance = get_faction_chance(xcreature.get_community(npc), key)
     if chance >= 1 then return true end

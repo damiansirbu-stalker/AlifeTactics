@@ -67,14 +67,14 @@ local function _collect(acc, sec)
 end
 
 local function _trace_resolve(id, record, timer)
-    at_debug.dbg("[GEAR] resolve id=%d resist=%.3f plate=%.3f dealt=%.3f disp=%.3f regen=%.5f binoc=%s nvg=%s aura=%s combat=%s [%.3fms]",
+    at_debug.debug("[GEAR] resolve id=%d resist=%.3f plate=%.3f dealt=%.3f disp=%.3f regen=%.5f binoc=%s nvg=%s aura=%s combat=%s [%.3fms]",
         id, record.resist, record.plate, record.dealt, record.disp, record.regen,
         tostring(record.binoc), tostring(record.nvg), tostring(record.aura), tostring(record.combat), timer:get_ms())
 end
 
 local function _resolve(id)
     if not cfg.gear_enabled then return false end
-    local timer = xprofiler.new_if(at_debug.on()):start()
+    local timer = xprofiler.new_if(at_debug.is_on()):start()
     local acc = { resist = 0, chem = 0, plate = 0, dealt = 0, disp = 0, binoc = false, nvg = false, aura = false }
     local npc = xinventory.iterate_inventory(id, function(_owner, item)
         _collect(acc, item:section())
@@ -94,11 +94,11 @@ local function _resolve(id)
     }
     _resolved[id] = record
     timer:stop()
-    if at_debug.on() then _trace_resolve(id, record, timer) end
+    if at_debug.is_on() then _trace_resolve(id, record, timer) end
     return record
 end
 
-local function _carrier_record(npc)
+local function _get_carrier_record(npc)
     if not (npc and IsStalker(npc) and npc:id() ~= AC_ID) then return nil end
     local id = npc:id()
     local record = _resolved[id]
@@ -106,32 +106,32 @@ local function _carrier_record(npc)
     return _resolve(id) or nil
 end
 
-local function _p_dealt(npc)
+local function _compute_dealt(npc)
     if not (cfg.gear_enabled and cfg.gear_dealt_enabled) then return nil end
-    local record = _carrier_record(npc)
+    local record = _get_carrier_record(npc)
     if not (record and record.combat and record.dealt > 0) then return nil end
     return 1 + record.dealt
 end
 
-local function _p_resist(npc)
+local function _compute_resist(npc)
     if not (cfg.gear_enabled and cfg.gear_resist_enabled) then return nil end
-    local record = _carrier_record(npc)
+    local record = _get_carrier_record(npc)
     if not (record and record.combat) then return nil end
     local strength = math_max(record.plate, record.resist)
     if strength <= 0 then return nil end
     return 1 - strength
 end
 
-local function _p_disp(npc)
+local function _compute_disp(npc)
     if not (cfg.gear_enabled and cfg.gear_disp_enabled) then return nil end
-    local record = _carrier_record(npc)
+    local record = _get_carrier_record(npc)
     if not (record and record.combat and record.disp > 0) then return nil end
     return 1 - record.disp
 end
 
-local function _p_vision_range(npc)
+local function _compute_vision_range(npc)
     if not cfg.gear_enabled then return nil end
-    local record = _carrier_record(npc)
+    local record = _get_carrier_record(npc)
     if not (record and record.combat) then return nil end
     if _is_night() then
         if record.nvg and cfg.gear_nvg_enabled then return _nvg_range end
@@ -141,9 +141,9 @@ local function _p_vision_range(npc)
     return nil
 end
 
-local function _p_aura(npc)
+local function _compute_aura(npc)
     if not (cfg.gear_enabled and cfg.gear_aura_enabled) then return nil end
-    local record = _carrier_record(npc)
+    local record = _get_carrier_record(npc)
     return (record and record.aura) or nil
 end
 
@@ -153,18 +153,18 @@ local function _apply_regen(npc)
         xcombat.set_health_restore_boost(npc, 0)
         return
     end
-    local record = _carrier_record(npc)
+    local record = _get_carrier_record(npc)
     local boost = (record and record.combat and record.regen) or 0
     xcombat.set_health_restore_boost(npc, boost)
-    if at_debug.on() and boost > 0 then
-        at_debug.dbg("[GEAR] regen id=%d boost=%.5f", npc:id(), boost)
+    if at_debug.is_on() and boost > 0 then
+        at_debug.debug("[GEAR] regen id=%d boost=%.5f", npc:id(), boost)
     end
 end
 
-local function _reresolve(npc)
+local function _apply_effects(npc)
     local id = npc:id()
     _resolved[id] = nil
-    at_effects_resolver.refresh(npc)
+    at_effects_resolver.apply_binds(npc)
     _apply_regen(npc)
 end
 
@@ -173,7 +173,7 @@ local function _on_inventory_change(npc, item)
     local sect = item and item:section()
     if sect and not _kind[sect] then return end
     if _resolved[npc:id()] == nil then return end
-    _reresolve(npc)
+    _apply_effects(npc)
 end
 
 local function _on_net_spawn(npc, _se_obj)
@@ -205,27 +205,27 @@ local function _load_config()
 end
 
 local function _on_first_update()
-    local function s(b) return b and "on" or "off" end
+    local function format_state(b) return b and "on" or "off" end
     at_debug.info("Gear source initialized (enabled=%s resist=%s dealt=%s disp=%s regen=%s aura=%s binoc=%s nvg=%s regen_bind=%s)",
-        s(cfg.gear_enabled), s(cfg.gear_resist_enabled), s(cfg.gear_dealt_enabled),
-        s(cfg.gear_disp_enabled), s(cfg.gear_regen_enabled), s(cfg.gear_aura_enabled),
-        s(cfg.gear_binoc_enabled), s(cfg.gear_nvg_enabled), _n039 and "on" or "off/unprobed")
+        format_state(cfg.gear_enabled), format_state(cfg.gear_resist_enabled), format_state(cfg.gear_dealt_enabled),
+        format_state(cfg.gear_disp_enabled), format_state(cfg.gear_regen_enabled), format_state(cfg.gear_aura_enabled),
+        format_state(cfg.gear_binoc_enabled), format_state(cfg.gear_nvg_enabled), _n039 and "on" or "off/unprobed")
 end
 
 --- Re-resolve one NPC's gear now, for a caller that granted items with no take event
-function refresh(npc)
+function apply_gear(npc)
     if not (cfg.gear_enabled and npc and IsStalker(npc)) then return end
-    _reresolve(npc)
+    _apply_effects(npc)
 end
 
 function on_game_start()
     _resolved = {}
     _load_config()
-    at_effects_resolver.register(EFFECT.DAMAGE_DEALT,    _p_dealt)
-    at_effects_resolver.register(EFFECT.DAMAGE_RESIST,   _p_resist)
-    at_effects_resolver.register(EFFECT.SHOT_DISPERSION, _p_disp)
-    at_effects_resolver.register(EFFECT.VISION_RANGE,    _p_vision_range)
-    at_effects_resolver.register(EFFECT.AURA,            _p_aura)
+    at_effects_resolver.register(EFFECT.DAMAGE_DEALT,    _compute_dealt)
+    at_effects_resolver.register(EFFECT.DAMAGE_RESIST,   _compute_resist)
+    at_effects_resolver.register(EFFECT.SHOT_DISPERSION, _compute_disp)
+    at_effects_resolver.register(EFFECT.VISION_RANGE,    _compute_vision_range)
+    at_effects_resolver.register(EFFECT.AURA,            _compute_aura)
     RegisterScriptCallback("npc_on_net_spawn",            _on_net_spawn)
     RegisterScriptCallback("npc_on_item_take",            _on_inventory_change)
     RegisterScriptCallback("npc_on_item_drop",            _on_inventory_change)

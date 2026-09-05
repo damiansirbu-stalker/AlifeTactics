@@ -9,19 +9,19 @@ local _lvl = 0
 local _levels = xlog.get_levels()
 
 --- Re-read the log level and flush mode from MCM - actor first update and every option change
-function at_debug.refresh()
+function at_debug.update_config()
     log.set_level(at_mcm.get_config("log_level") or "WARN")
     _lvl = log.get_level() or 0
     log._logger.flush_on_level = at_mcm.get_config("log_flush") and _levels.TRACE or _levels.ERROR
 end
 
 --- True when DEBUG tracing is live - the guard in front of an expensive trace site
-function at_debug.on()
+function at_debug.is_on()
     return _lvl >= DEBUG_LEVEL
 end
 
 --- A DEBUG line; noops below DEBUG
-function at_debug.dbg(fmt, ...)
+function at_debug.debug(fmt, ...)
     if _lvl >= DEBUG_LEVEL then log.debug(fmt, ...) end
 end
 
@@ -41,7 +41,7 @@ function at_debug.flush()
 end
 
 --- Tri-state flag: y / n / ? (nil = unknowable)
-function at_debug.flag(v)
+function at_debug.format_flag(v)
     if v == nil then return "?" end
     return v and "y" or "n"
 end
@@ -52,7 +52,7 @@ function at_debug.show(v)
 end
 
 function on_game_start()
-    RegisterScriptCallback("actor_on_first_update",      at_debug.refresh)
-    RegisterScriptCallback("on_option_change",           at_debug.refresh)
-    RegisterScriptCallback("mcm_option_restore_default", at_debug.refresh)
+    RegisterScriptCallback("actor_on_first_update",      at_debug.update_config)
+    RegisterScriptCallback("on_option_change",           at_debug.update_config)
+    RegisterScriptCallback("mcm_option_restore_default", at_debug.update_config)
 end

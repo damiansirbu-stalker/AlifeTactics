@@ -66,7 +66,7 @@ function is_crouched(id)
 end
 
 local _stationary_ops
-local function _ops()
+local function _get_stationary_ops()
     if not _stationary_ops then
         _stationary_ops = {
             [stalker_ids.action_hold_position] = true,
@@ -76,7 +76,7 @@ local function _ops()
 end
 
 --- Decide posture by the crouch-eye shot ray: crouch only when the crouched line to the enemy is clear.
-local function _decide(npc, enemy)
+local function _select_posture(npc, enemy)
     local np, ep = npc:position(), enemy:position()
     if np:distance_to_sqr(ep) < CONDUCT_FLOOR_M * CONDUCT_FLOOR_M then return move.stand, false end
     if xcombat.has_obstacle_to_target(np, ep, xcombat.BODY_Y.CROUCH_EYE) then return move.stand, false end
@@ -97,7 +97,7 @@ end
 --- Answer one engine body-state ask with the held posture, re-deciding at most once per DECIDE_MS.
 local function _on_combat_body_state(npc, world_operator, _body_state, flags)
     if not cfg.conduct_posture then return end
-    if not _ops()[world_operator] then return end
+    if not _get_stationary_ops()[world_operator] then return end
     local id = npc:id()
     local zombied = xcreature.is_zombied(npc)
     if not zombied then
@@ -111,8 +111,8 @@ local function _on_combat_body_state(npc, world_operator, _body_state, flags)
     local held = _decision[id]
     local busy, busy_why = xcombat.is_body_busy(npc)
     if busy then
-        if at_debug.on() then
-            at_debug.dbg("[CONDUCT] id=%d freeze=%s held=%s", id, tostring(busy_why),
+        if at_debug.is_on() then
+            at_debug.debug("[CONDUCT] id=%d freeze=%s held=%s", id, tostring(busy_why),
                 held and (held.want == move.crouch and "crouch" or "stand") or "none")
         end
         if held then flags.body_state = held.want end
@@ -124,12 +124,12 @@ local function _on_combat_body_state(npc, world_operator, _body_state, flags)
         if zombied then
             want, crouch_clear = move.stand, false
         else
-            want, crouch_clear = _decide(npc, enemy)
+            want, crouch_clear = _select_posture(npc, enemy)
         end
         held = { at = tg, op = world_operator, want = want }
         _decision[id] = held
-        if at_debug.on() and want ~= prev_want then
-            at_debug.dbg("[CONDUCT] id=%d op=%s zombied=%s crouch_shot=%s -> %s", id,
+        if at_debug.is_on() and want ~= prev_want then
+            at_debug.debug("[CONDUCT] id=%d op=%s zombied=%s crouch_shot=%s -> %s", id,
                 tostring(world_operator), tostring(zombied), tostring(crouch_clear),
                 want == move.crouch and "crouch" or "stand")
         end
@@ -169,8 +169,8 @@ local function _get_spacing_row(npc, id, tg)
             and SPACING_SNIPER_MIN_K[ranks.get_obj_rank_name(npc) or ""] or nil
         if min_k == 1.0 then min_k = nil end
         row = { at = tg, min_k = min_k, max_k = SPACING_MAX_K[kind] }
-        if at_debug.on() and (row.min_k or row.max_k) then
-            at_debug.dbg("[SPACING] band id=%d kind=%s min_k=%s max_k=%s",
+        if at_debug.is_on() and (row.min_k or row.max_k) then
+            at_debug.debug("[SPACING] band id=%d kind=%s min_k=%s max_k=%s",
                 id, kind, tostring(row.min_k), tostring(row.max_k))
         end
     end
@@ -178,12 +178,12 @@ local function _get_spacing_row(npc, id, tg)
     return row
 end
 
-local function _record_spacing(us, tg)
+local function _log_spacing(us, tg)
     if _spacing_counter.last == 0 then _spacing_counter.last = tg end
     _spacing_counter.calls = _spacing_counter.calls + 1
     _spacing_counter.us = _spacing_counter.us + us
     if tg - _spacing_counter.last < SPACING_FLUSH_MS then return end
-    at_debug.dbg("[SPACING] window=%.0fs calls=%d rate=%.1f/s handler_avg=%.1fus",
+    at_debug.debug("[SPACING] window=%.0fs calls=%d rate=%.1f/s handler_avg=%.1fus",
         (tg - _spacing_counter.last) / 1000, _spacing_counter.calls,
         _spacing_counter.calls / ((tg - _spacing_counter.last) / 1000),
         _spacing_counter.us / _spacing_counter.calls)
@@ -192,7 +192,7 @@ end
 
 local function _on_min_dist(npc, base, flags)
     if not npc then return end
-    local timer = xprofiler.new_if(at_debug.on()):start()
+    local timer = xprofiler.new_if(at_debug.is_on()):start()
     local tg = time_global()
     local id = npc:id()
     local row = cfg.conduct_spacing and _get_spacing_row(npc, id, tg) or nil
@@ -201,15 +201,15 @@ local function _on_min_dist(npc, base, flags)
     if pull and pull.min > raised then raised = pull.min end
     if raised ~= base then
         flags.ret_value = raised
-        if row and at_debug.on() then row.eff_min = raised end
+        if row and at_debug.is_on() then row.eff_min = raised end
     end
     timer:stop()
-    if at_debug.on() then _record_spacing(timer:get_us(), tg) end
+    if at_debug.is_on() then _log_spacing(timer:get_us(), tg) end
 end
 
 local function _on_max_dist(npc, base, flags)
     if not npc then return end
-    local timer = xprofiler.new_if(at_debug.on()):start()
+    local timer = xprofiler.new_if(at_debug.is_on()):start()
     local tg = time_global()
     local id = npc:id()
     local row = cfg.conduct_spacing and _get_spacing_row(npc, id, tg) or nil
@@ -220,22 +220,22 @@ local function _on_max_dist(npc, base, flags)
     if pull and pull.max_floor > capped then capped = pull.max_floor end
     if capped ~= base then
         flags.ret_value = capped
-        if row and at_debug.on() then row.eff_max = capped end
+        if row and at_debug.is_on() then row.eff_max = capped end
     end
     timer:stop()
-    if at_debug.on() then _record_spacing(timer:get_us(), tg) end
+    if at_debug.is_on() then _log_spacing(timer:get_us(), tg) end
 end
 
 --- The output proof: on every actual cover change, log the pick's enemy distance beside the answered band.
 local function _on_cover_changed(npc, cover_pos)
-    if not at_debug.on() or not (npc and cover_pos) then return end
+    if not at_debug.is_on() or not (npc and cover_pos) then return end
     local id = npc:id()
     local row = _spacing[id]
     if not (row and (row.eff_min or row.eff_max)) and not _push_max[id] and not _pull[id] then return end
     local enemy = npc:best_enemy()
     if not enemy then return end
     local pull = _pull[id]
-    at_debug.dbg("[SPACING] pick id=%d cover_to_enemy=%.1fm min=%s max=%s push=%s pull=%s",
+    at_debug.debug("[SPACING] pick id=%d cover_to_enemy=%.1fm min=%s max=%s push=%s pull=%s",
         id, cover_pos:distance_to(enemy:position()),
         tostring(row and row.eff_min), tostring(row and row.eff_max), tostring(_push_max[id]),
         tostring(pull and pull.min))
@@ -257,7 +257,7 @@ function is_spacing_active()
 end
 
 local function _on_first_update()
-    at_debug.refresh()
+    at_debug.update_config()
     at_debug.info("Conduct initialized (posture=%s spacing=%s)",
         tostring(cfg.conduct_posture), _spacing_active and tostring(cfg.conduct_spacing) or "INACTIVE")
     if not _spacing_active then

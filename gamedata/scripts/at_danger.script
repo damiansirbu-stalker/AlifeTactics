@@ -78,7 +78,7 @@ function get_danger_time(danger,npc)
 	if (danger:type() == danger_object.entity_corpse) then
 		local corpse_object = danger:object()
 		if corpse_object and not IsStalker(corpse_object) then
-			if at_debug.on() then at_debug.dbg("mutant corpse death_time skipped section=%s", corpse_object:section()) end
+			if at_debug.is_on() then at_debug.debug("mutant corpse death_time skipped section=%s", corpse_object:section()) end
 			return 0
 		end
 		return corpse_object and corpse_object:death_time() or 0
@@ -168,7 +168,7 @@ local function is_danger(npc,best_danger,script)
 
 	if _enabled.hit_bypass and best_danger_object and (best_danger:perceive_type() == danger_object.hit)
 		and not xr_combat_ignore.ignore_enemy_by_overrides(npc, best_danger_object) then
-		if at_debug.on() then at_debug.dbg("hit-type bypass npc=%s src=%s", npc:name(), best_danger_object:name()) end
+		if at_debug.is_on() then at_debug.debug("hit-type bypass npc=%s src=%s", npc:name(), best_danger_object:name()) end
 		return true
 	end
 
@@ -210,7 +210,7 @@ local SLOW_EVAL_US = 2000
 local function eval_danger(self)
 	local npc = self.object
 	if not npc then
-		if at_debug.on() then at_debug.dbg("eval_danger called with nil self.object") end
+		if at_debug.is_on() then at_debug.debug("eval_danger called with nil self.object") end
 		return false
 	end
 
@@ -252,7 +252,7 @@ local function eval_danger(self)
 	local danger_time = cur_danger_time
 
 	if not danger_time or type(danger_time) ~= "number" then
-		if at_debug.on() then at_debug.dbg("non-numeric danger_time caught npc=%s bd_type=%s value=%s", npc:name(), bd_name, tostring(danger_time)) end
+		if at_debug.is_on() then at_debug.debug("non-numeric danger_time caught npc=%s bd_type=%s value=%s", npc:name(), bd_name, tostring(danger_time)) end
 		return false
 	end
 
@@ -278,22 +278,22 @@ local _eval_n, _eval_sum_us, _eval_max_us, _eval_heap_kb = 0, 0, 0, 0
 function at_evaluator_danger:evaluate()
 	local npc = self.object
 	if not npc then return false end
-	local timer = xprofiler.new_if(at_debug.on()):start()
+	local timer = xprofiler.new_if(at_debug.is_on()):start()
 	local danger = eval_danger(self) or false
 	local st = db.storage[npc:id()]
 	if st then st.danger_flag = danger end
 	timer:stop()
-	if at_debug.on() then
+	if at_debug.is_on() then
 		local us = timer:get_us()
 		_eval_n = _eval_n + 1
 		_eval_sum_us = _eval_sum_us + us
 		if us > _eval_max_us then _eval_max_us = us end
 		if us > SLOW_EVAL_US then
-			at_debug.dbg("[PERF] eval_danger SLOW us=%d heap=%dKB", us, collectgarbage("count"))
+			at_debug.debug("[PERF] eval_danger SLOW us=%d heap=%dKB", us, collectgarbage("count"))
 		end
 		if _eval_n >= EVAL_BUDGET then
 			local heap_kb = collectgarbage("count")
-			at_debug.dbg("[PERF] eval_danger n=%d avg=%dus max=%dus heap=%dKB (%+dKB)",
+			at_debug.debug("[PERF] eval_danger n=%d avg=%dus max=%dus heap=%dKB (%+dKB)",
 				_eval_n, _eval_sum_us / _eval_n, _eval_max_us, heap_kb, heap_kb - _eval_heap_kb)
 			_eval_n, _eval_sum_us, _eval_max_us, _eval_heap_kb = 0, 0, 0, heap_kb
 		end
@@ -323,7 +323,7 @@ local function script_action_danger_scripted(npc,st)
 	local who_dist = bdo and bdo:position():distance_to_sqr(bdo_pos)
 
 	local strength = script_danger[id].strength
-	if at_debug.on() then at_debug.dbg("scripted danger reaction npc=%s strength=%s", npc:name(), tostring(strength)) end
+	if at_debug.is_on() then at_debug.debug("scripted danger reaction npc=%s strength=%s", npc:name(), tostring(strength)) end
 	if (strength == "faint") then
 		state_mgr.set_state(npc,"threat_na",nil,nil,{look_position = bdo_pos},{fast_set = true})
 		return
@@ -732,7 +732,7 @@ function at_action_danger:execute()
 	elseif (bd_type == danger_object.attacked) then
 		script_action_danger_attacked(npc,self.a,best_danger,best_danger_object,dependent_object,bd_type)
 	elseif (_enabled.attack_sound or _enabled.neutral_gunfire) and (bd_type == danger_object.attack_sound) then
-		if at_debug.on() then at_debug.dbg("attack_sound dispatch npc=%s src=%s", npc:name(), best_danger_object and best_danger_object:name() or "nil") end
+		if at_debug.is_on() then at_debug.debug("attack_sound dispatch npc=%s src=%s", npc:name(), best_danger_object and best_danger_object:name() or "nil") end
 		script_action_danger_alert(npc,self.a,best_danger,best_danger_object,dependent_object,bd_type)
 	end
 end
@@ -927,7 +927,7 @@ local function _on_entity_unregister(se_obj)
 end
 
 local function _refresh_log()
-	at_debug.refresh()
+	at_debug.update_config()
 	if at_mcm then
 		_enabled.hit_bypass      = at_mcm.get_config("danger_hit_bypass")      ~= false
 		_enabled.attack_sound    = at_mcm.get_config("danger_attack_sound")    ~= false

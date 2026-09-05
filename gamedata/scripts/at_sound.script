@@ -65,7 +65,7 @@ local function _load_config()
     end
 end
 
-local function _material_factor(material)
+local function _get_material_factor(material)
     if not material then return 1.0 end
     local name = string_lower(material)
     for key, factor in pairs(MATERIAL_FACTORS) do
@@ -82,7 +82,7 @@ local function _on_footstep(material, _power, _hud_view, _flags)
     elseif IsMoveState("mcSprint") then
         stance, strength = SPRINT_FACTOR, "solid"
     end
-    local radius = BASE_RADIUS_M * stance * _material_factor(material) * _mult * _hear_scale
+    local radius = BASE_RADIUS_M * stance * _get_material_factor(material) * _mult * _hear_scale
     if radius > _step_radius then
         _step_radius, _step_strength = radius, strength
     end
@@ -107,10 +107,10 @@ local function _try_alert(npc, id, pos, tg, source, strength)
     _alert_at[id] = tg
     _alert_strength[id] = strength
     xr_danger.set_script_danger(npc, INERTION_MS, AC_ID, pos, strength)
-    if at_debug.on() then at_debug.dbg("[SOUND] alert id=%d name=%s source=%s strength=%s", id, npc:name(), source, strength) end
+    if at_debug.is_on() then at_debug.debug("[SOUND] alert id=%d name=%s source=%s strength=%s", id, npc:name(), source, strength) end
 end
 
-local function _scan_movement(tg)
+local function _iterate_movement(tg)
     if _step_radius <= 0 then return end
     if (tg - _step_at) > STEP_FRESH_MS then _step_radius = 0 return end
     local radius, strength = _step_radius, _step_strength
@@ -127,7 +127,7 @@ local function _scan_movement(tg)
             _try_alert(npc, id, actor_pos, tg, "step", strength)
         end
     end
-    at_debug.dbg("[SOUND] scan radius=%.1fm rain=%.2f", radius, rain or 0)
+    at_debug.debug("[SOUND] scan radius=%.1fm rain=%.2f", radius, rain or 0)
 end
 
 local function _run_pass()
@@ -135,7 +135,7 @@ local function _run_pass()
     ResetTimeEvent("at_sound", "pass", TICK_SEC)
     if not _enabled.move then return end
     if not db.actor then return end
-    _scan_movement(time_global())
+    _iterate_movement(time_global())
 end
 
 local function _on_hear(npc, who_id, s_type, dist_sqr, _power, pos)
@@ -156,7 +156,7 @@ local function _on_entity_unregister(se_obj)
     end
 end
 
-local function _derive_hear_scale()
+local function _compute_hear_scale()
     local threshold = ini_sys:r_float_ex("stalker", "sound_threshold") or VANILLA_SOUND_THRESHOLD
     local perceive = ini_sys:r_string_ex("stalker", "sound_perceive_section") or "stalker_sound_perceive"
     local npc_factor = ini_sys:r_float_ex(perceive, "npc") or VANILLA_NPC_FACTOR
@@ -167,8 +167,8 @@ local function _derive_hear_scale()
     return scale
 end
 
-local function _refresh_config()
-    at_debug.refresh()
+local function _update_config()
+    at_debug.update_config()
     _enabled.move    = at_mcm.get_config("danger_move_noise")    ~= false
     _enabled.actions = at_mcm.get_config("danger_heard_actions") ~= false
     _mult = at_mcm.get_config("danger_noise_mult") or 1.0
@@ -182,8 +182,8 @@ local function _start_pass()
 end
 
 local function _on_first_update()
-    _refresh_config()
-    _hear_scale = _derive_hear_scale()
+    _update_config()
+    _hear_scale = _compute_hear_scale()
     _start_pass()
     at_debug.info("Sound initialized (move=%s actions=%s mult=%.2f hear_scale=%.2f)",
         tostring(_enabled.move), tostring(_enabled.actions), _mult, _hear_scale)
@@ -196,6 +196,6 @@ function on_game_start()
     RegisterScriptCallback("npc_on_hear_callback",        _on_hear)
     RegisterScriptCallback("server_entity_on_unregister", _on_entity_unregister)
     RegisterScriptCallback("actor_on_first_update",       _on_first_update)
-    RegisterScriptCallback("on_option_change",            _refresh_config)
-    RegisterScriptCallback("mcm_option_restore_default",  _refresh_config)
+    RegisterScriptCallback("on_option_change",            _update_config)
+    RegisterScriptCallback("mcm_option_restore_default",  _update_config)
 end

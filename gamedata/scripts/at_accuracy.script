@@ -12,7 +12,7 @@ local _get_obj_rank_name = ranks.get_obj_rank_name
 local _disp = {}
 local _move = {}
 
-local function _disp_provider(obj)
+local function _compute_disp(obj)
     if not cfg.disp_enabled then return nil end
     if not at_faction.has_flavor(obj, "accuracy") then return nil end
     local tier = _get_obj_rank_name(obj)
@@ -31,20 +31,20 @@ local function _on_move_penalty(obj, wpn, body_state, move_type, temp_disp)
     local move = _move[tier]
     if not move or move == 1.0 then return end
 
-    local timer  = xprofiler.new_if(at_debug.on()):start()
+    local timer  = xprofiler.new_if(at_debug.is_on()):start()
     local base = temp_disp.dispersion
     temp_disp.dispersion = base * move
     timer:stop()
 
-    if at_debug.on() then
+    if at_debug.is_on() then
         local sect = (wpn and wpn:section()) or "none"
-        at_debug.dbg("[ACC] move id=%d tier=%s section=%s bs=%d mt=%d base=%.5f move=%.2f out=%.5f [%.3fms]",
+        at_debug.debug("[ACC] move id=%d tier=%s section=%s bs=%d mt=%d base=%.5f move=%.2f out=%.5f [%.3fms]",
             obj:id(), tier, sect, body_state, move_type, base, move, temp_disp.dispersion, timer:get_ms())
     end
 end
 
-local function _refresh_config()
-    at_debug.refresh()
+local function _update_config()
+    at_debug.update_config()
     for i = 1, #TIERS do
         local tier = TIERS[i]
         _disp[tier] = at_mcm.get_config("acc_disp_" .. tier)
@@ -53,15 +53,15 @@ local function _refresh_config()
 end
 
 local function _on_first_update()
-    _refresh_config()
+    _update_config()
     at_debug.info("Accuracy hook initialized (dispersion=%s, moving=%s, dbg=%s)",
-        cfg.disp_enabled and "on" or "off", cfg.move_enabled and "on" or "off", at_debug.on() and "true" or "false")
+        cfg.disp_enabled and "on" or "off", cfg.move_enabled and "on" or "off", at_debug.is_on() and "true" or "false")
 end
 
 function on_game_start()
-    at_effects_resolver.register(at_effects_resolver.EFFECT.SHOT_DISPERSION, _disp_provider)
+    at_effects_resolver.register(at_effects_resolver.EFFECT.SHOT_DISPERSION, _compute_disp)
     RegisterScriptCallback("npc_shot_dispersion",       _on_move_penalty)
     RegisterScriptCallback("actor_on_first_update",     _on_first_update)
-    RegisterScriptCallback("on_option_change",          _refresh_config)
-    RegisterScriptCallback("mcm_option_restore_default", _refresh_config)
+    RegisterScriptCallback("on_option_change",          _update_config)
+    RegisterScriptCallback("mcm_option_restore_default", _update_config)
 end
