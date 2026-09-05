@@ -25,6 +25,7 @@ local ARENA_SECTIONS = {
     renegade = { "sim_default_renegade_0", "sim_default_renegade_1", "sim_default_renegade_2" },
 }
 local ARENA_SIDE_A = { "army", "ecolog", "csky", "renegade" }
+local ARENA_MODE_WAR = "war"
 
 local AP_RANK    = 14000
 local AP_BOXES   = 3
@@ -311,7 +312,7 @@ local function _arena_spawn_one(side)
         or ARENA_SIDE_A[math_random(1, #ARENA_SIDE_A)]
     local list = ARENA_SECTIONS[faction]
     local section = list[math_random(1, #list)]
-    local base = (_arena_mode == "war" and side == "b") and (_arena_side_dir + math_pi) or _arena_side_dir
+    local base = (_arena_mode == ARENA_MODE_WAR and side == "b") and (_arena_side_dir + math_pi) or _arena_side_dir
     local angle = (_arena_mode == "me") and (math_random() * 2 * math_pi)
         or (base + math_rad((math_random() * 2 - 1) * ARENA_SPREAD_DEG))
     local pos, lvid = _arena_spawn_pos(angle)

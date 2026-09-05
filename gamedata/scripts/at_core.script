@@ -13,6 +13,7 @@ local MONITOR_PERIOD_SEC = 0.2
 local MON_FLUSH_MS = 5000
 local BEST_ENEMY_REFRESH_MS = 600
 local COMPANION_INFO = "npcx_is_companion"
+local FROM_DEATH_CALLBACK = "from_death_callback"
 
 local GATE_RADIUS_SQR, STARTS_CAP, STARTS_WINDOW_SEC
 
@@ -150,7 +151,7 @@ local function _on_net_spawn(npc)
 end
 
 local function _on_hit(npc, amount, _local_direction, who, bone_index)
-    if bone_index == "from_death_callback" then return end
+    if bone_index == FROM_DEATH_CALLBACK then return end
     if not npc or not amount or amount <= 0 then return end
     local state = _npc_states[npc:id()]
     if not state then return end

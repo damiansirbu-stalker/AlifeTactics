@@ -10,6 +10,7 @@ local LTX_SECTION = "at_sound"
 
 local VANILLA_SOUND_THRESHOLD = 0.5
 local VANILLA_NPC_FACTOR      = 1.0
+local STRENGTH_SOLID, STRENGTH_FAINT = "solid", "faint"
 
 local TICK_SEC
 local STEP_FRESH_MS
@@ -102,7 +103,7 @@ local function _try_alert(npc, id, pos, tg, source, strength)
     if not npc:alive() then return end
     if not xcreature.is_enemy_to_actor(npc) then return end
     local last = _alert_at[id]
-    local escalates = strength == "solid" and _alert_strength[id] == "faint"
+    local escalates = strength == STRENGTH_SOLID and _alert_strength[id] == STRENGTH_FAINT
     if last and (tg - last) < REALERT_MS and not escalates then return end
     _alert_at[id] = tg
     _alert_strength[id] = strength

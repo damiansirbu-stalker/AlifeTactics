@@ -14,6 +14,7 @@ local RECENT_HOLD_MS = 4000
 local DECLINE_LOG_MS = 1000
 local CENSUS_LOG_MS = 1000
 local CENSUS_UNDER_FIRE_MS = 2000
+local FROM_DEATH_CALLBACK = "from_death_callback"
 
 local _hold_cap_ms = 6000
 local _attack_ops, _cover_ops
@@ -129,7 +130,7 @@ end
 
 local function _on_hit(npc, amount, _local_direction, _who, bone_index)
     if not at_debug.is_on() then return end
-    if bone_index == "from_death_callback" then return end
+    if bone_index == FROM_DEATH_CALLBACK then return end
     if not (npc and amount and amount > 0) then return end
     _hit_at[npc:id()] = time_global()
 end

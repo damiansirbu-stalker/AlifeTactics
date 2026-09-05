@@ -25,6 +25,7 @@ local FACING_DEG = 60
 local GRID  = { 34, 28 }
 local ROW_A = { "stalker", "systems" }
 local ROW_B = { "target", "engine" }
+local DRIVER_HOLD, DRIVER_PUSH, DRIVER_PULL, DRIVER_CONDUCT = "HOLD", "PUSH", "PULL", "CONDUCT"
 
 local CLR_AT, CLR_HOLD, CLR_PUSH, CLR_CONDUCT, CLR_NORMAL, CLR_DIM = nil, nil, nil, nil, nil, nil
 local _MENTAL
@@ -241,9 +242,9 @@ end
 local function _get_row_color(row)
     if row.is_overflow then return CLR_DIM end
     if row.driver == "AT" then return CLR_AT end
-    if row.driver == "HOLD" then return CLR_HOLD end
-    if row.driver == "PUSH" or row.driver == "PULL" then return CLR_PUSH end
-    if row.driver == "CONDUCT" then return CLR_CONDUCT end
+    if row.driver == DRIVER_HOLD then return CLR_HOLD end
+    if row.driver == DRIVER_PUSH or row.driver == DRIVER_PULL then return CLR_PUSH end
+    if row.driver == DRIVER_CONDUCT then return CLR_CONDUCT end
     return CLR_NORMAL
 end
 

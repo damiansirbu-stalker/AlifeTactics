@@ -14,6 +14,7 @@ local TURN_FALLOFF_M
 local EARSHOT_SQR
 local STAMP_INERTION_MS
 local RESTAMP_MS
+local FROM_DEATH_CALLBACK = "from_death_callback"
 
 local _stamp_at    = {}
 local _pending_seq = 0
@@ -127,7 +128,7 @@ end
 
 local function _on_hit(npc, amount, _local_direction, who, bone_index)
     if not cfg.disclosure_enabled then return end
-    if bone_index == "from_death_callback" then return end
+    if bone_index == FROM_DEATH_CALLBACK then return end
     if not amount or amount <= 0 then return end
     if not (who and npc) then return end
     if who:id() == npc:id() then return end

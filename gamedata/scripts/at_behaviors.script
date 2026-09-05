@@ -11,6 +11,8 @@ local LTX_SECTION = "at_behaviors"
 
 local PUSH_WEAK_EXIT = 0.10
 local PULL_WEAK_EXIT = 0.10
+local FIRE_CLOSE = "close"
+local PUSH_CAUSE_WEAK = "weak"
 
 local HIT_FIGHT_MS
 local PUSH_CLOSE_M, PUSH_FAR_M, PUSH_SIZE_K, PUSH_INTERVAL_K, PUSH_PRESS_COOLDOWN_MS
@@ -87,7 +89,7 @@ end
 
 local function _write_push_fire(npc, state, want_fire, dist, cause)
     local sk, ik = at_reaction.get_queue_scales(npc)
-    if want_fire == "close" then sk = sk * PUSH_SIZE_K end
+    if want_fire == FIRE_CLOSE then sk = sk * PUSH_SIZE_K end
     if want_fire then ik = ik * PUSH_INTERVAL_K end
     if not xcombat.set_fire_queue_scale(npc, sk, ik) then return end
     state.push_fire = want_fire
@@ -100,7 +102,7 @@ local function _write_push_fire(npc, state, want_fire, dist, cause)
 end
 
 local function _get_push_advantage(cause, npc, target)
-    if cause == "weak" then
+    if cause == PUSH_CAUSE_WEAK then
         return xcombat.get_health_frac(npc) >= PUSH_SELF_FRAC and "weak" or nil
     end
     if xcombat.is_bleeding(target) then return "bleeding" end
@@ -134,7 +136,7 @@ local function _get_press_cause(state, target, joined)
         if vuln then return term or "vulnerable" end
     end
     if cfg.push_finisher then
-        local bar = (joined and state.push_cause == "weak") and (PUSH_WEAK_FRAC + PUSH_WEAK_EXIT) or PUSH_WEAK_FRAC
+        local bar = (joined and state.push_cause == PUSH_CAUSE_WEAK) and (PUSH_WEAK_FRAC + PUSH_WEAK_EXIT) or PUSH_WEAK_FRAC
         if xcombat.get_health_frac(target) <= bar then return "weak" end
     end
     return nil

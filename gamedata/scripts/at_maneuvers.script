@@ -19,6 +19,7 @@ local KITE_KINDS = { "w_melee", "w_shotgun", "w_pistol", "w_smg", "w_rifle", "w_
 local REPEAT_MOVE_M   = 2
 local REPEAT_MOVE_SQR = REPEAT_MOVE_M * REPEAT_MOVE_M
 local INVALID_LEVEL_VERTEX_ID = 4294967295
+local STAGE_PICKED, STAGE_DECLINED = "picked", "declined"
 
 local BEGIN_PERIOD_MS, UPDATE_PERIOD_MS, END_PERIOD_MS, HIT_FIGHT_MS
 local HURT_FRAC, STALL_MS, STALL_MOVE_SQR, STALL_CLOSE_M
@@ -457,7 +458,7 @@ local function _resolve_maneuver(npc, enemy, state, tg)
         local row = CATALOG[idx]
         local vid, situation, stage = _check_row(row, npc, enemy, state, tg, memo)
         if tracing then rows_trace[#rows_trace + 1] = _format_row_trace(row, situation, stage) end
-        if stage == "picked" or stage == "declined" then
+        if stage == STAGE_PICKED or stage == STAGE_DECLINED then
             state.row_cursor = idx % count + 1
             spent_row, spent_vid, spent_situation = row, vid, situation
             break
