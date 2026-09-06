@@ -8,22 +8,25 @@ local _original
 local _jam_enabled = true
 local _suppressed = 0
 
+--- The misfire chance for a jamming roll: 0 while suppression is on, else the original.
+local function _compute_misfire_chance(weapon, npc, base_value)
+    if not _jam_enabled then
+        return _original(weapon, npc, base_value)
+    end
+    _suppressed = _suppressed + 1
+    if _suppressed % SUMMARY_EVERY == 0 then
+        at_debug.debug("[JAM] suppressed=%d NPC misfire rolls this session", _suppressed)
+    end
+    return 0
+end
+
 local function _register_patch()
     _original = xr_weapon_jam and xr_weapon_jam.GetConditionMisfireProbability
     if type(_original) ~= "function" then
         at_debug.warn("xr_weapon_jam.GetConditionMisfireProbability not present; NPC misfire suppression inert")
         return
     end
-    xr_weapon_jam.GetConditionMisfireProbability = function(weapon, npc, base_value)
-        if not _jam_enabled then
-            return _original(weapon, npc, base_value)
-        end
-        _suppressed = _suppressed + 1
-        if _suppressed % SUMMARY_EVERY == 0 then
-            at_debug.debug("[JAM] suppressed=%d NPC misfire rolls this session", _suppressed)
-        end
-        return 0
-    end
+    xr_weapon_jam.GetConditionMisfireProbability = _compute_misfire_chance
     at_debug.info("xr_weapon_jam.GetConditionMisfireProbability patched (NPC misfire suppression active)")
 end
 

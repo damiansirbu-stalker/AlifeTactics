@@ -34,6 +34,7 @@ local _pickoff_band
 local _orig_get_queue_params
 local BEGIN_CHECK, UPDATE_CHECK, END_CHECK
 local CATALOG = {}
+local SPEC
 
 local function _compute_queue_params(npc, st, override)
     local state = npc and at_core.get_combat_record(npc:id())
@@ -584,7 +585,7 @@ local function _on_release(npc)
         math_floor(tg - (state.granted_at or tg)))
 end
 
-local SPEC = {
+SPEC = {
     gate = function(npc)
         if not cfg.combat_enabled then return false end
         local state = at_core.get_combat_record(npc:id())
