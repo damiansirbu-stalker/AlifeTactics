@@ -1,5 +1,6 @@
 next
-  Summary: Combat substrate, maneuvers widened to every nearby fight, Faction flavor, Push and Pull windows, Weapon spacing, Glide stop, Disclosure rework, target priority dial, Zombie stance, Gear toggles, Discipline menu, Danger fix, danger trace
+  Summary: Combat substrate, maneuvers widened to every nearby fight, Faction flavor, Push and Pull windows, Weapon spacing, Glide stop, Disclosure rework, target priority dial,
+    Zombie stance, Gear toggles, Discipline menu, Danger fix, danger trace
 
   Combat
     Faction flavor
@@ -65,7 +66,8 @@ next
   Development
     - The debug HUD's Commitment token reads LIQUIDATE while a stalker holds fire on an enemy who cannot answer, and LIQUIDATED in the afterglow, so sub-second holds stay readable.
     - The debug HUD shows PUSH in its own amber row colour on every stalker the push window is currently bumping, and PULL on a stalker falling back through his own window.
-    - The world trace's held-danger line now shows whether the alert stalker entered AlifeTactics' own danger scheme or the engine alone is holding a stale sound perception, and re-logs when that flips, separating our reaction from a distant weapon sound the engine keeps alive.
+    - The world trace's held-danger line now shows whether the alert stalker entered AlifeTactics' own danger scheme or the engine alone is holding a stale sound perception.
+      It re-logs when that flips, separating our reaction from a distant weapon sound the engine keeps alive.
 
 1.2.0
   Summary: Difficulty rebalance, Tracking Lock, Gear, Vision Range, Reload Cover, cover posture, Perception menu, maneuver fixes, Useful Idiots compatibility, Ballistics Overhaul compatibility
@@ -87,11 +89,13 @@ next
       - Fixed cover posture crouching a stalker while he moved to cover. The crouch now applies only when he holds position, so a stalker walking or running stays standing
         instead of crouching the whole way.
       - Changed cover posture so a stalker crouches only when he can still hit the enemy from the crouch, checked against the real shot line instead of a rough reading that could leave him firing
-        into the wall he ducked behind. He crouches only past 20m, and only some stalkers crouch by nature, so a firing line mixes standing and crouched shooters instead of the whole squad dropping at once.
+        into the wall he ducked behind.
+        He crouches only past 20m, and only some stalkers crouch by nature, so a firing line mixes standing and crouched shooters instead of the whole squad dropping at once.
 
   Effectiveness
     Accuracy
-      - Rebalanced every per-rank curve, accuracy, aim tracking, and vision, using data collected from players. NPCs are calmer and less jumpy: the whole range now sits in a tight band around the base game,
+      - Rebalanced every per-rank curve, accuracy, aim tracking, and vision, using data collected from players.
+        NPCs are calmer and less jumpy: the whole range now sits in a tight band around the base game,
         with the top ranks a small step above it instead of the old aggressive spikes.
       - Changed the per-rank aim spread so a novice shoots exactly like a vanilla stalker instead of spraying wider, and a legend is tight but not pinpoint.
         Aim spread applies only against an exposed or still target, so it rewards holding cover and does not penalize a player who keeps moving.
@@ -125,16 +129,20 @@ next
     Gear
       - Added Gear: the items a stalker carries give him combat bonuses, each read from its own game data so any artefact from any mod works. Gravity, chemical, and armour-plate artefacts cut
         the damage he takes, thermal artefacts tighten his fire, and electric and quest artefacts raise the damage he deals, each up to 10 percent and never stacking so the strongest source wins.
-        An artefact carrier distorts the air around his body, so you can spot one and kill him for the artefact. Binoculars and night-vision extend his sight range (xray-dependent, inactive on older exes).
+        An artefact carrier distorts the air around his body, so you can spot one and kill him for the artefact.
+        Binoculars and night-vision extend his sight range (xray-dependent, inactive on older exes).
       - Added chemical-artefact regeneration (xray-dependent): a chemical carrier slowly heals over time, in place of the damage cut it gives on older exes.
-      - Added Ballistics Overhaul and Close Quarter Combat compatibility for Gear: their shared grok_bo hit system recomputes a hit you land on an NPC from the weapon and applies it itself, which cancelled the NPC's artefact damage resistance.
-        AlifeTactics now reapplies the resistance to the damage grok_bo dealt, so a geared NPC resists your shots there as it does anywhere. It hooks whichever of the two is live, and is inactive when neither is installed.
+      - Added Ballistics Overhaul and Close Quarter Combat compatibility for Gear: their shared grok_bo hit system recomputes a hit you land on an NPC from the weapon and applies it itself.
+        That cancelled the NPC's artefact damage resistance.
+        AlifeTactics now reapplies the resistance to the damage grok_bo dealt, so a geared NPC resists your shots there as it does anywhere.
+        It hooks whichever of the two is live, and is inactive when neither is installed.
 
   Development
     - Changed the two world recorders into one. The Ballistics toggle is gone, and World behaviour debug now records both the slide watchdog and the shot-outcome tables into alifetactics_world.log.
     - Added a combat-escape warning: if another combat brain takes a stalker out from under an open maneuver, the log names the foreign owner once,
       so a modpack conflict is reportable instead of invisible.
-    - Added over-speed detection to World behaviour debug: a body moving faster than its own config allows is logged with the measured rate, catching a slide while walking that the slide watchdog cannot see.
+    - Added over-speed detection to World behaviour debug: a body moving faster than its own config allows is logged with the measured rate.
+      It catches a slide while walking that the slide watchdog cannot see.
     - Added a maneuver-pass timing line: with debug on, the combat monitor times each full pass over the tracked stalkers and logs a periodic average and peak, so a slowdown reads as a measured cost
       instead of a guess.
     - Added a flush-every-line log option that writes each line to disk at once instead of buffering, so a crash keeps its final log lines for a report.
@@ -150,8 +158,9 @@ next
         you hold a weapon, face him, and nothing blocks the shot. Reloading out of your line, he stays put. Needs demonized 20260722 or newer, inactive on older exes.
       - Fixed a maneuver's fire order cancelling a reload in progress, the loop of racking the bolt, restarting, and racking again when you pressed a reloading stalker up close.
         He now walks weapon-up until the reload finishes, then fires.
-      - Changed Snipe into Pickoff, now for any weapon: a stalker who outranges his enemy in a standoff holds his ground and picks him off with deliberate single shots, 1 aimed round every 1.5 to 2 seconds,
-        tighter at high rank. He plants only well beyond the enemy's effective range and breaks off the moment the enemy closes back in, takes fire, or comes under your crosshair.
+      - Changed Snipe into Pickoff, now for any weapon: a stalker who outranges his enemy in a standoff holds his ground and picks him off with deliberate single shots.
+        One aimed round every 1.5 to 2 seconds, tighter at high rank.
+        He plants only well beyond the enemy's effective range and breaks off the moment the enemy closes back in, takes fire, or comes under your crosshair.
         His shots follow where the weapon actually points, with recoil, and his accuracy comes from the rank curve alone.
       - Changed maneuver fire to vary like the engine's own: burst length and pauses roll fresh each burst inside the per-weapon ranges and follow the Fire Discipline rank curve,
         so a maneuver-held master fires tighter than a rookie.
@@ -160,7 +169,8 @@ next
         Its own toggle. Needs demonized 20260722 or newer, inactive on older exes.
     Conduct
       - Added cover posture: experienced riflemen and snipers crouch when real chest-high cover stands toward the enemy and stand when it does not, replacing vanilla's blind picks
-        that crouched behind random bumps and fired into them. It reads the game's own cover map. They crouch only at a range that suits the weapon, a rifleman past about 24m and a sniper past about 45m,
+        that crouched behind random bumps and fired into them. It reads the game's own cover map.
+        They crouch only at a range that suits the weapon, a rifleman past about 24m and a sniper past about 45m,
         so they never drop to a knee at your feet. Needs demonized 20260722 or newer, inactive on older exes.
 
   Effectiveness
@@ -258,7 +268,8 @@ next
   Summary: Maneuvers, Crossfire, Danger, Disclosure, Ammo, Jamming, Healing, AOEngine, platform status
 
   Combat
-    - Added Maneuvers: an intermittent combat takeover that borrows a stalker for one committed maneuver. Stalkers kite when crowded, hold sniper aim when stalled, and take cover then flee when badly hurt.
+    - Added Maneuvers: an intermittent combat takeover that borrows a stalker for one committed maneuver.
+      Stalkers kite when crowded, hold sniper aim when stalled, and take cover then flee when badly hurt.
       A borrowed stalker holds fire when he has no clear shot instead of firing into cover. Companions are excluded by default. Replaces the old Stance Switch system.
 
   Effectiveness
@@ -279,7 +290,7 @@ next
 
   Compatibility
     - Added AOEngine v0.55+ support.
-    - Added dynamic checking of xlibs and xray-monolith or AOEngine versions with a compatibility verdict.
+    - Added dynamic checking of xlibs and xray-monolith or AOEngine versions with a compatibility status.
     - Changed the Danger rework to a runtime patch, so it coexists with GAMMA AI Rework and REDONE.
     - Changed Ammo to go inert while the engine's unlimited-NPC-ammo cvar is off, so NPC ammo is not drained twice.
 
