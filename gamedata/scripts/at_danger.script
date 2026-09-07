@@ -464,7 +464,7 @@ local function script_action_danger_corpse(npc,st,bd,best_danger_object,dependen
 	local killer = dependent_object or dst and dst.death_by_id and (db.storage[dst.death_by_id] and db.storage[dst.death_by_id].object or level.object_by_id(dst.death_by_id))
 
 	if ((st.stage or 0) >= 4 and killer and killer:id() == AC_ID and killer:alive() and npc:relation(killer) < game_object.enemy and npc:see(killer)) then
-		local squad = xsquad.get_squad_by_member(npc:id())
+		local squad = xsquad.get_member_squad(npc:id())
 		if (squad) then
 			for k in squad:squad_members() do
 				local member = db.storage[k.id] and db.storage[k.id].object or level.object_by_id(k.id)

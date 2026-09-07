@@ -101,7 +101,7 @@ end
 
 local function _try_alert(npc, id, pos, tg, source, strength)
     if not npc:alive() then return end
-    if not xcreature.is_enemy_to_actor(npc) then return end
+    if not xcreature.is_actor_enemy(npc) then return end
     local last = _alert_at[id]
     local escalates = strength == STRENGTH_SOLID and _alert_strength[id] == STRENGTH_FAINT
     if last and (tg - last) < REALERT_MS and not escalates then return end

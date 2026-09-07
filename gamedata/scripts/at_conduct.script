@@ -80,7 +80,7 @@ end
 local function _select_posture(npc, enemy)
     local np, ep = npc:position(), enemy:position()
     if np:distance_to_sqr(ep) < CONDUCT_FLOOR_M * CONDUCT_FLOOR_M then return move.stand, false end
-    if xcombat.has_obstacle_to_target(np, ep, xcombat.BODY_Y.CROUCH_EYE) then return move.stand, false end
+    if xcombat.has_shot_obstacle(np, ep, xcombat.BODY_Y.CROUCH_EYE) then return move.stand, false end
     return move.crouch, true
 end
 

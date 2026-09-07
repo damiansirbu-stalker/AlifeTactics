@@ -280,14 +280,14 @@ end
 function is_enemy_vulnerable(enemy)
     if not enemy then return false end
     if enemy:id() == AC_ID then
-        local term = xcombat.get_weapon_block_term(enemy)
+        local term = xcombat.get_block_reason(enemy)
         if term then return true, term end
         if xcombat.is_actor_sprinting() then return true, "sprinting" end
         if xcombat.is_actor_climbing() then return true, "climbing" end
         return false
     end
     if IsStalker(enemy) then
-        local term = xcombat.get_weapon_block_term(enemy)
+        local term = xcombat.get_block_reason(enemy)
         if term then return true, term end
         return xcombat.is_body_busy(enemy)
     end

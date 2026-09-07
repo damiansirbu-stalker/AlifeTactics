@@ -68,7 +68,7 @@ local function _try_stamp_member(member_id, victim_pos, who_id, who_pos, tg)
 end
 
 local function _apply_squad_stamps(victim, victim_id, who_id, who_pos)
-    local squad = xsquad.get_squad_by_member(victim_id)
+    local squad = xsquad.get_member_squad(victim_id)
     if not squad then return 0 end
     if squad:npc_count() == 0 then return 0 end
     local tg = time_global()
