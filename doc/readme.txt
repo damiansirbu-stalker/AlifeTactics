@@ -79,12 +79,14 @@ These maneuvers cover the moments vanilla fumbles:
   Kite backs a stalker out of an enemy that closed too near, still firing.
   Pickoff plants a stalker who has his enemy outranged and picks him off with deliberate single shots, breaking off the moment the threat returns.
 
-Maneuvers run in every stalker fight within 150 meters of you, tunable, whether or not you are the target. Fights against mutants and fights beyond that range stay vanilla, and one shared allowance bounds everything AlifeTactics starts, against you and against NPCs separately, so a mass battle never drowns either side.
+Maneuvers run in every stalker fight within 150 meters of you, tunable, whether or not you are the target.
+Fights against mutants and fights beyond that range stay vanilla.
+One shared allowance bounds everything AlifeTactics starts, against you and against NPCs separately, so a mass battle never drowns either side.
 A maneuver fires when its problem is real and ends when it is solved. Keep creating the problem, such as pressing a shotgunner's minimum range, and the answer keeps coming.
 The decisions come out looking human. Nobody turns his back on a shooter, two men never take the same cover, nobody plants in his enemy's sight.
 Maneuver fire bursts by weapon and by skill: burst length and pauses vary shot to shot inside the game's own per-weapon ranges and tighten with rank.
 That replaces the uniform burst the game's script machinery applies to every weapon it drives.
-Stalkers keep their footing under fire: a hit mid reaction no longer slides a standing stalker across the ground, he stays planted while the animation plays and moves the moment it ends.
+Stalkers keep their footing under fire. A hit mid reaction no longer slides a standing stalker across the ground. He stays planted while the animation plays, and moves the moment it ends.
 The footing hold ships ahead of its engine half and needs a modded exes build carrying engine PR 645. Older builds keep vanilla movement.
 The takeover overrides no combat scripts, so it fights side by side with vanilla and works with other combat AI instead of replacing it. Companions are excluded by default.
 
@@ -93,9 +95,10 @@ Vanilla stalkers re-plan the fight every moment, so any small change makes a sta
 Better cover, a flicker of lost sight, or a teammate crossing the line sets him off, which is the twitchy strafing and cover-hopping you see in a firefight.
 Many mods answer this by switching the stalker to a camper scheme that pins him in place, muting most of Anomaly's combat variety.
 AlifeTactics keeps the engine's full combat AI and instead stops a stalker throwing away a decision that still makes sense.
-While what he is doing still works he stays with it, and he switches the instant it stops: he loses sight, the shot is blocked, or the enemy is gone.
+While what he is doing still works he stays with it. He switches the instant it stops: he loses sight, the shot is blocked, or the enemy is gone.
 It also pins his cover: a stalker firing with a clear shot keeps his spot instead of sliding to a marginally better one, stopping the mid-fight strafe at its source.
-When his enemy is caught reloading, out of ammo, staggered, sprinting weapon-down, or with no weapon up, he liquidates: fire held on the window instead of breaking off, repositioning once the enemy can answer again.
+When his enemy is caught reloading, out of ammo, staggered, sprinting weapon-down, or with no weapon up, he liquidates.
+He holds fire on the window instead of breaking off, and repositions once the enemy can answer again.
 He sees a decision through, keeping up his fire, pressing a flank, or finishing a reload, instead of second-guessing himself every frame.
 
 Conduct:
@@ -109,8 +112,9 @@ Weapon spacing: a stalker's cover choices respect what his weapon is good at, su
 Behaviors:
 Stalkers act on weak moments in the fight, in both directions and against any enemy, you or another combatant.
 The Push: a stalker whose enemy cannot answer presses him instead of watching the moment pass.
-Caught reloading, out of ammo, or badly hurt, the target's attackers thicken their fire at close range, and with a clear upper hand (the target weakened, bleeding, or turned away) they move to closer cover.
-The Pull is the mirror: a stalker caught reloading or badly hurt while his enemy is strong falls back, his own cover choices landing farther until he recovers.
+Caught reloading, out of ammo, or badly hurt, the target's attackers thicken their fire at close range.
+With a clear upper hand (the target weakened, bleeding, or turned away) they move to closer cover.
+The Pull is the mirror. A stalker caught reloading or badly hurt while his enemy is strong falls back, his own cover choices landing farther until he recovers.
 Everything reverts the moment the target can answer, each attacker presses briefly with a cooldown before pressing again, and each cause has its own switch.
 
 Effectiveness
@@ -123,8 +127,9 @@ The engine has several dispersion variables, including barrel and weapon, and th
 
 Disclosure:
 A suppressed hit is a signal, not a broadcast.
-The victim turns on the shooter through the engine's own target selection: the real "he hit me" signal outweighs a distant visible enemy, and he returns fire the moment he has line of sight - nothing is revealed through walls.
-Squadmates close enough to hear the impact walk over to investigate the shooter's position and open fire only when they actually spot him; distant patrol members are never told.
+The victim turns on the shooter through the engine's own target selection: the real "he hit me" signal outweighs a distant visible enemy.
+He returns fire the moment he has line of sight, and nothing is revealed through walls.
+Squadmates close enough to hear the impact walk over to investigate the shooter's position and open fire only when they actually spot him. Distant patrol members are never told.
 A loud shot needs no script - the whole area hears it on its own.
 A clean instant kill tells no one, and the squad can still find you by sound, by sight, or by the body.
 A target-priority dial tunes how strongly NPCs prioritize you over other combatants once you are seen, down to treating you like anyone else.
@@ -137,7 +142,8 @@ It keys on their actual relation, so genuinely hostile factions still trade fire
 Reaction:
 Stalker rank now shapes gun handling, applied per stalker.
 Tracking Speed sets how fast a barrel moves while tracking, from vanilla at the bottom rank to a decent step above it at the top, well short of the game's hardcore AI aim.
-Tracking Lock sets how tightly a barrel holds a strafing target: a novice's aim lags and a moving target loses it exactly like vanilla, a legend holds you across the firing window without tracking you perfectly.
+Tracking Lock sets how tightly a barrel holds a strafing target. A novice's aim lags and a moving target loses it, exactly like vanilla.
+A legend holds you across the firing window without tracking you perfectly.
 Target Lead aims a stalker ahead of a moving target by the round's real flight time, computed from range and the weapon's bullet speed as it fires.
 Higher ranks lead true and hit movers, lower ranks over-lead and overshoot.
 Fire Discipline gives higher ranks crisper short bursts at a tighter cadence while low ranks stay vanilla. Defaults keep a rank's rounds per minute at or above vanilla.
@@ -194,7 +200,7 @@ Healing:
 Wounded NPCs heal with the items they carry.
 Vanilla's medkit heal fires unreliably and bandages do nothing, so bleeding stalkers die that should not.
 AlifeTactics has them spend real medkits when injured and real bandages when bleeding, falling back to a per-rank charge only when empty.
-The heal rate is tunable, and fixed limp and heal animations show it, out of combat only.
+The heal rate is tunable. Fixed limp and heal animations show it, out of combat only.
 
 Jamming:
 Eliminates the fake NPC jams and the tactical-reload loop they cause.
@@ -212,14 +218,15 @@ Gear:
 Items a stalker carries give him combat advantages, read from each item's own game data, so artefacts from any mod work.
 An artefact grants one advantage chosen by its anomaly class, scaled by its own tier: gravity, chemical, and armour-plate artefacts cut the damage he takes.
 Thermal artefacts tighten his fire, and electric and quest artefacts raise the damage he deals.
-Any single artefact tops out at 10 percent and never stacks, the strongest source wins, so gear tilts a fight and never decides one.
+Any single artefact tops out at 10 percent and never stacks. The strongest source wins, so gear tilts a fight and never decides one.
 A chemical artefact instead heals its carrier slowly over time, in place of the damage cut above.
 Any artefact carrier warps the air around his body, so a distorting stalker is a real, huntable artefact drop.
 Binoculars extend his sight range by day and night-vision by night.
 Effect strengths and the artefact class tables are tunable in configs/alifetactics/at_gear_config.ltx.
 
 Fixes to Vanilla:
-AlifeTactics corrects dozens of vanilla Anomaly and xray defects, grouped below by the system each repairs. Each shows as a locked toggle on the Fixes tab. The always-on ones cannot be turned off. The rest are switched on their own pages.
+AlifeTactics corrects dozens of vanilla Anomaly and xray defects, grouped below by the system each repairs.
+Each shows as a locked toggle on the Fixes tab. The always-on ones cannot be turned off. The rest are switched on their own pages.
 
 Danger scheme:
 - A name collision made three danger categories read the wrong range, so a ricochet read at 150m, not its own 4m. Each now reads its own range.
@@ -289,12 +296,13 @@ Uninstall (MO2):
 Disable or remove in MO2.
 
 Performance:
-Performance comes first, ahead of any feature. Every combat command goes through xcombat into the engine's own mechanisms, nothing runs per frame, and every flow is timed with a hard 2ms ceiling.
+Performance comes first, ahead of any feature. Every combat command goes through xcombat into the engine's own mechanisms.
+Nothing runs per frame, and every flow is timed with a hard 2ms ceiling.
 When a feature cannot fit the budget it is reworked, replaced, or removed with an X-Ray engine modification rather than allowed to slow the game.
 It is measured on the engine built from the latest source with no multithreading and no optimizations, so the timings are worst-case, and the optimized multithreaded build you run is always faster.
 
 Compatibility:
-Tested with vanilla Anomaly 1.5.3 and GAMMA, and installing or uninstalling mid-save works.
+Tested with vanilla Anomaly 1.5.3 and GAMMA. Installing or uninstalling mid-save works.
 The takeover leaves combat scripts vanilla, and the danger rework patches at runtime, so AlifeTactics layers cleanly onto other combat and AI mods.
 Friendly fire and same-community hits are filtered at the faction-relation gate.
 Story NPCs, companions, traders, and squadmates are never armed against their own faction.
@@ -333,11 +341,18 @@ Works alongside, with a note:
   Their larger, longer hit and hurt animations can make the base-game gliding and staggering more visible, which is base-game hit handling (see "Not AlifeTactics" below),
   not anything AlifeTactics adds.
 - g_ai_unlimited_ammo set to 0 (newer engine builds): the Ammo system detects it and goes inert, so carried AP is not drained twice. At the default 1 it runs normally.
-- G.A.M.M.A. Ballistics Overhaul and Close Quarter Combat (both ship the grok_bo hit system): a hit you land on an NPC is recomputed from the weapon's own values and applied by grok_bo itself, which cancels that NPC's artefact damage resistance. AlifeTactics restores it: it takes over the grok_bo NPC hit and reapplies the resistance to the damage grok_bo actually dealt, so a geared NPC still resists your shots. It hooks whichever of the two wins load order, is inactive when neither is installed, and changes nothing for hits between NPCs.
-- G.A.M.M.A. Actor Damage Balancer: finalizes damage the player takes, reading the hit's power and then applying the damage itself. A modifier this mod makes to a hit against the player still reaches final damage, because the balancer reads that power before applying it and this mod's scripts (at_, ap_) load ahead of grok_ by name. That order is fixed by the file names, so it holds on any standard install. Only a damage mod whose scripts sort ahead of both could take it over.
+- G.A.M.M.A. Ballistics Overhaul and Close Quarter Combat (both ship the grok_bo hit system): a hit you land on an NPC is recomputed from the weapon's own values and applied by grok_bo itself.
+  That cancels the NPC's artefact damage resistance.
+  AlifeTactics restores it: it takes over the grok_bo NPC hit and reapplies the resistance to the damage grok_bo actually dealt, so a geared NPC still resists your shots.
+  It hooks whichever of the two wins load order, is inactive when neither is installed, and changes nothing for hits between NPCs.
+- G.A.M.M.A. Actor Damage Balancer: finalizes damage the player takes, reading the hit's power and then applying the damage itself.
+  A modifier this mod makes to a hit against the player still reaches final damage.
+  The balancer reads that power before applying it, and this mod's scripts (at_, ap_) load ahead of grok_ by name.
+  That order is fixed by the file names, so it holds on any standard install. Only a damage mod whose scripts sort ahead of both could take it over.
 
 Works as-is, no setup:
-- G.A.M.M.A. AI Rework, RE:DONE Combat AI, RE:VISION, AI More Cover, Wuut AI Extension, NPC_Fleeing, Mora's AI More Covered, No More Companion Friendly Fire, Tougher Important NPCs and Companions, Dynamic AI Aim Settings.
+- G.A.M.M.A. AI Rework, RE:DONE Combat AI, RE:VISION, AI More Cover, Wuut AI Extension, NPC_Fleeing, Mora's AI More Covered,
+  No More Companion Friendly Fire, Tougher Important NPCs and Companions, Dynamic AI Aim Settings.
   The takeover blocks the combat planner only while a maneuver runs, then hands back, and the danger rework reads their ranges instead of substituting its own.
   Turn Combat off in MCM to leave a planner-action mod fully in charge. Where one also ships a visibility script or the aim globals, that part is under "Works alongside" above.
 
@@ -378,4 +393,4 @@ Include: exact repro steps (new game or named save, expected vs actual), confirm
 Only the log shows whether this mod was involved.
 
 The debug log is required: set the MCM log level to DEBUG, reproduce, then back to WARN. DEBUG is not free.
-It writes a timed line for every evaluation and hitches single-threaded exes, and the millisecond figures include the tracing itself, so treat them as relative.
+It writes a timed line for every evaluation and hitches single-threaded exes. The millisecond figures include the tracing itself, so treat them as relative.
