@@ -198,9 +198,9 @@ local function _load_config()
     for i = 1, #groups do
         local kind = groups[i]
         local list = ini:r_string_ex(GEAR_SECTION, kind)
-        if list then
-            for sec in list:gmatch("[^%s,]+") do _kind[sec] = kind end
-        end
+        if not list then goto continue end
+        for sec in list:gmatch("[^%s,]+") do _kind[sec] = kind end
+        ::continue::
     end
 end
 
@@ -213,6 +213,7 @@ local function _on_first_update()
 end
 
 --- Re-resolve one NPC's gear now, for a caller that granted items with no take event.
+--- @novalidate(code.unused_export, reason:"public re-resolve for a scripted gear grant with no take event")
 function apply_gear(npc)
     if not (cfg.gear_enabled and npc and IsStalker(npc)) then return end
     _apply_effects(npc)

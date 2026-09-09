@@ -62,17 +62,13 @@ local function _arm_members(squad, pos, lvid, gvid, grenades)
     if count == 0 or squad:npc_count() == 0 then return end
     local sim = alife()
     for member in squad:squad_members() do
-        for _ = 1, count do
-            sim:create("grenade_f1", pos, lvid, gvid, member.id)
-        end
+        for _ = 1, count do sim:create("grenade_f1", pos, lvid, gvid, member.id) end
     end
 end
 
 local function _gear_one(sim, member_id, pos, lvid, gvid)
     for i = 1, #EFFECT_GEAR do
-        if ini_sys:section_exist(EFFECT_GEAR[i]) then
-            sim:create(EFFECT_GEAR[i], pos, lvid, gvid, member_id)
-        end
+        if ini_sys:section_exist(EFFECT_GEAR[i]) then sim:create(EFFECT_GEAR[i], pos, lvid, gvid, member_id) end
     end
 end
 
