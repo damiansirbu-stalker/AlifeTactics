@@ -363,13 +363,9 @@ local function _log_decline(npc)
     end
 end
 
-local function _run_limp_check(npc, id, state, tg)
-    local rec = _limping[id]
-    if rec and _try_drop_limp(npc, id, rec, tg) then return end
-    if state.eligibility_at and tg < state.eligibility_at then return end
-    state.eligibility_at = tg + LIMP_ELIGIBILITY_CHECK_MS
-    local timer = xprofiler.new_if(at_debug.is_on()):start()
-    local eligible = IsStalker(npc)
+--- True when this NPC may adopt the limp (calm, hurt, standing, unseen, no enemy).
+local function _is_limp_eligible(npc)
+    return IsStalker(npc)
         and npc:alive()
         and xcombat.get_actor_dist(npc) <= ANIM_RADIUS_SQR
         and not npc:in_smart_cover()
@@ -379,6 +375,15 @@ local function _run_limp_check(npc, id, state, tg)
         and npc:body_state() == move.standing
         and at_faction.has_flavor(npc, "healing")
         and not IsWounded(npc)
+end
+
+local function _run_limp_check(npc, id, state, tg)
+    local rec = _limping[id]
+    if rec and _try_drop_limp(npc, id, rec, tg) then return end
+    if state.eligibility_at and tg < state.eligibility_at then return end
+    state.eligibility_at = tg + LIMP_ELIGIBILITY_CHECK_MS
+    local timer = xprofiler.new_if(at_debug.is_on()):start()
+    local eligible = _is_limp_eligible(npc)
 
     if not eligible then
         timer:stop()

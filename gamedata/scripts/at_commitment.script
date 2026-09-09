@@ -135,6 +135,21 @@ local function _on_hit(npc, amount, _local_direction, _who, bone_index)
     _hit_at[npc:id()] = time_global()
 end
 
+--- The commitment decline reason for this sighting (nil = commit to the hold).
+local function _get_decline_reason(npc, enemy, is_flank_exit, to_op)
+    local sees = xcombat.can_see(npc, enemy)
+    if is_flank_exit then
+        if sees then return "flank_resighted" end
+        return nil
+    end
+    if not sees then return "no_sight" end
+    if xcombat.can_kill_member(npc, enemy:position()) then return "lane_blocked" end
+    if to_op == stalker_ids.action_take_cover and not xcombat.fire_make_sense(npc, enemy) then
+        return "out_of_range"
+    end
+    return nil
+end
+
 local function _on_action_switch(npc, from_op, to_op, flags)
     if flags.allow == false then return end
     if not _attack_ops then _resolve_ops() end
@@ -148,17 +163,8 @@ local function _on_action_switch(npc, from_op, to_op, flags)
     local id = npc:id()
     local enemy = xcombat.get_best_enemy(npc)
     if not enemy then _log_decline(npc, id, "no_enemy") return end
-    local sees = xcombat.can_see(npc, enemy)
-
-    if is_flank_exit then
-        if sees then _log_decline(npc, id, "flank_resighted") return end
-    else
-        if not sees then _log_decline(npc, id, "no_sight") return end
-        if xcombat.can_kill_member(npc, enemy:position()) then _log_decline(npc, id, "lane_blocked") return end
-        if to_op == stalker_ids.action_take_cover and not xcombat.fire_make_sense(npc, enemy) then
-            _log_decline(npc, id, "out_of_range") return
-        end
-    end
+    local decline = _get_decline_reason(npc, enemy, is_flank_exit, to_op)
+    if decline then _log_decline(npc, id, decline) return end
 
     local tg = time_global()
     local hold = _hold[id]

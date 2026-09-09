@@ -89,6 +89,11 @@ local function _is_eligible(npc, id)
     return ok
 end
 
+local function _log_busy(id, busy_why, held)
+    at_debug.debug("[CONDUCT] id=%d freeze=%s held=%s", id, tostring(busy_why),
+        held and (held.want == move.crouch and "crouch" or "stand") or "none")
+end
+
 --- Answer one engine body-state ask with the held posture, re-deciding at most once per DECIDE_MS.
 local function _on_combat_body_state(npc, world_operator, _body_state, flags)
     if not cfg.conduct_posture then return end
@@ -106,10 +111,7 @@ local function _on_combat_body_state(npc, world_operator, _body_state, flags)
     local held = _decision[id]
     local busy, busy_why = xcombat.is_body_busy(npc)
     if busy then
-        if at_debug.is_on() then
-            at_debug.debug("[CONDUCT] id=%d freeze=%s held=%s", id, tostring(busy_why),
-                held and (held.want == move.crouch and "crouch" or "stand") or "none")
-        end
+        if at_debug.is_on() then _log_busy(id, busy_why, held) end
         if held then flags.body_state = held.want end
         return
     end

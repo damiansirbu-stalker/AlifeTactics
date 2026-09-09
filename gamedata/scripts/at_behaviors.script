@@ -13,6 +13,7 @@ local PUSH_WEAK_EXIT = 0.10
 local PULL_WEAK_EXIT = 0.10
 local FIRE_CLOSE = "close"
 local PUSH_CAUSE_WEAK = "weak"
+local PUSH_STOP_CAP = "cap"
 
 local HIT_FIGHT_MS
 local PUSH_CLOSE_M, PUSH_FAR_M, PUSH_SIZE_K, PUSH_INTERVAL_K, PUSH_PRESS_COOLDOWN_MS
@@ -158,20 +159,24 @@ local function _can_open_push(npc, state, tg)
         and at_faction.has_flavor(npc, "behavior_push")
 end
 
+--- The stop cause for an active or eligible push (nil = keep pressing).
+local function _get_stop_cause(state, human, joined, tg)
+    if not cfg.push_enabled then return "off" end
+    if state.maneuver then return "seized" end
+    if not human then return "no_target" end
+    if joined and (tg - (state.push_at or tg)) > PUSH_WINDOW_MAX_MS then return PUSH_STOP_CAP end
+    return nil
+end
+
 local function _update_push_npc(npc, state, tg)
     local joined = state.push_fire ~= nil or state.push_band ~= nil
     if not joined and not _can_open_push(npc, state, tg) then return end
     local target = _get_target(state)
     local human = target ~= nil and (target:id() == AC_ID or IsStalker(target))
-    if not cfg.push_enabled or state.maneuver or not human then
-        if joined and state.maneuver then state.push_until = tg + PUSH_PRESS_COOLDOWN_MS end
-        _clear_push_npc(npc, state,
-            (not cfg.push_enabled and "off") or (state.maneuver and "seized") or "no_target", tg)
-        return
-    end
-    if joined and (tg - (state.push_at or tg)) > PUSH_WINDOW_MAX_MS then
-        state.push_until = tg + PUSH_PRESS_COOLDOWN_MS
-        _clear_push_npc(npc, state, "cap", tg)
+    local stop = _get_stop_cause(state, human, joined, tg)
+    if stop then
+        if stop == PUSH_STOP_CAP or (joined and state.maneuver) then state.push_until = tg + PUSH_PRESS_COOLDOWN_MS end
+        _clear_push_npc(npc, state, stop, tg)
         return
     end
     local cause = _get_press_cause(state, target, joined)
