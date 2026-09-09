@@ -409,33 +409,6 @@ local function _format_hist_line(hist)
     return table_concat(parts, " ")
 end
 
---- Write the ballistics minute tables now (also runs on the 60s tick and at level exit).
-function write_report()
-    local minutes = (time_global() - _t0) / 60000
-    if minutes <= 0 then return end
-    log.info("=== ballistics %dm%02ds ===", math_floor(minutes), math_floor((minutes % 1) * 60))
-    for i = 1, #TIERS do
-        local tier = TIERS[i]
-        local row = _tiers[tier]
-        if row and row.shots > 0 then
-            local moving_n = row.ahead_n + row.behind_n
-            log.info("tier=%-12s shots=%-5d hits=%-4d hit=%.1f%% still=%.1f%% moving=%.1f%% conv=%.0f%% dmg=%.2f hpm=%.1f ang=%.1fdeg ahead=%.0f%% off=%.1fdeg wrong=%.0f%%",
-                tier, row.shots, row.hits, _get_percent(row.hits, row.shots), _get_percent(row.st_hits, row.st_shots),
-                _get_percent(row.mv_hits, row.mv_shots), _get_percent(row.conv, row.near), row.dmg, row.hits / minutes,
-                row.ang_n > 0 and (row.ang_sum / row.ang_n) or 0,
-                moving_n > 0 and (100 * row.ahead_n / moving_n) or 0,
-                row.aim_shots > 0 and (row.aim_off_sum / row.aim_shots) or 0,
-                _get_percent(row.wrongway, row.aim_shots))
-        end
-    end
-    for name, row in pairs(_drive) do
-        log.info("drive=%-8s shots=%-5d hits=%-4d hit=%.1f%%", name, row.shots, row.hits, _get_percent(row.hits, row.shots))
-    end
-    for kind, hist in pairs(_bursts) do
-        log.info("bursts kind=%-10s %s", tostring(kind), _format_hist_line(hist))
-    end
-end
-
 local function _run_report()
     if not _enabled then return true end
     write_report()
@@ -495,6 +468,33 @@ local function _on_actor_net_destroy()
     if _enabled then
         write_report()
         log.flush()
+    end
+end
+
+--- Write the ballistics minute tables now (also runs on the 60s tick and at level exit).
+function write_report()
+    local minutes = (time_global() - _t0) / 60000
+    if minutes <= 0 then return end
+    log.info("=== ballistics %dm%02ds ===", math_floor(minutes), math_floor((minutes % 1) * 60))
+    for i = 1, #TIERS do
+        local tier = TIERS[i]
+        local row = _tiers[tier]
+        if row and row.shots > 0 then
+            local moving_n = row.ahead_n + row.behind_n
+            log.info("tier=%-12s shots=%-5d hits=%-4d hit=%.1f%% still=%.1f%% moving=%.1f%% conv=%.0f%% dmg=%.2f hpm=%.1f ang=%.1fdeg ahead=%.0f%% off=%.1fdeg wrong=%.0f%%",
+                tier, row.shots, row.hits, _get_percent(row.hits, row.shots), _get_percent(row.st_hits, row.st_shots),
+                _get_percent(row.mv_hits, row.mv_shots), _get_percent(row.conv, row.near), row.dmg, row.hits / minutes,
+                row.ang_n > 0 and (row.ang_sum / row.ang_n) or 0,
+                moving_n > 0 and (100 * row.ahead_n / moving_n) or 0,
+                row.aim_shots > 0 and (row.aim_off_sum / row.aim_shots) or 0,
+                _get_percent(row.wrongway, row.aim_shots))
+        end
+    end
+    for name, row in pairs(_drive) do
+        log.info("drive=%-8s shots=%-5d hits=%-4d hit=%.1f%%", name, row.shots, row.hits, _get_percent(row.hits, row.shots))
+    end
+    for kind, hist in pairs(_bursts) do
+        log.info("bursts kind=%-10s %s", tostring(kind), _format_hist_line(hist))
     end
 end
 

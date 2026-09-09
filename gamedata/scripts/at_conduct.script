@@ -60,12 +60,6 @@ local function _load_config()
     end
 end
 
---- True while this NPC's held posture decision is crouch (HUD read).
-function is_crouched(id)
-    local dec = _decision[id]
-    return dec ~= nil and dec.want == move.crouch
-end
-
 local _stationary_ops
 local function _get_stationary_ops()
     if not _stationary_ops then
@@ -136,26 +130,6 @@ local function _on_combat_body_state(npc, world_operator, _body_state, flags)
         end
     end
     flags.body_state = held.want
-end
-
---- Cap this NPC's accepted cover-to-enemy maximum at max_m; clearing the overlay restores the band.
-function set_push_max(id, max_m)
-    _push_max[id] = max_m
-end
-
---- Clear the push cap overlay.
-function clear_push_max(id)
-    _push_max[id] = nil
-end
-
---- Raise this NPC's accepted cover-to-enemy minimum to min_m, flooring the maximum at max_floor_m.
-function set_pull_band(id, min_m, max_floor_m)
-    _pull[id] = { min = min_m, max_floor = max_floor_m }
-end
-
---- Clear the pull band overlay.
-function clear_pull_band(id)
-    _pull[id] = nil
 end
 
 --- The spacing disposition row (kind + tier scale factors), lazily derived and TTL-cached.
@@ -252,11 +226,6 @@ local function _on_entity_unregister(se_obj)
     end
 end
 
---- True when the combat-distance handlers are live on this exe.
-function is_spacing_active()
-    return _spacing_active
-end
-
 local function _on_first_update()
     at_debug.update_config()
     at_debug.info("Conduct initialized (posture=%s spacing=%s)",
@@ -264,6 +233,37 @@ local function _on_first_update()
     if not _spacing_active then
         at_debug.info("Weapon spacing INACTIVE: exe lacks the combat-distance asks (#563); engine bands apply")
     end
+end
+
+--- True while this NPC's held posture decision is crouch (HUD read).
+function is_crouched(id)
+    local dec = _decision[id]
+    return dec ~= nil and dec.want == move.crouch
+end
+
+--- Cap this NPC's accepted cover-to-enemy maximum at max_m; clearing the overlay restores the band.
+function set_push_max(id, max_m)
+    _push_max[id] = max_m
+end
+
+--- Clear the push cap overlay.
+function clear_push_max(id)
+    _push_max[id] = nil
+end
+
+--- Raise this NPC's accepted cover-to-enemy minimum to min_m, flooring the maximum at max_floor_m.
+function set_pull_band(id, min_m, max_floor_m)
+    _pull[id] = { min = min_m, max_floor = max_floor_m }
+end
+
+--- Clear the pull band overlay.
+function clear_pull_band(id)
+    _pull[id] = nil
+end
+
+--- True when the combat-distance handlers are live on this exe.
+function is_spacing_active()
+    return _spacing_active
 end
 
 function on_game_start()

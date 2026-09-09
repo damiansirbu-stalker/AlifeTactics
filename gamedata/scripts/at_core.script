@@ -38,23 +38,6 @@ local function _load_config()
     _starts = xttltable.create_ttl_counter({ ttl = STARTS_WINDOW_SEC })
 end
 
---- True while the bucket's start budget has room in the current window (0 = no limit).
-function check_start(bucket)
-    local cap = STARTS_CAP[bucket]
-    if not cap or cap <= 0 then return true end
-    return _starts:get_count(bucket) < cap
-end
-
---- Spend one start from the bucket's window budget.
-function add_start(bucket)
-    _starts:add(bucket)
-end
-
---- True while at least one bucket still admits a start - the cheap pre-walk bail.
-function can_start()
-    return check_start("vs_player") or check_start("vs_npc")
-end
-
 -- The best_enemy facts. The loop is the only writer of the forward field and the reverse index.
 
 local function _remove_edge(state)
@@ -247,6 +230,23 @@ local function _on_first_update()
     if _starts then _starts:clear() end
     at_debug.update_config()
     _apply_enabled()
+end
+
+--- True while the bucket's start budget has room in the current window (0 = no limit).
+function check_start(bucket)
+    local cap = STARTS_CAP[bucket]
+    if not cap or cap <= 0 then return true end
+    return _starts:get_count(bucket) < cap
+end
+
+--- Spend one start from the bucket's window budget.
+function add_start(bucket)
+    _starts:add(bucket)
+end
+
+--- True while at least one bucket still admits a start - the cheap pre-walk bail.
+function can_start()
+    return check_start("vs_player") or check_start("vs_npc")
 end
 
 --- The combat record for stalker id, or nil when the core does not track it.

@@ -173,6 +173,181 @@ local function _spawn_set(label, entries)
     at_debug.info("[SPAWN] set=%s count=%d", label, #entries)
 end
 
+local function _arena_gear(pos, lvid, id)
+    for i = 1, #EFFECT_GEAR do
+        if ini_sys:section_exist(EFFECT_GEAR[i]) then alife():create(EFFECT_GEAR[i], pos, lvid, _arena_gvid, id) end
+    end
+end
+
+local function _arena_spawn_pos(angle)
+    local dist = ARENA_RING_MIN + math_random() * (ARENA_RING_MAX - ARENA_RING_MIN)
+    local dir = vector():set(math_cos(angle), 0, math_sin(angle))
+    local lvid = level.vertex_in_direction(_arena_center_lvid, dir, dist)
+    if not lvid or lvid >= INVALID_VERTEX then return nil end
+    return level.vertex_position(lvid), lvid
+end
+
+local function _arena_spawn_one(side)
+    local faction = (_arena_mode == "me" or side == "b") and "monolith"
+        or ARENA_SIDE_A[math_random(1, #ARENA_SIDE_A)]
+    local list = ARENA_SECTIONS[faction]
+    local section = list[math_random(1, #list)]
+    local base = (_arena_mode == ARENA_MODE_WAR and side == "b") and (_arena_side_dir + math_pi) or _arena_side_dir
+    local angle = (_arena_mode == "me") and (math_random() * 2 * math_pi)
+        or (base + math_rad((math_random() * 2 - 1) * ARENA_SPREAD_DEG))
+    local pos, lvid = _arena_spawn_pos(angle)
+    if not pos then return false end
+    local se = alife():create(section, pos, lvid, _arena_gvid)
+    if not se then return false end
+    _arena_spawned[se.id] = { side = side, dead_seen = false }
+    _arena_gear(pos, lvid, se.id)
+    at_debug.info("[ARENA] spawned %s id=%d side=%s", section, se.id, side)
+    return true
+end
+
+local function _arena_reap(id, rec)
+    local se = alife_object(id)
+    if not se then _arena_spawned[id] = nil return nil end
+    if se:alive() then return rec.side end
+    if rec.dead_seen then
+        alife():release(se, true)
+        _arena_spawned[id] = nil
+    else
+        rec.dead_seen = true
+    end
+    return nil
+end
+
+local function _arena_census()
+    local alive_a, alive_b = 0, 0
+    for id, rec in pairs(_arena_spawned) do
+        local live_side = _arena_reap(id, rec)
+        if live_side == "a" then alive_a = alive_a + 1
+        elseif live_side == "b" then alive_b = alive_b + 1 end
+    end
+    return alive_a, alive_b
+end
+
+local function _arena_topup_me(alive_a)
+    local budget = ARENA_MAX_PER_TICK
+    local deficit = _arena_want - alive_a
+    while deficit > 0 and budget > 0 do
+        if _arena_spawn_one("a") then deficit = deficit - 1 end
+        budget = budget - 1
+    end
+end
+
+local function _arena_topup_war(alive_a, alive_b)
+    local budget = ARENA_MAX_PER_TICK
+    local half = math_floor(_arena_want / 2)
+    local need_a, need_b = half - alive_a, half - alive_b
+    while (need_a > 0 or need_b > 0) and budget > 0 do
+        if need_a >= need_b and _arena_spawn_one("a") then need_a = need_a - 1
+        elseif need_a < need_b and _arena_spawn_one("b") then need_b = need_b - 1 end
+        budget = budget - 1
+    end
+end
+
+local function _arena_tick()
+    if not _arena_on then return true end
+    ResetTimeEvent("at_arena", "tick", ARENA_TICK_SEC)
+    if not db.actor then return false end
+    local alive_a, alive_b = _arena_census()
+    if _arena_mode == "me" then _arena_topup_me(alive_a) else _arena_topup_war(alive_a, alive_b) end
+    at_debug.info("[ARENA] tick alive a=%d b=%d want=%d", alive_a, alive_b, _arena_want)
+end
+
+local function _arena_start(mode, count)
+    if not db.actor then _tip("AT.ARENA: not in game") return end
+    if not count or count < 2 then _tip("AT.ARENA: pass a total combatant count - at_test.at_arena(40)") return end
+    _arena_mode = mode
+    _arena_want = count
+    _arena_center_lvid = db.actor:level_vertex_id()
+    _arena_gvid = db.actor:game_vertex_id()
+    _arena_side_dir = math_random() * 2 * math_pi
+    _arena_on = true
+    RemoveTimeEvent("at_arena", "tick")
+    CreateTimeEvent("at_arena", "tick", 1, _arena_tick)
+    _tip(string_format("AT.ARENA: maintaining %d geared NPCs (%s)", _arena_want, mode))
+end
+
+local function _ap_for_weapon(wpn_sec)
+    local ammo_class = parse_list(ini_sys, wpn_sec, "ammo_class")
+    if not ammo_class then return nil end
+    for i = 1, #ammo_class do
+        if at_ammo.AP_SECTIONS[ammo_class[i]] then return ammo_class[i] end
+    end
+    return nil
+end
+
+local function _arm_ap(npc)
+    local wpn = npc:active_item()
+    if not (wpn and IsWeapon(wpn)) then return false end
+    local sec = _ap_for_weapon(wpn:section())
+    if not sec then return false end
+    if npc:object(sec) ~= nil then return false end
+    npc:set_character_rank(AP_RANK)
+    for _ = 1, AP_BOXES do xinventory.create_item(sec, npc:id(), { ammo = AP_PER_BOX }) end
+    return true
+end
+
+local function _lab_ensure(npc, section)
+    if npc:object(section) ~= nil then return 0 end
+    xinventory.create_item(section, npc:id())
+    return 1
+end
+
+local function _lab_give_weapon(npc)
+    _lab_wpn_i = _lab_wpn_i + 1
+    local sec = LAB_WEAPONS[((_lab_wpn_i - 1) % #LAB_WEAPONS) + 1]
+    if not ini_sys:section_exist(sec) then return "none" end
+    xinventory.create_item(sec, npc:id())
+    local ammo_class = parse_list(ini_sys, sec, "ammo_class")
+    local ammo = ammo_class and ammo_class[1]
+    if ammo then
+        xinventory.create_item(ammo, npc:id())
+        xinventory.create_item(ammo, npc:id())
+    end
+    return sec
+end
+
+local function _lab_stock_npc(npc, squads)
+    local items = _lab_ensure(npc, "medkit") + _lab_ensure(npc, "bandage")
+    local ap = _arm_ap(npc) and 1 or 0
+    local squad = get_object_squad(npc)
+    if not squad or squads[squad.id] then return items, ap, 0 end
+    squads[squad.id] = _lab_give_weapon(npc)
+    return items, ap, 1
+end
+
+local function _lab_pass()
+    if not db.actor then return end
+    local apos = db.actor:position()
+    local actor_id = db.actor:id()
+    local seen, items, aps, weapons = 0, 0, 0, 0
+    local squads = {}
+    for id in pairs(db.storage) do
+        local npc = level.object_by_id(id)
+        if npc and id ~= actor_id and IsStalker(npc) and npc:alive()
+            and npc:position():distance_to_sqr(apos) <= LAB_RADIUS_SQR
+        then
+            seen = seen + 1
+            local items_n, ap_n, wpn_n = _lab_stock_npc(npc, squads)
+            items   = items + items_n
+            aps     = aps + ap_n
+            weapons = weapons + wpn_n
+        end
+    end
+    at_debug.info("[LAB] pass npcs=%d items_given=%d ap_armed=%d squad_weapons=%d", seen, items, aps, weapons)
+    _tip(string_format("AT.LAB: %d NPCs stocked, %d items, %d AP-armed, %d squad weapons", seen, items, aps, weapons))
+end
+
+local function _lab_tick()
+    if not _lab_loop_on then return true end
+    _lab_pass()
+    ResetTimeEvent("at_lab", "loop", LAB_PERIOD_SEC)
+end
+
 --- @novalidate(code.unused_export, reason:"console command")
 function at_spawn()
     _spawn(DEFAULT_SECTION, DEFAULT_DISTANCE, 0)
@@ -293,104 +468,6 @@ function at_spawn_unarmed()
     end)
 end
 
-local function _arena_gear(pos, lvid, id)
-    for i = 1, #EFFECT_GEAR do
-        if ini_sys:section_exist(EFFECT_GEAR[i]) then alife():create(EFFECT_GEAR[i], pos, lvid, _arena_gvid, id) end
-    end
-end
-
-local function _arena_spawn_pos(angle)
-    local dist = ARENA_RING_MIN + math_random() * (ARENA_RING_MAX - ARENA_RING_MIN)
-    local dir = vector():set(math_cos(angle), 0, math_sin(angle))
-    local lvid = level.vertex_in_direction(_arena_center_lvid, dir, dist)
-    if not lvid or lvid >= INVALID_VERTEX then return nil end
-    return level.vertex_position(lvid), lvid
-end
-
-local function _arena_spawn_one(side)
-    local faction = (_arena_mode == "me" or side == "b") and "monolith"
-        or ARENA_SIDE_A[math_random(1, #ARENA_SIDE_A)]
-    local list = ARENA_SECTIONS[faction]
-    local section = list[math_random(1, #list)]
-    local base = (_arena_mode == ARENA_MODE_WAR and side == "b") and (_arena_side_dir + math_pi) or _arena_side_dir
-    local angle = (_arena_mode == "me") and (math_random() * 2 * math_pi)
-        or (base + math_rad((math_random() * 2 - 1) * ARENA_SPREAD_DEG))
-    local pos, lvid = _arena_spawn_pos(angle)
-    if not pos then return false end
-    local se = alife():create(section, pos, lvid, _arena_gvid)
-    if not se then return false end
-    _arena_spawned[se.id] = { side = side, dead_seen = false }
-    _arena_gear(pos, lvid, se.id)
-    at_debug.info("[ARENA] spawned %s id=%d side=%s", section, se.id, side)
-    return true
-end
-
-local function _arena_reap(id, rec)
-    local se = alife_object(id)
-    if not se then _arena_spawned[id] = nil return nil end
-    if se:alive() then return rec.side end
-    if rec.dead_seen then
-        alife():release(se, true)
-        _arena_spawned[id] = nil
-    else
-        rec.dead_seen = true
-    end
-    return nil
-end
-
-local function _arena_census()
-    local alive_a, alive_b = 0, 0
-    for id, rec in pairs(_arena_spawned) do
-        local live_side = _arena_reap(id, rec)
-        if live_side == "a" then alive_a = alive_a + 1
-        elseif live_side == "b" then alive_b = alive_b + 1 end
-    end
-    return alive_a, alive_b
-end
-
-local function _arena_topup_me(alive_a)
-    local budget = ARENA_MAX_PER_TICK
-    local deficit = _arena_want - alive_a
-    while deficit > 0 and budget > 0 do
-        if _arena_spawn_one("a") then deficit = deficit - 1 end
-        budget = budget - 1
-    end
-end
-
-local function _arena_topup_war(alive_a, alive_b)
-    local budget = ARENA_MAX_PER_TICK
-    local half = math_floor(_arena_want / 2)
-    local need_a, need_b = half - alive_a, half - alive_b
-    while (need_a > 0 or need_b > 0) and budget > 0 do
-        if need_a >= need_b and _arena_spawn_one("a") then need_a = need_a - 1
-        elseif need_a < need_b and _arena_spawn_one("b") then need_b = need_b - 1 end
-        budget = budget - 1
-    end
-end
-
-local function _arena_tick()
-    if not _arena_on then return true end
-    ResetTimeEvent("at_arena", "tick", ARENA_TICK_SEC)
-    if not db.actor then return false end
-    local alive_a, alive_b = _arena_census()
-    if _arena_mode == "me" then _arena_topup_me(alive_a) else _arena_topup_war(alive_a, alive_b) end
-    at_debug.info("[ARENA] tick alive a=%d b=%d want=%d", alive_a, alive_b, _arena_want)
-end
-
-local function _arena_start(mode, count)
-    if not db.actor then _tip("AT.ARENA: not in game") return end
-    if not count or count < 2 then _tip("AT.ARENA: pass a total combatant count - at_test.at_arena(40)") return end
-    _arena_mode = mode
-    _arena_want = count
-    _arena_center_lvid = db.actor:level_vertex_id()
-    _arena_gvid = db.actor:game_vertex_id()
-    _arena_side_dir = math_random() * 2 * math_pi
-    _arena_on = true
-    RemoveTimeEvent("at_arena", "tick")
-    CreateTimeEvent("at_arena", "tick", 1, _arena_tick)
-    _tip(string_format("AT.ARENA: maintaining %d geared NPCs (%s)", _arena_want, mode))
-end
-
 --- Keep n/2 side-a (army + cowardly ecolog/csky/renegade) vs n/2 monolith fighting around you, all geared.
 --- @novalidate(code.unused_export, reason:"console command")
 function at_arena(count)
@@ -417,26 +494,6 @@ function at_arena_stop()
     _tip(string_format("AT.ARENA: stopped, released %d", released))
 end
 
-local function _ap_for_weapon(wpn_sec)
-    local ammo_class = parse_list(ini_sys, wpn_sec, "ammo_class")
-    if not ammo_class then return nil end
-    for i = 1, #ammo_class do
-        if at_ammo.AP_SECTIONS[ammo_class[i]] then return ammo_class[i] end
-    end
-    return nil
-end
-
-local function _arm_ap(npc)
-    local wpn = npc:active_item()
-    if not (wpn and IsWeapon(wpn)) then return false end
-    local sec = _ap_for_weapon(wpn:section())
-    if not sec then return false end
-    if npc:object(sec) ~= nil then return false end
-    npc:set_character_rank(AP_RANK)
-    for _ = 1, AP_BOXES do xinventory.create_item(sec, npc:id(), { ammo = AP_PER_BOX }) end
-    return true
-end
-
 --- Arm every online stalker within 120m with AP for its weapon plus a veteran rank.
 --- @novalidate(code.unused_export, reason:"console command")
 function at_arm_ap()
@@ -459,67 +516,10 @@ function at_arm_ap()
         armed, seen, AP_RANK))
 end
 
-local function _lab_ensure(npc, section)
-    if npc:object(section) ~= nil then return 0 end
-    xinventory.create_item(section, npc:id())
-    return 1
-end
-
-local function _lab_give_weapon(npc)
-    _lab_wpn_i = _lab_wpn_i + 1
-    local sec = LAB_WEAPONS[((_lab_wpn_i - 1) % #LAB_WEAPONS) + 1]
-    if not ini_sys:section_exist(sec) then return "none" end
-    xinventory.create_item(sec, npc:id())
-    local ammo_class = parse_list(ini_sys, sec, "ammo_class")
-    local ammo = ammo_class and ammo_class[1]
-    if ammo then
-        xinventory.create_item(ammo, npc:id())
-        xinventory.create_item(ammo, npc:id())
-    end
-    return sec
-end
-
-local function _lab_stock_npc(npc, squads)
-    local items = _lab_ensure(npc, "medkit") + _lab_ensure(npc, "bandage")
-    local ap = _arm_ap(npc) and 1 or 0
-    local squad = get_object_squad(npc)
-    if not squad or squads[squad.id] then return items, ap, 0 end
-    squads[squad.id] = _lab_give_weapon(npc)
-    return items, ap, 1
-end
-
-local function _lab_pass()
-    if not db.actor then return end
-    local apos = db.actor:position()
-    local actor_id = db.actor:id()
-    local seen, items, aps, weapons = 0, 0, 0, 0
-    local squads = {}
-    for id in pairs(db.storage) do
-        local npc = level.object_by_id(id)
-        if npc and id ~= actor_id and IsStalker(npc) and npc:alive()
-            and npc:position():distance_to_sqr(apos) <= LAB_RADIUS_SQR
-        then
-            seen = seen + 1
-            local items_n, ap_n, wpn_n = _lab_stock_npc(npc, squads)
-            items   = items + items_n
-            aps     = aps + ap_n
-            weapons = weapons + wpn_n
-        end
-    end
-    at_debug.info("[LAB] pass npcs=%d items_given=%d ap_armed=%d squad_weapons=%d", seen, items, aps, weapons)
-    _tip(string_format("AT.LAB: %d NPCs stocked, %d items, %d AP-armed, %d squad weapons", seen, items, aps, weapons))
-end
-
 --- One harness pass: stock every nearby stalker (meds, AP + rank, squad weapons).
 --- @novalidate(code.unused_export, reason:"console command")
 function at_lab()
     _lab_pass()
-end
-
-local function _lab_tick()
-    if not _lab_loop_on then return true end
-    _lab_pass()
-    ResetTimeEvent("at_lab", "loop", LAB_PERIOD_SEC)
 end
 
 --- Toggle the periodic harness: a stocking pass every 30s until toggled off.
