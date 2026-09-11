@@ -302,7 +302,7 @@ When a feature cannot fit the budget it is reworked, replaced, or removed with a
 It is measured on the engine built from the latest source with no multithreading and no optimizations, so the timings are worst-case, and the optimized multithreaded build you run is always faster.
 
 Compatibility:
-Tested with vanilla Anomaly 1.5.3 and GAMMA. Installing or uninstalling mid-save works.
+Tested with vanilla Anomaly 1.5.3, GAMMA, and Forgotten Zone. Installing or uninstalling mid-save works.
 The takeover leaves combat scripts vanilla, and the danger rework patches at runtime, so AlifeTactics layers cleanly onto other combat and AI mods.
 Friendly fire and same-community hits are filtered at the faction-relation gate.
 Story NPCs, companions, traders, and squadmates are never armed against their own faction.
@@ -310,7 +310,7 @@ Story NPCs, companions, traders, and squadmates are never armed against their ow
 Disable or patch these, each one breaks an AlifeTactics system:
 - NPC Limping and Healing (Vodoxleb): plays its own limp and heal animations, the same ones the Healing system uses. The two stack and the heal cue breaks. Disable one side.
 - NPC Weapon Jamming, and any mod that jams NPC guns: Anomaly has no NPC jam animation, so a jammed stalker loops his reload with no end.
-  The Jamming system removes NPC jamming for that reason, and these mods put it back. Player-side jamming (Weapon Parts Overhaul, the GAMMA jam mods) is a separate system and stays untouched.
+  The Jamming system removes NPC jamming for that reason, and these mods put it back. Player-side jamming (Weapon Parts Overhaul and similar jam mods) is a separate system and stays untouched.
 - G.A.M.M.A. No NPC Friendly Fire, and any community-based friendly-fire blocker: the Crossfire system already filters friendly hits at the per-NPC relation gate.
   The community version filters a second time and rewrites NPC relations on each hit. Disable it.
 - G.A.M.M.A. NPCs Faster Reactions: raises stalker sight range from 160 to 220m (Monolith 275).
@@ -384,7 +384,7 @@ Usage and License:
   Full license in LICENSE file and on GitHub.
 
 Reporting issues and suggestions:
-Open a report at https://github.com/damiansirbu-stalker/AlifeTactics/issues/new/choose, or ask on the GAMMA, EFP, Anomaly, and Zona Discord servers. Read this readme and the MCM options first.
+Open a report at https://github.com/damiansirbu-stalker/AlifeTactics/issues/new/choose, or ask on the EFP, Anomaly, and Zona Discord servers. Read this readme and the MCM options first.
 
 Combat is the hardest thing in Anomaly to diagnose, so first confirm it is this mod: reproduce, disable AlifeTactics, reproduce again. If it persists it is not this mod.
 The cleanest test is vanilla Anomaly plus xlibs plus AlifeTactics.
