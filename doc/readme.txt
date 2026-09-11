@@ -295,12 +295,6 @@ Install (MO2):
 Uninstall (MO2):
 Disable or remove in MO2.
 
-Performance:
-Performance comes first, ahead of any feature. Every combat command goes through xcombat into the engine's own mechanisms.
-Nothing runs per frame, and every flow is timed with a hard 2ms ceiling.
-When a feature cannot fit the budget it is reworked, replaced, or removed with an X-Ray engine modification rather than allowed to slow the game.
-It is measured on the engine built from the latest source with no multithreading and no optimizations, so the timings are worst-case, and the optimized multithreaded build you run is always faster.
-
 Compatibility:
 Tested with vanilla Anomaly 1.5.3, GAMMA, and Forgotten Zone. Installing or uninstalling mid-save works.
 The takeover leaves combat scripts vanilla, and the danger rework patches at runtime, so AlifeTactics layers cleanly onto other combat and AI mods.
@@ -369,6 +363,12 @@ Not AlifeTactics (base-game behavior):
   GAMMA's Stealth Overhaul also carries an older xr_combat_ignore that wins the script slot in every GAMMA install and overrides the modded-exe version,
   removing its enemy-id validation and randomizing the combat-memory window each session.
   AlifeTactics reads whichever xr_combat_ignore won and never replaces it.
+
+Performance:
+Performance comes first, ahead of any feature. Every combat command goes through xcombat into the engine's own mechanisms.
+Nothing runs per frame, and every flow is timed with a hard 2ms ceiling.
+When a feature cannot fit the budget it is reworked, replaced, or removed with an X-Ray engine modification rather than allowed to slow the game.
+It is measured on the engine built from the latest source with no multithreading and no optimizations, so the timings are worst-case, and the optimized multithreaded build you run is always faster.
 
 Credits:
 Altogolik: support, ideas, source materials
