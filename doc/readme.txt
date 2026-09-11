@@ -370,10 +370,6 @@ Not AlifeTactics (base-game behavior):
   removing its enemy-id validation and randomizing the combat-memory window each session.
   AlifeTactics reads whichever xr_combat_ignore won and never replaces it.
 
-FAQ:
-Do I need modded exes?
-  Yes. AlifeTactics needs themrdemonized modded exes (2025.9.10 or newer) or AOEngine (v0.55 or newer). Vanilla Anomaly does not expose the APIs it relies on.
-
 Credits:
 Altogolik: support, ideas, source materials
 
@@ -383,14 +379,9 @@ Usage and License:
   Reproducing the implementation in other software: not allowed, even with credit.
   Full license in LICENSE file and on GitHub.
 
-Reporting issues and suggestions:
-Open a report at https://github.com/damiansirbu-stalker/AlifeTactics/issues/new/choose, or ask on the EFP, Anomaly, and Zona Discord servers. Read this readme and the MCM options first.
-
-Combat is the hardest thing in Anomaly to diagnose, so first confirm it is this mod: reproduce, disable AlifeTactics, reproduce again. If it persists it is not this mod.
-The cleanest test is vanilla Anomaly plus xlibs plus AlifeTactics.
-
-Include: exact repro steps (new game or named save, expected vs actual), confirmation the issue disappears with AlifeTactics off, engine build, modlist, load order, xray.log, and the mod debug log.
-Only the log shows whether this mod was involved.
-
-The debug log is required: set the MCM log level to DEBUG, reproduce, then back to WARN. DEBUG is not free.
-It writes a timed line for every evaluation and hitches single-threaded exes. The millisecond figures include the tracing itself, so treat them as relative.
+Diagnostics and reporting:
+Development > Log level: set to DEBUG, reproduce, then back to WARN. Traces maneuvers, danger, disclosure, healing, accuracy, and ammo to alifetactics.log.
+Development > Debug HUD: pick a corner for a live overlay of nearby stalkers (rank, health, scheme, target); a green maneuver row marks an NPC AlifeTactics is driving.
+Development > World behaviour debug: writes per-minute fight tables (hit rates, damage, near misses, burst lengths) to alifetactics_world.log.
+Combat is the hardest thing in Anomaly to diagnose, so first confirm it is this mod: reproduce, disable AlifeTactics, reproduce again; if it persists it is not this mod. The cleanest test is vanilla Anomaly plus xlibs plus AlifeTactics.
+Report at https://github.com/damiansirbu-stalker/AlifeTactics/issues/new/choose or the EFP, Anomaly, and Zona Discord. Include repro steps, engine build, modlist, load order, xray.log, and the debug log.
