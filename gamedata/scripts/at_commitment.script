@@ -17,6 +17,7 @@ local CENSUS_UNDER_FIRE_MS = 2000
 local FROM_DEATH_CALLBACK = "from_death_callback"
 
 local _hold_cap_ms = 6000
+local _veto_active = false
 local _attack_ops, _cover_ops
 local _op_names
 local _hold = {}
@@ -302,8 +303,9 @@ end
 local function _on_first_update()
     _hold, _last, _decline_at, _census_at, _hit_at, _cur_op, _cover_hold = {}, {}, {}, {}, {}, {}, {}
     _update_config()
-    at_debug.info("Commitment initialized (enabled=%s, hold_cap=%dms)",
-        cfg.commitment_enabled and "true" or "false", _hold_cap_ms)
+    at_debug.info("Commitment initialized (enabled=%s, veto=%s, hold_cap=%dms)",
+        cfg.commitment_enabled and "true" or "false",
+        _veto_active and "active" or "INACTIVE", _hold_cap_ms)
 end
 
 --- True while the cover pin holds this NPC; second return true while the pin is deferred by target vulnerability.
@@ -336,7 +338,8 @@ function on_game_start()
     RegisterScriptCallback("actor_on_first_update",          _on_first_update)
     RegisterScriptCallback("on_option_change",               _update_config)
     RegisterScriptCallback("mcm_option_restore_default",     _update_config)
-    if not xcombat.on_action_switch(_on_action_switch) then
+    _veto_active = xcombat.on_action_switch(_on_action_switch)
+    if not _veto_active then
         at_debug.info("Commitment INACTIVE: exe lacks the action-switch veto (PR #595); toggle inert")
         return
     end
