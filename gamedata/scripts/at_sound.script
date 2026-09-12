@@ -100,6 +100,7 @@ local function _on_land(_landing_speed)
 end
 
 local function _try_alert(npc, id, pos, tg, source, strength)
+    if not IsStalker(npc) then return end
     if not npc:alive() then return end
     if not xcreature.is_actor_enemy(npc) then return end
     local last = _alert_at[id]
