@@ -173,7 +173,11 @@ They react to handling noise too, at shorter reach: a racked reload carries 8m, 
 Handling noise goes through each stalker's own ears, so a setup that deafens NPC hearing quiets these sounds with it.
 Reaction follows the evidence: a heard walk or an item used turns him weapon-ready toward the sound.
 A sprint, a landing, a racked reload, or an empty click sends him walking over to check the spot.
-A sound is never treated as a confirmed enemy: he investigates at a walk, never charges, and does not know where you are.
+A sound is never treated as a confirmed enemy: he investigates at a walk, never charges, never crouches at a noise, and does not know where you are.
+The active reaction lasts around 10 seconds, then he settles into a standing watch until the memory fades, so a camp near a long firefight stays alert without dancing through it.
+Stalkers whose squadmates are actually fighting skip the investigation entirely and hold a watch stance. The fight is the information.
+Every sound reaction in the mod obeys the same rule, including the sounds other mods and quests feed in, and it caps at a walk-over check.
+Your companions are the one exception and still run when called to help.
 Nothing changes in combat, and a carry-distance slider scales it, so stealth stays a game of distance and stance instead of NPCs being deaf.
 Compatible with stealth mods: stealth in Anomaly is about being seen, through light, cover, and stance, and the sound system never touches vision or detection.
 Hearing only adds the short-range sense vanilla lacks, and crouched movement is silent, so the crouched approach your stealth setup allows is never given away by sound.
@@ -235,6 +239,7 @@ Danger scheme:
 - A bad danger time value no longer crashes the evaluator.
 - The hit callback no longer corrupts danger memory with a missing shooter.
 - A stalker is no longer evaluated for danger after he dies.
+- A stalker who held fire because a friend crossed his line no longer freezes in a combat stance after the fight. He returns to normal when his enemy is gone.
 - A danger transition no longer leaves a stale lower-body animation playing.
 - Leaving danger clears only its own cover reservation, not every stalker's.
 - The danger check parses its config once and caches the result.
@@ -367,6 +372,7 @@ Not AlifeTactics (base-game behavior):
 Performance:
 Performance comes first, ahead of any feature. Every combat command goes through xcombat into the engine's own mechanisms.
 Nothing runs per frame, and every flow is timed with a hard 2ms ceiling.
+The danger reaction issues posture orders once per change, keeps its veto broadcast to live danger only, and answers repeated checks from short caches, so a camp full of alert stalkers costs about what one does.
 When a feature cannot fit the budget it is reworked, replaced, or removed with an X-Ray engine modification rather than allowed to slow the game.
 It is measured on the engine built from the latest source with no multithreading and no optimizations, so the timings are worst-case, and the optimized multithreaded build you run is always faster.
 

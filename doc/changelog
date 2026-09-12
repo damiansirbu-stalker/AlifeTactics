@@ -1,6 +1,6 @@
 next
   Summary: Combat substrate, maneuvers widened to every nearby fight, Faction flavor, Push and Pull windows, Weapon spacing, Glide stop, Disclosure rework, target priority dial,
-    Zombie stance, Gear toggles, Discipline menu, Danger fix, danger trace
+    Zombie stance, Sound reaction ladder, Gear toggles, Discipline menu, Danger fixes, danger trace
 
   Combat
     Faction flavor
@@ -52,8 +52,18 @@ next
       - The fire discipline controls, burst size and fire cadence, now live on their own Discipline page under Effectiveness instead of the Reaction page.
 
   Perception
+    Sound
+      - Changed every sound reaction onto one proportionate ladder: a heard sound draws a glance or a walk-over check, weapon ready, never a charge and never a crouch at a noise.
+          The active reaction runs about 10 seconds, then the stalker settles into a standing watch until the memory fades, so a camp near a long firefight stays alert without dancing through it.
+          The same rule covers the sounds other mods and quests feed in. Companions are the one exception and still run when called to help.
+      - Stalkers whose squadmates are actually fighting no longer run sound investigations inside the battle. They hold a watch stance and let the fight be the information.
+      - Changed the close-range gunfire alert: a stalker who can see the shooter holds his cover crouch steadily, with no stance flicker.
+      - Quest danger orders without a named source now drive the reaction from the position alone.
     Danger
       - Fixed vanilla bug "dead-stalker eval". The danger scheme kept evaluating a stalker after he died, which made the engine log a repeated visibility error until the body despawned.
+      - Fixed vanilla bug "friendly-fire freeze". A stalker who held fire because a friend crossed his line was left frozen in a combat stance when the fight ended, sliding along the ground.
+          He now returns to normal the moment his enemy is gone.
+      - Improved the danger scheme's performance: posture orders are issued once per change, and the danger veto broadcast fires only on live danger.
 
   Mechanics
     Gear

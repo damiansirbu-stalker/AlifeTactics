@@ -51,10 +51,13 @@ function get_type_name(danger_type)
 	return bd_types[danger_type] or tostring(danger_type)
 end
 
---- Stamp a scripted danger on npc at pos for `time` ms; optional strength = the reaction grade (faint/solid)
+--- Stamp a scripted danger on npc at pos for `time` ms; optional strength = the reaction grade.
+-- Grades: faint = glance only, solid = walk-over investigate, rush = converge at a run.
+-- Ungraded foreign callers default to solid; companions keep the run (an ordered assist is urgent).
+-- who_id may be nil (vanilla quest stamps pass none); the reaction reads the position alone.
 function set_script_danger(npc,time,who_id,pos,strength)
-	if not who_id then
-		return
+	if not strength then
+		strength = npc:has_info("npcx_is_companion") and "rush" or "solid"
 	end
 	local id = npc:id()
 	if not (script_danger[id]) then
@@ -200,6 +203,59 @@ local function check_script_danger(id)
 	return false
 end
 
+-- The active-theater window per sound-fed episode: the alert machine's own stage-2 give-up band.
+local WINDOW_MIN_MS = 8500
+local WINDOW_MAX_MS = 12500
+
+--- One state order per change: flips get the full transition (animation reset, the vanilla
+-- animstate fix applied uniformly); a same-state call only refreshes the look target, which
+-- state_manager:set_state consumes before its same-state early-out.
+local function _set_state_once(npc, state_name, target)
+	local st = db.storage[npc:id()]
+	local sm = st and st.state_mgr
+	if not sm then
+		state_mgr.set_state(npc, state_name, nil, nil, target, {fast_set = true})
+		return
+	end
+	if sm.target_state == state_name then
+		if target then
+			sm:set_state(state_name, nil, nil, target, {fast_set = true})
+		end
+		return
+	end
+	npc:clear_animations()
+	sm:set_state(state_name, nil, nil, target, {fast_set = true})
+	sm.animation:set_state(nil, true)
+	sm.animation:set_control()
+	sm.animstate:set_state(nil, true)
+	sm.animstate:set_control()
+end
+
+--- True while any squadmate of npc holds a live enemy: the battle is real, the noise theater yields.
+-- Verdict memoized 500ms per squad: the member best_enemy() walk is a bridge-call fan-out and the
+-- gate runs per execute tick for every stamped NPC in the squad.
+local _squad_engaged_memo = {}
+local function _is_squad_engaged(npc)
+	local squad = xsquad.get_member_squad(npc:id())
+	if not squad then return false end
+	local tg = time_global()
+	local memo = _squad_engaged_memo[squad.id]
+	if memo and (tg - memo.at) < 500 then return memo.engaged end
+	local own_id = npc:id()
+	local engaged = false
+	for k in squad:squad_members() do
+		if k.id ~= own_id then
+			local member = db.storage[k.id] and db.storage[k.id].object
+			if member and member:alive() and member:best_enemy() then
+				engaged = true
+				break
+			end
+		end
+	end
+	_squad_engaged_memo[squad.id] = {at = tg, engaged = engaged}
+	return engaged
+end
+
 class "at_evaluator_danger" (property_evaluator)
 function at_evaluator_danger:__init(name, storage, npc) super (nil, name)
 	self.a = storage
@@ -207,18 +263,10 @@ end
 
 local SLOW_EVAL_US = 2000
 
-local function eval_danger(self)
+local function eval_danger_raw(self)
 	local npc = self.object
-	if not npc then
-		if at_debug.is_on() then at_debug.debug("eval_danger called with nil self.object") end
-		return false
-	end
 
 	local danger = npc:best_danger()
-
-	local flags = {ret_value = true}
-	SendScriptCallback("npc_on_eval_danger", npc, flags)
-	if flags.ret_value == false then return false end
 
 	if check_script_danger(npc:id()) then
 		return true
@@ -272,6 +320,30 @@ local function eval_danger(self)
 	return true
 end
 
+--- The veto callback fires only on a would-be-true verdict: every registered consumer is a pure
+-- veto (sets flags.ret_value = false), so the idle-case broadcast for every online stalker is waste.
+-- A vetoed verdict clears the inertion latch so the veto never leaves a stale true-window behind.
+local function eval_danger(self)
+	local npc = self.object
+	if not npc then
+		if at_debug.is_on() then at_debug.debug("eval_danger called with nil self.object") end
+		return false
+	end
+
+	if not eval_danger_raw(self) then
+		return false
+	end
+
+	local flags = {ret_value = true}
+	SendScriptCallback("npc_on_eval_danger", npc, flags)
+	if flags.ret_value == false then
+		self.a.danger_time = nil
+		return false
+	end
+
+	return true
+end
+
 local collectgarbage = collectgarbage
 local _eval_n, _eval_sum_us, _eval_max_us, _eval_heap_kb = 0, 0, 0, 0
 
@@ -308,6 +380,7 @@ end
 function at_action_danger:initialize()
 	action_base.initialize( self )
 	self.a.stage = 1
+	self.a.active_until = nil
 	self.object:set_path_type(game_object.level_path)
 	self.object:set_detail_path_type(move.line)
 	self.object:set_desired_direction()
@@ -324,11 +397,26 @@ local function script_action_danger_scripted(npc,st)
 
 	local strength = script_danger[id].strength
 	if at_debug.is_on() then at_debug.debug("scripted danger reaction npc=%s strength=%s", npc:name(), tostring(strength)) end
+	local look_pos = who_dist and who_dist < 22500 and bdo and bdo:position() or bdo_pos
+
 	if (strength == "faint") then
-		state_mgr.set_state(npc,"threat_na",nil,nil,{look_position = bdo_pos},{fast_set = true})
+		local sm = db.storage[id].state_mgr
+		if (sm and sm.target_state and look_pos) then
+			sm:set_state(sm.target_state, nil, nil, {look_position = look_pos}, {fast_set = true})
+		end
 		return
 	end
-	local move_state = strength == "solid" and "raid" or "assault"
+
+	local tg = time_global()
+	if not st.active_until then
+		st.active_until = tg + math_random(WINDOW_MIN_MS, WINDOW_MAX_MS)
+	end
+	if (tg > st.active_until) then
+		_set_state_once(npc, "threat_na", {look_position = look_pos})
+		return
+	end
+
+	local move_state = strength == "rush" and "assault" or "raid"
 
 	if (st.stage == 1) then
 		local new_vid = random_choice(utils_obj.try_to_strafe(npc),utils_obj.try_go_backward(npc,6),utils_obj.try_go_cover(npc,bdo and bdo:position() or bdo_pos or npc:position()))
@@ -354,33 +442,22 @@ local function script_action_danger_scripted(npc,st)
 		if (st.lvid and st.lvid ~= npc:level_vertex_id()) then
 			st.lvid = utils_obj.send_to_nearest_accessible_vertex(npc,st.lvid)
 			st.stage = 2
-
-			local sm = db.storage[npc:id()].state_mgr
-			if (sm and sm.target_state ~= move_state) then
-				npc:clear_animations()
-				sm:set_state(move_state,nil,nil,{look_position = who_dist and who_dist < 22500 and bdo and bdo:position() or bdo_pos}, {fast_set = true})
-				sm.animation:set_state(nil, true)
-				sm.animation:set_control()
-				sm.animstate:set_state(nil, true)
-				sm.animstate:set_control()
-			end
-
+			_set_state_once(npc, move_state, {look_position = look_pos})
 			return
 		end
 
-		state_mgr.set_state(npc,"hide_na",nil,nil,{look_position = who_dist and who_dist < 22500 and bdo and bdo:position() or bdo_pos},{fast_set = true})
+		_set_state_once(npc, "threat_na", {look_position = look_pos})
 	elseif (st.stage == 2) then
 		if (npc:level_vertex_id() == st.lvid) then
-			local tg = time_global()
 			st.__dtimer = not st.__dtimer and tg + math_random(5000,15000) or st.__dtimer
 			if (tg > st.__dtimer) then
 				st.stage = 1
 				return
 			end
-			state_mgr.set_state(npc,"threat_danger",nil,nil,{look_position = who_dist and who_dist < 22500 and bdo and bdo:position() or bdo_pos},{fast_set = true})
+			_set_state_once(npc, "threat_danger", {look_position = look_pos})
 			return
 		end
-		state_mgr.set_state(npc,move_state,nil,nil,{look_position = who_dist and who_dist < 22500 and bdo and bdo:position() or bdo_pos},{fast_set = true})
+		_set_state_once(npc, move_state, {look_position = look_pos})
 		utils_obj.send_to_nearest_accessible_vertex(npc,st.lvid)
 	end
 end
@@ -395,15 +472,7 @@ local function script_action_danger_grenade(npc,st,bd,best_danger_object,depende
 
 	if (dist and dist >= FAR_DIST_M) then
 
-		local sm = db.storage[npc:id()].state_mgr
-		if (sm and sm.target_state ~= "threat_danger") then
-			npc:clear_animations()
-			sm:set_state("threat_danger",nil,nil,{look_position = bdo_pos}, {fast_set = true})
-			sm.animation:set_state(nil, true)
-			sm.animation:set_control()
-			sm.animstate:set_state(nil, true)
-			sm.animstate:set_control()
-		end
+		_set_state_once(npc, "threat_danger", {look_position = bdo_pos})
 		st.lvid = utils_obj.send_to_nearest_accessible_vertex(npc,npc:level_vertex_id())
 		return
 	end
@@ -432,26 +501,17 @@ local function script_action_danger_grenade(npc,st,bd,best_danger_object,depende
 			st.lvid = utils_obj.send_to_nearest_accessible_vertex(npc,st.lvid)
 			st.stage = 2
 
-			local sm = db.storage[npc:id()].state_mgr
-			if (sm) then
-				npc:clear_animations()
-				sm:set_state("assault",nil,nil,{look_object = dist <= 100 and nil or bdo}, {fast_set = true})
-				sm.animation:set_state(nil, true)
-				sm.animation:set_control()
-				sm.animstate:set_state(nil, true)
-				sm.animstate:set_control()
-			end
-
+			_set_state_once(npc, "assault", {look_object = dist <= 100 and nil or bdo})
 			return
 		end
 
-		state_mgr.set_state(npc,"hide_na",nil,nil,{look_object = be and npc:see(be) and be or bdo},{fast_set = true})
+		_set_state_once(npc, "hide_na", {look_object = be and npc:see(be) and be or bdo})
 	elseif (st.stage == 2) then
 		if (npc:level_vertex_id() == st.lvid) then
 			st.stage = 1
 			return
 		end
-		state_mgr.set_state(npc,"assault",nil,nil,{look_object = dist <= 100 and nil or bdo},{fast_set = true})
+		_set_state_once(npc, "assault", {look_object = dist <= 100 and nil or bdo})
 		utils_obj.send_to_nearest_accessible_vertex(npc,st.lvid)
 	end
 end
@@ -481,7 +541,7 @@ local function script_action_danger_corpse(npc,st,bd,best_danger_object,dependen
 		st.lvid = bdo:level_vertex_id()
 		st.lvid = utils_obj.send_to_nearest_accessible_vertex(npc,st.lvid)
 
-		state_mgr.set_state(npc,"assault",nil,nil,{look_object = bdo},{fast_set = true})
+		_set_state_once(npc, "assault", {look_object = bdo})
 		st.rnd = math_random(30)
 
 		st.stage = 2
@@ -496,21 +556,21 @@ local function script_action_danger_corpse(npc,st,bd,best_danger_object,dependen
 			local rnd = math_random(100)
 			if (rnd <= GRENADE_CHANCE_PCT) then
 				xr_sound.set_sound_play(npc:id(),"search")
-				state_mgr.set_state(npc,"threat_danger",nil,nil,{look_position = dst and dst.killer_last_known_position},{fast_set = true})
+				_set_state_once(npc, "threat_danger", {look_position = dst and dst.killer_last_known_position})
 				st.dtimer = time_global() + math_random(3000,5000)
 			elseif (dist <= 5 and not st.searched) then
 				st.searched = true
-				state_mgr.set_state(npc,"search",nil,nil,nil,{fast_set = true})
+				_set_state_once(npc, "search", nil)
 				st.dtimer = time_global() + math_random(3000,5000)
 			else
-				state_mgr.set_state(npc,"raid",nil,nil,{look_position = dst and dst.killer_last_known_position},{fast_set = true})
+				_set_state_once(npc, "raid", {look_position = dst and dst.killer_last_known_position})
 			end
 
 			st.stage = 3
 			return
 		end
 		st.lvid = utils_obj.send_to_nearest_accessible_vertex(npc,st.lvid)
-		state_mgr.set_state(npc,"assault",nil,nil,{look_position = dst and dst.killer_last_known_position},{fast_set = true})
+		_set_state_once(npc, "assault", {look_position = dst and dst.killer_last_known_position})
 	elseif (st.stage == 3) then
 		if (st.dtimer and time_global() < st.dtimer) then
 			return
@@ -538,19 +598,19 @@ local function script_action_danger_corpse(npc,st,bd,best_danger_object,dependen
 
 		if (st.lvid) then
 			st.lvid = utils_obj.send_to_nearest_accessible_vertex(npc,st.lvid)
-			state_mgr.set_state(npc,"assault",nil,nil,{look_position = dst and dst.killer_last_known_position},{fast_set = true})
+			_set_state_once(npc, "assault", {look_position = dst and dst.killer_last_known_position})
 			st.stage = 4
 			return
 		end
 		st.dtimer = time_global() + math_random(5000,7000)
 		st.stage = 5
-		state_mgr.set_state(npc,"threat_danger",nil,nil,{look_position = dst and dst.killer_last_known_position},{fast_set = true})
+		_set_state_once(npc, "threat_danger", {look_position = dst and dst.killer_last_known_position})
 		return
 	elseif (st.stage == 4) then
 		if (npc:level_vertex_id() == st.lvid) then
 			st.dtimer = time_global() + math_random(5000,7000)
 			st.stage = 5
-			state_mgr.set_state(npc,"hide_na",nil,nil,{look_position = dst and dst.killer_last_known_position},{fast_set = true})
+			_set_state_once(npc, "hide_na", {look_position = dst and dst.killer_last_known_position})
 			return
 		end
 		st.lvid = utils_obj.send_to_nearest_accessible_vertex(npc,st.lvid)
@@ -564,7 +624,7 @@ local function script_action_danger_corpse(npc,st,bd,best_danger_object,dependen
 		local new_vid = utils_obj.try_go_cover(npc,dst and dst.killer_last_known_position or bdo and bdo:position() or npc:position())
 		if (new_vid) then
 			st.lvid = utils_obj.send_to_nearest_accessible_vertex(npc,new_vid)
-			state_mgr.set_state(npc,"hide_na",nil,nil,{look_position = dst and (dst.killer_last_known_position or (dst.object and dst.object:position()))},{fast_set = true})
+			_set_state_once(npc, "hide_na", {look_position = dst and (dst.killer_last_known_position or (dst.object and dst.object:position()))})
 		end
 	end
 end
@@ -584,7 +644,7 @@ local function script_action_danger_attacked(npc,st,bd,best_danger_object,depend
 
 		if (target_vertex_id) then
 			st.lvid = utils_obj.send_to_nearest_accessible_vertex(npc,target_vertex_id)
-			state_mgr.set_state(npc,"assault",nil,nil,{look_position = st.last_pos},{fast_set = true})
+			_set_state_once(npc, "assault", {look_position = st.last_pos})
 			st.stage = 2
 			return
 		end
@@ -601,7 +661,7 @@ local function script_action_danger_attacked(npc,st,bd,best_danger_object,depend
 		st.lvid = utils_obj.send_to_nearest_accessible_vertex(npc,st.lvid)
 	elseif (st.stage == 3) then
 		if (st.dtimer and tg < st.dtimer) then
-			state_mgr.set_state(npc,"threat_danger",nil,nil,{look_position = st.last_pos},{fast_set = true})
+			_set_state_once(npc, "threat_danger", {look_position = st.last_pos})
 			return
 		end
 		st.stage = 1
@@ -627,9 +687,17 @@ local function script_action_danger_alert(npc, st, bd, best_danger_object, depen
 	end
 	if not _enabled.attack_sound then return end
 
+	if not st.active_until then
+		st.active_until = tg + math_random(WINDOW_MIN_MS, WINDOW_MAX_MS)
+	end
+	if (tg > st.active_until) then
+		_set_state_once(npc, "threat_na", {look_position = bdo_pos})
+		return
+	end
+
 	if dist <= ALERT_CLOSE_DIST_SQR then
 		if be and npc:see(be) then
-			state_mgr.set_state(npc, "hide_na", nil, nil, {look_object = be}, {fast_set = true})
+			_set_state_once(npc, "hide_na", {look_object = be})
 			if not utils_obj.squad_in_los(npc, be) then
 				local wpn = npc:best_weapon()
 				if wpn then
@@ -639,17 +707,7 @@ local function script_action_danger_alert(npc, st, bd, best_danger_object, depen
 				end
 			end
 		else
-			state_mgr.set_state(npc, "threat_danger", nil, nil, {look_position = bdo_pos}, {fast_set = true})
-		end
-
-		local sm = db.storage[npc:id()] and db.storage[npc:id()].state_mgr
-		if sm and sm.target_state ~= "threat_danger" then
-			npc:clear_animations()
-			sm:set_state("threat_danger", nil, nil, {look_position = bdo_pos}, {fast_set = true})
-			sm.animation:set_state(nil, true)
-			sm.animation:set_control()
-			sm.animstate:set_state(nil, true)
-			sm.animstate:set_control()
+			_set_state_once(npc, "threat_danger", {look_position = bdo_pos})
 		end
 
 		st.lvid = utils_obj.send_to_nearest_accessible_vertex(npc, npc:level_vertex_id())
@@ -672,19 +730,11 @@ local function script_action_danger_alert(npc, st, bd, best_danger_object, depen
 		if new_vid and new_vid ~= npc:level_vertex_id() then
 			st.lvid = utils_obj.send_to_nearest_accessible_vertex(npc, new_vid)
 			st.stage = 2
-			local sm = db.storage[npc:id()].state_mgr
-			if sm and sm.target_state ~= "assault" then
-				npc:clear_animations()
-				sm:set_state("assault", nil, nil, {look_position = bdo_pos}, {fast_set = true})
-				sm.animation:set_state(nil, true)
-				sm.animation:set_control()
-				sm.animstate:set_state(nil, true)
-				sm.animstate:set_control()
-			end
+			_set_state_once(npc, "raid", {look_position = bdo_pos})
 			return
 		end
 
-		state_mgr.set_state(npc, "threat_danger", nil, nil, {look_position = bdo_pos}, {fast_set = true})
+		_set_state_once(npc, "threat_danger", {look_position = bdo_pos})
 		return
 	end
 
@@ -695,7 +745,7 @@ local function script_action_danger_alert(npc, st, bd, best_danger_object, depen
 			st.__dtimer = nil
 			return
 		end
-		state_mgr.set_state(npc, "threat_danger", nil, nil, {look_position = bdo_pos}, {fast_set = true})
+		_set_state_once(npc, "threat_danger", {look_position = bdo_pos})
 		return
 	end
 end
@@ -708,6 +758,11 @@ function at_action_danger:execute()
 	if not npc:alive() then return end
 
 	if (check_script_danger(npc:id())) then
+		local stamp = script_danger[npc:id()]
+		if stamp.strength ~= "rush" and _is_squad_engaged(npc) then
+			_set_state_once(npc, "threat_na", {look_position = stamp.position})
+			return
+		end
 		script_action_danger_scripted(npc,self.a)
 		return
 	end
@@ -733,12 +788,17 @@ function at_action_danger:execute()
 		script_action_danger_attacked(npc,self.a,best_danger,best_danger_object,dependent_object,bd_type)
 	elseif (_enabled.attack_sound or _enabled.neutral_gunfire) and (bd_type == danger_object.attack_sound) then
 		if at_debug.is_on() then at_debug.debug("attack_sound dispatch npc=%s src=%s", npc:name(), best_danger_object and best_danger_object:name() or "nil") end
+		if _is_squad_engaged(npc) then
+			_set_state_once(npc, "threat_na", {look_position = best_danger:position()})
+			return
+		end
 		script_action_danger_alert(npc,self.a,best_danger,best_danger_object,dependent_object,bd_type)
 	end
 end
 
 function at_action_danger:finalize()
 	self.a.stage = 1
+	self.a.active_until = nil
 	if (self.a.last_state) then
 		state_mgr.set_state(self.object,self.a.last_state)
 	end
@@ -942,6 +1002,18 @@ local function _on_actor_first_update()
 end
 
 local _patched = false
+local _orig_verso_finalize
+
+-- Restores the calm reset Rulix's original rx_ff finalize carried and the Anomaly port dropped:
+-- without it a stalker whose friendly-fire hold ends with his enemy gone stays parked in "raid".
+local function _rx_ff_finalize(self)
+	_orig_verso_finalize(self)
+	local npc = self.object
+	if npc and npc:alive() and not npc:best_enemy() then
+		state_mgr.set_state(npc, "idle")
+	end
+end
+
 local function _install_patches()
 	if _patched then return end
 	_patched = true
@@ -954,6 +1026,10 @@ local function _install_patches()
 	xr_danger.set_script_danger    = set_script_danger
 	xr_danger.has_danger           = has_danger
 	_actor_tables_live = xr_danger.DangerIgnoreActor ~= nil
+	if rx_ff and rx_ff.action_verso and not _orig_verso_finalize then
+		_orig_verso_finalize = rx_ff.action_verso.finalize
+		rx_ff.action_verso.finalize = _rx_ff_finalize
+	end
 end
 
 function on_game_start()

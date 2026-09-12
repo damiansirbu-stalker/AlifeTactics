@@ -996,6 +996,12 @@
   <string id="ui_mcm_at_danger_fix_dead_eval_desc">
     <text>A stalker is no longer evaluated for danger after he dies, which stops a repeated engine visibility error until the body despawns.</text>
   </string>
+  <string id="ui_mcm_at_danger_fix_ff_release">
+    <text>Friendly-fire hold release</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_ff_release_desc">
+    <text>A stalker who held fire because a friend crossed his line no longer stays frozen in a combat stance after the fight ends. The base game drops him without restoring a calm state; he now returns to normal the moment his enemy is gone.</text>
+  </string>
   <string id="ui_mcm_at_vf_hdr_corpse">
     <text>Corpse investigation (xr_danger)</text>
   </string>
