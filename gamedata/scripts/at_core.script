@@ -24,7 +24,6 @@ local _monitor_active = false
 local _mon = { ms = 0, max = 0, ticks = 0, last = 0 }
 
 -- The shared start budget: one sliding-window pool, vs_player | vs_npc buckets; starts only spend.
-
 local function _load_config()
     local ini = ini_file(LTX_PATH)
     local function read_int(k, d) local v = ini:r_float_ex(LTX_SECTION, k) return v and math_floor(v) or d end
@@ -39,7 +38,6 @@ local function _load_config()
 end
 
 -- The best_enemy facts. The loop is the only writer of the forward field and the reverse index.
-
 local function _remove_edge(state)
     local bucket = state.best_enemy_id and _best_enemy_of[state.best_enemy_id]
     if bucket then
@@ -64,7 +62,6 @@ local function _update_best_enemy(npc, state, now)
 end
 
 -- The main loop: fixed 200ms, re-arms first, walks the records, calls each system explicitly.
-
 local function _reset_monitor()
     ResetTimeEvent("at_core", "monitor", MONITOR_PERIOD_SEC)
 end
@@ -124,7 +121,6 @@ local function _stop_monitor()
 end
 
 -- Events: the substrate writes the timestamps; the systems keep their own subscriptions for their reactions.
-
 local function _on_net_spawn(npc)
     if not npc or not IsStalker(npc) then return end
     if cfg.combat_ignore_companions and npc:has_info(COMPANION_INFO) then return end
@@ -167,7 +163,6 @@ local function _on_reload_stop(npc)
 end
 
 -- Teardown: one owner, fixed sequence - maneuvers, behaviors, the index, the record.
-
 local function _on_net_destroy(npc)
     if not npc then return end
     local id = npc:id()
@@ -200,7 +195,6 @@ local function _on_entity_unregister(se_obj)
 end
 
 -- MCM: poll the client toggles; any active system runs the loop, none stops it.
-
 local function _apply_enabled()
     local now = time_global()
     if not (cfg.push_enabled and cfg.pull_enabled) then
