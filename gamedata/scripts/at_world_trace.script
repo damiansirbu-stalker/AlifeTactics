@@ -143,7 +143,6 @@ local function _update_npc(npc, ap, tg)
     if not (npc and IsStalker(npc) and npc:alive() and _is_near(npc, ap)) then return end
     local id = npc:id()
     _log_held_danger(npc, id, tg)
-    if not npc:best_enemy() then return end
     local pos = npc:position()
     local mt = npc:movement_type()
     _check(npc, id, tg, pos, mt)

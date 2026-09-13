@@ -1065,6 +1065,7 @@ local function _rx_ff_finalize(self)
 	_orig_verso_finalize(self)
 	local npc = self.object
 	if npc and npc:alive() and not npc:best_enemy() then
+		if at_debug.is_on() then at_debug.debug("[FF] release id=%d -> idle (enemy cleared)", npc:id()) end
 		state_mgr.set_state(npc, "idle")
 	end
 end
