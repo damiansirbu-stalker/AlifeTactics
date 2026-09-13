@@ -24,6 +24,7 @@ local _night_end   = 5
 local _regen_scale = 0.003
 
 local _kind = {}
+local _tier = {}
 local _resolved = {}
 local _n039
 
@@ -39,8 +40,11 @@ local function _is_night()
 end
 
 local function _get_tier(sec)
+    local cached = _tier[sec]
+    if cached then return cached end
     local tier = ini_sys:r_float_ex(sec, "tier") or 1
-    if tier < 1 then return 1 end
+    if tier < 1 then tier = 1 end
+    _tier[sec] = tier
     return tier
 end
 
