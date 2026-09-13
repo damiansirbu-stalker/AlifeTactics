@@ -6,6 +6,8 @@ Battle mechanics: per-rank dispersion, aim, lead, burst, sight, sound, healing, 
 
 [ModDB](https://www.moddb.com/mods/stalker-anomaly/addons/alifetactics) | [Releases](https://github.com/damiansirbu-stalker/AlifeTactics/releases) | [Bugs, suggestions](https://github.com/damiansirbu-stalker/AlifeTactics/issues)
 
+[![Grade](https://img.shields.io/endpoint?url=https%3A%2F%2Fdamiansirbu-stalker.github.io%2FAlifeTactics%2Fbadge.json)](https://damiansirbu-stalker.github.io/AlifeTactics/) [![validate](https://github.com/damiansirbu-stalker/AlifeTactics/actions/workflows/validate.yml/badge.svg)](https://github.com/damiansirbu-stalker/AlifeTactics/actions/workflows/validate.yml) [![Project Health](https://img.shields.io/badge/project_health-dashboard-00ced1)](https://damiansirbu-stalker.github.io/AlifeTactics/)
+
 Requires: Anomaly 1.5.3, modded exes (themrdemonized or AOEngine), [xlibs](https://www.moddb.com/mods/stalker-anomaly/addons/xlibs-1001), MCM. Exact versions in [readme.txt](doc/readme.txt).
 
 ## Alife Collection
