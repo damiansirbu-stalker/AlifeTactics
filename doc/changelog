@@ -54,15 +54,21 @@ next
   Perception
     Sound
       - Changed every sound reaction onto one proportionate ladder: a heard sound draws a glance or a walk-over check, weapon ready, never a charge and never a crouch at a noise.
-          The active reaction runs about 10 seconds, then the stalker settles into a standing watch until the memory fades, so a camp near a long firefight stays alert without dancing through it.
-          The same rule covers the sounds other mods and quests feed in. Companions are the one exception and still run when called to help.
-      - Stalkers whose squadmates are actually fighting no longer run sound investigations inside the battle. They hold a watch stance and let the fight be the information.
+          The active reaction runs about 10 seconds, then the stalker settles into a standing watch until the memory fades. The same rule covers the sounds other mods and quests feed in;
+          companions still run when ordered to assist.
+      - Stalkers whose squadmates are in combat no longer run sound investigations during the battle. They hold a watch stance instead.
       - Changed the close-range gunfire alert: a stalker who can see the shooter holds his cover crouch steadily, with no stance flicker.
       - Quest danger orders without a named source now drive the reaction from the position alone.
+      - Added Creature awareness: stalkers glance toward nearby creatures they hear - footsteps, voices, and death cries from mutants and other stalkers alike, within 5 to 10 meters.
+          A glance only, no walk-over, and it never fires during the stalker's own combat. Every stalker reacts, not only ones hostile to you; companions are excluded. Its own toggle; ranges in at_sound_config.ltx.
+      - A stalker beginning a walk-over check plays the vanilla search voice line, so the reaction is audible as well as visible.
     Danger
       - Fixed vanilla bug "dead-stalker eval". The danger scheme kept evaluating a stalker after he died, which made the engine log a repeated visibility error until the body despawned.
       - Fixed vanilla bug "friendly-fire freeze". A stalker who held fire because a friend crossed his line was left frozen in a combat stance when the fight ended, sliding along the ground.
           He now returns to normal the moment his enemy is gone.
+      - Fixed vanilla bug "stale danger memory". A stalker attacked again later no longer turns to his FIRST attacker's old position, and the corpse search animation plays for every corpse
+          instead of only the first one he ever searched.
+      - Fixed vanilla bug "grenade dodge radius". The distance deciding whether a stalker dodges a grenade or only turns to face it read on the wrong scale; the dodge covers its intended radius.
       - Improved the danger scheme's performance: posture orders are issued once per change, and the danger veto broadcast fires only on live danger.
 
   Mechanics
@@ -78,6 +84,7 @@ next
     - The debug HUD shows PUSH in its own amber row colour on every stalker the push window is currently bumping, and PULL on a stalker falling back through his own window.
     - The world trace's held-danger line now shows whether the alert stalker entered AlifeTactics' own danger scheme or the engine alone is holding a stale sound perception.
       It re-logs when that flips, separating our reaction from a distant weapon sound the engine keeps alive.
+    - The slow-danger watchdog line breaks the admission cost into its checks (wounded, safe zone, corpse, enemy, radius), so a rare spike names its owner.
 
 1.2.0
   Summary: Difficulty rebalance, Tracking Lock, Gear, Vision Range, Reload Cover, cover posture, Perception menu, maneuver fixes, Useful Idiots compatibility, Ballistics Overhaul compatibility

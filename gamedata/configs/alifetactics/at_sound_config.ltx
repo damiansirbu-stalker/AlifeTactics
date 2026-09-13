@@ -5,7 +5,8 @@
 [at_sound]
 tick_sec       = 0.5   ; movement scan pass period (time event, never per-frame)
 step_fresh_ms  = 900   ; a step older than this is stale and the pass skips the scan
-realert_ms     = 4000  ; per-NPC re-alert throttle; a solid event bypasses it over a standing faint alert
+realert_ms     = 4000  ; per-NPC re-alert throttle for your own noise; a solid event bypasses it over a standing faint alert
+creature_realert_ms = 8000  ; longer per-NPC throttle for creature awareness; a glance need not refresh as often
 inertion_ms    = 5000  ; how long the heard position stays a danger (the scheme's decay)
 base_radius_m  = 5     ; walking on neutral ground
 crouch_factor  = 0     ; crouched movement is SILENT - hearing never defeats the crouched stealth approach
@@ -28,3 +29,12 @@ material_factor_sand  = 0.8
 action_wpn_reload = 8, solid
 action_wpn_empty  = 6, solid
 action_itm_use    = 5, faint
+
+; Creature awareness rows, same shape and room-scale band as the player rows above (5-10m) - nobody
+; alerts to distant sounds. Every grade is faint (a glance, no walk-over): a death draws only a look,
+; because seeing the corpse is what the danger scheme's corpse handler investigates. Attack and damage
+; sounds are absent; the danger config's own fight reaction covers active fights.
+creature_step = 5, faint
+creature_talk = 8, faint
+creature_eat  = 5, faint
+creature_die  = 10, faint

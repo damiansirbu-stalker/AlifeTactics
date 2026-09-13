@@ -20,7 +20,7 @@ DangerIgnoreActor = utils_data.collect_section(danger_ini,"danger_object_actor",
 
 local CORPSE_STALE_SEC = 12000
 local EVAL_BUDGET = 200
-local FAR_DIST_M = 150
+local GRENADE_FAR_M = 12
 local GRENADE_CHANCE_PCT = 33
 
 local _condlist_cache = {}
@@ -58,6 +58,12 @@ end
 function set_script_danger(npc,time,who_id,pos,strength)
 	if not strength then
 		strength = npc:has_info("npcx_is_companion") and "rush" or "solid"
+	end
+	if at_debug.is_on() then
+		local info = debug.getinfo(2, "Sl")
+		local src = info and info.short_src and string.match(info.short_src, "[^\\/]+$") or "?"
+		at_debug.debug("[STAMP] npc=%s who=%s strength=%s ms=%s from=%s:%s",
+			npc:name(), tostring(who_id), strength, tostring(time), src, tostring(info and info.currentline))
 	end
 	local id = npc:id()
 	if not (script_danger[id]) then
@@ -110,8 +116,44 @@ local function danger_in_radius(npc,best_danger,bd_type)
 	return false
 end
 
+-- Segment scratch for the SLOW watchdog: which check inside is_danger burned the time (t145).
+-- Written only while debug is on; reported through the existing SLOW line, no lines of its own.
+local _seg_wounded_us, _seg_zone_us, _seg_corpse_us, _seg_enemy_us, _seg_radius_us = 0, 0, 0, 0, 0
+
+--- The same-community corpse admission: fresh, killer alive and hostile, not combat-ignored.
+local function _check_corpse_danger(npc, best_danger, best_danger_object, bd_type)
+	if not (best_danger_object and IsStalker(best_danger_object) and xcreature.get_community(best_danger_object) == xcreature.get_community(npc)) then
+		return false
+	end
+
+	local corpse_st = db.storage[best_danger_object:id()]
+	if not (corpse_st and corpse_st.death_time and corpse_st.death_by_id) then
+		return false
+	end
+
+	local killer = db.storage[corpse_st.death_by_id] and db.storage[corpse_st.death_by_id].object
+	if not (killer and (IsMonster(killer) or IsStalker(killer)) and killer:alive() and npc:relation(killer) > 0 and xcreature.get_community(killer) ~= xcreature.get_community(npc)) then
+		return false
+	end
+
+	if (xr_combat_ignore.ignore_enemy_by_overrides(npc,killer)) then
+		return false
+	end
+
+	if (game.get_game_time():diffSec(corpse_st.death_time) > CORPSE_STALE_SEC) then
+		return false
+	end
+
+	return danger_in_radius(npc,best_danger,bd_type)
+end
+
 local function is_danger(npc,best_danger,script)
-	if xr_wounded.is_heavy_wounded_by_id(npc:id()) then
+	local dbg = at_debug.is_on()
+	local timer = xprofiler.new_if(dbg):start()
+	local heavy_wounded = xr_wounded.is_heavy_wounded_by_id(npc:id())
+	timer:stop()
+	if dbg then _seg_wounded_us = timer:get_us() end
+	if heavy_wounded then
 		return false
 	end
 
@@ -130,33 +172,20 @@ local function is_danger(npc,best_danger,script)
 		return danger_in_radius(npc,best_danger,bd_type)
 	end
 
-	if (xr_combat_ignore.npc_in_safe_zone(npc)) then
+	timer = xprofiler.new_if(dbg):start()
+	local in_safe_zone = xr_combat_ignore.npc_in_safe_zone(npc)
+	timer:stop()
+	if dbg then _seg_zone_us = timer:get_us() end
+	if in_safe_zone then
 		return false
 	end
 
 	if (bd_type == danger_object.entity_corpse) then
-		if (best_danger_object and IsStalker(best_danger_object) and xcreature.get_community(best_danger_object) == xcreature.get_community(npc)) then
-			local corpse_st = db.storage[best_danger_object:id()]
-			if not (corpse_st and corpse_st.death_time and corpse_st.death_by_id) then
-				return false
-			end
-
-			local killer = db.storage[corpse_st.death_by_id] and db.storage[corpse_st.death_by_id].object
-			if not (killer and (IsMonster(killer) or IsStalker(killer)) and killer:alive() and npc:relation(killer) > 0 and xcreature.get_community(killer) ~= xcreature.get_community(npc)) then
-				return false
-			end
-
-			if (xr_combat_ignore.ignore_enemy_by_overrides(npc,killer)) then
-				return false
-			end
-
-			if (game.get_game_time():diffSec(corpse_st.death_time) > CORPSE_STALE_SEC) then
-				return false
-			end
-
-			return danger_in_radius(npc,best_danger,bd_type)
-		end
-		return false
+		timer = xprofiler.new_if(dbg):start()
+		local corpse_danger = _check_corpse_danger(npc, best_danger, best_danger_object, bd_type)
+		timer:stop()
+		if dbg then _seg_corpse_us = timer:get_us() end
+		return corpse_danger
 	end
 
 	if (best_danger:dependent_object()) then
@@ -185,11 +214,19 @@ local function is_danger(npc,best_danger,script)
 		return false
 	end
 
-	if not (best_danger_object:alive() and xr_combat_ignore.is_enemy(npc, best_danger_object,true)) then
+	timer = xprofiler.new_if(dbg):start()
+	local enemy_ok = best_danger_object:alive() and xr_combat_ignore.is_enemy(npc, best_danger_object,true)
+	timer:stop()
+	if dbg then _seg_enemy_us = timer:get_us() end
+	if not enemy_ok then
 		return false
 	end
 
-	return danger_in_radius(npc,best_danger,bd_type)
+	timer = xprofiler.new_if(dbg):start()
+	local in_radius = danger_in_radius(npc,best_danger,bd_type)
+	timer:stop()
+	if dbg then _seg_radius_us = timer:get_us() end
+	return in_radius
 end
 
 local function check_script_danger(id)
@@ -222,6 +259,9 @@ local function _set_state_once(npc, state_name, target)
 			sm:set_state(state_name, nil, nil, target, {fast_set = true})
 		end
 		return
+	end
+	if at_debug.is_on() then
+		at_debug.debug("[POSE] npc=%d %s -> %s", npc:id(), tostring(sm.target_state), state_name)
 	end
 	npc:clear_animations()
 	sm:set_state(state_name, nil, nil, target, {fast_set = true})
@@ -265,6 +305,9 @@ local SLOW_EVAL_US = 2000
 
 local function eval_danger_raw(self)
 	local npc = self.object
+	if at_debug.is_on() then
+		_seg_wounded_us, _seg_zone_us, _seg_corpse_us, _seg_enemy_us, _seg_radius_us = 0, 0, 0, 0, 0
+	end
 
 	local danger = npc:best_danger()
 
@@ -361,7 +404,8 @@ function at_evaluator_danger:evaluate()
 		_eval_sum_us = _eval_sum_us + us
 		if us > _eval_max_us then _eval_max_us = us end
 		if us > SLOW_EVAL_US then
-			at_debug.debug("[PERF] eval_danger SLOW us=%d heap=%dKB", us, collectgarbage("count"))
+			at_debug.debug("[PERF] eval_danger SLOW us=%d heap=%dKB seg wounded=%d zone=%d corpse=%d enemy=%d radius=%d",
+				us, collectgarbage("count"), _seg_wounded_us, _seg_zone_us, _seg_corpse_us, _seg_enemy_us, _seg_radius_us)
 		end
 		if _eval_n >= EVAL_BUDGET then
 			local heap_kb = collectgarbage("count")
@@ -410,6 +454,9 @@ local function script_action_danger_scripted(npc,st)
 	local tg = time_global()
 	if not st.active_until then
 		st.active_until = tg + math_random(WINDOW_MIN_MS, WINDOW_MAX_MS)
+		if strength ~= "rush" then
+			xr_sound.set_sound_play(id, "search")
+		end
 	end
 	if (tg > st.active_until) then
 		_set_state_once(npc, "threat_na", {look_position = look_pos})
@@ -470,7 +517,7 @@ local function script_action_danger_grenade(npc,st,bd,best_danger_object,depende
 
 	local be = npc:best_enemy() or best_danger_object and npc:relation(best_danger_object) > 0 and best_danger_object
 
-	if (dist and dist >= FAR_DIST_M) then
+	if (dist and dist >= GRENADE_FAR_M * GRENADE_FAR_M) then
 
 		_set_state_once(npc, "threat_danger", {look_position = bdo_pos})
 		st.lvid = utils_obj.send_to_nearest_accessible_vertex(npc,npc:level_vertex_id())
@@ -760,6 +807,7 @@ function at_action_danger:execute()
 	if (check_script_danger(npc:id())) then
 		local stamp = script_danger[npc:id()]
 		if stamp.strength ~= "rush" and _is_squad_engaged(npc) then
+			if at_debug.is_on() then at_debug.debug("[REACT] npc=%d stand-down=squad_engaged grade=%s", npc:id(), tostring(stamp.strength)) end
 			_set_state_once(npc, "threat_na", {look_position = stamp.position})
 			return
 		end
@@ -789,6 +837,7 @@ function at_action_danger:execute()
 	elseif (_enabled.attack_sound or _enabled.neutral_gunfire) and (bd_type == danger_object.attack_sound) then
 		if at_debug.is_on() then at_debug.debug("attack_sound dispatch npc=%s src=%s", npc:name(), best_danger_object and best_danger_object:name() or "nil") end
 		if _is_squad_engaged(npc) then
+			if at_debug.is_on() then at_debug.debug("[REACT] npc=%d stand-down=squad_engaged bd=attack_sound", npc:id()) end
 			_set_state_once(npc, "threat_na", {look_position = best_danger:position()})
 			return
 		end
@@ -799,6 +848,12 @@ end
 function at_action_danger:finalize()
 	self.a.stage = 1
 	self.a.active_until = nil
+	self.a.lvid = nil
+	self.a.last_pos = nil
+	self.a.searched = nil
+	self.a.rnd = nil
+	self.a.dtimer = nil
+	self.a.__dtimer = nil
 	if (self.a.last_state) then
 		state_mgr.set_state(self.object,self.a.last_state)
 	end

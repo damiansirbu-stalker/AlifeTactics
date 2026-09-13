@@ -893,6 +893,12 @@
   <string id="ui_mcm_at_danger_danger_heard_actions_desc">
     <text>Hostile stalkers react to hearing you rack a reload, click empty, or use an item nearby. Shorter reach than movement noise: a racked reload carries 8m, an empty click 6m, an item used 5m - and only for sounds their ears actually caught, so a setup that deafens NPC hearing quiets these too. A racked reload or an empty click sends him walking over to check the spot, an item used turns him weapon-ready toward the sound.</text>
   </string>
+  <string id="ui_mcm_at_danger_danger_creature_awareness">
+    <text>Creature awareness</text>
+  </string>
+  <string id="ui_mcm_at_danger_danger_creature_awareness_desc">
+    <text>Stalkers glance toward nearby creatures they hear - footsteps, voices, and death cries from mutants and other stalkers alike, within 5 to 10 meters. It is a glance only: no repositioning, no walk-over, and it never fires during the stalker's own combat. Only sounds their hearing actually caught, and companions are excluded. It never makes anyone hostile; active fights are covered by the gunfire reaction instead.</text>
+  </string>
   <string id="ui_mcm_at_danger_danger_noise_mult">
     <text>Noise carry distance</text>
   </string>
@@ -1001,6 +1007,18 @@
   </string>
   <string id="ui_mcm_at_danger_fix_ff_release_desc">
     <text>A stalker who held fire because a friend crossed his line no longer stays frozen in a combat stance after the fight ends. The base game drops him without restoring a calm state; he now returns to normal the moment his enemy is gone.</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_stale_memory">
+    <text>Stale danger memory</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_stale_memory_desc">
+    <text>The base game never cleared a stalker's danger episode memory. Attacked again later, he turned to his FIRST attacker's old position instead of the new threat, and the corpse search animation played only for the first corpse he ever searched. The memory now clears when each danger episode ends.</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_grenade_far">
+    <text>Grenade dodge radius</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_grenade_far_desc">
+    <text>The distance deciding whether a stalker dodges a grenade or only turns to face it was read on the wrong scale in the base game. The dodge now covers its intended radius around the stalker.</text>
   </string>
   <string id="ui_mcm_at_vf_hdr_corpse">
     <text>Corpse investigation (xr_danger)</text>

@@ -174,10 +174,13 @@ Handling noise goes through each stalker's own ears, so a setup that deafens NPC
 Reaction follows the evidence: a heard walk or an item used turns him weapon-ready toward the sound.
 A sprint, a landing, a racked reload, or an empty click sends him walking over to check the spot.
 A sound is never treated as a confirmed enemy: he investigates at a walk, never charges, never crouches at a noise, and does not know where you are.
-The active reaction lasts around 10 seconds, then he settles into a standing watch until the memory fades, so a camp near a long firefight stays alert without dancing through it.
+The active reaction lasts around 10 seconds, then he settles into a standing watch until the memory fades.
 Stalkers whose squadmates are actually fighting skip the investigation entirely and hold a watch stance. The fight is the information.
 Every sound reaction in the mod obeys the same rule, including the sounds other mods and quests feed in, and it caps at a walk-over check.
 Your companions are the one exception and still run when called to help.
+Stalkers also notice nearby creatures by sound: footsteps, voices, and death cries from mutants and other stalkers alike draw a glance toward the sound, within 5 to 10 meters.
+It is a glance only, and it never fires during their own combat. Every stalker reacts, not only the ones hostile to you; companions are excluded.
+A stalker starting a walk-over check calls it out, so you hear the reaction as well as see it.
 Nothing changes in combat, and a carry-distance slider scales it, so stealth stays a game of distance and stance instead of NPCs being deaf.
 Compatible with stealth mods: stealth in Anomaly is about being seen, through light, cover, and stance, and the sound system never touches vision or detection.
 Hearing only adds the short-range sense vanilla lacks, and crouched movement is silent, so the crouched approach your stealth setup allows is never given away by sound.
@@ -242,6 +245,8 @@ Danger scheme:
 - A stalker who held fire because a friend crossed his line no longer freezes in a combat stance after the fight. He returns to normal when his enemy is gone.
 - A danger transition no longer leaves a stale lower-body animation playing.
 - Leaving danger clears only its own cover reservation, not every stalker's.
+- A stalker attacked again later reacts to the new attacker, not his first attacker's old position, and the corpse search plays for every corpse, not only his first.
+- The grenade dodge distance read on the wrong scale; a stalker dodges within the intended radius and faces distant grenades.
 - The danger check parses its config once and caches the result.
 - A stalker sniped from far off reacts and seeks cover, where vanilla left him standing.
 

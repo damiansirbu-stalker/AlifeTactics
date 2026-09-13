@@ -128,13 +128,15 @@ local function _log_held_danger(npc, id, tg)
     local src_id = src and src:id() or -1
     local bt = danger:type()
     local flag = at_danger.has_danger(npc)
+    local sm = db.storage[id] and db.storage[id].state_mgr
+    local pose = sm and tostring(sm.target_state) or "-"
     local prev = _dtrace[id]
-    if prev and prev.bt == bt and prev.src == src_id and prev.flag == flag then return end
-    _dtrace[id] = { bt = bt, src = src_id, flag = flag }
+    if prev and prev.bt == bt and prev.src == src_id and prev.flag == flag and prev.pose == pose then return end
+    _dtrace[id] = { bt = bt, src = src_id, flag = flag, pose = pose }
     local dp, np = danger:position(), npc:position()
-    log.debug("[DANGER-HELD] npc=%d name=%s bd=%s src=%d dist=%.0f age=%dms flag=%s",
+    log.debug("[DANGER-HELD] npc=%d name=%s bd=%s src=%d dist=%.0f age=%dms flag=%s pose=%s",
         id, npc:name() or "?", at_danger.get_type_name(bt), src_id,
-        math_sqrt((dp.x - np.x) ^ 2 + (dp.z - np.z) ^ 2), tg - danger:time(), tostring(flag))
+        math_sqrt((dp.x - np.x) ^ 2 + (dp.z - np.z) ^ 2), tg - danger:time(), tostring(flag), pose)
 end
 
 local function _update_npc(npc, ap, tg)

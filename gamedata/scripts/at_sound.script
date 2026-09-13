@@ -1,7 +1,8 @@
---- at_sound: Danger > Sound - hostile stalkers hear the actor's movement and handling noise
+--- at_sound: Danger > Sound - hostile stalkers hear your noise; every stalker notices nearby creatures
 
 local time_global, string_find, string_lower = time_global, string.find, string.lower
-local IsStalker, IsMoveState, pairs, tostring = IsStalker, IsMoveState, pairs, tostring
+local IsStalker, IsMonster, IsMoveState = IsStalker, IsMonster, IsMoveState
+local pairs, tostring = pairs, tostring
 local RegisterScriptCallback, ini_sys, ini_file = RegisterScriptCallback, ini_sys, ini_file
 local string_match, tonumber = string.match, tonumber
 
@@ -26,7 +27,9 @@ local HEAR_SCALE_MAX
 local MATERIAL_FACTORS
 local ACTIONS
 
-local _enabled = { move = true, actions = true }
+local _enabled = { move = true, actions = true, creature = true }
+local CREATURE_ACTIONS
+local CREATURE_REALERT_MS
 local _mult = 1.0
 local _hear_scale = 1.0
 local _step_radius   = 0
@@ -42,6 +45,7 @@ local function _load_config()
     TICK_SEC       = read_num("tick_sec",       0.5)
     STEP_FRESH_MS  = read_num("step_fresh_ms",  900)
     REALERT_MS     = read_num("realert_ms",     4000)
+    CREATURE_REALERT_MS = read_num("creature_realert_ms", 8000)
     INERTION_MS    = read_num("inertion_ms",    5000)
     BASE_RADIUS_M  = read_num("base_radius_m",  5)
     CROUCH_FACTOR  = read_num("crouch_factor",  0)
@@ -63,6 +67,15 @@ local function _load_config()
         local radius, strength = string_match(raw, "^%s*([%d%.]+)%s*,%s*(%a+)")
         if not radius then radius, strength = string_match(def, "^%s*([%d%.]+)%s*,%s*(%a+)") end
         ACTIONS[s_type] = { tonumber(radius), strength }
+    end
+    CREATURE_ACTIONS = {}
+    local creature_defaults = { MST_step = "5, faint", MST_talk = "8, faint",
+                                MST_eat = "5, faint", MST_die = "10, faint" }
+    for s_type, def in pairs(creature_defaults) do
+        local raw = ini:r_string_ex(LTX_SECTION, "creature_" .. string_lower(string_match(s_type, "MST_(%a+)"))) or def
+        local radius, strength = string_match(raw, "^%s*([%d%.]+)%s*,%s*(%a+)")
+        if not radius then radius, strength = string_match(def, "^%s*([%d%.]+)%s*,%s*(%a+)") end
+        CREATURE_ACTIONS[s_type] = { tonumber(radius), strength }
     end
 end
 
@@ -99,17 +112,23 @@ local function _on_land(_landing_speed)
     _step_at = time_global()
 end
 
-local function _try_alert(npc, id, pos, tg, source, strength)
+-- Callers own the hearer admission: actor-source paths pass hostiles only, creature sounds any stalker.
+local function _try_alert(npc, src_id, pos, source, strength, realert_ms)
     if not IsStalker(npc) then return end
     if not npc:alive() then return end
-    if not xcreature.is_actor_enemy(npc) then return end
+    local id = npc:id()
+    local tg = time_global()
     local last = _alert_at[id]
     local escalates = strength == STRENGTH_SOLID and _alert_strength[id] == STRENGTH_FAINT
-    if last and (tg - last) < REALERT_MS and not escalates then return end
+    if last and (tg - last) < realert_ms and not escalates then return end
     _alert_at[id] = tg
     _alert_strength[id] = strength
-    xr_danger.set_script_danger(npc, INERTION_MS, AC_ID, pos, strength)
-    if at_debug.is_on() then at_debug.debug("[SOUND] alert id=%d name=%s source=%s strength=%s", id, npc:name(), source, strength) end
+    xr_danger.set_script_danger(npc, INERTION_MS, src_id, pos, strength)
+    if at_debug.is_on() then
+        local src_obj = src_id ~= AC_ID and xobject.get_go(src_id) or nil
+        local src_kind = src_id == AC_ID and "actor" or (src_obj and (IsMonster(src_obj) and "mutant" or IsStalker(src_obj) and "stalker" or "other")) or "gone"
+        at_debug.debug("[SOUND] alert id=%d name=%s source=%s strength=%s src=%s", id, npc:name(), source, strength, src_kind)
+    end
 end
 
 local function _iterate_movement(tg)
@@ -125,8 +144,8 @@ local function _iterate_movement(tg)
         local id = db.OnlineStalkers[i]
         local st = db.storage[id]
         local npc = st and st.object
-        if npc and actor_pos:distance_to_sqr(npc:position()) <= radius_sqr then
-            _try_alert(npc, id, actor_pos, tg, "step", strength)
+        if npc and xcreature.is_actor_enemy(npc) and actor_pos:distance_to_sqr(npc:position()) <= radius_sqr then
+            _try_alert(npc, AC_ID, actor_pos, "step", strength, REALERT_MS)
         end
     end
     at_debug.debug("[SOUND] scan radius=%.1fm rain=%.2f", radius, rain or 0)
@@ -141,14 +160,24 @@ local function _run_pass()
 end
 
 local function _on_hear(npc, who_id, s_type, dist_sqr, _power, pos)
-    if not _enabled.actions then return end
-    if who_id ~= AC_ID then return end
-    local row = ACTIONS[s_type]
+    if who_id == AC_ID then
+        if not _enabled.actions then return end
+        local row = ACTIONS[s_type]
+        if not row then return end
+        local radius = row[1] * _mult
+        if dist_sqr > radius * radius then return end
+        if not (npc and IsStalker(npc) and xcreature.is_actor_enemy(npc)) then return end
+        _try_alert(npc, AC_ID, pos, s_type, row[2], REALERT_MS)
+        return
+    end
+    if not _enabled.creature then return end
+    local row = CREATURE_ACTIONS[s_type]
     if not row then return end
     local radius = row[1] * _mult
     if dist_sqr > radius * radius then return end
     if not (npc and IsStalker(npc)) then return end
-    _try_alert(npc, npc:id(), pos, time_global(), s_type, row[2])
+    if npc:has_info("npcx_is_companion") then return end
+    _try_alert(npc, who_id, pos, s_type, row[2], CREATURE_REALERT_MS)
 end
 
 local function _on_entity_unregister(se_obj)
@@ -171,8 +200,9 @@ end
 
 local function _update_config()
     at_debug.update_config()
-    _enabled.move    = at_mcm.get_config("danger_move_noise")    ~= false
-    _enabled.actions = at_mcm.get_config("danger_heard_actions") ~= false
+    _enabled.move     = at_mcm.get_config("danger_move_noise")        ~= false
+    _enabled.actions  = at_mcm.get_config("danger_heard_actions")     ~= false
+    _enabled.creature = at_mcm.get_config("danger_creature_awareness") ~= false
     _mult = at_mcm.get_config("danger_noise_mult") or 1.0
 end
 
@@ -187,8 +217,8 @@ local function _on_first_update()
     _update_config()
     _hear_scale = _compute_hear_scale()
     _start_pass()
-    at_debug.info("Sound initialized (move=%s actions=%s mult=%.2f hear_scale=%.2f)",
-        tostring(_enabled.move), tostring(_enabled.actions), _mult, _hear_scale)
+    at_debug.info("Sound initialized (move=%s actions=%s creature=%s mult=%.2f hear_scale=%.2f)",
+        tostring(_enabled.move), tostring(_enabled.actions), tostring(_enabled.creature), _mult, _hear_scale)
 end
 
 function on_game_start()
