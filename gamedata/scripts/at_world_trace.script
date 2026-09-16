@@ -1,4 +1,4 @@
---- at_world_trace: the world log - slide watchdog + ballistics recorder, outputs only, alifetactics_world.log
+--- at_world_trace: the world trace - slide watchdog + ballistics recorder, outputs only, alifetactics_world.log
 
 local RegisterScriptCallback, UnregisterScriptCallback = RegisterScriptCallback, UnregisterScriptCallback
 local IsStalker, time_global, db = IsStalker, time_global, db
@@ -6,8 +6,9 @@ local math_sqrt, math_floor, math_max, pairs, tostring = math.sqrt, math.floor, 
 local math_deg, math_acos = math.deg, math.acos
 local string_format, table_concat = string.format, table.concat
 local ini_sys, tonumber = ini_sys, tonumber
+local pcall, debug = pcall, debug
 
-local log = xlog.get_logger("AT.WORLD", { outfile = "alifetactics_world.log" })
+local log = xlog.get_logger("AT.WORLD", { outfile = "alifetactics_world.log", level = "DEBUG" })
 local cfg = at_mcm.cfg
 
 local SAMPLE_SEC  = 0.15
@@ -24,6 +25,9 @@ local GAP_MS = 180
 local REPORT_SEC = 60
 local MT_RUN = 1
 local WRONGWAY_DEG = 50
+local CLASH_WINDOW_MS   = 1000
+local CLASH_MIN_FLIPS   = 4
+local CLASH_COOLDOWN_MS = 3000
 
 local TIERS = xcreature.RANK_TIERS
 
@@ -31,9 +35,13 @@ local _enabled = false
 local _slide = {}
 local _watch = {}
 local _dtrace = {}
+local _pose = {}
 local _speed = {}
 local _speed_ceiling = nil
 local _drop = {}
+local _near_ids = {}
+local _clash = {}
+local _orig_set_state
 local _MOVE
 
 local _t0 = 0
@@ -139,10 +147,34 @@ local function _log_held_danger(npc, id, tg)
         math_sqrt((dp.x - np.x) ^ 2 + (dp.z - np.z) ^ 2), tg - danger:time(), tostring(flag), pose)
 end
 
+local function _is_pose_same(p, state, sct, drv, enemy)
+    if not p then return false end
+    return p.state == state and p.sct == sct and p.drv == drv and p.enemy == enemy
+end
+
+local function _log_pose(npc, id, tg)
+    if not _enabled then return end
+    local st = db.storage[id]
+    local sm = st and st.state_mgr
+    local state = sm and tostring(sm.target_state) or "-"
+    local sct = st and tostring(st.script_combat_type) or "-"
+    local drv = _get_driver(id)
+    local be = npc:best_enemy()
+    local enemy = be and be:id() or -1
+    local prev = _pose[id]
+    if _is_pose_same(prev, state, sct, drv, enemy) then return end
+    _pose[id] = { state = state, sct = sct, drv = drv, enemy = enemy, t = tg }
+    log.debug("[POSE] id=%d %s dt=%dms state=%s->%s drv=%s->%s sct=%s enemy=%d",
+        id, npc:name() or "?", prev and (tg - prev.t) or 0,
+        prev and prev.state or "-", state, prev and prev.drv or "-", drv, sct, enemy)
+end
+
 local function _update_npc(npc, ap, tg)
     if not (npc and IsStalker(npc) and npc:alive() and _is_near(npc, ap)) then return end
     local id = npc:id()
+    _near_ids[id] = true
     _log_held_danger(npc, id, tg)
+    _log_pose(npc, id, tg)
     local pos = npc:position()
     local mt = npc:movement_type()
     _check(npc, id, tg, pos, mt)
@@ -155,6 +187,7 @@ local function _run_monitor()
     local ac = db.actor
     if not ac then return false end
     local ap, tg = ac:position(), time_global()
+    for k in pairs(_near_ids) do _near_ids[k] = nil end
     for i = 1, #db.OnlineStalkers do
         _update_npc(xobject.get_go(db.OnlineStalkers[i]), ap, tg)
     end
@@ -204,6 +237,43 @@ local function _on_unregister(se_obj)
     _watch[id] = nil
     _speed[id] = nil
     _dtrace[id] = nil
+    _pose[id] = nil
+    _clash[id] = nil
+    _near_ids[id] = nil
+end
+
+-- CLASH names the two scripts flipping one near NPC's state against each other.
+-- Same file or same state is one scheme cycling and is suppressed; a fast different-file, different-state alternation is the clash.
+local function _check_clash(id, name, state, file, tg)
+    local rec = _clash[id]
+    if not rec then
+        _clash[id] = { state = state, file = file, tg = tg, flips = 0, last = 0 }
+        return
+    end
+    if file == rec.file or state == rec.state then
+        rec.state, rec.file, rec.tg = state, file, tg
+        return
+    end
+    rec.flips = ((tg - rec.tg) <= CLASH_WINDOW_MS) and (rec.flips + 1) or 1
+    local a_file, a_state = rec.file, rec.state
+    rec.file, rec.state, rec.tg = file, state, tg
+    if rec.flips >= CLASH_MIN_FLIPS and (tg - rec.last) >= CLASH_COOLDOWN_MS then
+        rec.last, rec.flips = tg, 0
+        log.info("[CLASH] id=%d %s a=%s(%s) b=%s(%s) window=%dms",
+            id, name or "?", a_file, a_state, file, state, CLASH_WINDOW_MS)
+    end
+end
+
+--- Installed on state_mgr.set_state while World trace runs; runs the original first, records the setter for CLASH, noops when trace or debug off.
+--- @safety SAFE - only the CLASH bookkeeping is pcall-wrapped; the original set_state runs unguarded first so an instrument error never breaks state-setting
+local function _on_set_state(npc, state_name, ...)
+    _orig_set_state(npc, state_name, ...)
+    if not _enabled then return end
+    if not (npc and state_name) then return end
+    local id = npc:id()
+    if not _near_ids[id] then return end
+    local info = debug.getinfo(2, "S")
+    pcall(_check_clash, id, npc:name(), state_name, info and info.short_src or "?", time_global())
 end
 
 local function _reset()
@@ -254,7 +324,7 @@ local function _on_shot(obj, wpn, body_state, move_type, temp_disp)
     local tier = ranks.get_obj_rank_name(obj)
     if not tier or tier == "" then return end
 
-    local timer = xprofiler.new_if(at_debug.is_on()):start()
+    local timer = xprofiler.new_if(_enabled):start()
     local moving = move_type ~= nil and move_type <= MT_RUN
     local drive = "vanilla"
     if at_maneuvers.get_maneuver(id) then
@@ -284,7 +354,7 @@ local function _on_shot(obj, wpn, body_state, move_type, temp_disp)
 
     _ctx[id] = { tier = tier, moving = moving, drive = drive }
     timer:stop()
-    if at_debug.is_on() then
+    if _enabled then
         log.debug("[BAL] shot id=%d tier=%s kind=%s moving=%s drive=%s [%.3fms]",
             id, tier, tostring(kind), tostring(moving), drive, timer:get_ms())
     end
@@ -346,7 +416,7 @@ local function _collect_wrongway(bullet, shooter, ctx)
     row.aim_off_sum = row.aim_off_sum + off
     if off <= WRONGWAY_DEG then return end
     row.wrongway = row.wrongway + 1
-    if at_debug.is_on() then
+    if _enabled then
         log.debug("[BAL] wrongway id=%d tier=%s off=%.0fdeg enemy=%d edist=%.0f drive=%s",
             shooter:id(), ctx.tier, off, enemy:id(), edist, ctx.drive)
     end
@@ -383,7 +453,7 @@ local function _on_impact(bullet)
         if ctx.moving then row.mv_hits = row.mv_hits + 1 else row.st_hits = row.st_hits + 1 end
         _get_drive_row(ctx.drive).hits = _get_drive_row(ctx.drive).hits + 1
     end
-    if at_debug.is_on() then
+    if _enabled then
         log.debug("[BAL] impact id=%d tier=%s hit=%s drive=%s", parent_id, ctx.tier, tostring(hit), ctx.drive)
     end
 end
@@ -423,8 +493,13 @@ local function _apply_enabled()
     _enabled = want
     if _enabled then
         _slide, _watch, _speed = {}, {}, {}
+        _clash, _near_ids = {}, {}
         _speed_ceiling = _speed_ceiling or _compute_ceiling()
         _reset()
+        if not _orig_set_state then
+            _orig_set_state = state_mgr.set_state
+            state_mgr.set_state = _on_set_state
+        end
         RegisterScriptCallback("npc_on_hit_callback", _on_hit)
         RegisterScriptCallback("server_entity_on_unregister", _on_unregister)
         RegisterScriptCallback("npc_shot_dispersion",   _on_shot)
@@ -450,6 +525,10 @@ local function _apply_enabled()
         RemoveTimeEvent("at_world_trace", "watch")
         RemoveTimeEvent("at_world_trace", "report")
         RemoveTimeEvent("at_world_trace", "velpoll")
+        if _orig_set_state then
+            state_mgr.set_state = _orig_set_state
+            _orig_set_state = nil
+        end
         write_report()
         log.flush()
         log.info("World trace disabled")
@@ -457,7 +536,6 @@ local function _apply_enabled()
 end
 
 local function _update_config()
-    log.set_level(at_mcm.get_config("log_level") or "WARN")
     _apply_enabled()
 end
 
