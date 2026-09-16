@@ -28,6 +28,18 @@ local WRONGWAY_DEG = 50
 local CLASH_WINDOW_MS   = 1000
 local CLASH_MIN_FLIPS   = 4
 local CLASH_COOLDOWN_MS = 3000
+-- Naturalness thresholds; the 10s unseen window is g_ai_fire_make_sense_interval (ai_stalker_fire.cpp:68).
+local NAT_SHUF_WINDOW_MS  = 2000
+local NAT_SHUF_COOLDOWN_MS = 3000
+local NAT_FIRE_COOLDOWN_MS = 3000
+local NAT_IDLE_MS         = 1500
+local NAT_GLUED_MS        = 2000
+local NAT_MOVE_MIN_SQR    = 1.0
+local NAT_RELOAD_LOOP_N   = 3
+local NAT_UNSEEN_MS       = 10000
+local NAT_AIM_OFF_MS      = 1000
+local NAT_FIGHT_MS        = 5000
+local NAT_BLINDFIRE_MS    = 1000
 
 local TIERS = xcreature.RANK_TIERS
 
@@ -41,6 +53,9 @@ local _speed_ceiling = nil
 local _drop = {}
 local _near_ids = {}
 local _clash = {}
+local _nat = {}
+local _shot_at = {}
+local _hit_at = {}
 local _orig_set_state
 local _MOVE
 
@@ -147,26 +162,256 @@ local function _log_held_danger(npc, id, tg)
         math_sqrt((dp.x - np.x) ^ 2 + (dp.z - np.z) ^ 2), tg - danger:time(), tostring(flag), pose)
 end
 
-local function _is_pose_same(p, state, sct, drv, enemy)
-    if not p then return false end
-    return p.state == state and p.sct == sct and p.drv == drv and p.enemy == enemy
+-- Combat sub-planner action id -> short name (lazy; the ids are runtime globals).
+local _COMBAT_ACTIONS
+local function _get_action_name(action_id)
+    if not _COMBAT_ACTIONS then
+        local base = xr_actions_id.combat_monolith_base
+        _COMBAT_ACTIONS = {
+            [stalker_ids.action_kill_enemy]                = "kill_enemy",
+            [stalker_ids.action_kill_enemy_if_not_visible] = "kill_if_not_visible",
+            [stalker_ids.action_take_cover]                = "take_cover",
+            [stalker_ids.action_look_out]                  = "look_out",
+            [stalker_ids.action_hold_position]             = "hold_position",
+            [stalker_ids.action_get_ready_to_kill]         = "get_ready",
+            [base + 0] = "mono_fight_close", [base + 1] = "mono_fight_far",
+            [base + 2] = "mono_look_around", [base + 3] = "mono_go_to_pos",
+        }
+    end
+    return _COMBAT_ACTIONS[action_id] or tostring(action_id)
+end
+
+-- The combat sub-planner's current action name, "-" when combat is not the running plan.
+local function _get_combat_action(npc)
+    local mgr = npc:motivation_action_manager()
+    if not (mgr and mgr:initialized()) then return "-" end
+    local combat = mgr:action(stalker_ids.action_combat_planner)
+    local plan = combat and cast_planner(combat)
+    if not (plan and plan:initialized()) then return "-" end
+    return _get_action_name(plan:current_action_id())
+end
+
+-- One per-NPC combat-state record: engine state, the operator and its combat action, routing, driver, target.
+local function _read_pose(npc, id, tg)
+    local st = db.storage[id]
+    local sm = st and st.state_mgr
+    local be = npc:best_enemy()
+    return {
+        state = sm and tostring(sm.target_state) or "-",
+        sct   = st and tostring(st.script_combat_type) or "-",
+        op    = xcombat.get_operator(npc),
+        sub   = _get_combat_action(npc),
+        drv   = _get_driver(id),
+        enemy = be and be:id() or -1,
+        t     = tg,
+    }
+end
+
+local function _is_pose_same(prev, cur)
+    if not prev then return false end
+    return prev.state == cur.state and prev.sct == cur.sct and prev.op == cur.op
+        and prev.sub == cur.sub and prev.drv == cur.drv and prev.enemy == cur.enemy
 end
 
 local function _log_pose(npc, id, tg)
     if not _enabled then return end
-    local st = db.storage[id]
-    local sm = st and st.state_mgr
-    local state = sm and tostring(sm.target_state) or "-"
-    local sct = st and tostring(st.script_combat_type) or "-"
-    local drv = _get_driver(id)
-    local be = npc:best_enemy()
-    local enemy = be and be:id() or -1
+    local cur = _read_pose(npc, id, tg)
     local prev = _pose[id]
-    if _is_pose_same(prev, state, sct, drv, enemy) then return end
-    _pose[id] = { state = state, sct = sct, drv = drv, enemy = enemy, t = tg }
-    log.debug("[POSE] id=%d %s dt=%dms state=%s->%s drv=%s->%s sct=%s enemy=%d",
+    if _is_pose_same(prev, cur) then return end
+    _pose[id] = cur
+    log.debug("[POSE] id=%d %s dt=%dms state=%s->%s op=%s sub=%s sct=%s drv=%s->%s enemy=%d",
         id, npc:name() or "?", prev and (tg - prev.t) or 0,
-        prev and prev.state or "-", state, prev and prev.drv or "-", drv, sct, enemy)
+        prev and prev.state or "-", cur.state, cur.op, cur.sub, cur.sct, prev and prev.drv or "-", cur.drv, cur.enemy)
+end
+
+-- Naturalness checks: flag combat behavior that reads as unnatural, one tagged world-log line each.
+local _MOVER_STATES = { assault = true, assault_fire = true, raid = true, sprint = true, rush = true }
+local _COMBAT_OPS = { combat = true, danger = true }
+local _nat_ms, _nat_n = 0, 0
+
+local function _get_nat(id)
+    local nat = _nat[id]
+    if not nat then nat = {} _nat[id] = nat end
+    return nat
+end
+
+-- One shuffle dimension: record its value; log [SHUF] when it flips 3 times inside the window.
+local function _check_dim(nat, key, val, id, name, tg)
+    local dim = nat[key]
+    if not dim then nat[key] = { last = val, t1 = 0, t2 = 0, t3 = 0, cd = 0 } return end
+    if val == dim.last then return end
+    dim.last = val
+    dim.t1, dim.t2, dim.t3 = dim.t2, dim.t3, tg
+    if dim.t1 == 0 or (tg - dim.t1) > NAT_SHUF_WINDOW_MS then return end
+    if (tg - dim.cd) < NAT_SHUF_COOLDOWN_MS then return end
+    dim.cd = tg
+    log.info("[SHUF] id=%d %s kind=%s 3flips/%.0fs", id, name, key, NAT_SHUF_WINDOW_MS / 1000)
+end
+
+-- Movement heading reversing back and forth: running like an idiot.
+local function _check_move(nat, id, name, tg, pos)
+    local mv = nat.move
+    if not mv then nat.move = { x = pos.x, z = pos.z, dx = 0, dz = 0, t1 = 0, t2 = 0, t3 = 0, cd = 0 } return end
+    local dx, dz = pos.x - mv.x, pos.z - mv.z
+    if dx * dx + dz * dz < NAT_MOVE_MIN_SQR then return end
+    local reversed = (mv.dx * dx + mv.dz * dz) < 0
+    mv.x, mv.z, mv.dx, mv.dz = pos.x, pos.z, dx, dz
+    if not reversed then return end
+    mv.t1, mv.t2, mv.t3 = mv.t2, mv.t3, tg
+    if mv.t1 == 0 or (tg - mv.t1) > NAT_SHUF_WINDOW_MS then return end
+    if (tg - mv.cd) < NAT_SHUF_COOLDOWN_MS then return end
+    mv.cd = tg
+    log.info("[SHUF] id=%d %s kind=move 3reversals/%.0fs", id, name, NAT_SHUF_WINDOW_MS / 1000)
+end
+
+-- Sees the enemy, lane clear, fire makes sense, not reloading, yet not firing: wasting time.
+local function _check_idle(nat, npc, id, name, be, tg)
+    if not be then nat.eng_since = nil return end
+    if xcombat.is_reloading(npc) then return end
+    nat.eng_since = nat.eng_since or tg
+    local silent = tg - math_max(_shot_at[id] or 0, nat.eng_since)
+    if silent <= NAT_IDLE_MS or not xcombat.can_see(npc, be) then return end
+    if xcombat.can_kill_member(npc, be:position()) or not xcombat.fire_make_sense(npc, be) then return end
+    if (tg - (nat.idle_cd or 0)) < NAT_FIRE_COOLDOWN_MS then return end
+    nat.idle_cd = tg
+    log.info("[IDLE] id=%d %s able but silent=%dms enemy=%d", id, name, silent, be:id())
+end
+
+-- In a move state but position not changing: glued to the ground.
+local function _check_glue(nat, id, name, state, tg, pos)
+    if not (state and _MOVER_STATES[state]) then nat.gsince = nil return end
+    local gp = nat.gpos
+    if not (gp and (pos.x - gp.x) ^ 2 + (pos.z - gp.z) ^ 2 < NAT_MOVE_MIN_SQR) then
+        nat.gpos = gp or {}
+        nat.gpos.x, nat.gpos.z = pos.x, pos.z
+        nat.gsince = tg
+        return
+    end
+    if (tg - (nat.gsince or tg)) <= NAT_GLUED_MS then return end
+    if (tg - (nat.glue_cd or 0)) < NAT_FIRE_COOLDOWN_MS then return end
+    nat.glue_cd = tg
+    log.info("[GLUED] id=%d %s state=%s frozen=%dms", id, name, state, tg - nat.gsince)
+end
+
+-- Reload starting again and again with no shot in between: the reload loop.
+local function _check_reload(nat, npc, id, name, tg)
+    local reloading = xcombat.is_reloading(npc)
+    if reloading and not nat.reloading then
+        local shot = _shot_at[id] or 0
+        if shot > (nat.rl_shot or 0) then nat.rl_n = 0 end
+        nat.rl_shot = shot
+        nat.rl_n = (nat.rl_n or 0) + 1
+        if nat.rl_n >= NAT_RELOAD_LOOP_N and (tg - (nat.rl_cd or 0)) >= NAT_FIRE_COOLDOWN_MS then
+            nat.rl_cd, nat.rl_n = tg, 0
+            log.info("[RELOADLOOP] id=%d %s %d reloads, no shot between", id, name, NAT_RELOAD_LOOP_N)
+        end
+    end
+    nat.reloading = reloading
+end
+
+-- In a fight (recent hit) but no selected enemy: forgot who it's fighting.
+local function _check_forgot(nat, id, name, be, tg)
+    if be or (tg - (_hit_at[id] or 0)) >= NAT_FIGHT_MS then return end
+    if (tg - (nat.forgot_cd or 0)) < NAT_FIRE_COOLDOWN_MS then return end
+    nat.forgot_cd = tg
+    log.info("[FORGOT] id=%d %s no best_enemy, hit %dms ago", id, name, tg - _hit_at[id])
+end
+
+-- Engaged on an enemy unseen past the engine's own fire window: fighting a ghost.
+local function _check_ghost(nat, npc, id, name, be, tg)
+    if not be then return end
+    local unseen = xcombat.get_unseen_ms(npc, be, tg)
+    if unseen <= NAT_UNSEEN_MS or (tg - (nat.ghost_cd or 0)) < NAT_FIRE_COOLDOWN_MS then return end
+    nat.ghost_cd = tg
+    log.info("[GHOST] id=%d %s enemy=%d unseen=%dms still engaged", id, name, be:id(), unseen)
+end
+
+-- Fired at an enemy it cannot see whose memory is stale: shooting at nothing.
+local function _check_blindfire(nat, npc, id, name, be, tg)
+    if not be or (tg - (_shot_at[id] or 0)) >= NAT_BLINDFIRE_MS then return end
+    if xcombat.can_see(npc, be) or xcombat.get_unseen_ms(npc, be, tg) <= NAT_UNSEEN_MS then return end
+    if (tg - (nat.bf_cd or 0)) < NAT_FIRE_COOLDOWN_MS then return end
+    nat.bf_cd = tg
+    log.info("[BLINDFIRE] id=%d %s firing at unseen stale enemy=%d", id, name, be:id())
+end
+
+-- Aiming at something other than the selected enemy, held: pointing the gun the wrong way.
+local function _check_aimoff(nat, npc, id, name, be, tg)
+    local aim = xcombat.get_sight_target(npc)
+    if not (be and aim and aim ~= be:id()) then nat.aimoff_since = nil return end
+    nat.aimoff_since = nat.aimoff_since or tg
+    if (tg - nat.aimoff_since) <= NAT_AIM_OFF_MS or (tg - (nat.ao_cd or 0)) < NAT_FIRE_COOLDOWN_MS then return end
+    nat.ao_cd = tg
+    log.info("[AIMOFF] id=%d %s aim=%d enemy=%d held=%dms", id, name, aim, be:id(), tg - nat.aimoff_since)
+end
+
+-- True when a threat is visible and closer than the currently selected enemy.
+local function _can_see_closer(npc, tid, be_dsqr, pos)
+    local obj = xcombat.resolve_enemy(tid)
+    if not (obj and xcombat.can_see(npc, obj)) then return false end
+    return not be_dsqr or pos:distance_to_sqr(obj:position()) < be_dsqr
+end
+
+local function _log_blindspot(nat, id, name, tid, be_id, tg)
+    if (tg - (nat.bs_cd or 0)) < NAT_FIRE_COOLDOWN_MS then return end
+    nat.bs_cd = tg
+    log.info("[BLINDSPOT] id=%d %s sees closer=%d selected=%d", id, name, tid, be_id)
+end
+
+local function _find_blind_tid(npc, threats, be_id, be_dsqr, pos)
+    for tid in pairs(threats) do
+        if tid ~= be_id and _can_see_closer(npc, tid, be_dsqr, pos) then return tid end
+    end
+    return nil
+end
+
+-- Sees a hostile closer than its pick, over the threat set: ignoring the man in front.
+local function _check_blindspot(nat, npc, name, be, tg, pos)
+    local id = npc:id()
+    local threats = at_core.get_threats(id)
+    if not threats then return end
+    local be_id = be and be:id() or -1
+    local be_dsqr = be and pos:distance_to_sqr(be:position()) or nil
+    local tid = _find_blind_tid(npc, threats, be_id, be_dsqr, pos)
+    if tid then _log_blindspot(nat, id, name, tid, be_id, tg) end
+end
+
+-- In a combat operator but no seen enemy for the engine's fire window: GOAP not resolving.
+local function _check_unresolved(nat, npc, name, be, drv, tg)
+    local id = npc:id()
+    local op = xcombat.get_operator(npc)
+    if not _COMBAT_OPS[op] or drv ~= "vanilla" or xcreature.is_zombied(npc) then
+        nat.unres_since = nil
+        return
+    end
+    if be and xcombat.get_unseen_ms(npc, be, tg) < NAT_UNSEEN_MS then nat.unres_since = nil return end
+    nat.unres_since = nat.unres_since or tg
+    if (tg - nat.unres_since) <= NAT_UNSEEN_MS or (tg - (nat.unres_cd or 0)) < NAT_FIRE_COOLDOWN_MS then return end
+    nat.unres_cd = tg
+    log.info("[UNRESOLVED] id=%d %s op=%s no seen enemy %dms", id, name, op, tg - nat.unres_since)
+end
+
+-- Read the combat facts once, run every check. Self-timed for the [NAT] perf line.
+local function _check_natural(npc, id, tg, pos)
+    local nat = _get_nat(id)
+    local name = npc:name() or "?"
+    local be = npc:best_enemy()
+    local drv = _get_driver(id)
+    local st = db.storage[id]
+    local state = st and st.state_mgr and st.state_mgr.target_state or nil
+    _check_dim(nat, "stance", npc:body_state() == move.crouch, id, name, tg)
+    _check_dim(nat, "aim", xcombat.get_sight_target(npc) or -1, id, name, tg)
+    _check_dim(nat, "target", be and be:id() or -1, id, name, tg)
+    _check_move(nat, id, name, tg, pos)
+    _check_idle(nat, npc, id, name, be, tg)
+    _check_glue(nat, id, name, state, tg, pos)
+    _check_reload(nat, npc, id, name, tg)
+    _check_forgot(nat, id, name, be, tg)
+    _check_ghost(nat, npc, id, name, be, tg)
+    _check_blindfire(nat, npc, id, name, be, tg)
+    _check_aimoff(nat, npc, id, name, be, tg)
+    _check_blindspot(nat, npc, name, be, tg, pos)
+    _check_unresolved(nat, npc, name, be, drv, tg)
 end
 
 local function _update_npc(npc, ap, tg)
@@ -179,6 +424,10 @@ local function _update_npc(npc, ap, tg)
     local mt = npc:movement_type()
     _check(npc, id, tg, pos, mt)
     _check_speed(npc, id, tg, pos, mt)
+    local timer = xprofiler.new_if(_enabled):start()
+    _check_natural(npc, id, tg, pos)
+    timer:stop()
+    _nat_ms, _nat_n = _nat_ms + timer:get_ms(), _nat_n + 1
 end
 
 local function _run_monitor()
@@ -197,6 +446,7 @@ end
 local function _on_hit(npc, amount, _local_direction, _who, bone_index)
     if not (npc and IsStalker(npc) and npc:alive() and db.actor) then return end
     local id = npc:id()
+    _hit_at[id] = time_global()
     if _watch[id] then return end
     local pos = npc:position()
     _watch[id] = { t0 = time_global(), x = pos.x, z = pos.z, anims0 = npc:animation_count(), drv0 = _get_driver(id),
@@ -240,6 +490,9 @@ local function _on_unregister(se_obj)
     _pose[id] = nil
     _clash[id] = nil
     _near_ids[id] = nil
+    _nat[id] = nil
+    _shot_at[id] = nil
+    _hit_at[id] = nil
 end
 
 -- CLASH names the two scripts flipping one near NPC's state against each other.
@@ -321,6 +574,7 @@ local function _on_shot(obj, wpn, body_state, move_type, temp_disp)
     if obj:position():distance_to_sqr(db.actor:position()) > SHOOTER_RADIUS_SQR then return end
 
     local id = obj:id()
+    _shot_at[id] = time_global()
     local tier = ranks.get_obj_rank_name(obj)
     if not tier or tier == "" then return end
 
@@ -574,6 +828,10 @@ function write_report()
     end
     for kind, hist in pairs(_bursts) do
         log.info("bursts kind=%-10s %s", tostring(kind), _format_hist_line(hist))
+    end
+    if _nat_n > 0 then
+        log.info("[NAT] checks=%d total=%.1fms avg=%.3fms", _nat_n, _nat_ms, _nat_ms / _nat_n)
+        _nat_ms, _nat_n = 0, 0
     end
 end
 
