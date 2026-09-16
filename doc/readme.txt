@@ -393,6 +393,6 @@ Usage and License:
 Diagnostics and reporting:
 Development > Log level: set to DEBUG, reproduce, then back to WARN. Traces maneuvers, danger, disclosure, healing, accuracy, and ammo to alifetactics.log.
 Development > Debug HUD: pick a corner for a live overlay of nearby stalkers (rank, health, scheme, target); a green maneuver row marks an NPC AlifeTactics is driving.
-Development > World behaviour debug: writes per-minute fight tables (hit rates, damage, near misses, burst lengths) to alifetactics_world.log.
+Development > World trace: writes per-minute fight tables (hit rates, damage, near misses, burst lengths) to alifetactics_world.log.
 Combat is the hardest thing in Anomaly to diagnose, so first confirm it is this mod: reproduce, disable AlifeTactics, reproduce again; if it persists it is not this mod. The cleanest test is vanilla Anomaly plus xlibs plus AlifeTactics.
 Report at https://github.com/damiansirbu-stalker/AlifeTactics/issues/new/choose or the EFP, Anomaly, and Zona Discord. Include repro steps, engine build, modlist, load order, xray.log, and the debug log.

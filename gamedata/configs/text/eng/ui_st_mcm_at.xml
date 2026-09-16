@@ -1253,7 +1253,7 @@
   </string>
   <!-- Development - World trace -->
   <string id="ui_mcm_at_development_world_trace_enabled">
-    <text>World behaviour debug</text>
+    <text>World trace</text>
   </string>
   <string id="ui_mcm_at_development_world_trace_enabled_desc">
     <text>Debug recorder for the physical fight around you. Flags a body that slides (real distance covered with no walk or run animation, including the shove right after a hit) and records shot outcomes: per-rank hit rates split by shooter motion, damage dealt, near misses, and burst lengths per weapon kind, written as tables once a minute. Each line names the system driving that NPC (maneuver, Commitment, or vanilla). Everything goes to alifetactics_world.log. Off costs nothing.</text>
