@@ -1,6 +1,6 @@
 next
   Summary: Combat substrate, maneuvers widened to every nearby fight, Faction flavor, Push and Pull windows, Weapon spacing, Glide stop, Disclosure rework, target priority dial,
-    Zombie stance, Sound reaction ladder, Gear toggles, Discipline menu, Danger fixes, danger trace
+    Zombie stance, Sound reaction ladder, Gear toggles, Discipline menu, Danger fixes, danger trace, performance and infrastructure
 
   Combat
     Faction flavor
@@ -85,6 +85,12 @@ next
     - The world trace's held-danger line now shows whether the alert stalker entered AlifeTactics' own danger scheme or the engine alone is holding a stale sound perception.
       It re-logs when that flips, separating our reaction from a distant weapon sound the engine keeps alive.
     - The slow-danger watchdog line breaks the admission cost into its checks (wounded, safe zone, corpse, enemy, radius), so a rare spike names its owner.
+
+  Performance and Infrastructure
+    - Rebuilt the validator into layered rules for crashes, unsafe engine usage, performance, best practices, smoke load, and secret leaks.
+    - The validator runs on every change, locally and in CI, and a grade gate fails the build on any finding.
+    - Profiled and tuned with JitProfiler, an engine-native, scientific profiler.
+    - Consolidated the whole engine layer into xlibs and standardized naming and structure across every mod.
 
 1.2.0
   Summary: Difficulty rebalance, Tracking Lock, Gear, Vision Range, Reload Cover, cover posture, Perception menu, maneuver fixes, Useful Idiots compatibility, Ballistics Overhaul compatibility
