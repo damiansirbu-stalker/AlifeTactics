@@ -292,7 +292,7 @@ It coexists with other combat AI mods, but vanilla plus AlifeTactics is the inte
 
 Requirements:
 Anomaly 1.5.3
-Modded exes (themrdemonized 2025.9.10 or newer, or AOEngine v0.55 or newer)
+Modded exes (themrdemonized or AOEngine v0.55 or newer)
 xlibs (https://www.moddb.com/mods/stalker-anomaly/addons/xlibs-1001)
 MCM
 
@@ -374,12 +374,18 @@ Not AlifeTactics (base-game behavior):
   removing its enemy-id validation and randomizing the combat-memory window each session.
   AlifeTactics reads whichever xr_combat_ignore won and never replaces it.
 
-Performance:
+Performance and Infrastructure:
 Performance comes first, ahead of any feature. Every combat command goes through xcombat into the engine's own mechanisms.
 Nothing runs per frame, and every flow is timed with a hard 2ms ceiling.
 The danger reaction issues posture orders once per change, keeps its veto broadcast to live danger only, and answers repeated checks from short caches, so a camp full of alert stalkers costs about what one does.
 When a feature cannot fit the budget it is reworked, replaced, or removed with an X-Ray engine modification rather than allowed to slow the game.
-It is measured on the engine built from the latest source with no multithreading and no optimizations, so the timings are worst-case, and the optimized multithreaded build you run is always faster.
+Built from the X-Ray engine source by reverse engineering, with targeted engine changes of my own for performance, precision, and accuracy.
+Heavy work spreads across frames, paced by rate limiters and staggered, deferred queues, with the math to keep cost bounded at any entity count.
+A layered validator runs on every change, locally and in CI, and blocks the build on any crash, unsafe engine call, performance regression, style break, failed smoke load, or leaked secret.
+Profiled with JitProfiler, an engine-native, scientific profiler.
+Timings are worst-case, from a build with no multithreading or optimizations, so yours runs faster.
+Project Health: https://damiansirbu-stalker.github.io/AlifeTactics/
+[JitProfiler: AlifeTactics under CPU and allocation capture]
 
 Credits:
 Altogolik: support, ideas, source materials
