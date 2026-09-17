@@ -1,4 +1,5 @@
 --- at_test: Console commands for AlifeTactics (squad spawn, arena, lab stocking, dumps)
+--- @novalidate(conventions.unused_export, reason:"console commands, invoked by name via run_string")
 
 local tostring, string_format, math_rad, math_cos, math_sin = tostring, string.format, math.rad, math.cos, math.sin
 local math_random, math_floor, math_pi = math.random, math.floor, math.pi
@@ -46,18 +47,18 @@ local _arena_spawned = {}
 local _lab_wpn_i = 0
 local _lab_loop_on = false
 
-local function _tip(msg)
-    if db.actor then news_manager.send_tip(db.actor, msg, nil, nil, 5000) end
+local function _show_tip(msg)
+    if db.actor then news_manager.send_show_tip(db.actor, msg, nil, nil, 5000) end
 end
 
-local function _rotate_y(dir, angle_deg)
+local function _compute_rotated_dir(dir, angle_deg)
     local rad = math_rad(angle_deg)
     local cos_a = math_cos(rad)
     local sin_a = math_sin(rad)
     return vector():set(dir.x * cos_a + dir.z * sin_a, dir.y, -dir.x * sin_a + dir.z * cos_a)
 end
 
-local function _arm_members(squad, pos, lvid, gvid, grenades)
+local function _add_grenades(squad, pos, lvid, gvid, grenades)
     local count = grenades or 0
     if count == 0 or squad:npc_count() == 0 then return end
     local sim = alife()
@@ -66,27 +67,27 @@ local function _arm_members(squad, pos, lvid, gvid, grenades)
     end
 end
 
-local function _gear_one(sim, member_id, pos, lvid, gvid)
+local function _add_member_gear(sim, member_id, pos, lvid, gvid)
     for i = 1, #EFFECT_GEAR do
         if ini_sys:section_exist(EFFECT_GEAR[i]) then sim:create(EFFECT_GEAR[i], pos, lvid, gvid, member_id) end
     end
 end
 
-local function _gear_members(squad, pos, lvid, gvid)
+local function _add_squad_gear(squad, pos, lvid, gvid)
     if squad:npc_count() == 0 then return end
     local sim = alife()
     for member in squad:squad_members() do
-        _gear_one(sim, member.id, pos, lvid, gvid)
+        _add_member_gear(sim, member.id, pos, lvid, gvid)
     end
 end
 
-local function _buf_weapon(_owner, item)
+local function _add_weapon_id(_owner, item)
     if IsWeapon(item) then _strip_buf[#_strip_buf + 1] = item:id() end
 end
 
-local function _strip_npc(sim, npc)
+local function _remove_weapons(sim, npc)
     for i = #_strip_buf, 1, -1 do _strip_buf[i] = nil end
-    npc:iterate_inventory(_buf_weapon, npc)
+    npc:iterate_inventory(_add_weapon_id, npc)
     local removed = 0
     for i = 1, #_strip_buf do
         local se = alife_object(_strip_buf[i])
@@ -95,29 +96,29 @@ local function _strip_npc(sim, npc)
     return removed
 end
 
-local function _strip_weapons(squad)
+local function _remove_squad_weapons(squad)
     if squad:npc_count() == 0 then return 0 end
     local sim = alife()
     local removed = 0
     for member in squad:squad_members() do
         local npc = level.object_by_id(member.id)
-        if npc then removed = removed + _strip_npc(sim, npc) end
+        if npc then removed = removed + _remove_weapons(sim, npc) end
     end
     return removed
 end
 
-local function _spawn(section, distance, angle_deg, grenades)
+local function _spawn_squad(section, distance, angle_deg, grenades)
     section   = section   or DEFAULT_SECTION
     distance  = distance  or DEFAULT_DISTANCE
     angle_deg = angle_deg or 0
     if not db.actor then
-        _tip("AT.TEST: not in game")
+        _show_tip("AT.TEST: not in game")
         return
     end
     if not ini_sys:section_exist(section) then
         local msg = string_format("AT.TEST: squad section '%s' not in squad_descr", section)
         at_debug.warn(msg)
-        _tip(msg)
+        _show_tip(msg)
         return
     end
 
@@ -128,7 +129,7 @@ local function _spawn(section, distance, angle_deg, grenades)
 
     local squad = alife():create(section, actor_pos, actor_lvid, actor_gvid)
     if not squad then
-        _tip("AT.TEST: alife:create failed for " .. section)
+        _show_tip("AT.TEST: alife:create failed for " .. section)
         return
     end
     squad:create_npc(nil, actor_pos, actor_lvid, actor_gvid)
@@ -138,10 +139,10 @@ local function _spawn(section, distance, angle_deg, grenades)
             if se then SIMBOARD:setup_squad_and_group(se) end
         end
     end
-    _arm_members(squad, actor_pos, actor_lvid, actor_gvid, grenades)
-    _gear_members(squad, actor_pos, actor_lvid, actor_gvid)
+    _add_grenades(squad, actor_pos, actor_lvid, actor_gvid, grenades)
+    _add_squad_gear(squad, actor_pos, actor_lvid, actor_gvid)
 
-    local dir         = _rotate_y(actor:direction(), angle_deg)
+    local dir         = _compute_rotated_dir(actor:direction(), angle_deg)
     local target_pos  = vector():set(
         actor_pos.x + dir.x * distance,
         actor_pos.y,
@@ -155,27 +156,27 @@ local function _spawn(section, distance, angle_deg, grenades)
 
     at_debug.info("[SPAWN] section=%s squad_id=%d distance=%dm angle=%ddeg on_map=%s",
         section, squad.id, distance, angle_deg, tostring(on_map))
-    _tip(string_format("AT.TEST: %s id=%d %s",
+    _show_tip(string_format("AT.TEST: %s id=%d %s",
         section, squad.id,
         on_map and (distance .. "m @" .. angle_deg .. "deg") or "at actor (off-map)"))
     return squad
 end
 
-local function _spawn_set(label, entries)
+local function _spawn_squad_set(label, entries)
     for i = 1, #entries do
         local entry = entries[i]
-        _spawn(entry[1], entry[2], entry[3])
+        _spawn_squad(entry[1], entry[2], entry[3])
     end
     at_debug.info("[SPAWN] set=%s count=%d", label, #entries)
 end
 
-local function _arena_gear(pos, lvid, id)
+local function _add_arena_gear(pos, lvid, id)
     for i = 1, #EFFECT_GEAR do
         if ini_sys:section_exist(EFFECT_GEAR[i]) then alife():create(EFFECT_GEAR[i], pos, lvid, _arena_gvid, id) end
     end
 end
 
-local function _arena_spawn_pos(angle)
+local function _find_spawn_pos(angle)
     local dist = ARENA_RING_MIN + math_random() * (ARENA_RING_MAX - ARENA_RING_MIN)
     local dir = vector():set(math_cos(angle), 0, math_sin(angle))
     local lvid = level.vertex_in_direction(_arena_center_lvid, dir, dist)
@@ -183,7 +184,7 @@ local function _arena_spawn_pos(angle)
     return level.vertex_position(lvid), lvid
 end
 
-local function _arena_spawn_one(side)
+local function _spawn_combatant(side)
     local faction = (_arena_mode == "me" or side == "b") and "monolith"
         or ARENA_SIDE_A[math_random(1, #ARENA_SIDE_A)]
     local list = ARENA_SECTIONS[faction]
@@ -191,17 +192,17 @@ local function _arena_spawn_one(side)
     local base = (_arena_mode == ARENA_MODE_WAR and side == "b") and (_arena_side_dir + math_pi) or _arena_side_dir
     local angle = (_arena_mode == "me") and (math_random() * 2 * math_pi)
         or (base + math_rad((math_random() * 2 - 1) * ARENA_SPREAD_DEG))
-    local pos, lvid = _arena_spawn_pos(angle)
+    local pos, lvid = _find_spawn_pos(angle)
     if not pos then return false end
     local se = alife():create(section, pos, lvid, _arena_gvid)
     if not se then return false end
     _arena_spawned[se.id] = { side = side, dead_seen = false }
-    _arena_gear(pos, lvid, se.id)
+    _add_arena_gear(pos, lvid, se.id)
     at_debug.info("[ARENA] spawned %s id=%d side=%s", section, se.id, side)
     return true
 end
 
-local function _arena_reap(id, rec)
+local function _release_dead(id, rec)
     local se = alife_object(id)
     if not se then _arena_spawned[id] = nil return nil end
     if se:alive() then return rec.side end
@@ -214,48 +215,48 @@ local function _arena_reap(id, rec)
     return nil
 end
 
-local function _arena_census()
+local function _compute_census()
     local alive_a, alive_b = 0, 0
     for id, rec in pairs(_arena_spawned) do
-        local live_side = _arena_reap(id, rec)
+        local live_side = _release_dead(id, rec)
         if live_side == "a" then alive_a = alive_a + 1
         elseif live_side == "b" then alive_b = alive_b + 1 end
     end
     return alive_a, alive_b
 end
 
-local function _arena_topup_me(alive_a)
+local function _spawn_solo_wave(alive_a)
     local budget = ARENA_MAX_PER_TICK
     local deficit = _arena_want - alive_a
     while deficit > 0 and budget > 0 do
-        if _arena_spawn_one("a") then deficit = deficit - 1 end
+        if _spawn_combatant("a") then deficit = deficit - 1 end
         budget = budget - 1
     end
 end
 
-local function _arena_topup_war(alive_a, alive_b)
+local function _spawn_war_wave(alive_a, alive_b)
     local budget = ARENA_MAX_PER_TICK
     local half = math_floor(_arena_want / 2)
     local need_a, need_b = half - alive_a, half - alive_b
     while (need_a > 0 or need_b > 0) and budget > 0 do
-        if need_a >= need_b and _arena_spawn_one("a") then need_a = need_a - 1
-        elseif need_a < need_b and _arena_spawn_one("b") then need_b = need_b - 1 end
+        if need_a >= need_b and _spawn_combatant("a") then need_a = need_a - 1
+        elseif need_a < need_b and _spawn_combatant("b") then need_b = need_b - 1 end
         budget = budget - 1
     end
 end
 
-local function _arena_tick()
+local function _update_arena()
     if not _arena_on then return true end
     ResetTimeEvent("at_arena", "tick", ARENA_TICK_SEC)
     if not db.actor then return false end
-    local alive_a, alive_b = _arena_census()
-    if _arena_mode == "me" then _arena_topup_me(alive_a) else _arena_topup_war(alive_a, alive_b) end
+    local alive_a, alive_b = _compute_census()
+    if _arena_mode == "me" then _spawn_solo_wave(alive_a) else _spawn_war_wave(alive_a, alive_b) end
     at_debug.info("[ARENA] tick alive a=%d b=%d want=%d", alive_a, alive_b, _arena_want)
 end
 
-local function _arena_start(mode, count)
-    if not db.actor then _tip("AT.ARENA: not in game") return end
-    if not count or count < 2 then _tip("AT.ARENA: pass a total combatant count - at_test.at_arena(40)") return end
+local function _start_arena_loop(mode, count)
+    if not db.actor then _show_tip("AT.ARENA: not in game") return end
+    if not count or count < 2 then _show_tip("AT.ARENA: pass a total combatant count - at_test.at_arena(40)") return end
     _arena_mode = mode
     _arena_want = count
     _arena_center_lvid = db.actor:level_vertex_id()
@@ -263,11 +264,11 @@ local function _arena_start(mode, count)
     _arena_side_dir = math_random() * 2 * math_pi
     _arena_on = true
     RemoveTimeEvent("at_arena", "tick")
-    CreateTimeEvent("at_arena", "tick", 1, _arena_tick)
-    _tip(string_format("AT.ARENA: maintaining %d geared NPCs (%s)", _arena_want, mode))
+    CreateTimeEvent("at_arena", "tick", 1, _update_arena)
+    _show_tip(string_format("AT.ARENA: maintaining %d geared NPCs (%s)", _arena_want, mode))
 end
 
-local function _ap_for_weapon(wpn_sec)
+local function _find_ap_section(wpn_sec)
     local ammo_class = parse_list(ini_sys, wpn_sec, "ammo_class")
     if not ammo_class then return nil end
     for i = 1, #ammo_class do
@@ -276,10 +277,10 @@ local function _ap_for_weapon(wpn_sec)
     return nil
 end
 
-local function _arm_ap(npc)
+local function _add_ap(npc)
     local wpn = npc:active_item()
     if not (wpn and IsWeapon(wpn)) then return false end
-    local sec = _ap_for_weapon(wpn:section())
+    local sec = _find_ap_section(wpn:section())
     if not sec then return false end
     if npc:object(sec) ~= nil then return false end
     npc:set_character_rank(AP_RANK)
@@ -287,13 +288,13 @@ local function _arm_ap(npc)
     return true
 end
 
-local function _lab_ensure(npc, section)
+local function _add_item(npc, section)
     if npc:object(section) ~= nil then return 0 end
     xinventory.create_item(section, npc:id())
     return 1
 end
 
-local function _lab_give_weapon(npc)
+local function _add_weapon(npc)
     _lab_wpn_i = _lab_wpn_i + 1
     local sec = LAB_WEAPONS[((_lab_wpn_i - 1) % #LAB_WEAPONS) + 1]
     if not ini_sys:section_exist(sec) then return "none" end
@@ -307,16 +308,16 @@ local function _lab_give_weapon(npc)
     return sec
 end
 
-local function _lab_stock_npc(npc, squads)
-    local items = _lab_ensure(npc, "medkit") + _lab_ensure(npc, "bandage")
-    local ap = _arm_ap(npc) and 1 or 0
+local function _add_npc_stock(npc, squads)
+    local items = _add_item(npc, "medkit") + _add_item(npc, "bandage")
+    local ap = _add_ap(npc) and 1 or 0
     local squad = get_object_squad(npc)
     if not squad or squads[squad.id] then return items, ap, 0 end
-    squads[squad.id] = _lab_give_weapon(npc)
+    squads[squad.id] = _add_weapon(npc)
     return items, ap, 1
 end
 
-local function _lab_pass()
+local function _run_lab_pass()
     if not db.actor then return end
     local apos = db.actor:position()
     local actor_id = db.actor:id()
@@ -328,157 +329,133 @@ local function _lab_pass()
             and npc:position():distance_to_sqr(apos) <= LAB_RADIUS_SQR
         then
             seen = seen + 1
-            local items_n, ap_n, wpn_n = _lab_stock_npc(npc, squads)
+            local items_n, ap_n, wpn_n = _add_npc_stock(npc, squads)
             items   = items + items_n
             aps     = aps + ap_n
             weapons = weapons + wpn_n
         end
     end
     at_debug.info("[LAB] pass npcs=%d items_given=%d ap_armed=%d squad_weapons=%d", seen, items, aps, weapons)
-    _tip(string_format("AT.LAB: %d NPCs stocked, %d items, %d AP-armed, %d squad weapons", seen, items, aps, weapons))
+    _show_tip(string_format("AT.LAB: %d NPCs stocked, %d items, %d AP-armed, %d squad weapons", seen, items, aps, weapons))
 end
 
-local function _lab_tick()
+local function _update_lab()
     if not _lab_loop_on then return true end
-    _lab_pass()
+    _run_lab_pass()
     ResetTimeEvent("at_lab", "loop", LAB_PERIOD_SEC)
 end
 
---- @novalidate(code.unused_export, reason:"console command")
-function at_spawn()
-    _spawn(DEFAULT_SECTION, DEFAULT_DISTANCE, 0)
+function create_squad()
+    _spawn_squad(DEFAULT_SECTION, DEFAULT_DISTANCE, 0)
 end
 
---- @novalidate(code.unused_export, reason:"console command")
-function at_spawn_near()
-    _spawn(DEFAULT_SECTION, 20, 0)
+function create_squad_near()
+    _spawn_squad(DEFAULT_SECTION, 20, 0)
 end
 
---- @novalidate(code.unused_export, reason:"console command")
-function at_spawn_mid()
-    _spawn(DEFAULT_SECTION, 40, 0)
+function create_squad_mid()
+    _spawn_squad(DEFAULT_SECTION, 40, 0)
 end
 
---- @novalidate(code.unused_export, reason:"console command")
-function at_spawn_far()
-    _spawn(DEFAULT_SECTION, 100, 0)
+function create_squad_far()
+    _spawn_squad(DEFAULT_SECTION, 100, 0)
 end
 
---- @novalidate(code.unused_export, reason:"console command")
-function at_spawn_very_far()
-    _spawn(DEFAULT_SECTION, 150, 0)
+function create_squad_very_far()
+    _spawn_squad(DEFAULT_SECTION, 150, 0)
 end
 
---- @novalidate(code.unused_export, reason:"console command")
-function at_spawn_behind()
-    _spawn(DEFAULT_SECTION, 50, 180)
+function create_squad_behind()
+    _spawn_squad(DEFAULT_SECTION, 50, 180)
 end
 
---- @novalidate(code.unused_export, reason:"console command")
-function at_spawn_left()
-    _spawn(DEFAULT_SECTION, 50, -90)
+function create_squad_left()
+    _spawn_squad(DEFAULT_SECTION, 50, -90)
 end
 
---- @novalidate(code.unused_export, reason:"console command")
-function at_spawn_right()
-    _spawn(DEFAULT_SECTION, 50, 90)
+function create_squad_right()
+    _spawn_squad(DEFAULT_SECTION, 50, 90)
 end
 
---- @novalidate(code.unused_export, reason:"console command")
-function at_spawn_veteran()
-    _spawn("bandit_sim_squad_veteran", DEFAULT_DISTANCE, 0)
+function create_squad_veteran()
+    _spawn_squad("bandit_sim_squad_veteran", DEFAULT_DISTANCE, 0)
 end
 
---- @novalidate(code.unused_export, reason:"console command")
-function at_spawn_master()
-    _spawn("bandit_sim_squad_alpha", DEFAULT_DISTANCE, 0)
+function create_squad_master()
+    _spawn_squad("bandit_sim_squad_alpha", DEFAULT_DISTANCE, 0)
 end
 
---- @novalidate(code.unused_export, reason:"console command")
-function at_spawn_mil()
-    _spawn("army_sim_squad_novice", 60, 0, 3)
+function create_squad_mil()
+    _spawn_squad("army_sim_squad_novice", 60, 0, 3)
 end
 
---- @novalidate(code.unused_export, reason:"console command")
-function at_spawn_mono()
-    _spawn("monolith_sim_squad_novice", 60, 0)
+function create_squad_mono()
+    _spawn_squad("monolith_sim_squad_novice", 60, 0)
 end
 
---- @novalidate(code.unused_export, reason:"console command")
-function at_spawn_merc()
-    _spawn("merc_sim_squad_novice", 50, 0)
+function create_squad_merc()
+    _spawn_squad("merc_sim_squad_novice", 50, 0)
 end
 
---- @novalidate(code.unused_export, reason:"console command")
-function at_spawn_duty()
-    _spawn("duty_sim_squad_novice", 50, 0)
+function create_squad_duty()
+    _spawn_squad("duty_sim_squad_novice", 50, 0)
 end
 
---- @novalidate(code.unused_export, reason:"console command")
-function at_spawn_freedom()
-    _spawn("freedom_sim_squad_novice", 50, 0)
+function create_squad_freedom()
+    _spawn_squad("freedom_sim_squad_novice", 50, 0)
 end
 
---- @novalidate(code.unused_export, reason:"console command")
-function at_spawn_zomb()
-    _spawn("zombied_sim_squad_novice", 40, 0)
+function create_squad_zomb()
+    _spawn_squad("zombied_sim_squad_novice", 40, 0)
 end
 
---- @novalidate(code.unused_export, reason:"console command")
-function at_spawn_csky()
-    _spawn("csky_sim_squad_novice", 50, 0)
+function create_squad_csky()
+    _spawn_squad("csky_sim_squad_novice", 50, 0)
 end
 
---- @novalidate(code.unused_export, reason:"console command")
-function at_spawn_ecolog()
-    _spawn("ecolog_sim_squad_novice", 50, 0)
+function create_squad_ecolog()
+    _spawn_squad("ecolog_sim_squad_novice", 50, 0)
 end
 
---- @novalidate(code.unused_export, reason:"console command")
-function at_spawn_renegade()
-    _spawn("renegade_sim_squad_novice", 50, 0)
+function create_squad_renegade()
+    _spawn_squad("renegade_sim_squad_novice", 50, 0)
 end
 
 --- Give the actor a Fort-17 + three boxes of 9x18 (engage a spawned squad, hurt them - the flee test).
---- @novalidate(code.unused_export, reason:"console command")
-function at_give_pistol()
+function add_pistol()
     local id = db.actor and db.actor:id()
     if not id then return end
     xinventory.create_item("wpn_fort", id)
     for _ = 1, 3 do xinventory.create_item("ammo_9x18_fmj", id) end
-    _tip("AT.TEST: Fort-17 + 3 boxes 9x18 given")
+    _show_tip("AT.TEST: Fort-17 + 3 boxes 9x18 given")
 end
 
 --- Spawn an armed military squad, strip every weapon 3s later - proves the unarmed seize decline.
---- @novalidate(code.unused_export, reason:"console command")
-function at_spawn_unarmed()
-    local squad = _spawn("army_sim_squad_novice", 40, 0)
+function create_squad_unarmed()
+    local squad = _spawn_squad("army_sim_squad_novice", 40, 0)
     if not squad then return end
     local squad_id = squad.id
     CreateTimeEvent(0, "at_unarmed_strip_" .. tostring(time_global()), 3, function()
         local sq = alife_object(squad_id)
-        local removed = sq and _strip_weapons(sq) or 0
+        local removed = sq and _remove_squad_weapons(sq) or 0
         at_debug.info("[SPAWN] unarmed squad=%d weapons_removed=%d", squad_id, removed)
-        _tip(string_format("AT.TEST: unarmed squad id=%d, %d weapons removed", squad_id, removed))
+        _show_tip(string_format("AT.TEST: unarmed squad id=%d, %d weapons removed", squad_id, removed))
         return true
     end)
 end
 
 --- Keep n/2 side-a (army + cowardly ecolog/csky/renegade) vs n/2 monolith fighting around you, all geared.
---- @novalidate(code.unused_export, reason:"console command")
-function at_arena(count)
-    _arena_start("war", count)
+function start_arena(count)
+    _start_arena_loop("war", count)
 end
 
 --- Keep n monolith around you, hostile to everything including you, all geared.
---- @novalidate(code.unused_export, reason:"console command")
-function at_arena_me(count)
-    _arena_start("me", count)
+function start_arena_solo(count)
+    _start_arena_loop("me", count)
 end
 
 --- Stop the arena and release every NPC it spawned.
---- @novalidate(code.unused_export, reason:"console command")
-function at_arena_stop()
+function stop_arena()
     _arena_on = false
     RemoveTimeEvent("at_arena", "tick")
     local released = 0
@@ -487,12 +464,11 @@ function at_arena_stop()
         if se then alife():release(se, true) released = released + 1 end
         _arena_spawned[id] = nil
     end
-    _tip(string_format("AT.ARENA: stopped, released %d", released))
+    _show_tip(string_format("AT.ARENA: stopped, released %d", released))
 end
 
 --- Arm every online stalker within 120m with AP for its weapon plus a veteran rank.
---- @novalidate(code.unused_export, reason:"console command")
-function at_arm_ap()
+function add_ap_ammo()
     if not db.actor then return end
     local apos = db.actor:position()
     local actor_id = db.actor:id()
@@ -504,42 +480,39 @@ function at_arm_ap()
             and npc:position():distance_to_sqr(apos) <= r2
         then
             seen = seen + 1
-            armed = armed + (_arm_ap(npc) and 1 or 0)
+            armed = armed + (_add_ap(npc) and 1 or 0)
         end
     end
     at_debug.info("[AMMO] arm_ap armed=%d seen=%d boxes=%d rank=%d", armed, seen, AP_BOXES, AP_RANK)
-    _tip(string_format("AT.AMMO: armed %d/%d stalkers with AP (rank %d). Fight them, watch [AP] log.",
+    _show_tip(string_format("AT.AMMO: armed %d/%d stalkers with AP (rank %d). Fight them, watch [AP] log.",
         armed, seen, AP_RANK))
 end
 
 --- One harness pass: stock every nearby stalker (meds, AP + rank, squad weapons).
---- @novalidate(code.unused_export, reason:"console command")
-function at_lab()
-    _lab_pass()
+function run_lab()
+    _run_lab_pass()
 end
 
 --- Toggle the periodic harness: a stocking pass every 30s until toggled off.
---- @novalidate(code.unused_export, reason:"console command")
-function at_lab_loop()
+function run_lab_loop()
     if _lab_loop_on then
         _lab_loop_on = false
         RemoveTimeEvent("at_lab", "loop")
         at_debug.info("[LAB] loop stopped")
-        _tip("AT.LAB: loop stopped")
+        _show_tip("AT.LAB: loop stopped")
         return
     end
     _lab_loop_on = true
-    _lab_pass()
+    _run_lab_pass()
     RemoveTimeEvent("at_lab", "loop")
-    CreateTimeEvent("at_lab", "loop", LAB_PERIOD_SEC, _lab_tick)
+    CreateTimeEvent("at_lab", "loop", LAB_PERIOD_SEC, _update_lab)
     at_debug.info("[LAB] loop started period=%ds", LAB_PERIOD_SEC)
-    _tip("AT.LAB: loop started (a pass every " .. LAB_PERIOD_SEC .. "s)")
+    _show_tip("AT.LAB: loop started (a pass every " .. LAB_PERIOD_SEC .. "s)")
 end
 
 --- Three bandit squads in a line ahead.
---- @novalidate(code.unused_export, reason:"console command")
-function at_spawn_horde()
-    _spawn_set("horde", {
+function create_horde()
+    _spawn_squad_set("horde", {
         { "bandit_sim_squad_novice", 30,  0 },
         { "bandit_sim_squad_novice", 60,  0 },
         { "bandit_sim_squad_novice", 100, 0 },
@@ -547,18 +520,16 @@ function at_spawn_horde()
 end
 
 --- Two squads on opposite flanks.
---- @novalidate(code.unused_export, reason:"console command")
-function at_spawn_pincer()
-    _spawn_set("pincer", {
+function create_pincer()
+    _spawn_squad_set("pincer", {
         { "bandit_sim_squad_novice", 60, -90 },
         { "bandit_sim_squad_novice", 60,  90 },
     })
 end
 
 --- Four squads in a circle around the actor (cover-reservation stress).
---- @novalidate(code.unused_export, reason:"console command")
-function at_spawn_swarm()
-    _spawn_set("swarm", {
+function create_swarm()
+    _spawn_squad_set("swarm", {
         { "bandit_sim_squad_novice", 50,    0 },
         { "bandit_sim_squad_novice", 50,   90 },
         { "bandit_sim_squad_novice", 50,  180 },
@@ -567,9 +538,8 @@ function at_spawn_swarm()
 end
 
 --- Mixed faction wave: bandits ahead, military flank, monolith behind.
---- @novalidate(code.unused_export, reason:"console command")
-function at_spawn_mixed()
-    _spawn_set("mixed", {
+function create_mixed()
+    _spawn_squad_set("mixed", {
         { "bandit_sim_squad_novice",    60,    0 },
         { "army_sim_squad_novice",      70,   60 },
         { "monolith_sim_squad_novice",  80, -120 },
@@ -577,12 +547,11 @@ function at_spawn_mixed()
 end
 
 --- Dump the disclosure counters to the log and a tip.
---- @novalidate(code.unused_export, reason:"console command")
-function at_dump()
+function get_dump()
     if not db.actor then return end
     local stats = at_disclosure.get_stats()
     at_debug.info("[DUMP] disclosure hits=%d loud=%d stamps=%d victim_seeds=%d redirect=%s",
         stats.hits, stats.loud, stats.stamps, stats.victim_seeds, tostring(stats.has_redirect))
-    _tip(string_format("AT.TEST: hits=%d loud=%d stamps=%d redirect=%s (see alifetactics.log)",
+    _show_tip(string_format("AT.TEST: hits=%d loud=%d stamps=%d redirect=%s (see alifetactics.log)",
         stats.hits, stats.loud, stats.stamps, tostring(stats.has_redirect)))
 end
