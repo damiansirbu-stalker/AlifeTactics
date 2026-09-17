@@ -235,17 +235,20 @@ local function _get_nat(id)
     return nat
 end
 
--- One shuffle dimension: record its value; log [SHUF] when it flips 3 times inside the window.
+-- One shuffle dimension: log [SHUF] only when the value oscillates back to a recent value.
+-- 3 returns (A->B->A) in the window, so a one-way walk (A->B->C) is never read as a shuffle.
 local function _check_dim(nat, key, val, id, name, tg)
     local dim = nat[key]
-    if not dim then nat[key] = { last = val, t1 = 0, t2 = 0, t3 = 0, cd = 0 } return end
+    if not dim then nat[key] = { last = val, prev2 = nil, t1 = 0, t2 = 0, t3 = 0, cd = 0 } return end
     if val == dim.last then return end
-    dim.last = val
+    local returned = (val == dim.prev2)
+    dim.prev2, dim.last = dim.last, val
+    if not returned then return end
     dim.t1, dim.t2, dim.t3 = dim.t2, dim.t3, tg
     if dim.t1 == 0 or (tg - dim.t1) > NAT_SHUF_WINDOW_MS then return end
     if (tg - dim.cd) < NAT_SHUF_COOLDOWN_MS then return end
     dim.cd = tg
-    log.info("[SHUF] id=%d %s kind=%s 3flips/%.0fs", id, name, key, NAT_SHUF_WINDOW_MS / 1000)
+    log.info("[SHUF] id=%d %s kind=%s 3osc/%.0fs", id, name, key, NAT_SHUF_WINDOW_MS / 1000)
 end
 
 -- Movement heading reversing back and forth: running like an idiot.
@@ -274,7 +277,9 @@ local function _check_idle(nat, npc, id, name, be, tg)
     if xcombat.can_kill_member(npc, be:position()) or not xcombat.fire_make_sense(npc, be) then return end
     if (tg - (nat.idle_cd or 0)) < NAT_FIRE_COOLDOWN_MS then return end
     nat.idle_cd = tg
-    log.info("[IDLE] id=%d %s able but silent=%dms enemy=%d", id, name, silent, be:id())
+    local dont = db.storage[id] and db.storage[id].rx_dont_shoot and 1 or 0
+    log.info("[IDLE] id=%d %s able but silent=%dms enemy=%d dont=%d op=%s",
+        id, name, silent, be:id(), dont, xcombat.get_operator(npc))
 end
 
 -- In a move state but position not changing: glued to the ground.

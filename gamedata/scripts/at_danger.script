@@ -1070,6 +1070,21 @@ local function _rx_ff_finalize(self)
 	end
 end
 
+-- rx_ff's friendly-fire hold is cruder than the engine's lane check, silencing NPCs the engine would clear.
+-- Defer to the engine: hold only when can_kill_member agrees a squadmate is actually in the lane.
+local _orig_dont_shoot_eval
+local function _rx_ff_dont_shoot(self)
+	if not _orig_dont_shoot_eval(self) then return false end
+	local npc = self.object
+	local be = npc and npc:best_enemy()
+	if be and not xcombat.can_kill_member(npc, be:position()) then
+		db.storage[npc:id()].rx_dont_shoot = false
+		self.st.__hold_until = nil
+		return false
+	end
+	return true
+end
+
 local function _install_patches()
 	if _patched then return end
 	_patched = true
@@ -1082,9 +1097,21 @@ local function _install_patches()
 	xr_danger.set_script_danger    = set_script_danger
 	xr_danger.has_danger           = has_danger
 	_actor_tables_live = xr_danger.DangerIgnoreActor ~= nil
+	-- The monolith combat scheme drives its own body/movement through set_state, but its four actions
+	-- are absent from combat_action_ids, so the idle evaluator forces st.combat false every solve
+	-- (state_mgr.script:93-96) and state_mgr_to_idle_combat preempts the fight - the crouch/idle thrash.
+	-- Register the monolith actions the same way xrs_facer and the takeover already do.
+	if state_mgr.combat_action_ids and xr_actions_id.combat_monolith_base then
+		local base = xr_actions_id.combat_monolith_base
+		for i = 0, 3 do state_mgr.combat_action_ids[base + i] = true end
+	end
 	if rx_ff and rx_ff.action_verso and not _orig_verso_finalize then
 		_orig_verso_finalize = rx_ff.action_verso.finalize
 		rx_ff.action_verso.finalize = _rx_ff_finalize
+	end
+	if rx_ff and rx_ff.evaluator_dont_shoot and not _orig_dont_shoot_eval then
+		_orig_dont_shoot_eval = rx_ff.evaluator_dont_shoot.evaluate
+		rx_ff.evaluator_dont_shoot.evaluate = _rx_ff_dont_shoot
 	end
 end
 
