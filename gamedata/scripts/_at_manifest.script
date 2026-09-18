@@ -1,0 +1,7 @@
+--- _at_manifest: AlifeTactics identity. Pure data, no logic. Read by _at_init (the gate) and the validator (deps.manifest_structure).
+
+MANIFEST = {
+    name    = "AlifeTactics",
+    version = "next",
+    xlibs   = "1.8.5",
+}
