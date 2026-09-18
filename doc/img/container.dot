@@ -2,16 +2,16 @@ digraph at_container {
     // C4 level 2: the containers. The user-facing set IS the MCM tree (at_mcm.script),
     // same grouping, order, and names. Substrate and Observability carry no MCM page.
     rankdir=LR
-    compound=true
-    nodesep=0.18
+    splines=ortho
+    pad=0.3
+    nodesep=0.22
     ranksep=0.9
+    graph [fontname="Arial", fontsize=15]
+    node  [shape=box, style="rounded,filled", fillcolor=white,
+           color=gray40, fontname="Arial", fontsize=13, margin="0.14,0.07", height=0.32]
+    edge  [arrowhead=none, color=gray45]
 
-    node [shape=box, style="rounded,filled", fillcolor=white,
-          fontsize=13, fontname="Arial", margin="0.12,0.06", height=0.3]
-    edge [arrowhead=none, color=gray50]
-    graph [fontsize=15, fontname="Arial"]
-
-    root [label="AlifeTactics", shape=box, style="filled", fillcolor=gray85, fontsize=16]
+    root [label="AlifeTactics", fillcolor=gray85, color=gray25, penwidth=1.4, fontsize=16]
 
     // MCM categories, in tree order.
     combat  [label="Combat"]
@@ -50,8 +50,8 @@ digraph at_container {
     m1 [label="Healing"]; m2 [label="Jamming"]; m3 [label="Ammo"]; m4 [label="Gear"]
     mechan -> m1; mechan -> m2; mechan -> m3; mechan -> m4
 
-    s1 [label="at_core (store, 200ms loop, budget)"]; s2 [label="at_faction (flavor)"]
-    s3 [label="at_effects_resolver"]; s4 [label="xcombat boundary"]; s5 [label="GOAP graft (188347)"]
+    s1 [label="at_core (store, loop, budget)"]; s2 [label="at_faction (flavor)"]
+    s3 [label="at_effects_resolver"]; s4 [label="xcombat boundary"]; s5 [label="GOAP graft"]
     substrate -> s1; substrate -> s2; substrate -> s3; substrate -> s4; substrate -> s5
 
     o1 [label="at_debug"]; o2 [label="at_world_trace"]; o3 [label="at_hud"]; o4 [label="at_test"]

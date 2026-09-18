@@ -1,42 +1,48 @@
 digraph at_context {
     // C4 level 1: AlifeTactics against its neighbours.
     rankdir=TB
-    splines=polyline
+    splines=ortho
+    pad=0.3
     compound=true
-    nodesep=0.6
-    ranksep=0.7
+    nodesep=0.5
+    ranksep=0.95
+    graph [fontname="Arial", fontsize=16]
+    node  [shape=box, style="rounded,filled", fillcolor=white,
+           color=gray40, fontname="Arial", fontsize=15, margin="0.16,0.1"]
+    edge  [fontname="Arial", fontsize=12, color=gray35, arrowsize=0.8]
 
-    node [shape=box, style="rounded,filled", fillcolor=white,
-          fontsize=15, fontname="Arial", margin="0.16,0.1"]
-    edge [fontsize=12, fontname="Arial"]
-    graph [fontsize=16, fontname="Arial"]
-
-    player [label="Player\nobserved inside gate_radius_m"]
-    at      [label="AlifeTactics\nat_*.script  (policy: when, whom, which)", fillcolor=gray95]
-    xcombat [label="xcombat (xlibs)\nthe one combat-call boundary", shape=hexagon, fillcolor=gray90]
+    player  [label="Player\nobserved inside gate_radius_m"]
+    at      [label="AlifeTactics\nat_*.script  (policy: when, whom, which)", fillcolor=gray85, color=gray25, penwidth=1.4]
+    xcombat [label="xcombat (xlibs)\nthe one combat-call boundary", shape=hexagon, fillcolor=gray92, color=gray30]
 
     subgraph cluster_anomaly {
         label="Anomaly Lua layer"
+        labeljust=l
+        fontname="Arial"
+        fontsize=13
         style=rounded
-        color=gray50
+        color=gray55
         anomaly [label="xr_danger | state_mgr | xr_eat_medkit\nxr_weapon_jam | xr_combat_ignore"]
-        brain   [label="installed combat brain\nvanilla | GAMMA AI Rework | RE:DONE\ncomposed, never replaced"]
+        brain   [label="installed combat brain\nvanilla or a third-party combat-AI overhaul\ncomposed, never replaced"]
     }
 
     subgraph cluster_engine {
         label="X-Ray engine (C++), themrdemonized fork"
+        labeljust=l
+        fontname="Arial"
+        fontsize=13
         style="rounded,dashed"
-        color=gray60
+        color=gray50
         engine [label="GOAP planners | CEnemyManager\nsight_manager | CVisualMemoryManager\nweapon handler"]
-        exes   [label="modded-exes seams\ndemonized >= 20250908 or AOEngine\nper-NPC binds, vetoes, callbacks"]
+        exes   [label="modded-exes seams\ndemonized or AOEngine\nper-NPC binds, vetoes, callbacks", fillcolor=gray95]
     }
 
-    at -> xcombat [label="every combat command and read"]
-    xcombat -> engine [label="bind / veto / read"]
-    at -> anomaly [label="function patch"]
-    at -> engine [label="engine callbacks", style=dashed]
-    exes -> engine [label="expose", style=dashed]
-    engine -> brain [label="drives NPCs"]
-    at -> brain [label="GOAP graft interrupts,\nthen hands back", constraint=false, style=dashed]
-    player -> at [constraint=false, style=dotted, label="hit / noise / sight"]
+    at -> xcombat     [xlabel="every combat command and read"]
+    xcombat -> engine [xlabel="bind / veto / read"]
+    at -> anomaly     [xlabel="function patch"]
+    at -> engine      [xlabel="engine callbacks", style=dashed]
+    exes -> engine    [xlabel="expose", style=dashed]
+    engine -> brain   [xlabel="drives NPCs"]
+    at -> brain       [xlabel="GOAP graft interrupts, then hands back", constraint=false, style=dashed]
+    player -> at      [label="hit / noise / sight", style=dotted]
 }
