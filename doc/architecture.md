@@ -16,7 +16,7 @@ It builds on the xlibs base library (xcombat, xsquad, xcreature, xttltable, xtim
 
 ## Container: the MCM system tree
 
-The user-facing containers are the MCM tree (`at_mcm.script:434-917`).
+The user-facing containers are the MCM tree (`at_mcm.script`).
 Every other document follows its grouping, order, and names.
 The Substrate and Observability containers carry no MCM page.
 
@@ -38,15 +38,15 @@ One loop drives combat.
 Every other system reacts to a discrete engine event or plants standing per-NPC state the engine reads on its own.
 No work runs per frame.
 
-The combat loop is `at_core._run_monitor`, a vanilla time event at 200ms (`at_core.script:97-116`).
+The combat loop is `at_core._run_monitor`, a vanilla time event at 200ms (`at_core.script`).
 It registers from `actor_on_first_update` and re-arms after a save load, because time events do not survive a load.
 It costs one due-time compare per frame inside `ProcessEventQueue`.
-It arms only while Combat, Push, or Pull is enabled, and all three off stops it (`at_core.script:198-214`).
+It arms only while Combat, Push, or Pull is enabled, and all three off stops it (`at_core.script`).
 
 ![Control loop](img/control-loop.png)
 
 ```
-_run_monitor every 200ms (at_core.script:97):
+_run_monitor every 200ms (at_core.script):
   re-arm first (_reset_monitor)          ProcessEventQueue has no error guard, so a re-armed pass costs one aborted tick
   for each record in _npc_states:
     dead      -> at_maneuvers.clear_npc + at_behaviors.clear_npc, next
@@ -75,7 +75,7 @@ Commitment runs on the action-switch and cover-repick vetoes, Conduct on the bod
 ## Data and ownership
 
 There is one store and one pass.
-`_npc_states[id]` (`at_core.script:20`) holds one record per tracked stalker, created on `npc_on_net_spawn` and deleted in one teardown sequence.
+`_npc_states[id]` (`at_core.script`) holds one record per tracked stalker, created on `npc_on_net_spawn` and deleted in one teardown sequence.
 Every field has one writer.
 
 ```
@@ -89,7 +89,7 @@ gate, maneuver, dest, enemy_id  at_maneuvers            the takeover gate, open 
 push_*, pull*                 at_behaviors              the open press and pull windows
 ```
 
-The reverse index `_best_enemy_of` (`at_core.script:41-62`) maps a target id to the set of NPCs holding it as best enemy.
+The reverse index `_best_enemy_of` (`at_core.script`) maps a target id to the set of NPCs holding it as best enemy.
 The loop is the only writer of both directions.
 Callers read candidates from `get_threats`.
 The reader verifies every predicate live at its decision, so a stale entry costs one failed compare.
@@ -101,7 +101,7 @@ Re-applies and engine re-grants never count.
 
 ### The API
 
-Systems read the substrate through `at_core`'s publics (`at_core.script:230-295`):
+Systems read the substrate through `at_core`'s publics (`at_core.script`):
 
 ```
 check_start(bucket) -> bool             room in the bucket's window
@@ -116,7 +116,7 @@ is_enemy_vulnerable(enemy) -> bool[,term]  the one vulnerability rule, branched 
 is_in_gate(state) -> bool               actor_dist_sqr against the one gate radius
 ```
 
-`is_enemy_vulnerable` (`at_core.script:274-289`) answers whether an enemy can return fire now, branched per kind.
+`is_enemy_vulnerable` (`at_core.script`) answers whether an enemy can return fire now, branched per kind.
 The actor answers on the weapon block terms (`xcombat.get_block_reason`: unarmed, reloading, empty magazine) plus sprinting and climbing.
 A stalker answers on the block terms plus a playing animation (`xcombat.is_body_busy`).
 A mutant never answers.
@@ -182,7 +182,7 @@ Changes: a per-NPC boolean held for the fight, nothing in the world.
 Stops: a zombied NPC carries 0 on every participation key, so no maneuver, veto, or press reaches him.
 
 ```
-has_flavor(npc, key) (at_faction.script:27-36):
+has_flavor(npc, key) (at_faction.script):
   chance = get_faction_chance(community, key)   [<faction>] key, else [default], else 1
   chance >= 1 -> true    chance <= 0 -> false   (no roll)
   else roll once per NPC per key, hold the boolean 300s in an xttltable
@@ -203,8 +203,8 @@ Stops: a value only one source feeds never enters resolve, it stays in its ownin
 ![Effects fan-in](img/effects-resolver.png)
 
 ```
-register(effect, fn)                    a source adds a provider (at_effects_resolver.script:137)
-resolve(npc, effect)                    the strongest contribution across providers (:147-165)
+register(effect, fn)                    a source adds a provider (at_effects_resolver.script)
+resolve(npc, effect)                    the strongest contribution across providers
                                         max, min for a reduction, boolean OR for the aura
 ```
 
@@ -227,7 +227,7 @@ There is no stop path, because `stop_particles` trips the engine bone assert on 
 `at_compat.script` quarantines the one foreign coupling.
 grok_bo (a foreign hit pipeline) recomputes and self-applies player-to-NPC hit damage, discarding the resolver's DAMAGE_RESIST.
 The wrapper installs at `actor_on_first_update` after every other grok_bo wrap is in place.
-It measures the health delta grok_bo dealt and heals back the resisted fraction (`at_compat.script:13-32`).
+It measures the health delta grok_bo dealt and heals back the resisted fraction (`at_compat.script`).
 It is inert without grok_bo.
 
 ### xcombat boundary
@@ -250,26 +250,27 @@ Stops: a companion is excluded while `combat_ignore_companions` is on, so no dea
 ![GOAP graft](img/goap-graft.png)
 
 ```
-npc_on_net_spawn -> at_maneuvers._register_graft -> xcombat.register_takeover(npc, SPEC)  (at_maneuvers.script:766)
+npc_on_net_spawn -> at_maneuvers._register_graft -> xcombat.register_takeover(npc, SPEC)
   SPEC.gate      -> the graft evaluator reads state.gate, one flag read per plan solve
   SPEC.on_begin  -> _start_maneuver   SPEC.on_release -> _on_release
-grafted at TAKEOVER_ID 188347 (xcombat.script:800-818), every blocked planner gains precondition 188347 == false
+grafted at TAKEOVER_ID 188347 (xcombat.register_takeover), every blocked planner gains precondition 188347 == false
 
 gate down   188347 false   the vanilla chain solves as always, the graft sits dormant
 seize       188347 true    every blocked action is unselectable, the graft action is the only path to the goal, initialize starts the maneuver
 release     188347 false   vanilla resumes from wherever the NPC stands
 ```
 
-The action's initialize clears animations and sets the path, direction, and danger mental state (`xcombat.script:771-782`).
-It then registers the NPC in combat and calls `SPEC.on_begin`.
-The block list holds vanilla combat, danger, and cover actions plus the monolith, zombied, camper, and facer sub-schemes (`xcombat.get_blocked_planners`, `xcombat.script:712`).
-The block is per NPC by construction, because adding the same world-property condition twice to one action throws (`condition_state_inline.h:47`).
-So `apply_takeover_block` re-runs at every seize to catch an action bound by a later `configure_schemes`.
+On seize:
 
-The id 188347 is reserved (`xcombat.script:60`).
-It moved off 188200 after that value collided with a companion mod's shelter scheme.
-Maneuvers outranks behaviors and Commitment.
-The block holds vanilla ids only, and a blocked planner never proposes a switch, so the action-switch veto never fires for a seized NPC.
+- `initialize`: clear animations -> set path, direction, danger mental state -> register in combat -> `SPEC.on_begin`
+- `apply_takeover_block`: blocks vanilla combat, danger, and cover, plus the monolith, zombied, camper, and facer sub-schemes (`xcombat.get_blocked_planners`)
+- per-NPC by construction: a duplicate world-property add on one action throws (`condition_state_inline.h`), so it re-runs each seize to catch an action a later `configure_schemes` bound
+
+The reserved id 188347 (`xcombat.register_takeover`):
+
+- moved off 188200 after a companion mod's shelter scheme collided
+- Maneuvers outranks behaviors and Commitment
+- vanilla ids only, so a seized NPC proposes no switch and the action-switch veto never fires
 
 ## Combat
 
@@ -277,7 +278,7 @@ Maneuvers imposes.
 Commitment, Conduct, and Behaviors compose.
 
 The maneuvers, the Push, and the Pull share one scope.
-They open only inside `gate_radius_m` of the player (`at_core.is_in_gate`), only on a human target (`IsStalker` on the selection, `at_maneuvers.script:648`), and never on a zombied NPC.
+They open only inside `gate_radius_m` of the player (`at_core.is_in_gate`), only on a human target (`IsStalker` on the selection, `at_maneuvers.script`), and never on a zombied NPC.
 Fights against mutants and fights past the gate stay vanilla.
 No system walks NPC pairs.
 Every scan reads the NPC's own record.
@@ -289,25 +290,25 @@ Changes: it seizes one NPC through the GOAP graft, sets his destination, fire in
 Stops: at most one open maneuver per NPC, bounded by the start budget, ended on arrival, a cap, or a broken premise, cleaned up on death and despawn.
 
 ```
-begin check (600ms, _try_begin_maneuver at_maneuvers.script:636):
+begin check (600ms, _try_begin_maneuver at_maneuvers.script):
   fighting? (live best_enemy or a hit within hit_fight_ms), enemy is actor or stalker
   _check_seize_block: armed, outside smart cover, no playing animation, budget left
   _resolve_maneuver: walk the catalog from a per-NPC cursor
     per row: scope -> toggle -> flavor -> check_need -> palette -> find_destination
     first row whose need holds runs its find_destination (the one geometry probe) and ends the walk
   _try_seize: spend a start, apply_takeover_block, raise the gate, stamp row + dest + committed target
-update check (200ms, _update_maneuver:672): re-apply the row's state, skip while reloading or a hit reaction plays
-end check   (200ms, _try_end_maneuver:715): wounded, the row's check_end, arrival, or the cap, target_lost ends at once
+update check (200ms, _update_maneuver): re-apply the row's state, skip while reloading or a hit reaction plays
+end check   (200ms, _try_end_maneuver): wounded, the row's check_end, arrival, or the cap, target_lost ends at once
 ```
 
-From staging on, the maneuver is committed to that target.
-The update and end reads resolve the staged id and never re-read best_enemy, so the look never re-targets mid-maneuver, and a dead or despawned target ends it.
-The fire intent lives in `xcombat.set_combat`.
-A reloading weapon degrades the intent to READY first, because a fire goal issued mid-reload cancels the engine reload.
-The move hold (`xcombat.set_movement_hold`, PR #645) stops the engine's own mover from sliding a standing NPC through a hit reaction.
-It is set the frame the hit lands and released the moment the reaction ends (`_update_hold`, `at_maneuvers.script:744`).
+From staging on, the maneuver is committed to that target:
 
-The burst shape patches `state_mgr_weapon.get_queue_params` (`_compute_queue_params:39`).
+- update and end resolve the staged id and never re-read best_enemy, so the look never re-targets mid-maneuver. A dead or despawned target ends it.
+- fire intent lives in `xcombat.set_combat`. A reloading weapon degrades it to READY first, since a fire goal mid-reload cancels the engine reload.
+- move hold (`xcombat.set_movement_hold`, PR #645) stops the engine mover sliding a standing NPC through a hit reaction
+- the hold sets the frame the hit lands and releases when the reaction ends (`_update_hold`)
+
+The burst shape patches `state_mgr_weapon.get_queue_params` (`_compute_queue_params`).
 A maneuver rolls size and pause fresh per query inside the engine's own per-weapon medium band, then multiplies by the Discipline rank factors.
 A non-maneuver NPC passes through byte-identical.
 The catalog rows come from `at_maneuvers_config.script`, array order is priority:
@@ -327,7 +328,7 @@ pickoff       stalled ~4s, past the enemy's effective    the disciplined        
 ```
 
 The discriminator is displacement.
-A pick of the same situation with the NPC still within 2m past `repeat_limit` (3) means the last transaction changed nothing, so the takeover refuses and vanilla owns him (`_check_repeat_limit:429`).
+A pick of the same situation with the NPC still within 2m past `repeat_limit` (3) means the last transaction changed nothing, so the takeover refuses and vanilla owns him (`_check_repeat_limit`).
 A legitimate chain under a sprinting player re-fires at once, and each transaction moved him, which resets the count.
 
 ### Commitment
@@ -337,18 +338,18 @@ Changes: it answers deny on a proposed action switch or cover re-pick. It writes
 Stops: nothing seizes and no maneuver launches. Every non-fire transition passes.
 
 ```
-npc_on_combat_action_switch (PR #595, via xcombat.on_action_switch) -> _on_action_switch sets flags.allow = false (at_commitment.script:154-193)
-  kill_enemy / kill_if_not_visible -> take_cover : sees enemy (visible_now, stalker_combat_actions.cpp:483) + lane clear (can_kill_member) + fire_make_sense
+npc_on_combat_action_switch (PR #595, via xcombat.on_action_switch) -> _on_action_switch sets flags.allow = false (at_commitment.script)
+  kill_enemy / kill_if_not_visible -> take_cover : sees enemy (visible_now, stalker_combat_actions.cpp) + lane clear (can_kill_member) + fire_make_sense
   kill_enemy -> get_ready_to_kill               : the same sight gate
   detour_enemy -> take_cover                     : held while blind, released on re-sight
-npc_on_best_cover_repick (PR #607, via xcombat.on_cover_repick) -> _on_cover_repick denies the swap that clears InCover (:236-269)
+npc_on_best_cover_repick (PR #607, via xcombat.on_cover_repick) -> _on_cover_repick denies the swap that clears InCover
 ```
 
-Every gate falsifies itself, so release needs no machinery.
-`kill_enemy` (`stalker_combat_planner.cpp:338`) requires `InCover`, and a best-cover re-pick clears it before the exit is proposed (`:60`), so holding the cover keeps the exit unselectable.
-The cap (`commitment_hold_s`) is a time-to-live on one continuous refusal, and an allowed switch resets it.
-At the relent moment the veto consults `at_core.is_enemy_vulnerable` and defers up to VULNERABLE_EXTEND_MS (4000ms) while the enemy cannot answer, the LIQUIDATE deferral (`_try_extend_hold:83`).
-A seized NPC never reaches this seam, because his blocked planner runs no combat action.
+- every gate falsifies itself, so release needs no machinery
+- `kill_enemy` (`stalker_combat_planner.cpp`) requires `InCover`, and a best-cover re-pick clears it before the exit is proposed, so holding the cover keeps the exit unselectable
+- the cap (`commitment_hold_s`) is a time-to-live on one continuous refusal, and an allowed switch resets it
+- at the relent moment the veto consults `at_core.is_enemy_vulnerable` and defers up to VULNERABLE_EXTEND_MS (4000ms) while the enemy cannot answer, the LIQUIDATE deferral (`_try_extend_hold`)
+- a seized NPC never reaches this seam, because his blocked planner runs no combat action
 
 ### Conduct
 
@@ -357,19 +358,18 @@ Changes: it answers one per-event value inside the engine callback, the body-sta
 Stops: no takeover and no held actions. A maneuver-held NPC never reaches either callback.
 
 ```
-npc_on_combat_set_body_state -> _on_combat_body_state (at_conduct.script:98)
-  answers only hold_position (the one provably stationary op, stalker_combat_actions.cpp:820-841). long weapons, experienced+ tier, past 20m
+npc_on_combat_set_body_state -> _on_combat_body_state (at_conduct.script)
+  answers only hold_position (the one provably stationary op, stalker_combat_actions.cpp). long weapons, experienced+ tier, past 20m
   the decision is HELD, re-decided per DECIDE_MS (3s) by a crouch-eye shot ray (xcombat.has_shot_obstacle):
     crouch when the low line is clear, stand when a low wall would eat the shot
-npc_on_get_min/max_combat_dist (#563, via xcombat.on_get_min/max_combat_dist) -> scale the engine's own band (:170-204)
+npc_on_get_min/max_combat_dist (#563, via xcombat.on_get_min/max_combat_dist) -> scale the engine's own band
   SMG tightened x0.6, sniper minimum raised by rank. the same handler answers the Push cap and the Pull band as overlays
 ```
 
-Every handler scales the handed base and never replaces it, so the engine's weapon-type semantics survive underneath.
-The posture decision is held for the DECIDE_MS window.
-The engine re-asks the body state several times a second.
-The crouch-shot line flips between clear and blocked, so a stateless per-ask decision would flap crouch and stand.
-A per-NPC disposition roll (`conduct_crouch` flavour) crouches only some eligible stalkers, so a firing line mixes standing and crouched shooters.
+- every handler scales the handed base and never replaces it, so the engine's weapon-type semantics survive underneath
+- the posture decision is held for the DECIDE_MS window, because the engine re-asks the body state several times a second
+- the crouch-shot line flips between clear and blocked, so a stateless per-ask decision would flap crouch and stand
+- a per-NPC disposition roll (`conduct_crouch` flavour) crouches only some eligible stalkers, so a firing line mixes standing and crouched shooters
 
 ### Behaviors: Push and Pull
 
@@ -379,17 +379,16 @@ Stops: everything reverts within one pass when the cause clears. A seized NPC ne
 
 ```
 at_core.update_npc -> at_behaviors.update_npc per record per pass (no seam of its own, scan-only)
-Push (_update_push_npc at_behaviors.script:171): open in-gate on a human target
+Push (_update_push_npc at_behaviors.script): open in-gate on a human target
   press cause polled from the target: is_enemy_vulnerable under push_reload, or standing weak with hysteresis under push_finisher
   FIRE bump range-gated by the burst-tail law. BAND bump gated by target-facing advantage (bleeding, back turned, self healthy)
   first write spends one start, caps at push_window_max_ms, cools down on his own record
-Pull (_try_open_pull / _update_pull_npc:219): my record shows reloading or hurt with a recent hit, my target strong, my faction rolls me in
+Pull (_try_open_pull / _update_pull_npc): my record shows reloading or hurt with a recent hit, my target strong, my faction rolls me in
   set_pull_band raises my accepted cover minimum so my re-picks land farther, held then cooled down
 ```
 
-Pull outranks Push per NPC.
-Both Conduct handlers apply the pull overlay after the push cap, so self-preservation wins over aggression.
-Every write is transition-only against the per-NPC mirrors, cleared on cause end, toggle-off, seize, death, despawn, and unregister.
+- Pull outranks Push per NPC, and both Conduct handlers apply the pull overlay after the push cap, so self-preservation wins over aggression
+- every write is transition-only against the per-NPC mirrors, cleared on cause end, toggle-off, seize, death, despawn, and unregister
 
 ## Effectiveness
 
@@ -406,13 +405,13 @@ Changes: it scales the per-shot dispersion, the flat curve as a resolver provide
 Stops: nothing when off. A shot passes through untouched.
 
 ```
-register(SHOT_DISPERSION, _compute_disp)             the flat rank curve, min-combined with thermal (at_accuracy.script:62)
-npc_shot_dispersion -> _on_move_penalty (:23)        scales while move_type <= run (walk or run), single-source and per-shot keyed
+register(SHOT_DISPERSION, _compute_disp)             the flat rank curve, min-combined with thermal (at_accuracy.script)
+npc_shot_dispersion -> _on_move_penalty        scales while move_type <= run (walk or run), single-source and per-shot keyed
 ```
 
 The engine rank knob is dead.
-`Rank()` clamps to [0,100] (`ai_stalker.cpp:773-775`) while Anomaly rank intervals run to 26999.
-Every NPC collapses to the one dispersion constant `m_fRankDisperison` (`ai_stalker_fire.cpp:78`).
+`Rank()` clamps to [0,100] (`ai_stalker.cpp`) while Anomaly rank intervals run to 26999.
+Every NPC collapses to the one dispersion constant `m_fRankDisperison` (`ai_stalker_fire.cpp`).
 The 16 per-tier values live in the at_mcm defaults table, and the script's `_disp` and `_move` tables fill at refresh, so no LTX or script copy can drift.
 
 ### Disclosure
@@ -422,17 +421,17 @@ Changes: two standing CEnemyManager selection levers at spawn plus per-hit scrip
 Stops: it makes no relation write and no memory injection, and never forces a squad combat mask.
 
 ```
-npc_on_net_spawn -> _apply_selection_levers (at_disclosure.script:44)
-  set_hit_redirect(max, falloff)  (PR #636, enemy_manager.cpp:64)   the last attacker's cost drops up to max, decaying to 0 at falloff
-  set_visible_enemy_bias(actor_bias, -1) (PR #637, enemy_manager.cpp:52-53)   the player magnet dial, 900 = vanilla, lower treats him like any combatant
-npc_on_hit_callback -> _on_hit (:129), deferred one frame:
+npc_on_net_spawn -> _apply_selection_levers (at_disclosure.script)
+  set_hit_redirect(max, falloff)  (PR #636, enemy_manager.cpp)   the last attacker's cost drops up to max, decaying to 0 at falloff
+  set_visible_enemy_bias(actor_bias, -1) (PR #637, enemy_manager.cpp)   the player magnet dial, 900 = vanilla, lower treats him like any combatant
+npc_on_hit_callback -> _on_hit, deferred one frame:
   a suppressed hit on a surviving victim stamps his squadmates within earshot with graded danger at the shooter position
 ```
 
-At 900/60 a close attacker outranks a fully-visible distant enemy, so the victim flips selection on the real hit signal.
-`fire_make_sense` still requires line of sight, so nothing fires through cover.
-A loud shot seeds nothing, because the engine's own gunfire perception covers it.
-A hit that killed the victim seeds nothing, checked one frame deferred because `alive()` is still true inside the killing hit's callback.
+- at 900/60 a close attacker outranks a fully-visible distant enemy, so the victim flips selection on the real hit signal
+- `fire_make_sense` still requires line of sight, so nothing fires through cover
+- a loud shot seeds nothing, because the engine's own gunfire perception covers it
+- a hit that killed the victim seeds nothing, checked one frame deferred because `alive()` is still true inside the killing hit's callback
 
 ### Crossfire
 
@@ -441,7 +440,7 @@ Changes: it scales `shit.power` on a friendly hit.
 Stops: genuinely hostile pairs trade full damage, and the actor as shooter is excluded.
 
 ```
-npc_on_before_hit -> _on_before_hit (at_crossfire.script:7): O(1), no throttle, a damage block must catch every hit
+npc_on_before_hit -> _on_before_hit (at_crossfire.script): O(1), no throttle, a damage block must catch every hit
   stalker vs stalker, actor excluded, has_flavor(crossfire)
   attacker is a real enemy (xcreature.is_enemy) -> full damage
   else shit.power = power * crossfire_factor
@@ -457,10 +456,10 @@ Changes: a per-NPC bind at spawn for aim and lock, a live recompute on the fire 
 Stops: it stays under the max aim angle and never below the global baseline, so a player's difficulty choice is always kept.
 
 ```
-npc_on_net_spawn -> apply (at_reaction.script:314): set_aim_params(npc, -1, track, aim, -1)  (PR #594)
+npc_on_net_spawn -> apply (at_reaction.script): set_aim_params(npc, -1, track, aim, -1)  (PR #594)
   aim min_speed and track min_angle from the rank curve. _resolve_min_angle returns -1 when the global is already stickier
-npc_shot_dispersion -> _on_shot_lead (:200), throttled 1s: set_aim_params with a fresh predict_time
-  predict = clamp(range / bullet_speed * rank_lead_factor, 0, 0.5) (predict_object_position, sight_action.cpp:351). bullet_speed reads the section and the loaded round's k
+npc_shot_dispersion -> _on_shot_lead, throttled 1s: set_aim_params with a fresh predict_time
+  predict = clamp(range / bullet_speed * rank_lead_factor, 0, 0.5) (predict_object_position, sight_action.cpp). bullet_speed reads the section and the loaded round's k
 ```
 
 The tracking lock widens the band toward the fire cone (novice 0.196 to legend 0.40), so a legend holds a strafing target through the firing window while a novice's aim lags.
@@ -474,9 +473,9 @@ Changes: a per-NPC fire-queue scale at spawn, plus the shared tier tables maneuv
 Stops: defaults keep a rank's rounds per minute at or above vanilla, so a shorter burst sheds only the dispersed tail.
 
 ```
-npc_on_net_spawn -> apply -> _apply_discipline (at_reaction.script:185): set_fire_queue_scale(npc, size_k, interval_k)  (PR #603)
+npc_on_net_spawn -> apply -> _apply_discipline (at_reaction.script): set_fire_queue_scale(npc, size_k, interval_k)  (PR #603)
   interval floored at 0.60 so bursts never merge into continuous fire
-get_queue_scales(npc) (:298): the ONE owner of the tier tables, (1,1) when off, consumed by the maneuver burst shape and the push restore
+get_queue_scales(npc): the ONE owner of the tier tables, (1,1) when off, consumed by the maneuver burst shape and the push restore
 ```
 
 Scope is vanilla-planner fire.
@@ -501,25 +500,25 @@ Changes: it adds no reaction machinery. Both signals stamp `xr_danger.set_script
 Stops: crouched movement is silent outright, neutral NPCs never react to the player's noise, and no sound-only stamp produces a run state.
 
 ```
-actor_on_footstep / actor_on_land -> accumulate a noise radius (at_sound.script:91-113)
+actor_on_footstep / actor_on_land -> accumulate a noise radius (at_sound.script)
   BASE_RADIUS_M (5m) x stance (crouch 0, sprint 1.6) x surface material x MCM mult x install-hearing scale
 _run_pass (500ms) -> mask by rain, walk db.OnlineStalkers, stamp every hostile inside the radius (per-NPC throttle 4s)
-npc_on_hear_callback -> _on_hear (:162): the actor's reload/empty/item types, and creature MST_* sounds, stamp at the sound position
+npc_on_hear_callback -> _on_hear: the actor's reload/empty/item types, and creature MST_* sounds, stamp at the sound position
 ```
 
 The install-hearing scale reads the winning config's own stalker hearing sensitivity, so a setup that deafens NPC hearing quiets these sounds with it.
 A stamp carries an evidence grade the danger scheme runs at.
 FAINT turns the NPC weapon-ready toward the position, SOLID walks him over.
 Footsteps are never typed into the engine sound space.
-A typed hostile footstep would flood the bounded sound-danger memory (`sound_memory_manager.cpp:69,219-220`), and the reaction is script-scoped.
+A typed hostile footstep would flood the bounded sound-danger memory (`sound_memory_manager.cpp`), and the reaction is script-scoped.
 Stealth in Anomaly is a vision system.
 Sound never touches vision, seen-memory, or the sight test.
 
 The Sound page also carries two gunfire reactions the patched danger scheme runs.
-Enemy gunfire (`danger_attack_sound`) routes an attack_sound danger the NPC heard but cannot see to a face-the-sound threat stance (`at_danger.script:837-845`).
+Enemy gunfire (`danger_attack_sound`) routes an attack_sound danger the NPC heard but cannot see to a face-the-sound threat stance (`at_danger.script`).
 He moves to cover once he sees the shooter.
 The engine raises the attack_sound danger and vanilla ships no handler, so AT supplies the missing reaction.
-Neutral gunfire (`danger_neutral_gunfire`) puts a neutral or friendly stalker on alert to the player's shots within NEUTRAL_GUNFIRE_RADIUS_SQR (30m, `at_danger.script:13,195-198`).
+Neutral gunfire (`danger_neutral_gunfire`) puts a neutral or friendly stalker on alert to the player's shots within NEUTRAL_GUNFIRE_RADIUS_SQR (30m, `at_danger.script`).
 The reaction is alert only and never turns hostile, scoped to the actor, so NPC-vs-NPC neutral fire stays ignored.
 
 ### Vision
@@ -529,7 +528,7 @@ Changes: a per-NPC bind for speed (`set_vision_speed`), a resolver provider for 
 Stops: it is reaction timing, and it cannot defeat occlusion.
 
 ```
-npc_on_net_spawn -> apply -> set_vision_speed(npc, factor)   the per-update increment to the detection accumulator (visual_memory_manager.cpp:355-368)
+npc_on_net_spawn -> apply -> set_vision_speed(npc, factor)   the per-update increment to the detection accumulator (visual_memory_manager.cpp)
 register(VISION_RANGE, _compute_vision_range)                the rank slice, max-combined with gear optics
 ```
 
@@ -546,34 +545,34 @@ Stops: it ships no xr_danger.script of its own, so it does not contest the MO2 s
 ![Danger patch](img/danger-patch.png)
 
 ```
-on_game_start -> _install_patches (at_danger.script:1088): points 7 entry points at AT
+on_game_start -> _install_patches (at_danger.script): points 7 entry points at AT
   setup_generic_scheme, add_to_binder, configure_actions, reset_generic_scheme, get_danger_time, set_script_danger, has_danger
 bind time: add_to_binder (now AT's) binds at_evaluator_danger + at_action_danger into every stalker's motivation manager
 per plan solve:
-  eval_danger (:369) -> eval_danger_raw verdict, then npc_on_eval_danger only on a would-be-true verdict (a subscriber veto clears the inertion latch)
+  eval_danger -> eval_danger_raw verdict, then npc_on_eval_danger only on a would-be-true verdict (a subscriber veto clears the inertion latch)
     live script_danger stamp = TRUE outright (the stamp is an activator)
     else best_danger type -> inertion and ignore tables (the winner's xr_danger.ltx) -> danger_flag
   at_action_danger:execute -> script_danger first, else per-type response (grenade / corpse / attacked / attack_sound alert)
   combat-safe by GOAP: the action requires property_enemy == false
 ```
 
-A heard sound buys attention in proportion to its evidence.
-FAINT glances, SOLID walks over (raid), rush runs (companions only).
-The active theatre is time-boxed per episode to the alert machine's own stage-2 give-up band, then the NPC settles into a standing watch until the config inertion decays.
-The squad stand-down gate (`_is_squad_engaged:278`) skips the theatre while any squadmate holds a live enemy, memoized 500ms per squad.
-Mid-battle bystanders no longer run noise choreography inside a live fight.
-The install also registers the monolith sub-scheme's four actions in `state_mgr.combat_action_ids`, which vanilla omits, so the omitted actions no longer cause the crouch-aim shuffle.
-It wraps two rx_ff members to fix the friendly-fire freeze and the over-hold.
+- a heard sound buys attention in proportion to its evidence. FAINT glances, SOLID walks over (raid), rush runs (companions only)
+- the active theatre is time-boxed per episode to the alert machine's own stage-2 give-up band, then the NPC settles into a standing watch until the config inertion decays
+- the squad stand-down gate (`_is_squad_engaged`) skips the theatre while any squadmate holds a live enemy, memoized 500ms per squad
+- mid-battle bystanders no longer run noise choreography inside a live fight
+- the install registers the monolith sub-scheme's four actions in `state_mgr.combat_action_ids`, which vanilla omits, so the omitted actions no longer cause the crouch-aim shuffle
+- it wraps two rx_ff members to fix the friendly-fire freeze and the over-hold
 
-Two Perception/Danger toggles add improvements over the patched scheme, both default on.
-Distant hits (`danger_hit_bypass`) returns a hit-perceive danger true at any range, past the relation and combat-ignore gates (`at_danger.script:201-205`).
-A landed hit is proof of range, so a stalker sniped from beyond the ignore distance still ducks.
-Player ranges (`danger_actor_tables`) reads the actor-specific inertion and ignore tables when the danger source is the actor (`at_danger.script:102-104,340-341`).
-A liveness probe gates it (`_actor_tables_live`, `at_danger.script:1099`), so it stays inert unless the winning xr_danger carries its own DangerIgnoreActor rows.
-Some overhauls differentiate those rows, and vanilla ships identical copies.
+Two Perception/Danger toggles add improvements over the patched scheme, both default on:
+
+- Distant hits (`danger_hit_bypass`) returns a hit-perceive danger true at any range, past the relation and combat-ignore gates.
+  A landed hit is proof of range, so a stalker sniped from beyond the ignore distance still ducks.
+- Player ranges (`danger_actor_tables`) reads the actor-specific inertion and ignore tables when the danger source is the actor.
+  A liveness probe gates it (`_actor_tables_live`), so it stays inert unless the winning xr_danger carries its own DangerIgnoreActor rows.
+  Some overhauls differentiate those rows, and vanilla ships identical copies.
 
 The paired DLTX (`mod_xr_danger_at.ltx`) is delete-lines only.
-It drops the dead perceive keys of the `danger_object` enum name collision (`danger_object.h:16-35`), where the perceive-type names hit/sound/visual share values 0/1/2 with danger types.
+It drops the dead perceive keys of the `danger_object` enum name collision (`danger_object.h`), where the perceive-type names hit/sound/visual share values 0/1/2 with danger types.
 Every detection distance comes from whichever xr_danger.ltx won the slot.
 
 ## Mechanics
@@ -587,14 +586,14 @@ Changes: it patches three xr_eat_medkit members at on_game_start, rolls the char
 Stops: bleed staunching stays vanilla, and both animations play only within 50m of the actor. The simulation is never distance-gated.
 
 ```
-on_game_start -> _register_heal_patch (at_healing.script:200): heal_hp, heal_bleed, consume_medkit
+on_game_start -> _register_heal_patch (at_healing.script): heal_hp, heal_bleed, consume_medkit
   _update_heal_hp: scale change_health by the multiplier. PAUSE (ResetTimeEvent) while engaged (a live enemy with the weapon out, or an enemy within 5m)
 zzz_at_healing_patch: unregister vanilla xr_eat_medkit.on_register (the save-load charge re-roll bug)
 mod_xr_eat_medkit_at.ltx: adds the medkits/bandages lists vanilla [plugin] omits, so the consumption loop iterates
 _run_monitor (200ms): the limp pose, gated 1s (hurt, no enemy, calm, standing), dropped the moment its gait stops matching
 ```
 
-A queued script animation suspends the engine's whole animation selection (`stalker_animation_manager_update.cpp:37`).
+A queued script animation suspends the engine's whole animation selection (`stalker_animation_manager_update.cpp`).
 The limp pose must die the moment its gait stops matching, which is what the drop detectors do.
 The patches install unconditionally, so an MCM flip applies on the next heal_hp firing with no restart.
 
@@ -605,7 +604,7 @@ Changes: it patches the misfire functor to return 0 while enabled.
 Stops: with the toggle off it forwards to the original, and the actor's own weapon keeps its full vanilla misfire.
 
 ```
-xr_weapon_jam.GetConditionMisfireProbability = _compute_misfire_chance (at_jam.script:29), read per shot at Weapon.cpp:1756
+xr_weapon_jam.GetConditionMisfireProbability = _compute_misfire_chance (at_jam.script), read per shot at Weapon.cpp
   enabled -> 0    disabled -> _original(weapon, npc, base_value)
 ```
 
@@ -619,13 +618,13 @@ Changes: `wpn:set_ammo_type` re-keys what is fired, and an inventory box-delete 
 Stops: it goes inert when `g_ai_unlimited_ammo` is 0, because the engine then consumes real rounds and the box decay would double-consume.
 
 ```
-_run_monitor (5s) -> update_npc (at_ammo.script:193): rank >= min_ap_rank, a live weapon, an AP class in the weapon
+_run_monitor (5s) -> update_npc (at_ammo.script): rank >= min_ap_rank, a live weapon, an AP class in the weapon
   combat tick: cache the AP index, hold m_ammoType = idx while AP is carried
   peace tick (best_enemy nil past peace_debounce_ms): roll _compute_decay_chance, release one AP box, set type 0 when empty
 ```
 
 The budget is the inventory itself, no ledger.
-A whole-box delete is permanent, because `try_advance_ammo` (`object_actions.cpp:132`) refills rounds inside surviving boxes but cannot recreate a deleted box.
+A whole-box delete is permanent, because `try_advance_ammo` (`object_actions.cpp`) refills rounds inside surviving boxes but cannot recreate a deleted box.
 Decay is per-engagement rather than per-shot, because no NPC fire callback exists.
 
 ### Gear
@@ -635,7 +634,7 @@ Changes: five resolver providers (DEALT, RESIST, DISPERSION, VISION_RANGE, AURA)
 Stops: any single artefact tops out at 10% and never stacks. The strongest source wins.
 
 ```
-on_game_start: register the five providers (at_gear.script:222)
+on_game_start: register the five providers (at_gear.script)
 first resolve per NPC: one inventory walk, keep the strongest strength per effect, cache the record
 npc_on_item_take / _drop -> re-resolve a cached record. net_spawn -> write passive regen (n039 bind)
 ```
