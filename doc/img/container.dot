@@ -1,0 +1,59 @@
+digraph at_container {
+    // C4 level 2: the containers. The user-facing set IS the MCM tree (at_mcm.script),
+    // same grouping, order, and names. Substrate and Observability carry no MCM page.
+    rankdir=LR
+    compound=true
+    nodesep=0.18
+    ranksep=0.9
+
+    node [shape=box, style="rounded,filled", fillcolor=white,
+          fontsize=13, fontname="Arial", margin="0.12,0.06", height=0.3]
+    edge [arrowhead=none, color=gray50]
+    graph [fontsize=15, fontname="Arial"]
+
+    root [label="AlifeTactics", shape=box, style="filled", fillcolor=gray85, fontsize=16]
+
+    // MCM categories, in tree order.
+    combat  [label="Combat"]
+    effect  [label="Effectiveness"]
+    percep  [label="Perception"]
+    mechan  [label="Mechanics"]
+    planned [label="Effects (planned)\nMutants (planned)", fillcolor=gray95]
+    fixes   [label="Fixes to Vanilla"]
+    devel   [label="Development"]
+
+    // Support containers, no MCM page.
+    substrate [label="Substrate (no MCM page)", fillcolor=gray90]
+    observ    [label="Observability (dev, off in play)", fillcolor=gray90]
+
+    root -> combat
+    root -> effect
+    root -> percep
+    root -> mechan
+    root -> planned
+    root -> fixes
+    root -> devel
+    root -> substrate
+    root -> observ
+
+    node [fontsize=12, fillcolor=white]
+
+    c1 [label="Maneuvers"]; c2 [label="Commitment"]; c3 [label="Conduct"]; c4 [label="Behaviors (Push, Pull)"]
+    combat -> c1; combat -> c2; combat -> c3; combat -> c4
+
+    e1 [label="Accuracy"]; e2 [label="Disclosure"]; e3 [label="Crossfire"]; e4 [label="Reaction"]; e5 [label="Discipline"]; e6 [label="Range (planned)", fillcolor=gray95]
+    effect -> e1; effect -> e2; effect -> e3; effect -> e4; effect -> e5; effect -> e6
+
+    p1 [label="Sound"]; p2 [label="Vision"]; p3 [label="Danger"]
+    percep -> p1; percep -> p2; percep -> p3
+
+    m1 [label="Healing"]; m2 [label="Jamming"]; m3 [label="Ammo"]; m4 [label="Gear"]
+    mechan -> m1; mechan -> m2; mechan -> m3; mechan -> m4
+
+    s1 [label="at_core (store, 200ms loop, budget)"]; s2 [label="at_faction (flavor)"]
+    s3 [label="at_effects_resolver"]; s4 [label="xcombat boundary"]; s5 [label="GOAP graft (188347)"]
+    substrate -> s1; substrate -> s2; substrate -> s3; substrate -> s4; substrate -> s5
+
+    o1 [label="at_debug"]; o2 [label="at_world_trace"]; o3 [label="at_hud"]; o4 [label="at_test"]
+    observ -> o1; observ -> o2; observ -> o3; observ -> o4
+}

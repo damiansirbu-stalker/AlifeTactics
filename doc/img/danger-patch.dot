@@ -1,0 +1,37 @@
+digraph at_danger_patch {
+    // C4 level 3: the danger scheme, installed as a function-level patch on whichever
+    // xr_danger won the MO2 slot. No xr_danger.script of AT's own, so no slot contest.
+    rankdir=TB
+    splines=polyline
+    nodesep=0.35
+    ranksep=0.55
+
+    node [shape=box, style="rounded,filled", fillcolor=white,
+          fontsize=13, fontname="Arial", margin="0.14,0.08"]
+    edge [fontsize=11, fontname="Arial"]
+    graph [fontsize=15, fontname="Arial"]
+
+    install [label="on_game_start -> _install_patches\npoints the winning xr_danger's 7 entry points at AT:\nsetup_generic_scheme, add_to_binder, configure_actions,\nreset_generic_scheme, get_danger_time, set_script_danger, has_danger", fillcolor=gray95]
+
+    bind [label="bind time (the winner's add_to_binder, now AT's)\nbinds at_evaluator_danger + at_action_danger\ninto every stalker's motivation manager"]
+
+    subgraph cluster_solve {
+        label="runtime, per plan solve"
+        style=rounded
+        color=gray55
+        eval [label="eval_danger -> eval_danger_raw (verdict)\nthen npc_on_eval_danger only on would-be-true\n(a subscriber veto clears the inertion latch)"]
+        stamp [label="live script_danger stamp = TRUE outright\n(the stamp is an activator)"]
+        table [label="else best_danger type ->\ninertion + ignore tables (the winner's xr_danger.ltx)\n-> danger_flag"]
+        act  [label="at_action_danger:execute\nscript_danger first, else per-type response\n(grenade / corpse / attacked / attack_sound alert)"]
+        safe [label="combat-safe by GOAP:\naction requires property_enemy == false"]
+    }
+
+    feeders [label="feeders (the winner's own hear + death callbacks)\n-> patched set_script_danger -> script_danger table", fillcolor=gray95]
+
+    install -> bind -> eval
+    eval -> stamp [label="stamped"]
+    eval -> table [label="not stamped"]
+    eval -> act
+    act -> safe [style=dashed, arrowhead=none]
+    feeders -> stamp [style=dashed, constraint=false]
+}

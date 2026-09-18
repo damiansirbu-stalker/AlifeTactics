@@ -1,0 +1,42 @@
+digraph at_context {
+    // C4 level 1: AlifeTactics against its neighbours.
+    rankdir=TB
+    splines=polyline
+    compound=true
+    nodesep=0.6
+    ranksep=0.7
+
+    node [shape=box, style="rounded,filled", fillcolor=white,
+          fontsize=15, fontname="Arial", margin="0.16,0.1"]
+    edge [fontsize=12, fontname="Arial"]
+    graph [fontsize=16, fontname="Arial"]
+
+    player [label="Player\nobserved inside gate_radius_m"]
+    at      [label="AlifeTactics\nat_*.script  (policy: when, whom, which)", fillcolor=gray95]
+    xcombat [label="xcombat (xlibs)\nthe one combat-call boundary", shape=hexagon, fillcolor=gray90]
+
+    subgraph cluster_anomaly {
+        label="Anomaly Lua layer"
+        style=rounded
+        color=gray50
+        anomaly [label="xr_danger | state_mgr | xr_eat_medkit\nxr_weapon_jam | xr_combat_ignore"]
+        brain   [label="installed combat brain\nvanilla | GAMMA AI Rework | RE:DONE\ncomposed, never replaced"]
+    }
+
+    subgraph cluster_engine {
+        label="X-Ray engine (C++), themrdemonized fork"
+        style="rounded,dashed"
+        color=gray60
+        engine [label="GOAP planners | CEnemyManager\nsight_manager | CVisualMemoryManager\nweapon handler"]
+        exes   [label="modded-exes seams\ndemonized >= 20250908 or AOEngine\nper-NPC binds, vetoes, callbacks"]
+    }
+
+    at -> xcombat [label="every combat command and read"]
+    xcombat -> engine [label="bind / veto / read"]
+    at -> anomaly [label="function patch"]
+    at -> engine [label="engine callbacks", style=dashed]
+    exes -> engine [label="expose", style=dashed]
+    engine -> brain [label="drives NPCs"]
+    at -> brain [label="GOAP graft interrupts,\nthen hands back", constraint=false, style=dashed]
+    player -> at [constraint=false, style=dotted, label="hit / noise / sight"]
+}

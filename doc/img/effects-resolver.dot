@@ -1,0 +1,40 @@
+digraph at_effects_resolver {
+    // C4 level 3: the multi-source effect fan-in. Sources register lazy providers;
+    // resolve() keeps the strongest contribution; appliers write engine state at fixed seams.
+    rankdir=LR
+    splines=ortho
+    nodesep=0.25
+    ranksep=0.9
+
+    node [shape=box, style="rounded,filled", fillcolor=white,
+          fontsize=13, fontname="Arial", margin="0.13,0.07"]
+    edge [fontsize=11, fontname="Arial"]
+    graph [fontsize=15, fontname="Arial"]
+
+    subgraph cluster_src {
+        label="sources (register providers at on_game_start; walk once, cache)"
+        style=rounded
+        color=gray55
+        acc [label="at_accuracy\nSHOT_DISPERSION (rank cone)"]
+        rea [label="at_reaction\nVISION_RANGE (rank slice)"]
+        gear [label="at_gear\nDEALT | RESIST | DISPERSION\nVISION_RANGE | AURA"]
+    }
+
+    res [label="at_effects_resolver\nregister(effect, fn)\nresolve(npc, effect) = strongest\nmax | min | boolean OR", shape=hexagon, style=filled, fillcolor=gray90]
+
+    subgraph cluster_app {
+        label="appliers (engine writes)"
+        style=rounded
+        color=gray55
+        spawn [label="npc_on_net_spawn\nset_view_distance_factor + aura particle"]
+        hit   [label="npc_on_before_hit / actor_on_before_hit\napply_hit_power: RESIST then DEALT"]
+        shot  [label="npc_shot_dispersion\napply_dispersion: SHOT_DISPERSION"]
+    }
+
+    acc -> res
+    rea -> res
+    gear -> res
+    res -> spawn
+    res -> hit
+    res -> shot
+}

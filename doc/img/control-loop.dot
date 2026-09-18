@@ -1,0 +1,46 @@
+digraph at_control_loop {
+    // C4 level 3: the one combat loop. at_core._run_monitor, a vanilla time event, 200ms.
+    rankdir=TB
+    splines=polyline
+    nodesep=0.35
+    ranksep=0.5
+
+    node [shape=box, style="rounded,filled", fillcolor=white,
+          fontsize=13, fontname="Arial", margin="0.14,0.08"]
+    edge [fontsize=11, fontname="Arial"]
+    graph [fontsize=15, fontname="Arial"]
+
+    subgraph cluster_events {
+        label="events write the record (never scan)"
+        style=rounded
+        color=gray55
+        ev_spawn  [label="npc_on_net_spawn\n-> create _npc_states[id]"]
+        ev_hit    [label="npc_on_hit_callback\n-> hit_at, hit_by"]
+        ev_reload [label="reload start/stop (PR #611)\n-> reloading, reload_at"]
+    }
+
+    arm  [label="re-arm first  (_reset_monitor)\nProcessEventQueue has no error guard", fillcolor=gray95]
+    each [label="for each record in _npc_states\n(xobject.get_go(id) resolves the game object)"]
+
+    dead   [label="dead ->\nclear maneuvers + behaviors, next", shape=box]
+    dist   [label="write actor_dist_sqr"]
+    best   [label="refresh best_enemy_id  (per 600ms)\nmaintain _best_enemy_of reverse index"]
+    gate   [label="gate up?", shape=diamond, style=filled, fillcolor=gray92]
+    run    [label="at_maneuvers.run_maneuver\nupdate + end checks (200ms)"]
+    try    [label="at_maneuvers.try_maneuver\nbegin check (600ms)"]
+    beh    [label="at_behaviors.update_npc\n(Push, Pull)"]
+
+    loop [label="_run_monitor every 200ms", shape=box, style="filled", fillcolor=gray85, fontsize=15]
+
+    loop -> arm -> each
+    each -> dead
+    each -> dist -> best -> gate
+    gate -> run  [label="yes (gate == true)"]
+    gate -> try  [label="no"]
+    run -> beh
+    try -> beh
+
+    ev_spawn  -> each [style=dashed, constraint=false]
+    ev_hit    -> each [style=dashed, constraint=false]
+    ev_reload -> each [style=dashed, constraint=false]
+}
