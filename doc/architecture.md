@@ -222,7 +222,8 @@ Project-wide constraints. Every system holds all of them, and a change that viol
 ```
 AlifeTactics/gamedata/
 ├── scripts/
-│   ├── _at_deps.script              the dependency gate and compatibility floor
+│   ├── _at_manifest.script          identity data (name, version, xlibs)
+│   ├── _at_init.script              the dependency gate and compatibility floor
 │   ├── at_mcm.script                the MCM tree and the one config-defaults source
 │   ├── at_debug.script              the code-trace primitives (one logger, the on() gate)
 │   ├── at_core.script               the per-stalker store, the 200ms monitor, the start budget
@@ -259,7 +260,7 @@ AlifeTactics/gamedata/
 - Namespace: at_* (parallel to ap_* for AlifePlus, ag_* for AlifeGuard, x* for xlibs).
 - Config pairing, per system: at_<system>.script holds the logic, at_<system>_config.ltx holds the numbers, and at_<system>_config.script exists only where LTX cannot hold the shape (the maneuver
   catalog rows reference methods). The MCM defaults in at_mcm.script are the ONE source for the per-tier tables, so no LTX or script copy of those tables exists to drift.
-- The compatibility floor (_at_deps.script). AT requires xlibs >= 1.8.5 and modded exes - demonized >= build 20250908, or AOEngine (probed via get_aoe_version). The dep gate asserts these at boot and
+- The compatibility floor (_at_init.script). AT requires xlibs >= 1.8.5 and modded exes - demonized >= build 20250908, or AOEngine (probed via get_aoe_version). The dep gate asserts these at boot and
   refuses to run below them. The platform status has three tiers: full at or above TARGET (build 20260809), fallback below it (partially compatible), and blocked with no modded exes.
 - The floor is fixed, and features never raise it. A feature that needs a post-baseline engine symbol probes for it (type(fn) == "function", not a version compare) and goes inert with an INACTIVE
   log line when it is absent. The readme Compatibility block states the floor and the fallback for each system.
@@ -1099,7 +1100,7 @@ Choices, one decision per line:
 
 - The install captures the original FIRST and installs only when it is a real function, because a wrapper closing over a nil original is harmless while jam is enabled and a nil-call crash the
   moment it is disabled (the disabled path forwards to the original). An absent functor logs a WARN and the module stays inert.
-- DEMONIZED_MIN_VERSION is not raised for this. The feature is informational at the dep-gate layer, so a floor exe runs the mod with jamming inert rather than failing the gate.
+- MIN_DEMONIZED_VERSION is not raised for this. The feature is informational at the dep-gate layer, so a floor exe runs the mod with jamming inert rather than failing the gate.
 
 ### Ammo
 
