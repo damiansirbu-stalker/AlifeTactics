@@ -403,4 +403,4 @@ Development > World trace: writes per-minute fight tables (hit rates, damage, ne
 Combat is the hardest thing in Anomaly to diagnose, so first confirm it is this mod: reproduce, disable AlifeTactics, reproduce again; if it persists it is not this mod. The cleanest test is vanilla Anomaly plus xlibs plus AlifeTactics.
 Report at https://github.com/damiansirbu-stalker/AlifeTactics/issues/new/choose or the EFP, Anomaly, and Zona Discord. Include repro steps, engine build, modlist, load order, xray.log, and the debug log.
 
-Tags: alife, ai, combat-ai, mutant-ai, mutants, npc, goap, tactical, realistic, emergent, engine-native, self-preservation, accuracy, stealth, perception, cover, faction, loot, ammo
+Tags: alife, ai, combat-ai, mutant-ai, mutants, npc, goap, tactical, realistic, emergent, engine-native, self-preservation, accuracy, stealth, perception, cover, faction, loot, ammo, performance
