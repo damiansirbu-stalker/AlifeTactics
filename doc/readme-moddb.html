@@ -12,6 +12,7 @@
 </ul>
 <p><b>Reset MCM settings to defaults after updating.</b></p>
 <p><a href="https://www.youtube.com/watch?v=eKpzbmFOFC8">https://www.youtube.com/watch?v=eKpzbmFOFC8</a></p>
+<p>Everyone wants to live.</p>
 <p>AlifeTactics rebuilds how creatures behave and fight in STALKER Anomaly. Sections marked (planned) are not built yet.</p>
 <p>Every system reads the real state of the game, then decides in the combatant's favor rather than by script or die roll. It weighs combat events, NPC and player stats, the world, squad, faction, weapons, range, angle, and cover. Maneuvers take a stalker over for an action the vanilla engine has no mechanism for. Commitment keeps a stalker on a decision that still makes sense instead of the engine's constant re-planning. Threat, accuracy, and the rest read state and decide the same way.</p>
 <p>Effects:</p>
@@ -23,7 +24,7 @@
 <li>AP ammo is fired from its owner's inventory and consumed, where vanilla gives NPCs infinite cheap rounds and modpacks give infinite AP by rank and map.</li>
 <li>Bugs disguised as features are gone, like fake weapon jamming and random tactical reloading.</li>
 </ul>
-<p>Everything is canon, engine-pure, safe, and fast:</p>
+<p>Everything is canon, engine-native, safe, and fast:</p>
 <ul>
 <li>Every behavior is built from pure X-Ray and Anomaly primitives: the GOAP action planner, the xr_logic scheme system, state_mgr, smart terrains and the gulag job system, condlists, and DLTX/DXML for data.</li>
 <li>Nothing is faked and nothing is simulated beside the engine.</li>
@@ -92,7 +93,7 @@
 <h2>Requirements</h2>
 <ul>
 <li>Anomaly 1.5.3</li>
-<li>Modded exes (themrdemonized 2025.9.10 or newer, or AOEngine v0.55 or newer)</li>
+<li>Modded exes (themrdemonized 20250908 or newer, or AOEngine v0.55 or newer)</li>
 <li><a href="https://www.moddb.com/mods/stalker-anomaly/addons/xlibs-1001">xlibs</a></li>
 <li>MCM</li>
 </ul>
@@ -145,7 +146,7 @@
 <li><b>Stalkers who lose interest oddly, or whose pursuit persistence differs run to run:</b> GAMMA's Stealth Overhaul also carries an older xr_combat_ignore that wins the script slot in every GAMMA install and overrides the modded-exe version, removing its enemy-id validation and randomizing the combat-memory window each session. AlifeTactics reads whichever xr_combat_ignore won and never replaces it.</li>
 </ul>
 <h2>FAQ</h2>
-<p><b>Do I need modded exes?</b> Yes. AlifeTactics needs themrdemonized modded exes (2025.9.10 or newer) or AOEngine (v0.55 or newer). Vanilla Anomaly does not expose the APIs it relies on.</p>
+<p><b>Do I need modded exes?</b> Yes. AlifeTactics needs themrdemonized modded exes (20250908 or newer) or AOEngine (v0.55 or newer). Vanilla Anomaly does not expose the APIs it relies on.</p>
 <h2>Credits</h2>
 <p>Altogolik - support, ideas, source materials</p>
 <h2>Usage and License</h2>

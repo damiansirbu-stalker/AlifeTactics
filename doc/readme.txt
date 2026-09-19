@@ -15,6 +15,8 @@ Reset MCM settings to defaults after updating.
 
 https://www.youtube.com/watch?v=eKpzbmFOFC8
 
+Everyone wants to live.
+
 AlifeTactics rebuilds how creatures behave and fight in STALKER Anomaly.
 Sections marked (planned) are not built yet.
 
@@ -34,8 +36,8 @@ Effects:
 - Bugs disguised as features are gone, like fake weapon jamming and random tactical reloading.
 
 
-Everything is canon, engine-pure, safe, and fast:
-- Every behavior is built from pure X-Ray and Anomaly primitives: the GOAP action planner, the xr_logic scheme system, state_mgr, smart terrains and the gulag job system, condlists,
+Everything is canon, engine-native, safe, and fast:
+- Every behavior is built from pure X-Ray and Anomaly primitives: the GOAP action planner (the planner family F.E.A.R. made famous), the xr_logic scheme system, state_mgr, smart terrains and the gulag job system, condlists,
   and DLTX/DXML for data.
 - Nothing is faked and nothing is simulated beside the engine.
 - Where the engine had no seam, the seam was added upstream first: per-NPC hooks created in xray-monolith specifically for this mod, merged into the official modded exes.
@@ -400,3 +402,5 @@ Development > Debug HUD: pick a corner for a live overlay of nearby stalkers (ra
 Development > World trace: writes per-minute fight tables (hit rates, damage, near misses, burst lengths) to alifetactics_world.log.
 Combat is the hardest thing in Anomaly to diagnose, so first confirm it is this mod: reproduce, disable AlifeTactics, reproduce again; if it persists it is not this mod. The cleanest test is vanilla Anomaly plus xlibs plus AlifeTactics.
 Report at https://github.com/damiansirbu-stalker/AlifeTactics/issues/new/choose or the EFP, Anomaly, and Zona Discord. Include repro steps, engine build, modlist, load order, xray.log, and the debug log.
+
+Tags: stalker, alife, ai, combat-ai, mutant-ai, mutants, npc, goap, tactical, realistic, emergent, engine-native, self-preservation, accuracy, stealth, perception, cover, faction, loot, ammo

@@ -1,0 +1,1 @@
+Everyone wants to live. Tactical combat and mutant AI for STALKER Anomaly, driving X-Ray's GOAP planner, not replacing it. NPCs read the fight and self-preserve: counterflank, take cover, kite, liquidate, per faction, with accuracy, perception, stealth, looted AP ammo and gear, realistic, emergent, engine-native.
