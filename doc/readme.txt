@@ -1,4 +1,3 @@
-AlifeTactics: NPC combat behavior for STALKER Anomaly, by Damian
 Version: 1.2.1-snapshot (xlibs 1.8.5, demonized 20250908)
 Changelog: https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/changelog
 Russian / Na russkom: https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/readme_ru.txt
