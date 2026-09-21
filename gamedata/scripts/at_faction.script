@@ -11,6 +11,7 @@ local _rolls = xttltable.create_ttl_table({ default_ttl = ROLL_TTL_S })
 
 --- The configured chance for one faction and key; 1 when neither the faction nor default carries it.
 function get_faction_chance(faction, key)
+    faction = faction or "default"
     local ck = faction .. "/" .. key
     local chance = _chances[ck]
     if chance == nil then
