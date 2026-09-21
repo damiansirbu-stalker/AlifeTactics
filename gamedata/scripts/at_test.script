@@ -25,7 +25,11 @@ local ARENA_SECTIONS = {
     csky     = { "sim_default_csky_0", "sim_default_csky_1", "sim_default_csky_2", "sim_default_csky_3", "sim_default_csky_4" },
     renegade = { "sim_default_renegade_0", "sim_default_renegade_1", "sim_default_renegade_2" },
 }
-local ARENA_SIDE_A = { "army", "ecolog", "csky", "renegade" }
+-- Hostile faction matchups the shuffle rolls, one faction per side, each pairing actually hostile.
+local ARENA_PAIRS = {
+    { "army", "monolith" }, { "ecolog", "monolith" }, { "csky", "monolith" }, { "renegade", "monolith" },
+    { "army", "renegade" }, { "ecolog", "renegade" }, { "csky", "renegade" },
+}
 local ARENA_MODE_WAR = "war"
 
 local AP_RANK    = 14000
@@ -43,12 +47,15 @@ local _arena_mode = nil
 local _arena_want = 0
 local _arena_center_lvid, _arena_gvid = nil, nil
 local _arena_side_dir = 0
+local _arena_side_a, _arena_side_b = "army", "monolith"
+local _arena_shuffle_sec = 0
+local _arena_shuffle_at = 0
 local _arena_spawned = {}
 local _lab_wpn_i = 0
 local _lab_loop_on = false
 
 local function _show_tip(msg)
-    if db.actor then news_manager.send_show_tip(db.actor, msg, nil, nil, 5000) end
+    if db.actor then news_manager.send_tip(db.actor, msg, nil, nil, 5000) end
 end
 
 local function _compute_rotated_dir(dir, angle_deg)
@@ -184,9 +191,29 @@ local function _find_spawn_pos(angle)
     return level.vertex_position(lvid), lvid
 end
 
+--- Roll a fresh hostile matchup for the two sides and stamp the next shuffle time.
+local function _select_factions()
+    local pair = ARENA_PAIRS[math_random(1, #ARENA_PAIRS)]
+    _arena_side_a, _arena_side_b = pair[1], pair[2]
+    _arena_shuffle_at = time_global() + _arena_shuffle_sec * 1000
+    at_debug.info("[ARENA] factions %s vs %s", _arena_side_a, _arena_side_b)
+    _show_tip(string_format("AT.ARENA: %s vs %s", _arena_side_a, _arena_side_b))
+end
+
+--- Release every NPC the arena spawned (used by the shuffle reset and stop).
+local function _release_all()
+    local released = 0
+    for id in pairs(_arena_spawned) do
+        local se = alife_object(id)
+        if se then alife():release(se, true) released = released + 1 end
+        _arena_spawned[id] = nil
+    end
+    return released
+end
+
 local function _spawn_combatant(side)
-    local faction = (_arena_mode == "me" or side == "b") and "monolith"
-        or ARENA_SIDE_A[math_random(1, #ARENA_SIDE_A)]
+    local faction = (_arena_mode == "me") and "monolith"
+        or ((side == "b") and _arena_side_b or _arena_side_a)
     local list = ARENA_SECTIONS[faction]
     local section = list[math_random(1, #list)]
     local base = (_arena_mode == ARENA_MODE_WAR and side == "b") and (_arena_side_dir + math_pi) or _arena_side_dir
@@ -249,20 +276,26 @@ local function _update_arena()
     if not _arena_on then return true end
     ResetTimeEvent("at_arena", "tick", ARENA_TICK_SEC)
     if not db.actor then return false end
+    if _arena_mode ~= "me" and _arena_shuffle_sec > 0 and time_global() >= _arena_shuffle_at then
+        _release_all()
+        _select_factions()
+    end
     local alive_a, alive_b = _compute_census()
     if _arena_mode == "me" then _spawn_solo_wave(alive_a) else _spawn_war_wave(alive_a, alive_b) end
     at_debug.info("[ARENA] tick alive a=%d b=%d want=%d", alive_a, alive_b, _arena_want)
 end
 
-local function _start_arena_loop(mode, count)
+local function _start_arena_loop(mode, count, shuffle_sec)
     if not db.actor then _show_tip("AT.ARENA: not in game") return end
     if not count or count < 2 then _show_tip("AT.ARENA: pass a total combatant count - at_test.at_arena(40)") return end
     _arena_mode = mode
     _arena_want = count
+    _arena_shuffle_sec = shuffle_sec or 0
     _arena_center_lvid = db.actor:level_vertex_id()
     _arena_gvid = db.actor:game_vertex_id()
     _arena_side_dir = math_random() * 2 * math_pi
     _arena_on = true
+    _select_factions()
     RemoveTimeEvent("at_arena", "tick")
     CreateTimeEvent("at_arena", "tick", 1, _update_arena)
     _show_tip(string_format("AT.ARENA: maintaining %d geared NPCs (%s)", _arena_want, mode))
@@ -444,9 +477,10 @@ function create_squad_unarmed()
     end)
 end
 
---- Keep n/2 side-a (army + cowardly ecolog/csky/renegade) vs n/2 monolith fighting around you, all geared.
-function start_arena(count)
-    _start_arena_loop("war", count)
+--- Keep n/2 vs n/2 fighting around you, all geared, a fresh hostile matchup rolled each start.
+--- Optional shuffle_sec re-rolls the matchup every shuffle_sec seconds, 0 fixes it for the run.
+function start_arena(count, shuffle_sec)
+    _start_arena_loop("war", count, shuffle_sec)
 end
 
 --- Keep n monolith around you, hostile to everything including you, all geared.
@@ -458,13 +492,7 @@ end
 function stop_arena()
     _arena_on = false
     RemoveTimeEvent("at_arena", "tick")
-    local released = 0
-    for id in pairs(_arena_spawned) do
-        local se = alife_object(id)
-        if se then alife():release(se, true) released = released + 1 end
-        _arena_spawned[id] = nil
-    end
-    _show_tip(string_format("AT.ARENA: stopped, released %d", released))
+    _show_tip(string_format("AT.ARENA: stopped, released %d", _release_all()))
 end
 
 --- Arm every online stalker within 120m with AP for its weapon plus a veteran rank.
