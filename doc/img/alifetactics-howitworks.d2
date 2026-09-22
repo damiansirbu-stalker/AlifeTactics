@@ -1,0 +1,51 @@
+direction: down
+
+style.fill: "#1f2421"
+
+**.style.fill: "#262c27"
+**.style.stroke: "#ece7d8"
+**.style.font-color: "#ece7d8"
+**.style.stroke-width: 2
+
+title: "AlifeTactics - make Anomaly enemies fight smarter" {
+  near: top-center
+  style: { stroke-width: 0; fill: "#1f2421"; font-color: "#ece7d8"; font-size: 28 }
+}
+
+read: "The read - a fight's real state\nweapons, range, angle, cover, squad, faction" {
+  style.stroke: "#c9d8b6"
+}
+
+combat: "Combat - a 200ms loop, per NPC" {
+  grid-columns: 2
+  grid-gap: 16
+  man: "Maneuvers\nseize one NPC for one committed move"
+  com: "Commitment\ndeny the shuffle off a winning shot"
+  con: "Conduct\ncrouch and weapon spacing"
+  beh: "Push / Pull\npress the weak, cover the exposed"
+}
+
+skill: "Per-NPC skill - bound at spawn" {
+  grid-columns: 3
+  grid-gap: 16
+  acc: "Accuracy\nreal per-rank dispersion"
+  rea: "Reaction + Vision\naim, lead, sight by rank"
+  dis: "Discipline\ncrisp short bursts"
+}
+
+sense: "Perception + Mechanics - on engine events" {
+  grid-columns: 3
+  grid-gap: 16
+  snd: "Sound / Vision / Danger\nhear, see, react in proportion"
+  hea: "Healing\nactive first aid, limp"
+  gia: "Gear / Ammo\nartefact edge, AP rounds"
+}
+
+out: "Every command through xcombat -> engine seams\ncallbacks, GOAP graft, DLTX. No file override, composes with any combat AI." {
+  style.stroke: "#c9d8b6"
+}
+
+read -> combat: "drives" { style: { stroke: "#c9d8b6"; font-color: "#c9d8b6" } }
+combat -> skill: "" { style: { stroke: "#c9d8b6" } }
+skill -> sense: "" { style: { stroke: "#c9d8b6" } }
+sense -> out: "issued through" { style: { stroke: "#c9d8b6"; font-color: "#c9d8b6" } }
