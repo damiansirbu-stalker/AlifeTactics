@@ -208,7 +208,6 @@ end
 
 local function _find_reload_cover(npc, _enemy, state, _tg, memo)
     if not xcombat.is_reloading(npc) then
-        state.reloading = nil
         at_debug.debug("[CMB] can_reload_cover id=%s name=%s path=not_reloading cover=-", show(state.id), show(state.name))
         return nil
     end
