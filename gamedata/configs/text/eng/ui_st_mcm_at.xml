@@ -989,6 +989,12 @@
   <string id="ui_mcm_at_danger_fix_ff_release_desc">
     <text>A stalker who held fire because a friend crossed his line no longer stays frozen in a combat stance after the fight ends. The base game drops him without restoring a calm state; he now returns to normal the moment his enemy is gone.</text>
   </string>
+  <string id="ui_mcm_at_danger_fix_ff_lane">
+    <text>Friendly-fire blocked-shot test</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_ff_lane_desc">
+    <text>The base game's hold-fire test blocks a shot for any visible non-enemy standing close in any direction, or standing on the aim line even beyond the target, and its hold re-arms endlessly in a crowd, leaving stalkers aiming in silence for tens of seconds. Those false holds also silenced campers, wounded-finishing, mounted guns and anti-helicopter fire. A stalker now holds and steps aside only for a friend actually between him and his target.</text>
+  </string>
   <string id="ui_mcm_at_danger_fix_stale_memory">
     <text>Stale danger memory</text>
   </string>

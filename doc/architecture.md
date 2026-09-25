@@ -250,10 +250,10 @@ Stops: a companion is excluded while `combat_ignore_companions` is on, so no dea
 ![GOAP graft](img/goap-graft.png)
 
 ```
-npc_on_net_spawn -> at_maneuvers._register_graft -> xcombat.register_takeover(npc, SPEC)
+npc_on_net_spawn -> at_maneuvers._register_graft -> xgraft.register_takeover(npc, SPEC)
   SPEC.gate      -> the graft evaluator reads state.gate, one flag read per plan solve
   SPEC.on_begin  -> _start_maneuver   SPEC.on_release -> _on_release
-grafted at TAKEOVER_ID 188347 (xcombat.register_takeover), every blocked planner gains precondition 188347 == false
+grafted at TAKEOVER_ID 188347 (xgraft.register_takeover), every blocked planner gains precondition 188347 == false
 
 gate down   188347 false   the vanilla chain solves as always, the graft sits dormant
 seize       188347 true    every blocked action is unselectable, the graft action is the only path to the goal, initialize starts the maneuver
@@ -263,10 +263,10 @@ release     188347 false   vanilla resumes from wherever the NPC stands
 On seize:
 
 - `initialize`: clear animations -> set path, direction, danger mental state -> register in combat -> `SPEC.on_begin`
-- `apply_takeover_block`: blocks vanilla combat, danger, and cover, plus the monolith, zombied, camper, and facer sub-schemes (`xcombat.get_blocked_planners`)
+- `apply_takeover_block`: blocks vanilla combat, danger, and cover, plus the monolith, zombied, camper, and facer sub-schemes (`xgraft.get_blocked_planners`)
 - per-NPC by construction: a duplicate world-property add on one action throws (`condition_state_inline.h`), so it re-runs each seize to catch an action a later `configure_schemes` bound
 
-The reserved id 188347 (`xcombat.register_takeover`):
+The reserved id 188347 (`xgraft.register_takeover`):
 
 - moved off 188200 after a companion mod's shelter scheme collided
 - Maneuvers outranks behaviors and Commitment
@@ -276,6 +276,15 @@ The reserved id 188347 (`xcombat.register_takeover`):
 
 Maneuvers imposes.
 Commitment, Conduct, and Behaviors compose.
+
+Three Lua mechanisms in the Anomaly ecosystem can take the fight from the engine's combat planner, and they differ only in how the ownership is bounded.
+A combat sub-scheme (the monolith and zombied brains) owns every fight of its NPCs and must therefore be a total combat brain.
+Whatever it leaves out, its NPC never does.
+A combat-moment scheme (rx_ff, xrs_kill_wounded) interjects one behavior mid-fight, bounded by its evaluator's condition alone, and a stuck condition holds the NPC for as long as it lies.
+The takeover bounds by condition and clock both.
+One committed transaction runs for seconds, ends on arrival, a broken premise, or the cap, and the engine fight resumes with cover, flanking, and retreat intact.
+The engine brain keeps everything an NPC should keep doing well.
+The graft borrows only what no parameter, veto, or seam can express, and gives it back.
 
 The maneuvers, the Push, and the Pull share one scope.
 They open only inside `gate_radius_m` of the player (`at_core.is_in_gate`), only on a human target (`IsStalker` on the selection, `at_maneuvers.script`), and never on a zombied NPC.
@@ -456,7 +465,7 @@ Aim and lock bind per NPC through `set_aim_params` (PR #594), the seam added so 
 
 ### Discipline
 
-Does: gives higher ranks crisper short bursts at a tighter cadence.
+Does: scales burst size and cadence per rank; the shipped defaults are a near-flat band, so rank barely alters fire out of the box and the sliders carry the full spread.
 Changes: a per-NPC fire-queue scale at spawn, plus the shared tier tables maneuver fire consumes.
 Stops: defaults keep a rank's rounds per minute at or above vanilla, so a shorter burst sheds only the dispersed tail.
 
@@ -552,7 +561,7 @@ per plan solve:
 - the squad stand-down gate (`_is_squad_engaged`) skips the theatre while any squadmate holds a live enemy, memoized 500ms per squad
 - mid-battle bystanders no longer run noise choreography inside a live fight
 - the install registers the monolith sub-scheme's four actions in `state_mgr.combat_action_ids`, which vanilla omits, so the omitted actions no longer cause the crouch-aim shuffle
-- it wraps two rx_ff members to fix the friendly-fire freeze and the over-hold
+- it patches three rx_ff members to fix the friendly-fire freeze, the over-hold, and the blocked-shot test that held fire for bodies in any direction or beyond the target
 
 Two Perception/Danger toggles add improvements over the patched scheme, both default on:
 
@@ -649,7 +658,7 @@ Each appears as a locked or toggled entry on the MCM Fixes tab and reuses one qu
 
 - Danger scheme crashes: the mutant-corpse time crash, the torn-down and nil-return evaluator crashes, the undefined-shooter hit corruption, the post-death evaluation.
 - Danger scheme reads: the bd_types enum collision (three categories read the wrong range), the meters-vs-squared grenade gate, the per-evaluation condlist re-parse.
-- Danger scheme state: the friendly-fire combat-stance freeze, the stale danger-transition animation, the cover-reservation wipe on finalize, the re-attack stale position.
+- Danger scheme state: the friendly-fire combat-stance freeze, the any-direction blocked-shot hold, the stale danger-transition animation, the cover-reservation wipe on finalize, the re-attack stale position.
 - Corpse investigation: the despawn crash, the wrong-investigator selection, the cleared-vertex target, the pre-stage crash, the reused-id danger linger.
 - Target selection: the shot-at stalker turns on his shooter, and NPCs no longer converge on the player far harder than on each other.
 - Accuracy: a real per-rank curve replaces the flat clamp.

@@ -49,6 +49,8 @@
           perceive: the victim's own reaction, the fight he puts up, and the body. The 2 fixes above stay on; settings on the old page reset once.
     Discipline
       - The fire discipline controls, burst size and fire cadence, now live on their own Discipline page under Effectiveness instead of the Reaction page.
+      - Changed the Discipline defaults to a near-flat band: rank now barely alters burst size and cadence out of the box, and the sliders still allow the old spread.
+          Existing installs keep their saved slider values; the flat defaults apply on a fresh install or a settings reset.
 
   Perception
     Sound
@@ -67,6 +69,9 @@
       - Fixed vanilla bug "dead-stalker eval". The danger scheme kept evaluating a stalker after he died, which made the engine log a repeated visibility error until the body despawned.
       - Fixed vanilla bug "friendly-fire freeze". A stalker who held fire because a friend crossed his line was left frozen in a combat stance when the fight ended, sliding along the ground.
           He now returns to normal the moment his enemy is gone.
+      - Fixed vanilla bug "friendly-fire blocked shot". The hold-fire test blocked a shot for any visible non-enemy standing close in any direction, or standing on the aim line
+          even beyond the target, and its hold re-armed endlessly in a crowd, leaving stalkers aiming in silence for tens of seconds. Those false holds also silenced campers,
+          wounded-finishing, mounted guns and anti-helicopter fire. A stalker now holds and steps aside only for a friend actually between him and his target.
       - Fixed vanilla bug "stale danger memory". A stalker attacked again later no longer turns to his FIRST attacker's old position, and the corpse search animation plays for every corpse
           instead of only the first one he ever searched.
       - Fixed vanilla bug "grenade dodge radius". The distance deciding whether a stalker dodges a grenade or only turns to face it read on the wrong scale; the dodge covers its intended radius.
@@ -81,6 +86,9 @@
       The danger-check and corpse fixes moved there from Perception. Those settings reset to defaults once.
 
   Development
+    - The debug HUD's engine cell now opens with the planner operator owning the NPC, in and out of combat: the engine entries (combat, danger, alife), every scheme
+        by name (rx_ff, fight_from_cover, kill_wounded, camper), the combat sub-scheme when one drives (monolith, zombied), and the takeover. Scheme ids that logged
+        as bare numbers now resolve to names in the world trace too.
     - The debug HUD's Commitment token reads LIQUIDATE while a stalker holds fire on an enemy who cannot answer, and LIQUIDATED in the afterglow, so sub-second holds stay readable.
     - The debug HUD shows PUSH in its own amber row colour on every stalker the push window is currently bumping, and PULL on a stalker falling back through his own window.
     - The world trace's held-danger line now shows whether the alert stalker entered AlifeTactics' own danger scheme or the engine alone is holding a stale sound perception.
