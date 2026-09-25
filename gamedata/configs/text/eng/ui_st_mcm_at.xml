@@ -33,9 +33,6 @@
   <string id="ui_mcm_menu_accuracy">
     <text>Accuracy</text>
   </string>
-  <string id="ui_mcm_menu_disclosure">
-    <text>Disclosure</text>
-  </string>
   <string id="ui_mcm_menu_danger">
     <text>Danger</text>
   </string>
@@ -146,31 +143,6 @@
   <!-- ==================== SHARED ==================== -->
   <string id="ui_mcm_at_title">
     <text>AlifeTactics</text>
-  </string>
-  <!-- ==================== DISCLOSURE PAGE ==================== -->
-  <string id="ui_mcm_at_disclosure_desc">
-    <text>A suppressed hit is a signal, not a broadcast. The victim turns on the shooter through the engine's own target selection, and only squadmates close enough to hear the impact walk over to investigate the position, opening fire when they actually spot him. A loud shot needs no script: the whole area hears it on its own. A clean instant kill tells no one, and the squad can still find the body. No relations are faked, no memory is injected.</text>
-  </string>
-  <string id="ui_mcm_at_disclosure_disclosure_enabled">
-    <text>Enable Disclosure</text>
-  </string>
-  <string id="ui_mcm_at_disclosure_disclosure_enabled_desc">
-    <text>When off, vanilla behavior runs unmodified: no victim turn, no squad investigate; NPCs react only to what the engine lets them hear and see.</text>
-  </string>
-  <string id="ui_mcm_at_disclosure_disclosure_turn">
-    <text>Turn on the shooter</text>
-  </string>
-  <string id="ui_mcm_at_disclosure_disclosure_turn_desc">
-    <text>A hit victim prioritizes a close attacker in his target selection: the real "he hit me" signal outweighs a distant visible enemy, so he turns and returns fire the moment he has line of sight. Nothing is revealed through walls. Needs a recent engine build; inactive on older ones.</text>
-  </string>
-  <string id="ui_mcm_at_disclosure_hdr_selection">
-    <text>Target priority</text>
-  </string>
-  <string id="ui_mcm_at_disclosure_selection_actor_bias">
-    <text>Player target pull</text>
-  </string>
-  <string id="ui_mcm_at_disclosure_selection_actor_bias_desc">
-    <text>How strongly an NPC prioritizes you as a target once you can see him, against the weaker pull other NPCs get. Lower values treat you like any other combatant; 0 removes the pull entirely. Needs a recent engine build; inactive on older ones.</text>
   </string>
   <!-- ==================== HEALING PAGE ==================== -->
   <string id="ui_mcm_at_healing_desc">
@@ -897,7 +869,7 @@
     <text>Creature awareness</text>
   </string>
   <string id="ui_mcm_at_danger_danger_creature_awareness_desc">
-    <text>Stalkers glance toward nearby creatures they hear - footsteps, voices, and death cries from mutants and other stalkers alike, within 5 to 10 meters. It is a glance only: no repositioning, no walk-over, and it never fires during the stalker's own combat. Only sounds their hearing actually caught, and companions are excluded. It never makes anyone hostile; active fights are covered by the gunfire reaction instead.</text>
+    <text>A standing stalker glances toward creatures he hears within 5 to 10 meters - mutant footsteps, voices, and death cries always, another stalker's sounds only when that stalker is his enemy. A glance only: no repositioning, no walk-over, never during his own combat, and never on the move, so patrols keep their stride. Companions are excluded. It never makes anyone hostile; active fights are covered by the gunfire reaction instead.</text>
   </string>
   <string id="ui_mcm_at_danger_danger_noise_mult">
     <text>Noise carry distance</text>
@@ -910,6 +882,15 @@
   </string>
   <string id="ui_mcm_at_fixes_danger_danger_actor_tables_desc">
     <text>Danger caused by you reads the separate actor tables where your setup's danger config differentiates them (some combat AI mods do). Applies only when your installed danger script itself uses those tables - a config that ships the section unused, or with identical tables, keeps its own tuning.</text>
+  </string>
+  <string id="ui_mcm_at_danger_hdr_targeting">
+    <text>Target priority</text>
+  </string>
+  <string id="ui_mcm_at_danger_selection_actor_bias">
+    <text>Player target pull</text>
+  </string>
+  <string id="ui_mcm_at_danger_selection_actor_bias_desc">
+    <text>How strongly an NPC prioritizes you as a target once you can see him, against the weaker pull other NPCs get. Lower values treat you like any other combatant; 0 removes the pull entirely. Needs a recent engine build; inactive on older ones.</text>
   </string>
   <string id="ui_mcm_at_danger_fix_config_isolation">
     <text>Danger config isolation</text>
@@ -1030,13 +1011,13 @@
     <text>Sticky targeting</text>
   </string>
   <string id="ui_mcm_at_vf_sticky_targeting_desc">
-    <text>A shot-at stalker turns on the man who hit him, not a distant target he can see. Needs the Turn on the shooter toggle on Disclosure.</text>
+    <text>A shot-at stalker turns on the man who hit him, not a distant target he can see. Always on; needs a recent engine build.</text>
   </string>
   <string id="ui_mcm_at_vf_player_bias">
     <text>Player bias</text>
   </string>
   <string id="ui_mcm_at_vf_player_bias_desc">
-    <text>NPCs no longer converge on you about three times harder than on each other. Needs the Player target pull toggle on Disclosure.</text>
+    <text>NPCs no longer converge on you about three times harder than on each other. Tuned by the Player target pull slider on Perception, Danger.</text>
   </string>
   <string id="ui_mcm_at_vf_hdr_accuracy">
     <text>Accuracy (shot dispersion)</text>
@@ -1190,7 +1171,7 @@
   </string>
   <!-- ==================== DEVELOPMENT PAGE ==================== -->
   <string id="ui_mcm_at_development_desc">
-    <text>Debug and development tools. DEBUG log level traces every system with timings: maneuver decisions, danger evaluation, disclosure, healing ticks and consumed items, per-shot accuracy, ammo and reload events. Written to alifetactics.log. Tracing has a cost, leave at WARN for normal play.</text>
+    <text>Debug and development tools. DEBUG log level traces every system with timings: maneuver decisions, danger evaluation, healing ticks and consumed items, per-shot accuracy, ammo and reload events. Written to alifetactics.log. Tracing has a cost, leave at WARN for normal play.</text>
   </string>
   <!-- Development - Logging -->
   <string id="ui_mcm_at_hdr_logging">

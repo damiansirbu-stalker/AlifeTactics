@@ -26,6 +26,12 @@
 ; once track_ widens the lock band.
 
 [at_reaction]
+; turn_max/turn_falloff_m: the hit-victim turn (set_hit_redirect, PR #636) - the last attacker within
+; falloff metres gets up to turn_max subtracted from his selection cost; 900/60 probe-proven to flip
+; selection at ~10m. An always-on targeting fix, bound per NPC at spawn beside the curves below.
+turn_max       = 900
+turn_falloff_m = 60
+
 aim_novice       = 0.24
 aim_trainee      = 0.40
 aim_experienced  = 0.54

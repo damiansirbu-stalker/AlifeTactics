@@ -1,8 +1,6 @@
 --- at_mcm: MCM configuration for AlifeTactics
 
 local defaults = {
-    disclosure_enabled        = true,
-    disclosure_turn           = true,
     selection_actor_bias      = 900,
     healing_enabled           = true,
     heal_rate_multiplier      = 1.0,
@@ -170,9 +168,7 @@ local defaults = {
 local RegisterScriptCallback = RegisterScriptCallback
 
 local _key_to_tab = {
-    disclosure_enabled        = "effectiveness/disclosure",
-    disclosure_turn           = "effectiveness/disclosure",
-    selection_actor_bias      = "effectiveness/disclosure",
+    selection_actor_bias      = "perception/danger",
     healing_enabled           = "mechanics/healing",
     heal_rate_multiplier      = "mechanics/healing",
     charge_chance_novice      = "mechanics/healing",
@@ -540,21 +536,6 @@ function on_mcm_load()
                         },
                     },
                     {
-                        id = "disclosure",
-                        sh = true,
-                        gr = {
-                            { id = "title", type = "slide", link = "at_mcm_banner",
-                                text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
-                            { id = "desc", type = "desc", text = "ui_mcm_at_disclosure_desc" },
-                            { id = "disclosure_enabled", type = "check", val = 1, def = true, hint = "at_disclosure_disclosure_enabled" },
-                            { id = "disclosure_turn", type = "check", val = 1, def = true, hint = "at_disclosure_disclosure_turn" },
-
-                            { id = "div_selection", type = "line" },
-                            { id = "hdr_selection", type = "desc", text = "ui_mcm_at_disclosure_hdr_selection", clr = {255, 200, 200, 200} },
-                            { id = "selection_actor_bias", type = "track", val = 2, min = 0, max = 900, step = 50, def = 900, hint = "at_disclosure_selection_actor_bias" },
-                        },
-                    },
-                    {
                         id = "crossfire",
                         sh = true,
                         gr = {
@@ -727,6 +708,10 @@ function on_mcm_load()
                             { id = "desc", type = "desc", text = "ui_mcm_at_perception_danger_desc" },
                             { id = "danger_hit_bypass", type = "check", val = 1, def = true, hint = "at_fixes_danger_danger_hit_bypass" },
                             { id = "danger_actor_tables", type = "check", val = 1, def = true, hint = "at_fixes_danger_danger_actor_tables" },
+
+                            { id = "div_targeting", type = "line" },
+                            { id = "hdr_targeting", type = "desc", text = "ui_mcm_at_danger_hdr_targeting", clr = {255, 200, 200, 200} },
+                            { id = "selection_actor_bias", type = "track", val = 2, min = 0, max = 900, step = 50, def = 900, hint = "at_danger_selection_actor_bias" },
                         },
                     },
                 },

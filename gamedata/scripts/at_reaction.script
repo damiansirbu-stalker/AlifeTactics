@@ -10,6 +10,8 @@ local CONFIG_SECTION = "at_reaction"
 local LEAD_THROTTLE_MS = 1000
 local PREDICT_MAX_S    = 0.5
 local DISC_INT_FLOOR = 0.60
+local TURN_MAX       = 900
+local TURN_FALLOFF_M = 60
 
 local KIND_BSPEED = {
     w_pistol = 350, w_shotgun = 380, w_smg = 400, w_rifle = 850, w_sniper = 850,
@@ -260,6 +262,8 @@ end
 
 local function _load_config()
     local ini = ini_file(CONFIG_PATH)
+    TURN_MAX       = ini:r_float_ex(CONFIG_SECTION, "turn_max") or TURN_MAX
+    TURN_FALLOFF_M = ini:r_float_ex(CONFIG_SECTION, "turn_falloff_m") or TURN_FALLOFF_M
     for i = 1, #TIERS do
         local tier = TIERS[i]
         _aim[tier]       = ini:r_float_ex(CONFIG_SECTION, "aim_" .. tier)       or _aim[tier]
@@ -310,10 +314,15 @@ function get_queue_scales(npc)
     return sk, ik
 end
 
---- Apply the rank curves to one NPC now (the spawn body; a runtime rank change needs this re-key).
+--- Apply the rank curves and the targeting fixes to one NPC now (the spawn body; a runtime rank change needs this re-key).
+--- The two targeting binds are always-on vanilla fixes (the hit-victim turn, the player-pull dial), never behind the page toggles.
 function apply(npc)
     if not (npc and npc:alive()) then return end
     if not at_faction.has_flavor(npc, "reaction") then return end
+
+    local ok_turn = xcombat.set_hit_redirect(npc, TURN_MAX, TURN_FALLOFF_M)
+    xcombat.set_visible_enemy_bias(npc, cfg.selection_actor_bias, -1)
+
     if not (cfg.aim_enabled or cfg.vision_enabled or cfg.discipline_enabled) then return end
 
     local tier = _get_obj_rank_name(npc)
@@ -334,8 +343,9 @@ function apply(npc)
     _log_binds_once(ok_aim, ok_vision, ok_disc)
 
     if at_debug.is_on() then
-        at_debug.debug("[RCT] id=%d tier=%s applied_aim=%s applied_vision=%s",
-            npc:id(), tier, ok_aim and "yes" or "no", ok_vision and "yes" or "no")
+        at_debug.debug("[RCT] id=%d tier=%s applied_aim=%s applied_vision=%s turn=%s bias=%d",
+            npc:id(), tier, ok_aim and "yes" or "no", ok_vision and "yes" or "no",
+            ok_turn and "yes" or "no", cfg.selection_actor_bias)
     end
 end
 
