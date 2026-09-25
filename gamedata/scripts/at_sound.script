@@ -1,8 +1,8 @@
---- at_sound: Danger > Sound - hostile stalkers hear your noise; every stalker notices nearby creatures
+--- at_sound: Danger > Sound - hostile stalkers hear your noise; stalkers glance at heard mutants and hostile footsteps
 
 local time_global, string_find, string_lower = time_global, string.find, string.lower
 local IsStalker, IsMonster, IsMoveState = IsStalker, IsMonster, IsMoveState
-local pairs, tostring = pairs, tostring
+local pairs, tostring, move = pairs, tostring, move
 local RegisterScriptCallback, ini_sys, ini_file = RegisterScriptCallback, ini_sys, ini_file
 local string_match, tonumber = string.match, tonumber
 
@@ -37,6 +37,7 @@ local _step_at       = 0
 local _step_strength = "faint"
 local _alert_at       = {}
 local _alert_strength = {}
+local _glance_at      = {}
 local _pass_active = false
 
 local function _load_config()
@@ -69,13 +70,10 @@ local function _load_config()
         ACTIONS[s_type] = { tonumber(radius), strength }
     end
     CREATURE_ACTIONS = {}
-    local creature_defaults = { MST_step = "5, faint", MST_talk = "8, faint",
-                                MST_eat = "5, faint", MST_die = "10, faint" }
+    local creature_defaults = { MST_step = 5, MST_talk = 8, MST_eat = 5, MST_die = 10 }
     for s_type, def in pairs(creature_defaults) do
-        local raw = ini:r_string_ex(LTX_SECTION, "creature_" .. string_lower(string_match(s_type, "MST_(%a+)"))) or def
-        local radius, strength = string_match(raw, "^%s*([%d%.]+)%s*,%s*(%a+)")
-        if not radius then radius, strength = string_match(def, "^%s*([%d%.]+)%s*,%s*(%a+)") end
-        CREATURE_ACTIONS[s_type] = { tonumber(radius), strength }
+        local key = "creature_" .. string_lower(string_match(s_type, "MST_(%a+)"))
+        CREATURE_ACTIONS[s_type] = ini:r_float_ex(LTX_SECTION, key) or def
     end
 end
 
@@ -112,7 +110,7 @@ local function _on_land(_landing_speed)
     _step_at = time_global()
 end
 
--- Callers own the hearer admission: actor-source paths pass hostiles only, creature sounds any stalker.
+-- Callers own the hearer admission: actor-source paths pass hostiles only; creature sounds glance and never reach here.
 local function _try_alert(npc, src_id, pos, source, strength, realert_ms)
     if not IsStalker(npc) then return end
     if not npc:alive() then return end
@@ -159,6 +157,19 @@ local function _run_pass()
     _iterate_movement(time_global())
 end
 
+-- A standing glance at a heard creature: same-state look refresh only - no danger stamp, no scheme entry.
+local function _try_glance(npc, id, tg, pos, source)
+    if npc:best_enemy() then return end
+    if npc:movement_type() ~= move.stand then return end
+    local sm = db.storage[id] and db.storage[id].state_mgr
+    if not (sm and sm.target_state) then return end
+    _glance_at[id] = tg
+    sm:set_state(sm.target_state, nil, nil, {look_position = pos}, {fast_set = true})
+    if at_debug.is_on() then
+        at_debug.debug("[SOUND] glance id=%d name=%s source=%s state=%s", id, npc:name(), source, tostring(sm.target_state))
+    end
+end
+
 local function _on_hear(npc, who_id, s_type, dist_sqr, _power, pos)
     if who_id == AC_ID then
         if not _enabled.actions then return end
@@ -171,19 +182,26 @@ local function _on_hear(npc, who_id, s_type, dist_sqr, _power, pos)
         return
     end
     if not _enabled.creature then return end
-    local row = CREATURE_ACTIONS[s_type]
-    if not row then return end
-    local radius = row[1] * _mult
+    local radius = CREATURE_ACTIONS[s_type]
+    if not radius then return end
     if dist_sqr > radius * radius then return end
     if not (npc and IsStalker(npc)) then return end
+    local id = npc:id()
+    local tg = time_global()
+    local last = _glance_at[id]
+    if last and (tg - last) < CREATURE_REALERT_MS then return end
     if npc:has_info("npcx_is_companion") then return end
-    _try_alert(npc, who_id, pos, s_type, row[2], CREATURE_REALERT_MS)
+    local src = xobject.get_go(who_id)
+    if not src then return end
+    if IsStalker(src) and not xcreature.is_enemy(npc, src) then return end
+    _try_glance(npc, id, tg, pos, s_type)
 end
 
 local function _on_entity_unregister(se_obj)
     if se_obj then
         _alert_at[se_obj.id] = nil
         _alert_strength[se_obj.id] = nil
+        _glance_at[se_obj.id] = nil
     end
 end
 

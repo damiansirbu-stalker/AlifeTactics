@@ -35,6 +35,7 @@ local function _parse_cached(npc, bd_name, key, src)
 end
 
 local script_danger = {}
+local GRADE_RANK = { faint = 1, solid = 2, rush = 3 }
 local bd_types = {
 	[danger_object.bullet_ricochet] = "bullet_ricochet",
 	[danger_object.attack_sound]    = "attack_sound",
@@ -52,9 +53,10 @@ function get_type_name(danger_type)
 end
 
 --- Stamp a scripted danger on npc at pos for `time` ms; optional strength = the reaction grade.
--- Grades: faint = glance only, solid = walk-over investigate, rush = converge at a run.
+-- Grades: faint = a standing look only, solid = walk-over investigate, rush = converge at a run.
 -- Ungraded foreign callers default to solid; companions keep the run (an ordered assist is urgent).
 -- who_id may be nil (vanilla quest stamps pass none); the reaction reads the position alone.
+-- An unexpired STRONGER stamp survives a weaker one, so a look never cuts a live investigation short.
 function set_script_danger(npc,time,who_id,pos,strength)
 	if not strength then
 		strength = npc:has_info("npcx_is_companion") and "rush" or "solid"
@@ -66,6 +68,14 @@ function set_script_danger(npc,time,who_id,pos,strength)
 			npc:name(), tostring(who_id), strength, tostring(time), src, tostring(info and info.currentline))
 	end
 	local id = npc:id()
+	local live = script_danger[id]
+	if live and time_global() < live.danger_time + live.danger_inertion
+		and (GRADE_RANK[live.strength] or 2) > (GRADE_RANK[strength] or 2) then
+		if at_debug.is_on() then
+			at_debug.debug("[STAMP] kept npc=%s live=%s over=%s", npc:name(), tostring(live.strength), tostring(strength))
+		end
+		return
+	end
 	if not (script_danger[id]) then
 		script_danger[id] = {danger_time = time_global(), danger_inertion = time, id = who_id, position = pos, strength = strength}
 	else
@@ -240,6 +250,12 @@ local function check_script_danger(id)
 	return false
 end
 
+--- The live scripted-danger grade for id (faint|solid|rush), or nil past inertion, for the at_world_trace [DECOUPLE] readout.
+function get_script_danger(id)
+	if not check_script_danger(id) then return nil end
+	return script_danger[id].strength
+end
+
 -- The active-theater window per sound-fed episode: the alert machine's own stage-2 give-up band.
 local WINDOW_MIN_MS = 8500
 local WINDOW_MAX_MS = 12500
@@ -261,7 +277,7 @@ local function _set_state_once(npc, state_name, target)
 		return
 	end
 	if at_debug.is_on() then
-		at_debug.debug("[POSE] npc=%d %s -> %s", npc:id(), tostring(sm.target_state), state_name)
+		at_debug.debug("[FLIP] npc=%d %s -> %s", npc:id(), tostring(sm.target_state), state_name)
 	end
 	npc:clear_animations()
 	sm:set_state(state_name, nil, nil, target, {fast_set = true})
@@ -444,6 +460,7 @@ local function script_action_danger_scripted(npc,st)
 	local look_pos = who_dist and who_dist < 22500 and bdo and bdo:position() or bdo_pos
 
 	if (strength == "faint") then
+		if npc:movement_type() ~= move.stand then return end
 		local sm = db.storage[id].state_mgr
 		if (sm and sm.target_state and look_pos) then
 			sm:set_state(sm.target_state, nil, nil, {look_position = look_pos}, {fast_set = true})
@@ -729,7 +746,7 @@ local function script_action_danger_alert(npc, st, bd, best_danger_object, depen
 
 	if bdo:id() == db.actor:id() and npc:relation(db.actor) < game_object.enemy then
 		if not _enabled.neutral_gunfire then return end
-		state_mgr.set_state(npc, "threat_na", nil, nil, {look_position = bdo_pos}, {fast_set = true})
+		_set_state_once(npc, "threat_na", {look_position = bdo_pos})
 		return
 	end
 	if not _enabled.attack_sound then return end
