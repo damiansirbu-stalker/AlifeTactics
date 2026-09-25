@@ -297,73 +297,26 @@ Uninstall (MO2):
 Disable or remove in MO2.
 
 Compatibility:
-Tested with vanilla Anomaly 1.5.3, GAMMA, and Forgotten Zone. Installing or uninstalling mid-save works.
-The takeover leaves combat scripts vanilla, and the danger rework patches at runtime, so AlifeTactics layers cleanly onto other combat and AI mods.
-Friendly fire and same-community hits are filtered at the faction-relation gate.
-Story NPCs, companions, traders, and squadmates are never armed against their own faction.
+Depends only on xlibs. Install and uninstall mid-save work. Tested: Anomaly 1.5.3, GAMMA, EFP, Zona, Forgotten Zone.
+Disable (conflict, superseded, problematic):
+- Animated NPC Healing, and NPC-healer replacements - run in place of the Healing system.
+- G.A.M.M.A. AI Rework - blocks the combat planner and re-enables broken vanilla subschemes, so NPCs shoot through cover and never flank.
+  It also keeps them out of your fights past 173m and reseeds RNG at load, on dead code with some bugs.
+- G.A.M.M.A. No NPC Friendly Fire, and community friendly-fire blockers - re-filter the friendly hits Crossfire already handles and rewrite NPC relations on hit.
+- G.A.M.M.A. No logs and Log spam remover - GAMMA log-suppression mods, off by default, that disable the Accuracy system if enabled.
+- G.A.M.M.A. NPCs Faster Reactions - raises NPC sight range and detection, so NPCs see across open ground and swamp the Vision curve.
+- NPC Limping and Healing (Vodoxleb) - stacks the limp and heal animation and breaks the heal cue.
+- NPC Weapon Jamming, and any NPC-jam mod - re-adds the jams the Jamming system removes, looping reloads with no end.
+- RE:DONE Combat AI - drives combat aim itself and leaves the game's aim settings altered on removal.
+- Useful Idiots (bellyillish) - a broad combat-AI overhaul that races the Danger scheme.
+- Worse NPC Vision and Accuracy, and any mod with its own NPC vision config - override the Vision and Accuracy systems.
+It coexists with everything else.
 
-Disable or patch these, each one breaks an AlifeTactics system:
-- NPC Limping and Healing (Vodoxleb): plays its own limp and heal animations, the same ones the Healing system uses. The two stack and the heal cue breaks. Disable one side.
-- NPC Weapon Jamming, and any mod that jams NPC guns: Anomaly has no NPC jam animation, so a jammed stalker loops his reload with no end.
-  The Jamming system removes NPC jamming for that reason, and these mods put it back. Player-side jamming (Weapon Parts Overhaul and similar jam mods) is a separate system and stays untouched.
-- G.A.M.M.A. No NPC Friendly Fire, and any community-based friendly-fire blocker: the Crossfire system already filters friendly hits at the per-NPC relation gate.
-  The community version filters a second time and rewrites NPC relations on each hit. Disable it.
-- G.A.M.M.A. NPCs Faster Reactions: raises stalker sight range from 160 to 220m (Monolith 275).
-  That also raises detection speed at every distance inside the range and overrides the Vision Speed curve, so every rank detects at the raised range.
-  Patch the two range keys back with DLTX. Its raised occlusion threshold is the part worth keeping.
-- Worse NPC Vision and Accuracy, the accuracy half (the DLTX_JURASZKA build included): multiplies the eight base NPC dispersion values in m_stalker.ltx by 6 to 18 times.
-  The Accuracy system multiplies the engine shot-dispersion cone by a per-rank factor on top of that inflated base, so every rank fires far too wide and the rank spread is swamped.
-  Keep its vision changes and remove its dispersion (accuracy) DLTX, or turn the Accuracy system off in MCM to keep its dispersion. The vision half is separate and does not touch AlifeTactics.
-- Animated NPC Healing, and NPC-healer replacements: their healer runs in place of the Healing system, so the heal rate and per-rank charge do nothing where they overlap. Disable one side.
-  A DLTX mod that rewrites the vanilla medkit list can also empty the AlifeTactics list by load order.
-- G.A.M.M.A. "No logs" and "Log spam remover" (off by default): their outdated _g.script drops the engine dispersion forwarder, which silently disables the Accuracy system. Keep them off.
-
-Works alongside, with a note:
-- RE:DONE Combat AI: its combat half composes with AlifeTactics. Separately, it writes the four global ai_aim console variables in degrees where the engine reads radians (25 to 79 times the defaults),
-  never restores them, and the game saves them into user.ltx, so the change outlives uninstalling. Restore by hand:
-  ai_aim_max_angle 0.7854, ai_aim_min_angle 0.19635, ai_aim_min_speed 0.24, ai_aim_predict_time 0.4.
-- The game's Hardcore AI aim option, and any ai_aim console tuning: the Reaction system writes per-stalker fields and never below the global baseline, so a higher difficulty is always kept.
-- GAMMA Stealth Overhaul, and detection-threshold mods: Vision Speed multiplies your setup's own detection result as a rank curve (novice unchanged, legend about 21 percent faster).
-  Set every rank to 1.00, or clear the toggle, to hand acquisition back to your setup.
-- Improved Visual Awareness, Stealth 2.31, RE:VISION, RE:DONE Combat AI, and any other mod shipping the visibility script: only one copy loads.
-  The loser's stealth model stops running while its MCM sliders stay on screen. Pick one.
-- enemy_shoot_back, NPC Improvements, Kebab's NPC Overhaul, and any mod shipping a full m_stalker.ltx: the same single-winner rule for sight range, vision cone, and dispersion.
-  The losing copy does nothing.
-- Useful Idiots, and any companion mod with a GOAP surge or shelter scheme: AlifeTactics reserves GOAP id 188347 for its combat takeover, planted on every NPC and dormant until a maneuver runs.
-  Other schemes on the stalker planner must not reuse that id. It was moved off 188200, which Useful Idiots uses for its emission-shelter scheme.
-  On the old id the two clashed and companions could not take cover during emissions.
-- xrMPE Animations, and other NPC animation packs: every pose AlifeTactics plays exists in their files (verified), so its cues take on their look.
-  Their larger, longer hit and hurt animations can make the base-game gliding and staggering more visible, which is base-game hit handling (see "Not AlifeTactics" below),
-  not anything AlifeTactics adds.
-- g_ai_unlimited_ammo set to 0 (newer engine builds): the Ammo system detects it and goes inert, so carried AP is not drained twice. At the default 1 it runs normally.
-- G.A.M.M.A. Ballistics Overhaul and Close Quarter Combat (both ship the grok_bo hit system): a hit you land on an NPC is recomputed from the weapon's own values and applied by grok_bo itself.
-  That cancels the NPC's artefact damage resistance.
-  AlifeTactics restores it: it takes over the grok_bo NPC hit and reapplies the resistance to the damage grok_bo actually dealt, so a geared NPC still resists your shots.
-  It hooks whichever of the two wins load order, is inactive when neither is installed, and changes nothing for hits between NPCs.
-- G.A.M.M.A. Actor Damage Balancer: finalizes damage the player takes, reading the hit's power and then applying the damage itself.
-  A modifier this mod makes to a hit against the player still reaches final damage.
-  The balancer reads that power before applying it, and this mod's scripts (at_, ap_) load ahead of grok_ by name.
-  That order is fixed by the file names, so it holds on any standard install. Only a damage mod whose scripts sort ahead of both could take it over.
-
-Works as-is, no setup:
-- G.A.M.M.A. AI Rework, RE:DONE Combat AI, RE:VISION, AI More Cover, Wuut AI Extension, NPC_Fleeing, Mora's AI More Covered,
-  No More Companion Friendly Fire, Tougher Important NPCs and Companions, Dynamic AI Aim Settings.
-  The takeover blocks the combat planner only while a maneuver runs, then hands back, and the danger rework reads their ranges instead of substituting its own.
-  Turn Combat off in MCM to leave a planner-action mod fully in charge. Where one also ships a visibility script or the aim globals, that part is under "Works alongside" above.
-
-Not AlifeTactics (base-game behavior):
-- Stalkers gliding or staggering oddly when shot: the engine starts or continues movement while a hit reaction animation still plays, and the hit impulse shoves the body with no animation at all.
-  Present in unmodded Anomaly. Animation packs (xrMPE among them) can make it more visible because their reactions are longer and larger.
-  AlifeTactics never starts a maneuver or re-applies state on an animating body, so it adds no instances of its own.
-- Stalkers who ignore darkness: your modpack's visibility script applies its darkness curve only between 21:00 and 04:00, so dusk and dawn compute as full daylight.
-  In GAMMA the lever is michiko_patch on the Stealth MCM page, off by default. AlifeTactics deliberately runs no code on the per-sight-test path, so it cannot reach this.
-- Stalkers who see across open ground: sight range from your setup's creature config, not acquisition speed. See NPCs Faster Reactions above.
-- Stalkers who react to danger from across the map: vanilla fills its danger reaction-distance table with duration values, so a corpse, a ricochet or a shot counts as danger out past 300m.
-  AlifeTactics reads whatever your setup ships. GAMMA's Stealth Overhaul rewrites the band to 75-125m, the scale it was meant to be.
-- Stalkers who lose interest oddly, or whose pursuit persistence differs run to run:
-  GAMMA's Stealth Overhaul also carries an older xr_combat_ignore that wins the script slot in every GAMMA install and overrides the modded-exe version,
-  removing its enemy-id validation and randomizing the combat-memory window each session.
-  AlifeTactics reads whichever xr_combat_ignore won and never replaces it.
+Not AlifeTactics (base game or your setup):
+- Stalkers gliding or staggering when shot - the engine moves the body while a hit animation plays, present in unmodded Anomaly.
+- Stalkers ignoring darkness - your visibility script applies its darkness curve only from 21:00 to 04:00, so dusk and dawn read as full daylight.
+- Stalkers seeing across open ground - sight range comes from your creature config, not from acquisition speed.
+- Stalkers reacting to danger across the map - vanilla's danger table uses duration values, so a shot counts as danger past 300m.
 
 How It's Built:
 
