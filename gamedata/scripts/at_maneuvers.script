@@ -622,7 +622,7 @@ local function _try_seize(npc, state, maneuver, dest, tg)
         return false
     end
     at_core.add_start(bucket)
-    xcombat.apply_takeover_block(npc)
+    xgraft.apply_takeover_block(npc)
     state.gate = true
     state.maneuver = maneuver
     state.dest = dest
@@ -671,7 +671,7 @@ end
 local function _update_maneuver(npc, state, tg)
     local maneuver = state.maneuver
     if not maneuver or not state.maneuver_at then return end
-    if not state.escape_warned and not xcombat.is_takeover_current(npc)
+    if not state.escape_warned and not xgraft.is_takeover_current(npc)
         and not (IsWounded(npc) or xcombat.is_staggering(npc)) then
         state.escape_warned = true
         at_debug.warn("[CMB] escape id=%d maneuver=%s op=%s - an unblocked action holds the slot under an open maneuver (denylist gap, t148)",
@@ -765,7 +765,7 @@ end
 local function _register_graft(npc)
     if not npc or not IsStalker(npc) then return end
     if cfg.combat_ignore_companions and npc:has_info(COMPANION_INFO) then return end
-    xcombat.register_takeover(npc, SPEC)
+    xgraft.register_takeover(npc, SPEC)
     if at_debug.is_on() then at_debug.debug("[CMB] installed id=%d name=%s", npc:id(), npc:name()) end
 end
 
@@ -897,8 +897,8 @@ function on_game_start()
         _orig_get_queue_params = state_mgr_weapon.get_queue_params
         state_mgr_weapon.get_queue_params = _compute_queue_params
     end
-    if state_mgr and state_mgr.combat_action_ids and xcombat.TAKEOVER_ID then
-        state_mgr.combat_action_ids[xcombat.TAKEOVER_ID] = true
+    if state_mgr and state_mgr.combat_action_ids and xgraft.TAKEOVER_ID then
+        state_mgr.combat_action_ids[xgraft.TAKEOVER_ID] = true
     end
     RegisterScriptCallback("npc_on_net_spawn",      _register_graft)
     RegisterScriptCallback("npc_on_hit_callback",   _on_hit)

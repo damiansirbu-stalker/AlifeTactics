@@ -175,7 +175,7 @@ local function _on_net_destroy(npc)
         _best_enemy_of[id] = nil
         _npc_states[id] = nil
     end
-    xcombat.release_takeover(npc)
+    xgraft.release_takeover(npc)
 end
 
 local function _on_entity_unregister(se_obj)
@@ -191,7 +191,7 @@ local function _on_entity_unregister(se_obj)
         _best_enemy_of[id] = nil
         _npc_states[id] = nil
     end
-    xcombat.release_takeover_id(id)
+    xgraft.release_takeover_id(id)
 end
 
 -- MCM: poll the client toggles; any active system runs the loop, none stops it.
