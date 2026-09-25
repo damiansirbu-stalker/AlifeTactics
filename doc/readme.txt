@@ -130,7 +130,7 @@ Tracking Lock sets how tightly a barrel holds a strafing target. A novice's aim 
 A legend holds you across the firing window without tracking you perfectly.
 Target Lead aims a stalker ahead of a moving target by the round's real flight time, computed from range and the weapon's bullet speed as it fires.
 Higher ranks lead true and hit movers, lower ranks over-lead and overshoot.
-Fire Discipline gives higher ranks crisper short bursts at a tighter cadence while low ranks stay vanilla. Defaults keep a rank's rounds per minute at or above vanilla.
+Fire Discipline scales burst size and cadence per rank. The shipped defaults are near-flat, so rank barely alters fire out of the box; the sliders allow the full spread. Defaults keep a rank's rounds per minute at or above vanilla.
 Tracking Speed, Tracking Lock, Target Lead, and Fire Discipline are per-rank MCM slider curves. Speed and Lock share one on/off, Lead and Discipline each carry their own.
 The two rank vision curves moved to the Perception tab below. Fire Discipline is on its own Discipline tab.
 
@@ -231,6 +231,9 @@ Danger scheme:
 - The hit callback no longer corrupts danger memory with a missing shooter.
 - A stalker is no longer evaluated for danger after he dies.
 - A stalker who held fire because a friend crossed his line no longer freezes in a combat stance after the fight. He returns to normal when his enemy is gone.
+- A stalker held fire for any visible non-enemy standing close in any direction, or standing on his aim line beyond the target, and the hold re-armed endlessly in a crowd.
+  He now holds and steps aside only for a friend actually between him and his target.
+  The false holds also silenced campers, wounded-finishing, mounted guns and anti-helicopter fire. Those behaviors now run again.
 - A danger transition no longer leaves a stale lower-body animation playing.
 - Leaving danger clears only its own cover reservation, not every stalker's.
 - A stalker attacked again later reacts to the new attacker, not his first attacker's old position, and the corpse search plays for every corpse, not only his first.
@@ -391,10 +394,11 @@ Usage and License:
   Full license in LICENSE file and on GitHub.
 
 Diagnostics and reporting:
-Development > Log level: set to DEBUG, reproduce, then back to WARN. Traces maneuvers, danger, healing, accuracy, and ammo to alifetactics.log.
-Development > Debug HUD: pick a corner for a live overlay of nearby stalkers (rank, health, scheme, target); a green maneuver row marks an NPC AlifeTactics is driving.
-Development > World trace: writes per-minute fight tables (hit rates, damage, near misses, burst lengths) to alifetactics_world.log.
-Combat is the hardest thing in Anomaly to diagnose, so first confirm it is this mod: reproduce, disable AlifeTactics, reproduce again; if it persists it is not this mod. The cleanest test is vanilla Anomaly plus xlibs plus AlifeTactics.
-Report at https://github.com/damiansirbu-stalker/AlifeTactics/issues/new/choose or the EFP, Anomaly, and Zona Discord. Include repro steps, engine build, modlist, load order, xray.log, and the debug log.
+Every release goes through careful engineering and testing, but bugs can still slip through.
+To report one, reproduce with debug logging on, and the world log where the mod has one.
+First rule this mod out: reproduce with it off, then on. The cleanest test is this mod alone on vanilla and xlibs.
+Send the traces on the Anomaly Discord, or file a defect on GitHub with the same information.
+Attach xray.log, the mod log, the engine build, the modlist, and the load order.
+For deep technical details and mechanisms, check the architecture docs on GitHub.
 
 Tags: alife, combat-ai, mutant-ai, mutants, npc, goap, tactical, realistic, emergent, engine-native, self-preservation, accuracy, stealth, perception, cover, faction, loot, ammo, performance, save-safe
