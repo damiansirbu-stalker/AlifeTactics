@@ -1,8 +1,7 @@
---- at_test: Console commands for AlifeTactics (squad spawn, arena, lab stocking, dumps)
+--- at_test: AlifeTactics tests - unarmed-seize spawn, AP arming, lab stocking
 --- @novalidate(conventions.unused_export, reason:"console commands, invoked by name via run_string")
 
 local tostring, string_format, math_rad, math_cos, math_sin = tostring, string.format, math.rad, math.cos, math.sin
-local math_random, math_floor, math_pi = math.random, math.floor, math.pi
 local pairs, IsStalker, IsWeapon, get_object_squad = pairs, IsStalker, IsWeapon, get_object_squad
 local time_global, alife_object, level = time_global, alife_object, level
 local alife = alife
@@ -12,25 +11,6 @@ local DEFAULT_DISTANCE = 50
 local INVALID_VERTEX   = 4294967295
 
 local EFFECT_GEAR = { "af_gravi", "af_soul", "af_fireball", "af_electra_sparkler", "af_compass", "af_kevlar", "wpn_binoc", "device_torch_nv_1" }
-
-local ARENA_TICK_SEC     = 2
-local ARENA_RING_MIN     = 10
-local ARENA_RING_MAX     = 18
-local ARENA_MAX_PER_TICK = 8
-local ARENA_SPREAD_DEG   = 25
-local ARENA_SECTIONS = {
-    monolith = { "sim_default_monolith_1", "sim_default_monolith_2", "sim_default_monolith_3", "sim_default_monolith_4" },
-    army     = { "sim_default_military_1", "sim_default_military_2", "sim_default_military_3", "sim_default_military_4" },
-    ecolog   = { "sim_default_ecolog_0", "sim_default_ecolog_1", "sim_default_ecolog_2", "sim_default_ecolog_3", "sim_default_ecolog_4" },
-    csky     = { "sim_default_csky_0", "sim_default_csky_1", "sim_default_csky_2", "sim_default_csky_3", "sim_default_csky_4" },
-    renegade = { "sim_default_renegade_0", "sim_default_renegade_1", "sim_default_renegade_2" },
-}
--- Hostile faction matchups the shuffle rolls, one faction per side, each pairing actually hostile.
-local ARENA_PAIRS = {
-    { "army", "monolith" }, { "ecolog", "monolith" }, { "csky", "monolith" }, { "renegade", "monolith" },
-    { "army", "renegade" }, { "ecolog", "renegade" }, { "csky", "renegade" },
-}
-local ARENA_MODE_WAR = "war"
 
 local AP_RANK    = 14000
 local AP_BOXES   = 3
@@ -42,15 +22,6 @@ local LAB_PERIOD_SEC  = 30
 local LAB_WEAPONS = { "wpn_svd", "wpn_spas12", "wpn_mp5", "wpn_pm" }
 
 local _strip_buf = {}
-local _arena_on = false
-local _arena_mode = nil
-local _arena_want = 0
-local _arena_center_lvid, _arena_gvid = nil, nil
-local _arena_side_dir = 0
-local _arena_side_a, _arena_side_b = "army", "monolith"
-local _arena_shuffle_sec = 0
-local _arena_shuffle_at = 0
-local _arena_spawned = {}
 local _lab_wpn_i = 0
 local _lab_loop_on = false
 
@@ -169,138 +140,6 @@ local function _spawn_squad(section, distance, angle_deg, grenades)
     return squad
 end
 
-local function _spawn_squad_set(label, entries)
-    for i = 1, #entries do
-        local entry = entries[i]
-        _spawn_squad(entry[1], entry[2], entry[3])
-    end
-    at_debug.info("[SPAWN] set=%s count=%d", label, #entries)
-end
-
-local function _add_arena_gear(pos, lvid, id)
-    for i = 1, #EFFECT_GEAR do
-        if ini_sys:section_exist(EFFECT_GEAR[i]) then alife():create(EFFECT_GEAR[i], pos, lvid, _arena_gvid, id) end
-    end
-end
-
-local function _find_spawn_pos(angle)
-    local dist = ARENA_RING_MIN + math_random() * (ARENA_RING_MAX - ARENA_RING_MIN)
-    local dir = vector():set(math_cos(angle), 0, math_sin(angle))
-    local lvid = level.vertex_in_direction(_arena_center_lvid, dir, dist)
-    if not lvid or lvid >= INVALID_VERTEX then return nil end
-    return level.vertex_position(lvid), lvid
-end
-
---- Roll a fresh hostile matchup for the two sides and stamp the next shuffle time.
-local function _select_factions()
-    local pair = ARENA_PAIRS[math_random(1, #ARENA_PAIRS)]
-    _arena_side_a, _arena_side_b = pair[1], pair[2]
-    _arena_shuffle_at = time_global() + _arena_shuffle_sec * 1000
-    at_debug.info("[ARENA] factions %s vs %s", _arena_side_a, _arena_side_b)
-    _show_tip(string_format("AT.ARENA: %s vs %s", _arena_side_a, _arena_side_b))
-end
-
---- Release every NPC the arena spawned (used by the shuffle reset and stop).
-local function _release_all()
-    local released = 0
-    for id in pairs(_arena_spawned) do
-        local se = alife_object(id)
-        if se then alife():release(se, true) released = released + 1 end
-        _arena_spawned[id] = nil
-    end
-    return released
-end
-
-local function _spawn_combatant(side)
-    local faction = (_arena_mode == "me") and "monolith"
-        or ((side == "b") and _arena_side_b or _arena_side_a)
-    local list = ARENA_SECTIONS[faction]
-    local section = list[math_random(1, #list)]
-    local base = (_arena_mode == ARENA_MODE_WAR and side == "b") and (_arena_side_dir + math_pi) or _arena_side_dir
-    local angle = (_arena_mode == "me") and (math_random() * 2 * math_pi)
-        or (base + math_rad((math_random() * 2 - 1) * ARENA_SPREAD_DEG))
-    local pos, lvid = _find_spawn_pos(angle)
-    if not pos then return false end
-    local se = alife():create(section, pos, lvid, _arena_gvid)
-    if not se then return false end
-    _arena_spawned[se.id] = { side = side, dead_seen = false }
-    _add_arena_gear(pos, lvid, se.id)
-    at_debug.info("[ARENA] spawned %s id=%d side=%s", section, se.id, side)
-    return true
-end
-
-local function _release_dead(id, rec)
-    local se = alife_object(id)
-    if not se then _arena_spawned[id] = nil return nil end
-    if se:alive() then return rec.side end
-    if rec.dead_seen then
-        alife():release(se, true)
-        _arena_spawned[id] = nil
-    else
-        rec.dead_seen = true
-    end
-    return nil
-end
-
-local function _compute_census()
-    local alive_a, alive_b = 0, 0
-    for id, rec in pairs(_arena_spawned) do
-        local live_side = _release_dead(id, rec)
-        if live_side == "a" then alive_a = alive_a + 1
-        elseif live_side == "b" then alive_b = alive_b + 1 end
-    end
-    return alive_a, alive_b
-end
-
-local function _spawn_solo_wave(alive_a)
-    local budget = ARENA_MAX_PER_TICK
-    local deficit = _arena_want - alive_a
-    while deficit > 0 and budget > 0 do
-        if _spawn_combatant("a") then deficit = deficit - 1 end
-        budget = budget - 1
-    end
-end
-
-local function _spawn_war_wave(alive_a, alive_b)
-    local budget = ARENA_MAX_PER_TICK
-    local half = math_floor(_arena_want / 2)
-    local need_a, need_b = half - alive_a, half - alive_b
-    while (need_a > 0 or need_b > 0) and budget > 0 do
-        if need_a >= need_b and _spawn_combatant("a") then need_a = need_a - 1
-        elseif need_a < need_b and _spawn_combatant("b") then need_b = need_b - 1 end
-        budget = budget - 1
-    end
-end
-
-local function _update_arena()
-    if not _arena_on then return true end
-    ResetTimeEvent("at_arena", "tick", ARENA_TICK_SEC)
-    if not db.actor then return false end
-    if _arena_mode ~= "me" and _arena_shuffle_sec > 0 and time_global() >= _arena_shuffle_at then
-        _release_all()
-        _select_factions()
-    end
-    local alive_a, alive_b = _compute_census()
-    if _arena_mode == "me" then _spawn_solo_wave(alive_a) else _spawn_war_wave(alive_a, alive_b) end
-    at_debug.info("[ARENA] tick alive a=%d b=%d want=%d", alive_a, alive_b, _arena_want)
-end
-
-local function _start_arena_loop(mode, count, shuffle_sec)
-    if not db.actor then _show_tip("AT.ARENA: not in game") return end
-    if not count or count < 2 then _show_tip("AT.ARENA: pass a total combatant count - at_test.at_arena(40)") return end
-    _arena_mode = mode
-    _arena_want = count
-    _arena_shuffle_sec = shuffle_sec or 0
-    _arena_center_lvid = db.actor:level_vertex_id()
-    _arena_gvid = db.actor:game_vertex_id()
-    _arena_side_dir = math_random() * 2 * math_pi
-    _arena_on = true
-    _select_factions()
-    RemoveTimeEvent("at_arena", "tick")
-    CreateTimeEvent("at_arena", "tick", 1, _update_arena)
-    _show_tip(string_format("AT.ARENA: maintaining %d geared NPCs (%s)", _arena_want, mode))
-end
-
 local function _find_ap_section(wpn_sec)
     local ammo_class = parse_list(ini_sys, wpn_sec, "ammo_class")
     if not ammo_class then return nil end
@@ -378,91 +217,6 @@ local function _update_lab()
     ResetTimeEvent("at_lab", "loop", LAB_PERIOD_SEC)
 end
 
-function create_squad()
-    _spawn_squad(DEFAULT_SECTION, DEFAULT_DISTANCE, 0)
-end
-
-function create_squad_near()
-    _spawn_squad(DEFAULT_SECTION, 20, 0)
-end
-
-function create_squad_mid()
-    _spawn_squad(DEFAULT_SECTION, 40, 0)
-end
-
-function create_squad_far()
-    _spawn_squad(DEFAULT_SECTION, 100, 0)
-end
-
-function create_squad_very_far()
-    _spawn_squad(DEFAULT_SECTION, 150, 0)
-end
-
-function create_squad_behind()
-    _spawn_squad(DEFAULT_SECTION, 50, 180)
-end
-
-function create_squad_left()
-    _spawn_squad(DEFAULT_SECTION, 50, -90)
-end
-
-function create_squad_right()
-    _spawn_squad(DEFAULT_SECTION, 50, 90)
-end
-
-function create_squad_veteran()
-    _spawn_squad("bandit_sim_squad_veteran", DEFAULT_DISTANCE, 0)
-end
-
-function create_squad_master()
-    _spawn_squad("bandit_sim_squad_alpha", DEFAULT_DISTANCE, 0)
-end
-
-function create_squad_mil()
-    _spawn_squad("army_sim_squad_novice", 60, 0, 3)
-end
-
-function create_squad_mono()
-    _spawn_squad("monolith_sim_squad_novice", 60, 0)
-end
-
-function create_squad_merc()
-    _spawn_squad("merc_sim_squad_novice", 50, 0)
-end
-
-function create_squad_duty()
-    _spawn_squad("duty_sim_squad_novice", 50, 0)
-end
-
-function create_squad_freedom()
-    _spawn_squad("freedom_sim_squad_novice", 50, 0)
-end
-
-function create_squad_zomb()
-    _spawn_squad("zombied_sim_squad_novice", 40, 0)
-end
-
-function create_squad_csky()
-    _spawn_squad("csky_sim_squad_novice", 50, 0)
-end
-
-function create_squad_ecolog()
-    _spawn_squad("ecolog_sim_squad_novice", 50, 0)
-end
-
-function create_squad_renegade()
-    _spawn_squad("renegade_sim_squad_novice", 50, 0)
-end
-
---- Give the actor a Fort-17 + three boxes of 9x18 (engage a spawned squad, hurt them - the flee test).
-function add_pistol()
-    local id = db.actor and db.actor:id()
-    if not id then return end
-    xinventory.create_item("wpn_fort", id)
-    for _ = 1, 3 do xinventory.create_item("ammo_9x18_fmj", id) end
-    _show_tip("AT.TEST: Fort-17 + 3 boxes 9x18 given")
-end
-
 --- Spawn an armed military squad, strip every weapon 3s later - proves the unarmed seize decline.
 function create_squad_unarmed()
     local squad = _spawn_squad("army_sim_squad_novice", 40, 0)
@@ -475,24 +229,6 @@ function create_squad_unarmed()
         _show_tip(string_format("AT.TEST: unarmed squad id=%d, %d weapons removed", squad_id, removed))
         return true
     end)
-end
-
---- Keep n/2 vs n/2 fighting around you, all geared, a fresh hostile matchup rolled each start.
---- Optional shuffle_sec re-rolls the matchup every shuffle_sec seconds, 0 fixes it for the run.
-function start_arena(count, shuffle_sec)
-    _start_arena_loop("war", count, shuffle_sec)
-end
-
---- Keep n monolith around you, hostile to everything including you, all geared.
-function start_arena_solo(count)
-    _start_arena_loop("me", count)
-end
-
---- Stop the arena and release every NPC it spawned.
-function stop_arena()
-    _arena_on = false
-    RemoveTimeEvent("at_arena", "tick")
-    _show_tip(string_format("AT.ARENA: stopped, released %d", _release_all()))
 end
 
 --- Arm every online stalker within 120m with AP for its weapon plus a veteran rank.
@@ -538,48 +274,3 @@ function run_lab_loop()
     _show_tip("AT.LAB: loop started (a pass every " .. LAB_PERIOD_SEC .. "s)")
 end
 
---- Three bandit squads in a line ahead.
-function create_horde()
-    _spawn_squad_set("horde", {
-        { "bandit_sim_squad_novice", 30,  0 },
-        { "bandit_sim_squad_novice", 60,  0 },
-        { "bandit_sim_squad_novice", 100, 0 },
-    })
-end
-
---- Two squads on opposite flanks.
-function create_pincer()
-    _spawn_squad_set("pincer", {
-        { "bandit_sim_squad_novice", 60, -90 },
-        { "bandit_sim_squad_novice", 60,  90 },
-    })
-end
-
---- Four squads in a circle around the actor (cover-reservation stress).
-function create_swarm()
-    _spawn_squad_set("swarm", {
-        { "bandit_sim_squad_novice", 50,    0 },
-        { "bandit_sim_squad_novice", 50,   90 },
-        { "bandit_sim_squad_novice", 50,  180 },
-        { "bandit_sim_squad_novice", 50,  -90 },
-    })
-end
-
---- Mixed faction wave: bandits ahead, military flank, monolith behind.
-function create_mixed()
-    _spawn_squad_set("mixed", {
-        { "bandit_sim_squad_novice",    60,    0 },
-        { "army_sim_squad_novice",      70,   60 },
-        { "monolith_sim_squad_novice",  80, -120 },
-    })
-end
-
---- Dump the disclosure counters to the log and a tip.
-function get_dump()
-    if not db.actor then return end
-    local stats = at_disclosure.get_stats()
-    at_debug.info("[DUMP] disclosure hits=%d loud=%d stamps=%d victim_seeds=%d redirect=%s",
-        stats.hits, stats.loud, stats.stamps, stats.victim_seeds, tostring(stats.has_redirect))
-    _show_tip(string_format("AT.TEST: hits=%d loud=%d stamps=%d redirect=%s (see alifetactics.log)",
-        stats.hits, stats.loud, stats.stamps, tostring(stats.has_redirect)))
-end
