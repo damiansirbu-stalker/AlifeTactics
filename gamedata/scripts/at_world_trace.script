@@ -1,7 +1,7 @@
 --- at_world_trace: the world trace - slide watchdog + ballistics recorder, outputs only, alifetactics_world.log
 
 local RegisterScriptCallback, UnregisterScriptCallback = RegisterScriptCallback, UnregisterScriptCallback
-local IsStalker, time_global, db = IsStalker, time_global, db
+local IsStalker, IsWounded, time_global, db = IsStalker, IsWounded, time_global, db
 local math_sqrt, math_floor, math_max, pairs, tostring = math.sqrt, math.floor, math.max, pairs, tostring
 local math_deg, math_acos = math.deg, math.acos
 local string_format, table_concat = string.format, table.concat
@@ -40,6 +40,9 @@ local NAT_UNSEEN_MS       = 10000
 local NAT_AIM_OFF_MS      = 1000
 local NAT_FIGHT_MS        = 5000
 local NAT_BLINDFIRE_MS    = 1000
+local NAT_DECOUPLE_DEG    = 75
+local NAT_DECOUPLE_MS     = 600
+local NAT_GESTURE_MS      = 450
 
 local TIERS = xcreature.RANK_TIERS
 
@@ -228,6 +231,7 @@ end
 local _MOVER_STATES = { assault = true, assault_fire = true, raid = true, sprint = true, rush = true }
 local _COMBAT_OPS = { combat = true, danger = true }
 local _nat_ms, _nat_n = 0, 0
+local _occ_n, _occ_danger = 0, 0
 
 local function _get_nat(id)
     local nat = _nat[id]
@@ -267,9 +271,45 @@ local function _check_move(nat, id, name, tg, pos)
     log.info("[SHUF] id=%d %s kind=move 3reversals/%.0fs", id, name, NAT_SHUF_WINDOW_MS / 1000)
 end
 
+-- Body forward fighting the travel direction while locomoting, OUT of combat only - the fighting backpedal is legitimate.
+local function _check_decouple(nat, npc, id, tg, mt, be)
+    local mv = nat.move
+    if be or not (_is_locomoting(mt) and mv and (mv.dx ~= 0 or mv.dz ~= 0)) then nat.dec_since = nil return end
+    local dir = npc:direction()
+    local dot = dir.x * mv.dx + dir.z * mv.dz
+    local len = math_sqrt((dir.x * dir.x + dir.z * dir.z) * (mv.dx * mv.dx + mv.dz * mv.dz))
+    if len == 0 then return end
+    dot = dot / len
+    if dot > 1 then dot = 1 elseif dot < -1 then dot = -1 end
+    local angle = math_deg(math_acos(dot))
+    if angle <= NAT_DECOUPLE_DEG then nat.dec_since = nil return end
+    nat.dec_since = nat.dec_since or tg
+    if (tg - nat.dec_since) <= NAT_DECOUPLE_MS then return end
+    if (tg - (nat.dec_cd or 0)) < NAT_FIRE_COOLDOWN_MS then return end
+    nat.dec_cd = tg
+    local cause = at_danger.get_script_danger(id) or (at_danger.has_danger(npc) and "danger") or "-"
+    log.info("[DECOUPLE] id=%d %s angle=%.0fdeg mt=%s drv=%s cause=%s body=(%.2f,%.2f) travel=(%.2f,%.2f)",
+        id, npc:name() or "?", angle, _get_mt_name(mt), _get_driver(id), tostring(cause), dir.x, dir.z, mv.dx, mv.dz)
+end
+
+-- A script animation locking a walking body: the hand-gesture glide, legs frozen while the body translates.
+local function _check_gesture(nat, npc, id, tg, mt, state)
+    if not _is_locomoting(mt) then nat.ges_since = nil return end
+    local anims = npc:animation_count()
+    if anims == 0 then nat.ges_since = nil return end
+    nat.ges_since = nat.ges_since or tg
+    if (tg - nat.ges_since) <= NAT_GESTURE_MS then return end
+    if (tg - (nat.ges_cd or 0)) < NAT_FIRE_COOLDOWN_MS then return end
+    nat.ges_cd = tg
+    local cause = at_danger.get_script_danger(id) or (at_danger.has_danger(npc) and "danger") or "-"
+    log.info("[GESTURE] id=%d %s mt=%s anims=%d held=%dms state=%s drv=%s cause=%s",
+        id, npc:name() or "?", _get_mt_name(mt), anims, tg - nat.ges_since, tostring(state), _get_driver(id), tostring(cause))
+end
+
 -- Sees the enemy, lane clear, fire makes sense, not reloading, yet not firing: wasting time.
 local function _check_idle(nat, npc, id, name, be, tg)
     if not be then nat.eng_since = nil return end
+    if IsWounded(npc) or npc:critically_wounded() then nat.eng_since = nil return end
     if xcombat.is_reloading(npc) then return end
     nat.eng_since = nat.eng_since or tg
     local silent = tg - math_max(_shot_at[id] or 0, nat.eng_since)
@@ -397,17 +437,23 @@ local function _check_unresolved(nat, npc, name, be, drv, tg)
 end
 
 -- Read the combat facts once, run every check. Self-timed for the [NAT] perf line.
-local function _check_natural(npc, id, tg, pos)
+local function _check_natural(npc, id, tg, pos, mt)
     local nat = _get_nat(id)
     local name = npc:name() or "?"
     local be = npc:best_enemy()
     local drv = _get_driver(id)
     local st = db.storage[id]
     local state = st and st.state_mgr and st.state_mgr.target_state or nil
+    if not be then
+        _occ_n = _occ_n + 1
+        if st and st.danger_flag then _occ_danger = _occ_danger + 1 end
+    end
     _check_dim(nat, "stance", npc:body_state() == move.crouch, id, name, tg)
     _check_dim(nat, "aim", xcombat.get_sight_target(npc) or -1, id, name, tg)
     _check_dim(nat, "target", be and be:id() or -1, id, name, tg)
     _check_move(nat, id, name, tg, pos)
+    _check_decouple(nat, npc, id, tg, mt, be)
+    _check_gesture(nat, npc, id, tg, mt, state)
     _check_idle(nat, npc, id, name, be, tg)
     _check_glue(nat, id, name, state, tg, pos)
     _check_reload(nat, npc, id, name, tg)
@@ -430,7 +476,7 @@ local function _update_npc(npc, ap, tg)
     _check(npc, id, tg, pos, mt)
     _check_speed(npc, id, tg, pos, mt)
     local timer = xprofiler.new_if(_enabled):start()
-    _check_natural(npc, id, tg, pos)
+    _check_natural(npc, id, tg, pos, mt)
     timer:stop()
     _nat_ms, _nat_n = _nat_ms + timer:get_ms(), _nat_n + 1
 end
@@ -837,6 +883,10 @@ function write_report()
     if _nat_n > 0 then
         log.info("[NAT] checks=%d total=%.1fms avg=%.3fms", _nat_n, _nat_ms, _nat_ms / _nat_n)
         _nat_ms, _nat_n = 0, 0
+    end
+    if _occ_n > 0 then
+        log.info("[OCC] out_of_combat_samples=%d danger_scheme=%.1f%%", _occ_n, 100 * _occ_danger / _occ_n)
+        _occ_n, _occ_danger = 0, 0
     end
 end
 
