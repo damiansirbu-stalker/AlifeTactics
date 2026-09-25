@@ -1,6 +1,6 @@
 1.2.1-snapshot
-  Summary: Combat substrate, maneuvers widened to every nearby fight, Faction flavor, Push and Pull windows, Weapon spacing, Glide stop, Disclosure rework, target priority dial,
-    Zombie stance, Sound reaction ladder, Gear toggles, Discipline menu, Danger fixes, danger trace, performance and infrastructure
+  Summary: Combat substrate, maneuvers widened to every nearby fight, Faction flavor, Push and Pull windows, Weapon spacing, Glide stop, targeting fixes, the Disclosure page removed,
+    Creature awareness, Zombie stance, Sound reaction ladder, Gear toggles, Discipline menu, Danger fixes, danger trace, performance and infrastructure
 
   Combat
     Faction flavor
@@ -40,14 +40,13 @@
           until he recovers. His self-preservation outranks the press on his target, and the takeover maneuvers still take priority over it. Its own switch.
 
   Effectiveness
-    Disclosure
+    Disclosure (page removed)
       - Fixed vanilla bug "sticky targeting". A shot-at NPC keeps firing at a distant enemy in view while the man who hit him closes in.
-          The hit now outweighs a far target, so he turns and answers. Needs PR #636. Older exes keep the scripted orient.
+          The hit now outweighs a far target, so he turns and answers. Always on, listed on the Fixes tab. Needs PR #636. Older exes keep vanilla targeting.
       - Fixed vanilla bug "player bias". Vanilla scores you at 900 when an NPC picks a target and another NPC at 300, so NPCs converge on you about 3 times harder.
-          A Player target pull dial sets that weight, from vanilla down to no pull. Needs PR #637.
-      - Reworked disclosure from forced squad awareness to engine perception. Only squadmates within earshot of a suppressed hit investigate.
-          They open fire when they spot the shooter. A clean kill tells no one.
-      - Removed the retention and survivor gate settings. A clean kill staying quiet is now built into the model, and there is no longer a squad-wide pin to retain.
+          The Player target pull dial sets that weight, from vanilla down to no pull, on the Perception Danger page. Needs PR #637.
+      - Removed the Disclosure page and its squad notification. Squadmates no longer receive a suppressed shooter's position; they react to what they
+          perceive: the victim's own reaction, the fight he puts up, and the body. The 2 fixes above stay on; settings on the old page reset once.
     Discipline
       - The fire discipline controls, burst size and fire cadence, now live on their own Discipline page under Effectiveness instead of the Reaction page.
 
@@ -59,8 +58,10 @@
       - Stalkers whose squadmates are in combat no longer run sound investigations during the battle. They hold a watch stance instead.
       - Changed the close-range gunfire alert: a stalker who can see the shooter holds his cover crouch steadily, with no stance flicker.
       - Quest danger orders without a named source now drive the reaction from the position alone.
-      - Added Creature awareness: stalkers glance toward nearby creatures they hear - footsteps, voices, and death cries from mutants and other stalkers alike, within 5 to 10 meters.
-          A glance only, no walk-over, and it never fires during the stalker's own combat. Every stalker reacts, not only ones hostile to you; companions are excluded. Its own toggle; ranges in at_sound_config.ltx.
+      - Added Creature awareness: a standing stalker glances toward creatures he hears within 5 to 10 meters - mutant footsteps, voices, and death cries always,
+          another stalker's sounds only when that stalker is his enemy. A glance only: never a walk-over, never during his own combat, and never while he walks,
+          so patrols and traveling squads keep their stride. Companions are excluded. Its own toggle; ranges in at_sound_config.ltx.
+      - A walk-over check in progress is never downgraded by a lesser noise heard mid-check.
       - A stalker beginning a walk-over check plays the vanilla search voice line, so the reaction is audible as well as visible.
     Danger
       - Fixed vanilla bug "dead-stalker eval". The danger scheme kept evaluating a stalker after he died, which made the engine log a repeated visibility error until the body despawned.
@@ -84,6 +85,9 @@
     - The debug HUD shows PUSH in its own amber row colour on every stalker the push window is currently bumping, and PULL on a stalker falling back through his own window.
     - The world trace's held-danger line now shows whether the alert stalker entered AlifeTactics' own danger scheme or the engine alone is holding a stale sound perception.
       It re-logs when that flips, separating our reaction from a distant weapon sound the engine keeps alive.
+    - The world trace flags combat that reads wrong, one tagged line each: standing idle with a clear shot, glued in a move state, stance and target shuffles,
+      fighting a ghost, blind fire, a reload loop, a calm walking body facing against its own path, and a gesture animation locking a walking body into a glide.
+      Its minute report adds how much out-of-combat time stalkers spend inside the danger scheme.
     - The slow-danger watchdog line breaks the admission cost into its checks (wounded, safe zone, corpse, enemy, radius), so a rare spike names its owner.
 
   Performance and Infrastructure

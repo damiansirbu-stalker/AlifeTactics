@@ -23,7 +23,7 @@ The Substrate and Observability containers carry no MCM page.
 ![Container](img/container.png)
 
 - Combat: Maneuvers, Commitment, Conduct, Behaviors (Push and Pull).
-- Effectiveness: Accuracy, Disclosure, Crossfire, Reaction, Discipline, Range (planned).
+- Effectiveness: Accuracy, Crossfire, Reaction, Discipline, Range (planned).
 - Perception: Sound, Vision, Danger.
 - Mechanics: Healing, Jamming, Ammo, Gear.
 - Effects (planned), Mutants (planned).
@@ -140,7 +140,7 @@ grip     method            AT systems                              what it does
 strong   forced action     Maneuvers                               grafts an evaluator+action at TAKEOVER_ID 188347 and
          (takeover)                                                 precondition-blocks the vanilla chain, holds one NPC for seconds, then releases
          engine-hook veto  Commitment                              answers allow or deny before the engine commits one decision
-         per-NPC bind      Reaction, Vision, Disclosure, Discipline,   plants standing per-NPC state the engine consults with no Lua on the hot path
+         per-NPC bind      Reaction, Vision, Discipline,               plants standing per-NPC state the engine consults with no Lua on the hot path
                            Gear, Ammo, the move hold, the Push fire
          callback adjust   Accuracy, Crossfire, Conduct, Push band, Pull,   scales or answers one per-event value inside an engine callback
                            the effects resolver
@@ -414,25 +414,6 @@ The engine rank knob is dead.
 Every NPC collapses to the one dispersion constant `m_fRankDisperison` (`ai_stalker_fire.cpp`).
 The 16 per-tier values live in the at_mcm defaults table, and the script's `_disp` and `_move` tables fill at refresh, so no LTX or script copy can drift.
 
-### Disclosure
-
-Does: turns a hit victim onto his shooter and walks nearby squadmates over to investigate a suppressed attack, all through engine perception and selection.
-Changes: two standing CEnemyManager selection levers at spawn plus per-hit scripted-danger stamps.
-Stops: it makes no relation write and no memory injection, and never forces a squad combat mask.
-
-```
-npc_on_net_spawn -> _apply_selection_levers (at_disclosure.script)
-  set_hit_redirect(max, falloff)  (PR #636, enemy_manager.cpp)   the last attacker's cost drops up to max, decaying to 0 at falloff
-  set_visible_enemy_bias(actor_bias, -1) (PR #637, enemy_manager.cpp)   the player magnet dial, 900 = vanilla, lower treats him like any combatant
-npc_on_hit_callback -> _on_hit, deferred one frame:
-  a suppressed hit on a surviving victim stamps his squadmates within earshot with graded danger at the shooter position
-```
-
-- at 900/60 a close attacker outranks a fully-visible distant enemy, so the victim flips selection on the real hit signal
-- `fire_make_sense` still requires line of sight, so nothing fires through cover
-- a loud shot seeds nothing, because the engine's own gunfire perception covers it
-- a hit that killed the victim seeds nothing, checked one frame deferred because `alive()` is still true inside the killing hit's callback
-
 ### Crossfire
 
 Does: keeps same-faction NPCs from cutting each other down through the engine's imperfect avoidance.
@@ -451,16 +432,23 @@ Community never enters the decision.
 
 ### Reaction
 
-Does: shapes gun handling per rank, aim tracking speed, tracking lock, and target lead.
-Changes: a per-NPC bind at spawn for aim and lock, a live recompute on the fire seam for lead.
+Does: shapes gun handling per rank, aim tracking speed, tracking lock, and target lead, and binds the two always-on targeting fixes.
+Changes: a per-NPC bind at spawn for aim, lock, and the two CEnemyManager selection levers, a live recompute on the fire seam for lead.
 Stops: it stays under the max aim angle and never below the global baseline, so a player's difficulty choice is always kept.
 
 ```
-npc_on_net_spawn -> apply (at_reaction.script): set_aim_params(npc, -1, track, aim, -1)  (PR #594)
+npc_on_net_spawn -> apply (at_reaction.script):
+  set_hit_redirect(TURN_MAX, TURN_FALLOFF_M)  (PR #636, enemy_manager.cpp)   the last attacker's cost drops up to 900, decaying to 0 at 60m
+  set_visible_enemy_bias(selection_actor_bias, -1) (PR #637, enemy_manager.cpp)   the player magnet dial, 900 = vanilla, lower treats him like any combatant
+  set_aim_params(npc, -1, track, aim, -1)  (PR #594)
   aim min_speed and track min_angle from the rank curve. _resolve_min_angle returns -1 when the global is already stickier
 npc_shot_dispersion -> _on_shot_lead, throttled 1s: set_aim_params with a fresh predict_time
   predict = clamp(range / bullet_speed * rank_lead_factor, 0, 0.5) (predict_object_position, sight_action.cpp). bullet_speed reads the section and the loaded round's k
 ```
+
+The targeting binds are vanilla-behavior fixes (the Fixes tab's sticky targeting and player bias), never behind the page toggles.
+At 900/60 a close attacker outranks a fully-visible distant enemy, so a hit victim flips selection on the real hit signal.
+`fire_make_sense` still requires line of sight, so nothing fires through cover, and a suppressed kill discloses nothing to anyone.
 
 The tracking lock widens the band toward the fire cone (novice 0.196 to legend 0.40), so a legend holds a strafing target through the firing window while a novice's aim lags.
 The per-rank lead factor (2.00 novice to 1.00 legend) is the only skill lever, so a legend leads true and low ranks over-lead a crossing target.
@@ -495,20 +483,23 @@ Danger owns the reaction scheme both stamp into.
 
 ### Sound
 
-Does: lets hostile stalkers hear the player's movement and handling noise, and every stalker notice nearby creature sounds.
-Changes: it adds no reaction machinery. Both signals stamp `xr_danger.set_script_danger`, so the reaction, decay, and cleanup are the danger scheme's.
-Stops: crouched movement is silent outright, neutral NPCs never react to the player's noise, and no sound-only stamp produces a run state.
+Does: lets hostile stalkers hear the player's movement and handling noise, and standing stalkers glance at heard creatures.
+Changes: the actor's signals stamp `xr_danger.set_script_danger`, so their reaction, decay, and cleanup are the danger scheme's; a creature sound only refreshes the hearer's look target.
+Stops: crouched movement is silent outright, neutral NPCs never react to the player's noise, no sound-only stamp produces a run state, and a creature sound never enters the danger scheme.
 
 ```
 actor_on_footstep / actor_on_land -> accumulate a noise radius (at_sound.script)
   BASE_RADIUS_M (5m) x stance (crouch 0, sprint 1.6) x surface material x MCM mult x install-hearing scale
 _run_pass (500ms) -> mask by rain, walk db.OnlineStalkers, stamp every hostile inside the radius (per-NPC throttle 4s)
-npc_on_hear_callback -> _on_hear: the actor's reload/empty/item types, and creature MST_* sounds, stamp at the sound position
+npc_on_hear_callback -> _on_hear: the actor's reload/empty/item types stamp at the sound position;
+  a creature MST_* sound (mutant always, a stalker source only when hostile to the hearer) -> _try_glance
+_try_glance: standing, out of combat, throttled 8s -> a same-state look refresh at the sound position - no stamp, no scheme entry
 ```
 
 The install-hearing scale reads the winning config's own stalker hearing sensitivity, so a setup that deafens NPC hearing quiets these sounds with it.
 A stamp carries an evidence grade the danger scheme runs at.
-FAINT turns the NPC weapon-ready toward the position, SOLID walks him over.
+FAINT turns a standing NPC weapon-ready toward the position, SOLID walks him over, and an unexpired stronger stamp survives a weaker one.
+The glance is a state_mgr look refresh consumed before the same-state early-out, so it never preempts a scheme, never moves anyone, and skips a walking body outright.
 Footsteps are never typed into the engine sound space.
 A typed hostile footstep would flood the bounded sound-danger memory (`sound_memory_manager.cpp`), and the reaction is script-scoped.
 Stealth in Anomaly is a vision system.
@@ -556,7 +547,7 @@ per plan solve:
   combat-safe by GOAP: the action requires property_enemy == false
 ```
 
-- a heard sound buys attention in proportion to its evidence. FAINT glances, SOLID walks over (raid), rush runs (companions only)
+- a heard sound buys attention in proportion to its evidence. FAINT turns a standing NPC (a walking one ignores it), SOLID walks over (raid), rush runs (companions only); a weaker stamp never overwrites a live stronger one
 - the active theatre is time-boxed per episode to the alert machine's own stage-2 give-up band, then the NPC settles into a standing watch until the config inertion decays
 - the squad stand-down gate (`_is_squad_engaged`) skips the theatre while any squadmate holds a live enemy, memoized 500ms per squad
 - mid-battle bystanders no longer run noise choreography inside a live fight
@@ -675,7 +666,8 @@ Code tracing goes to `alifetactics.log`, world tracing to `alifetactics_world.lo
 - at_debug: one logger and the `is_on()` gate (one integer compare against DEBUG_LEVEL 5), the shared formatters, and the mod-wide log-level refresh. Every gameplay module traces at its own sites.
 - at_world_trace: an outcome recorder over the shot and impact feeds, off until the toggle registers its callbacks.
   - The slide watchdog reports a body travelling while its movement type is not locomotion (SLIDE), or faster than the fastest stalker speed (FAST).
-  - The naturalness checks flag combat that reads wrong (idle, glued, reload loop, ghost, blindfire, aim-off, blindspot).
+  - The naturalness checks flag combat that reads wrong (idle, glued, reload loop, ghost, blindfire, aim-off, blindspot; DECOUPLE - an out-of-combat locomoting body facing against its own travel, with the live stamp grade as the cause; GESTURE - a script animation locking a locomoting body into a glide).
+  - The minute report carries the out-of-combat danger-scheme occupancy (OCC), the jumpiness of the calm population as one number.
   - The ballistics recorder writes per-minute per-tier hit tables split still and moving, per-driver hit rates, and the burst-length histogram.
 - at_hud: two lines per NPC on one shared grid, AT-driven first then fighting then idle, capped with an overflow line. The row colour is the driving system.
   - The candidate pass reads only the record's own facts against the gate, and the expensive row build runs only for the capped visible set.
@@ -696,8 +688,8 @@ Commitment     nothing, it denies a proposed switch or cover re-pick         the
 Conduct        the body-state answer, the cover-band min/max answers         npc_on_combat_set_body_state, on_get_min/max_combat_dist
 Behaviors      per-NPC fire-queue scales, the cover-band overlays            set_fire_queue_scale, at_conduct.set_push_max/set_pull_band
 Accuracy       per-shot dispersion (move penalty direct, rank a source)      npc_shot_dispersion, at_effects_resolver.register
-Reaction       per-NPC aim, vision speed, fire-queue scales at spawn         set_aim_params, set_vision_speed, set_fire_queue_scale
-Disclosure     CEnemyManager selection at spawn, per-hit danger stamps       set_hit_redirect, set_visible_enemy_bias, set_script_danger
+Reaction       per-NPC aim, vision speed, fire-queue scales, and the         set_aim_params, set_vision_speed, set_fire_queue_scale,
+               targeting levers at spawn                                     set_hit_redirect, set_visible_enemy_bias
 Crossfire      the incoming hit power on a friendly hit                      npc_on_before_hit (shit.power scale)
 Danger         the danger evaluators and action on the winning binder        patches xr_danger's 7 entry points, the script_danger table
 Healing        the NPC health and bleeding fields, the healing_charge var    change_health, bleeding =, se_save_var
@@ -723,8 +715,7 @@ AlifeTactics/gamedata/
     at_conduct.script            cover posture and weapon spacing
     at_behaviors.script          Push and Pull
     at_accuracy.script           rank dispersion and moving-fire curves
-    at_reaction.script           aim, lead, vision, discipline (one file, four MCM pages)
-    at_disclosure.script         the hit-victim turn and squad investigate
+    at_reaction.script           aim, lead, vision, discipline, the targeting levers (one file, four MCM pages)
     at_crossfire.script          the friendly-fire damage gate
     at_sound.script              movement and handling noise hearing
     at_danger.script             the danger-scheme function patch

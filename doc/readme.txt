@@ -118,15 +118,6 @@ AlifeTactics restores a real per-rank curve through the engine's own dispersion 
 A second curve covers fire on the move: each rank keeps a share of the movement spread penalty, so rookies spray while repositioning and top ranks cut about a third of it.
 The engine has several dispersion variables, including barrel and weapon, and this one is the NPC skill-based dispersion.
 
-Disclosure:
-A suppressed hit is a signal, not a broadcast.
-The victim turns on the shooter through the engine's own target selection: the real "he hit me" signal outweighs a distant visible enemy.
-He returns fire the moment he has line of sight, and nothing is revealed through walls.
-Squadmates close enough to hear the impact walk over to investigate the shooter's position and open fire only when they actually spot him. Distant patrol members are never told.
-A loud shot needs no script - the whole area hears it on its own.
-A clean instant kill tells no one, and the squad can still find you by sound, by sight, or by the body.
-A target-priority dial tunes how strongly NPCs prioritize you over other combatants once you are seen, down to treating you like anyone else.
-
 Crossfire:
 Same-faction fighters no longer cut each other down in a crossfire.
 A hit between two NPCs of the same faction deals reduced damage, set by a slider (no damage by default, up to full vanilla).
@@ -171,8 +162,9 @@ The active reaction lasts around 10 seconds, then he settles into a standing wat
 Stalkers whose squadmates are actually fighting skip the investigation entirely and hold a watch stance. The fight is the information.
 Every sound reaction in the mod obeys the same rule, including the sounds other mods and quests feed in, and it caps at a walk-over check.
 Your companions are the one exception and still run when called to help.
-Stalkers also notice nearby creatures by sound: footsteps, voices, and death cries from mutants and other stalkers alike draw a glance toward the sound, within 5 to 10 meters.
-It is a glance only, and it never fires during their own combat. Every stalker reacts, not only the ones hostile to you; companions are excluded.
+Standing stalkers also notice nearby creatures by sound, within 5 to 10 meters. Mutant footsteps, voices, and death cries always draw a glance toward the sound,
+and another stalker's sounds draw it only when that stalker is an enemy of the hearer, so a camp never startles at its own chatter.
+The reaction stops at a glance. A stalker in his own fight ignores it, and so does one on the move, so patrols and traveling squads keep their stride. Companions are excluded.
 A stalker starting a walk-over check calls it out, so you hear the reaction as well as see it.
 Nothing changes in combat, and a carry-distance slider scales it, so stealth stays a game of distance and stance instead of NPCs being deaf.
 Compatible with stealth mods: stealth in Anomaly is about being seen, through light, cover, and stance, and the sound system never touches vision or detection.
@@ -192,6 +184,9 @@ Danger:
 A stalker hit from far off reacts even when vanilla would have him stand still, so sniped at 200m he turns and seeks cover.
 The reaction is the duck, and returning fire at that range is the planned Range page above.
 One tuning toggle lets danger you cause read your setup's separate player-specific ranges where the config provides them.
+A Player target pull dial tunes how strongly NPCs prioritize you over other combatants once you are seen, down to treating you like anyone else.
+A hit victim turns on his shooter through the engine's own target selection, always on: the real "he hit me" signal outweighs a distant visible enemy,
+and he returns fire the moment he has line of sight. Nothing is revealed through walls, and a suppressed kill tells no one.
 The vanilla danger-check and corpse-investigation fixes are listed under Fixes to Vanilla below.
 
 Mechanics
@@ -384,7 +379,7 @@ The family runs on one rulebook through xlibs. Every rule, policy, and check is 
 It depends on no other mod, not even my own. The only shared layers are X-Ray and xlibs.
 
 [Screenshot: AlifeTactics under JitProfiler, a live CPU and allocation capture]
-Project Health: https://damiansirbu-stalker.github.io/AlifeTactics/
+Project Health: https://damiansirbu-stalker.github.io/AlifeTactics/health/
 
 Credits:
 Altogolik: support, ideas, source materials
@@ -396,7 +391,7 @@ Usage and License:
   Full license in LICENSE file and on GitHub.
 
 Diagnostics and reporting:
-Development > Log level: set to DEBUG, reproduce, then back to WARN. Traces maneuvers, danger, disclosure, healing, accuracy, and ammo to alifetactics.log.
+Development > Log level: set to DEBUG, reproduce, then back to WARN. Traces maneuvers, danger, healing, accuracy, and ammo to alifetactics.log.
 Development > Debug HUD: pick a corner for a live overlay of nearby stalkers (rank, health, scheme, target); a green maneuver row marks an NPC AlifeTactics is driving.
 Development > World trace: writes per-minute fight tables (hit rates, damage, near misses, burst lengths) to alifetactics_world.log.
 Combat is the hardest thing in Anomaly to diagnose, so first confirm it is this mod: reproduce, disable AlifeTactics, reproduce again; if it persists it is not this mod. The cleanest test is vanilla Anomaly plus xlibs plus AlifeTactics.
