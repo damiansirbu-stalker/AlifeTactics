@@ -22,6 +22,8 @@ local SPACING_KINDS = { "w_pistol", "w_shotgun", "w_rifle", "w_smg", "w_sniper" 
 local W_SNIPER = "w_sniper"
 local SPACING_RANKS = { "novice", "trainee", "experienced", "professional",
                         "veteran", "expert", "master", "legend" }
+local CRPOP_WINDOW_MS = 60000
+local CRPOP_GATES = { "asked", "op", "kind", "tier", "flavor", "enemy", "calm", "floor", "ray", "crouch" }
 
 local _decision = {}
 local _eligible = {}
@@ -30,6 +32,7 @@ local _push_max = {}
 local _pull = {}
 local _spacing_counter = { calls = 0, us = 0, last = 0 }
 local _spacing_active = false
+local _crpop = { at = 0, gates = {} }
 
 local function _load_config()
     local ini = ini_file(LTX_PATH)
@@ -71,11 +74,54 @@ local function _get_stationary_ops()
 end
 
 --- Decide posture by the crouch-eye shot ray: crouch only when the crouched line to the enemy is clear.
+--- The third return names the declining gate ("floor"/"ray", nil on crouch) for the [CRPOP] probe.
 local function _select_posture(npc, enemy)
     local np, ep = npc:position(), enemy:position()
-    if np:distance_to_sqr(ep) < CONDUCT_FLOOR_M * CONDUCT_FLOOR_M then return move.stand, false end
-    if xcombat.has_shot_obstacle(np, ep, xcombat.BODY_Y.CROUCH_EYE) then return move.stand, false end
-    return move.crouch, true
+    if np:distance_to_sqr(ep) < CONDUCT_FLOOR_M * CONDUCT_FLOOR_M then return move.stand, false, "floor" end
+    if xcombat.has_shot_obstacle(np, ep, xcombat.BODY_Y.CROUCH_EYE) then return move.stand, false, "ray" end
+    return move.crouch, true, nil
+end
+
+-- [CRPOP] DEBUG probe: distinct non-zombied NPCs per crouch-admission gate per 60s window (floor/ray count declines, the rest passes).
+local function _add_crpop(gate, npc_id)
+    local set = _crpop.gates[gate]
+    if not set then set = { n = 0 } _crpop.gates[gate] = set end
+    if not set[npc_id] then set[npc_id] = true set.n = set.n + 1 end
+end
+
+local function _log_crpop(tg)
+    if tg - _crpop.at < CRPOP_WINDOW_MS then return end
+    if _crpop.at > 0 then
+        local counts = {}
+        for i = 1, #CRPOP_GATES do
+            local set = _crpop.gates[CRPOP_GATES[i]]
+            counts[i] = set and set.n or 0
+        end
+        at_debug.debug("[CRPOP] asked=%d op=%d kind=%d tier=%d flavor=%d enemy=%d calm=%d floor=%d ray=%d crouch=%d", unpack(counts))
+    end
+    _crpop.at = tg
+    _crpop.gates = {}
+end
+
+--- Entry marks for one body-state ask; returns the id to keep marking with, nil for a zombied NPC.
+local function _try_crpop_entry(npc, world_operator)
+    if xcreature.is_zombied(npc) then return nil end
+    local npc_id = npc:id()
+    _log_crpop(time_global())
+    _add_crpop("asked", npc_id)
+    if _get_stationary_ops()[world_operator] then _add_crpop("op", npc_id) end
+    return npc_id
+end
+
+--- The tier/flavor split marks; the cached-false path re-derives each sub-gate for the count only.
+local function _add_crpop_elig(npc, npc_id, elig)
+    if elig then
+        _add_crpop("tier", npc_id)
+        _add_crpop("flavor", npc_id)
+        return
+    end
+    if POSTURE_TIERS[ranks.get_obj_rank_name(npc) or ""] == true then _add_crpop("tier", npc_id) end
+    if at_faction.has_flavor(npc, "conduct_crouch") then _add_crpop("flavor", npc_id) end
 end
 
 --- Tier and the crouch-disposition roll (at_faction conduct_crouch), cached once per NPC life.
@@ -94,19 +140,48 @@ local function _log_busy(id, busy_why, held)
         held and (held.want == move.crouch and "crouch" or "stand") or "none")
 end
 
+--- The non-zombied admission gates (weapon kind, tier, flavor), with their [CRPOP] marks.
+local function _check_admission(npc, id, crpop_id)
+    local kind = xcombat.get_weapon_kind(npc)
+    if not (kind and LONG_KINDS[kind]) then return false end
+    if crpop_id then _add_crpop("kind", crpop_id) end
+    local elig = _is_eligible(npc, id)
+    if crpop_id then _add_crpop_elig(npc, crpop_id, elig) end
+    return elig
+end
+
+--- Re-decide and store the held posture for one NPC; returns the fresh hold record.
+local function _select_hold(npc, id, zombied, enemy, world_operator, crpop_id)
+    local prev_held = _decision[id]
+    local prev_want = prev_held and prev_held.want
+    local want, crouch_clear, decline
+    if zombied then
+        want, crouch_clear = move.stand, false
+    else
+        want, crouch_clear, decline = _select_posture(npc, enemy)
+    end
+    if crpop_id and not zombied then _add_crpop(decline or "crouch", crpop_id) end
+    local held = { at = time_global(), op = world_operator, want = want }
+    _decision[id] = held
+    if at_debug.is_on() and want ~= prev_want then
+        at_debug.debug("[CONDUCT] id=%d op=%s zombied=%s crouch_shot=%s -> %s", id,
+            tostring(world_operator), tostring(zombied), tostring(crouch_clear),
+            want == move.crouch and "crouch" or "stand")
+    end
+    return held
+end
+
 --- Answer one engine body-state ask with the held posture, re-deciding at most once per DECIDE_MS.
 local function _on_combat_body_state(npc, world_operator, _body_state, flags)
     if not cfg.conduct_posture then return end
+    local crpop_id = at_debug.is_on() and _try_crpop_entry(npc, world_operator) or nil
     if not _get_stationary_ops()[world_operator] then return end
     local id = npc:id()
     local zombied = xcreature.is_zombied(npc)
-    if not zombied then
-        local kind = xcombat.get_weapon_kind(npc)
-        if not (kind and LONG_KINDS[kind]) then return end
-        if not _is_eligible(npc, id) then return end
-    end
+    if not zombied and not _check_admission(npc, id, crpop_id) then return end
     local enemy = xcombat.get_best_enemy(npc)
     if not (enemy and enemy:alive()) then return end
+    if crpop_id then _add_crpop("enemy", crpop_id) end
     local tg = time_global()
     local held = _decision[id]
     local busy, busy_why = xcombat.is_body_busy(npc)
@@ -115,21 +190,9 @@ local function _on_combat_body_state(npc, world_operator, _body_state, flags)
         if held then flags.body_state = held.want end
         return
     end
+    if crpop_id then _add_crpop("calm", crpop_id) end
     if not (held and (tg - held.at) < DECIDE_MS) then
-        local prev_want = held and held.want
-        local want, crouch_clear
-        if zombied then
-            want, crouch_clear = move.stand, false
-        else
-            want, crouch_clear = _select_posture(npc, enemy)
-        end
-        held = { at = tg, op = world_operator, want = want }
-        _decision[id] = held
-        if at_debug.is_on() and want ~= prev_want then
-            at_debug.debug("[CONDUCT] id=%d op=%s zombied=%s crouch_shot=%s -> %s", id,
-                tostring(world_operator), tostring(zombied), tostring(crouch_clear),
-                want == move.crouch and "crouch" or "stand")
-        end
+        held = _select_hold(npc, id, zombied, enemy, world_operator, crpop_id)
     end
     flags.body_state = held.want
 end
