@@ -76,23 +76,23 @@ local _lead = {
 
 local _qsize = {
     novice       = 1.00,
-    trainee      = 0.97,
-    experienced  = 0.95,
-    professional = 0.93,
-    veteran      = 0.91,
-    expert       = 0.89,
-    master       = 0.87,
-    legend       = 0.80,
+    trainee      = 0.99,
+    experienced  = 0.99,
+    professional = 0.98,
+    veteran      = 0.98,
+    expert       = 0.97,
+    master       = 0.97,
+    legend       = 0.96,
 }
 local _qinterval = {
     novice       = 1.00,
-    trainee      = 0.96,
-    experienced  = 0.93,
-    professional = 0.89,
-    veteran      = 0.86,
-    expert       = 0.82,
-    master       = 0.79,
-    legend       = 0.75,
+    trainee      = 0.99,
+    experienced  = 0.98,
+    professional = 0.98,
+    veteran      = 0.97,
+    expert       = 0.97,
+    master       = 0.96,
+    legend       = 0.95,
 }
 
 local _next_lead = {}
