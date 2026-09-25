@@ -1102,6 +1102,20 @@ local function _rx_ff_dont_shoot(self)
 	return true
 end
 
+-- rx_ff's blocked-shot test holds on any close non-enemy regardless of direction, on bodies BEYOND the
+-- target (it never consults the enemy distance), and its 2.5s latch re-arms per pass, so crowds leave
+-- shooters silent for tens of seconds. Hold only for a body between shooter and target inside the lane.
+local FF_LANE_HALF_WIDTH_M = 1.5
+local function _rx_ff_check_in_los(self, friend, _be, be_pos)
+	local npc = self.object
+	if not (friend and friend:alive() and npc:relation(friend) < game_object.enemy and xcombat.can_see(npc, friend)) then
+		return false
+	end
+	local pos = utils_obj.safe_bone_pos(npc, "bip01_r_finger02")
+	local friend_pos = utils_obj.safe_bone_pos(friend, "bip01_spine")
+	return xcombat.has_body_in_lane(pos, be_pos, friend_pos, FF_LANE_HALF_WIDTH_M)
+end
+
 local function _install_patches()
 	if _patched then return end
 	_patched = true
@@ -1129,6 +1143,7 @@ local function _install_patches()
 	if rx_ff and rx_ff.evaluator_dont_shoot and not _orig_dont_shoot_eval then
 		_orig_dont_shoot_eval = rx_ff.evaluator_dont_shoot.evaluate
 		rx_ff.evaluator_dont_shoot.evaluate = _rx_ff_dont_shoot
+		rx_ff.evaluator_dont_shoot.check_in_los = _rx_ff_check_in_los
 	end
 end
 
