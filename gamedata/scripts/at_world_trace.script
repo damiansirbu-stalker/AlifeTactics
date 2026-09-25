@@ -59,6 +59,7 @@ local _clash = {}
 local _nat = {}
 local _shot_at = {}
 local _hit_at = {}
+local _hit_by = {}
 local _orig_set_state
 local _MOVE
 
@@ -362,13 +363,17 @@ local function _check_forgot(nat, id, name, be, tg)
     log.info("[FORGOT] id=%d %s no best_enemy, hit %dms ago", id, name, tg - _hit_at[id])
 end
 
--- Engaged on an enemy unseen past the engine's own fire window: fighting a ghost.
+-- Locked on an enemy unseen past the fire window WHILE a different attacker lands hits: selection refuses the live threat.
+-- The unseen lock alone is the engine's own lost-sight search cycle and stays unflagged.
 local function _check_ghost(nat, npc, id, name, be, tg)
     if not be then return end
+    local hit_by = _hit_by[id]
+    if not hit_by or hit_by == be:id() then return end
+    if (tg - (_hit_at[id] or 0)) >= NAT_FIGHT_MS then return end
     local unseen = xcombat.get_unseen_ms(npc, be, tg)
     if unseen <= NAT_UNSEEN_MS or (tg - (nat.ghost_cd or 0)) < NAT_FIRE_COOLDOWN_MS then return end
     nat.ghost_cd = tg
-    log.info("[GHOST] id=%d %s enemy=%d unseen=%dms still engaged", id, name, be:id(), unseen)
+    log.info("[GHOST] id=%d %s locked on enemy=%d unseen=%dms while hit by %d", id, name, be:id(), unseen, hit_by)
 end
 
 -- Fired at an enemy it cannot see whose memory is stale: shooting at nothing.
@@ -494,10 +499,11 @@ local function _run_monitor()
     return false
 end
 
-local function _on_hit(npc, amount, _local_direction, _who, bone_index)
+local function _on_hit(npc, amount, _local_direction, who, bone_index)
     if not (npc and IsStalker(npc) and npc:alive() and db.actor) then return end
     local id = npc:id()
     _hit_at[id] = time_global()
+    _hit_by[id] = who and who:id() or nil
     if _watch[id] then return end
     local pos = npc:position()
     _watch[id] = { t0 = time_global(), x = pos.x, z = pos.z, anims0 = npc:animation_count(), drv0 = _get_driver(id),
@@ -544,6 +550,7 @@ local function _on_unregister(se_obj)
     _nat[id] = nil
     _shot_at[id] = nil
     _hit_at[id] = nil
+    _hit_by[id] = nil
 end
 
 -- CLASH names the two scripts flipping one near NPC's state against each other.
