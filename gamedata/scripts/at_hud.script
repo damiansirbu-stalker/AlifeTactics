@@ -90,8 +90,8 @@ local function _format_systems(id, maneuver)
     local hold = at_commitment.get_hold(id)
     local pinned, pin_vuln = at_commitment.is_cover_pinned(id)
     if hold then
-        tokens[#tokens + 1] = string_format(hold.vuln and "LIQUIDATE %ds" or "COMMIT %ds",
-            math_floor((time_global() - hold.since) / 1000))
+        tokens[#tokens + 1] = string_format(hold.vuln and "LIQUIDATE %ds x%d" or "COMMIT %ds x%d",
+            math_floor((time_global() - hold.since) / 1000), hold.denies or 0)
     end
     if pinned then
         tokens[#tokens + 1] = (pin_vuln and not (hold and hold.vuln)) and "LIQUIDATE" or "PIN"
@@ -133,7 +133,9 @@ local function _build_row(npc, st)
             _format_label(npc:character_name() or npc:name(), SUBJECT_NAME_MAX),
             math_floor((npc.health or 0) * 100)),
         target  = _get_target_cell(npc, enemy),
-        engine  = ((st and st.active_scheme) and (_format_label(st.active_scheme, SCHEME_MAX) .. " ") or "")
+        engine  = _format_label(xcombat.get_operator(npc), SCHEME_MAX) .. " "
+            .. ((st and st.active_scheme) and (_format_label(st.active_scheme, SCHEME_MAX) .. " ") or "")
+            .. ((st and st.script_combat_type) and (tostring(st.script_combat_type) .. " ") or "")
             .. _get_mental_name(npc),
         systems = systems,
         is_combat = enemy ~= nil,
