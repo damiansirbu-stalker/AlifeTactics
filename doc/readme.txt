@@ -1,6 +1,5 @@
 Version: 1.2.1-snapshot (xlibs 1.8.5, demonized 20250908)
-Changelog: https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/changelog
-Russian / Na russkom: https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/readme_ru.txt
+Changelog: https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/changelog | Health: https://damiansirbu-stalker.github.io/AlifeTactics/health/ | JitProfiler: https://damiansirbu-stalker.github.io/AlifeTactics/jitprofiler/ | Bugs: https://github.com/damiansirbu-stalker/AlifeTactics/issues | Russian / На русском: https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/readme_ru.txt
 
 My work:
 GitHub: https://github.com/orgs/damiansirbu-stalker/repositories
@@ -11,8 +10,6 @@ My contributions:
 X-Ray Monolith: https://github.com/themrdemonized/xray-monolith
 
 Reset MCM settings to defaults after updating.
-
-https://www.youtube.com/watch?v=eKpzbmFOFC8
 
 Everyone wants to live.
 
@@ -287,15 +284,6 @@ Modded exes: themrdemonized 20250908 or newer, or AOEngine v0.55 or newer. The f
 xlibs (https://www.moddb.com/mods/stalker-anomaly/addons/xlibs-1001)
 MCM
 
-Install (MO2):
-1. Install xlibs
-2. Install AlifeTactics
-3. Load order does not matter
-4. Configure via MCM
-
-Uninstall (MO2):
-Disable or remove in MO2.
-
 Compatibility:
 Depends only on xlibs. Install and uninstall mid-save work. Tested: Anomaly 1.5.3, GAMMA, EFP, Zona, Forgotten Zone.
 Disable (conflict, superseded, problematic):
@@ -334,8 +322,7 @@ The mod avoids writing engine values, holding its own state in parallel. Any val
 The family runs on one rulebook through xlibs. Every rule, policy, and check is one shared implementation, the same protection, distances, faction logic, and combat reads in every mod.
 It depends on no other mod, not even my own. The only shared layers are X-Ray and xlibs.
 
-[Screenshot: AlifeTactics under JitProfiler, a live CPU and allocation capture]
-Project Health: https://damiansirbu-stalker.github.io/AlifeTactics/health/
+That pipeline runs on every commit and publishes what it finds. The header links a live health page and a JitProfiler capture of the mod's real CPU and allocation cost.
 
 Credits:
 Altogolik: support, ideas, source materials
