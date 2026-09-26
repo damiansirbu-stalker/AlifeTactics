@@ -23,7 +23,7 @@ Sections marked (planned) are not built yet.
 Every system reads the real state of the game, then decides in the combatant's favor rather than by script or die roll.
 It weighs combat events, NPC and player stats, the world, squad, faction, weapons, range, angle, and cover.
 Maneuvers take a stalker over for an action the vanilla engine has no mechanism for.
-Commitment keeps a stalker on a decision that still makes sense instead of the engine's constant re-planning.
+Commitment holds a stalker to a decision while it still makes sense.
 Threat, accuracy, and the rest read state and decide the same way.
 
 Effects:
@@ -37,8 +37,8 @@ Effects:
 
 
 Everything is canon, engine-native, safe, and fast:
-- Every behavior is built from pure X-Ray and Anomaly primitives: the GOAP action planner (the planner family F.E.A.R. made famous), the xr_logic scheme system, state_mgr, smart terrains and the gulag job system, condlists,
-  and DLTX/DXML for data.
+- Every behavior is built from pure X-Ray and Anomaly primitives:
+  the GOAP action planner (the planner family F.E.A.R. made famous), the xr_logic scheme system, state_mgr, smart terrains and the gulag job system, condlists, and DLTX/DXML for data.
 - Nothing is faked and nothing is simulated beside the engine.
 - Where the engine had no seam, the seam was added upstream first: per-NPC hooks created in xray-monolith specifically for this mod, merged into the official modded exes.
 - It never replaces a vanilla script file. Takeovers block the planner only for their seconds and then hand back, and patches lay onto whichever script your setup ships.
@@ -57,9 +57,9 @@ Faction flavor:
 Every faction fights its own way. Whether a stalker routs, pulls back, presses your empty magazine, plants for deliberate shots, backs out of close range,
 or takes a tactical crouch is a per-faction chance, rolled once per stalker per fight, so each man stays consistent while the fight lasts.
 Ecologists run from a losing fight and rarely press yours. Bandits and renegades press hard and rarely hold a disciplined standoff.
-The militarized factions crouch on the firing line, withdraw in order, and do not rout. Monolith never backs down. Loners sit in the middle,
-mercenaries beside them with the military edge. Zombied carry none of it.
-Every number is one line in at_faction_config.ltx, per faction and per behavior, yours to tune.
+The militarized factions crouch on the firing line, withdraw in order, and do not rout. Monolith never backs down. Loners sit in the middle, mercenaries beside them with the military edge.
+Zombied carry none of it.
+Every number is one line in the faction config, per faction and per behavior, yours to tune.
 
 Maneuvers:
 A maneuver takes one stalker over completely to perform what the vanilla engine cannot, either a mechanic it lacks or a decision it never makes.
@@ -82,32 +82,32 @@ Maneuver fire bursts by weapon and by skill: burst length and pauses vary shot t
 That replaces the uniform burst the game's script machinery applies to every weapon it drives.
 Stalkers keep their footing under fire. A hit mid reaction no longer slides a standing stalker across the ground. He stays planted while the animation plays, and moves the moment it ends.
 The footing hold ships ahead of its engine half and needs a modded exes build carrying engine PR 645. Older builds keep vanilla movement.
-The takeover overrides no combat scripts, so it fights side by side with vanilla and works with other combat AI instead of replacing it. Companions are excluded by default.
+The takeover overrides no combat scripts, so it fights side by side with vanilla and works with other combat AI. Companions are excluded by default.
 
 Commitment:
 Vanilla stalkers re-plan the fight every moment, so any small change makes a stalker drop what he is doing and choose again.
 Better cover, a flicker of lost sight, or a teammate crossing the line sets him off, which is the twitchy strafing and cover-hopping you see in a firefight.
-Many mods answer this by switching the stalker to a camper scheme that pins him in place, muting most of Anomaly's combat variety.
+Many mods answer this by switching the stalker to a camper scheme that holds him in place, muting most of Anomaly's combat variety.
 AlifeTactics keeps the engine's full combat AI and instead stops a stalker throwing away a decision that still makes sense.
-While what he is doing still works he stays with it. He switches the instant it stops: he loses sight, the shot is blocked, or the enemy is gone.
-It also pins his cover: a stalker firing with a clear shot keeps his spot instead of sliding to a marginally better one, stopping the mid-fight strafe at its source.
+While what he is doing still works he stays with it. He switches the moment it stops working, on a lost sight line, a blocked shot, or a vanished enemy.
+It also holds his cover. A stalker firing with a clear shot keeps his spot. He no longer slides to a marginally better one, so the mid-fight strafe stops at its source.
 When his enemy is caught reloading, out of ammo, staggered, sprinting weapon-down, or with no weapon up, he liquidates.
-He holds fire on the window instead of breaking off, and repositions once the enemy can answer again.
-He sees a decision through, keeping up his fire, pressing a flank, or finishing a reload, instead of second-guessing himself every frame.
+He keeps firing through the window and repositions once the enemy can answer again.
+He sees a decision through without second-guessing himself every frame.
 
 Conduct:
 Conduct makes better choices at moments the engine already decides, with no takeover, for stalkers the vanilla engine drives.
 Cover posture: experienced riflemen and snipers crouch to steady the shot when the line to the enemy is clear, and stand to fire over low cover that would block a crouched shot.
-It replaces vanilla's blind posture picks (crouching behind random bumps and firing into them, or standing tall where a crouch would steady the aim).
-They crouch only past close range, staying mobile in a knife fight instead of dropping to a knee at your feet, and only while holding a position rather than on the move to cover.
+It replaces vanilla's blind posture picks, such as a crouch behind a random bump, or standing tall where a crouch would steady the aim.
+They crouch only past close range and only while holding a position, so they stay mobile in a knife fight and while moving to cover.
 It reads the game's own cover map toward the enemy, and short-weapon carriers and green ranks keep vanilla behavior.
 Weapon spacing: a stalker's cover choices respect what his weapon is good at, submachine gunners accept closer cover so their fire stays effective, and skilled snipers hold extra distance.
 
 Behaviors:
 Stalkers act on weak moments in the fight, in both directions and against any enemy, you or another combatant.
-The Push: a stalker whose enemy cannot answer presses him instead of watching the moment pass.
+The Push: a stalker whose enemy cannot answer presses him.
 Caught reloading, out of ammo, or badly hurt, the target's attackers thicken their fire at close range.
-With a clear upper hand (the target weakened, bleeding, or turned away) they move to closer cover.
+With a clear upper hand (the target hurt or turned away) they move to closer cover.
 The Pull is the mirror. A stalker caught reloading or badly hurt while his enemy is strong falls back, his own cover choices landing farther until he recovers.
 Everything reverts the moment the target can answer, each attacker presses briefly with a cooldown before pressing again, and each cause has its own switch.
 
@@ -116,7 +116,7 @@ Effectiveness
 Accuracy:
 Anomaly's rank curve clamps every NPC to the same dispersion, so accuracy never scaled per rank even though the engine code exists.
 AlifeTactics restores a real per-rank curve through the engine's own dispersion callback, tunable per tier.
-A second curve covers fire on the move: each rank keeps a share of the movement spread penalty, so rookies spray while repositioning and top ranks cut about a third of it.
+A second curve covers fire on the move. Each rank keeps a share of the movement spread penalty, so rookies spray while repositioning and top ranks cut about a third of it.
 The engine has several dispersion variables, including barrel and weapon, and this one is the NPC skill-based dispersion.
 
 Crossfire:
@@ -131,7 +131,9 @@ Tracking Lock sets how tightly a barrel holds a strafing target. A novice's aim 
 A legend holds you across the firing window without tracking you perfectly.
 Target Lead aims a stalker ahead of a moving target by the round's real flight time, computed from range and the weapon's bullet speed as it fires.
 Higher ranks lead true and hit movers, lower ranks over-lead and overshoot.
-Fire Discipline scales burst size and cadence per rank. The shipped defaults are near-flat, so rank barely alters fire out of the box; the sliders allow the full spread. Defaults keep a rank's rounds per minute at or above vanilla.
+Fire Discipline scales burst size and cadence per rank.
+The shipped defaults are near-flat, so rank barely alters fire out of the box. The sliders allow the full spread.
+Defaults keep a rank's rounds per minute at or above vanilla.
 Tracking Speed, Tracking Lock, Target Lead, and Fire Discipline are per-rank MCM slider curves. Speed and Lock share one on/off, Lead and Discipline each carry their own.
 The two rank vision curves moved to the Perception tab below. Fire Discipline is on its own Discipline tab.
 
@@ -141,24 +143,25 @@ A stalker sniped from beyond the cap can duck, which is the Danger hit response,
 
 Perception
 
-Perception is how a stalker senses and reacts: what he hears, how his rank shapes his sight, and how he reacts to being hit.
-The Sound and Danger reactions are a runtime patch laid onto whichever danger script your modpack ships rather than a replacement, so they work with other combat AI.
-Detection distances stay owned by your setup's danger config, and AlifeTactics adds the reactions, never the tuning.
+Perception is how a stalker senses and reacts. It covers what he hears, how his rank shapes his sight, and how he reacts to being hit.
+The Sound and Danger reactions are a runtime patch laid onto whichever danger script your modpack ships, so they work with other combat AI.
+Detection distances stay owned by your setup's danger config, and AlifeTactics adds only the reactions.
 
 Sound:
 Vanilla NPCs ignore gunfire they hear but cannot see.
-A hostile stalker now reacts to an enemy's shots without line of sight: he turns to face the gun and takes a threat stance, and moves to cover once he can see the shooter.
+A hostile stalker now reacts to an enemy's shots without line of sight. He turns to face the gun and takes a threat stance, and moves to cover once he can see the shooter.
 He is responding to the sound rather than to sight of you.
 Gunfire from neutral or friendly stalkers, including your own, does not alarm them, because reactions follow the engine's relation rule, same as vanilla.
 Hostile stalkers also hear you move.
-Each footstep carries by your stance, the surface, and the weather: crouched movement is silent, sprinting on metal carries far, rain muffles everything, and a jump landing is loudest of all.
+Each footstep carries by your stance, the surface, and the weather.
+Crouched movement is silent and sprinting on metal carries far. Rain muffles everything, and a jump landing is loudest of all.
 Walking carries 5m as the base, sprinting multiplies it by 1.6, a jump landing carries 10m, and crouched movement is silent, always.
-Surfaces scale it: metal x1.25, wood x1.15, water x1.35, grass x0.7, dirt and sand x0.8, and rain cuts carry by up to 40 percent.
-They react to handling noise too, at shorter reach: a racked reload carries 8m, an empty click 6m, an item used 5m.
+Surfaces scale it, metal x1.25, wood x1.15, water x1.35, grass x0.7, dirt and sand x0.8. Rain cuts carry by up to 40 percent.
+They react to handling noise too, at shorter reach. A racked reload carries 8m, an empty click 6m, an item used 5m.
 Handling noise goes through each stalker's own ears, so a setup that deafens NPC hearing quiets these sounds with it.
-Reaction follows the evidence: a heard walk or an item used turns him weapon-ready toward the sound.
+Reaction follows the evidence. A heard walk or an item used turns him weapon-ready toward the sound.
 A sprint, a landing, a racked reload, or an empty click sends him walking over to check the spot.
-A sound is never treated as a confirmed enemy: he investigates at a walk, never charges, never crouches at a noise, and does not know where you are.
+A sound is never treated as a confirmed enemy. He investigates at a walk and does not know where you are.
 The active reaction lasts around 10 seconds, then he settles into a standing watch until the memory fades.
 Stalkers whose squadmates are actually fighting skip the investigation entirely and hold a watch stance. The fight is the information.
 Every sound reaction in the mod obeys the same rule, including the sounds other mods and quests feed in, and it caps at a walk-over check.
@@ -167,17 +170,17 @@ Standing stalkers also notice nearby creatures by sound, within 5 to 10 meters. 
 and another stalker's sounds draw it only when that stalker is an enemy of the hearer, so a camp never startles at its own chatter.
 The reaction stops at a glance. A stalker in his own fight ignores it, and so does one on the move, so patrols and traveling squads keep their stride. Companions are excluded.
 A stalker starting a walk-over check calls it out, so you hear the reaction as well as see it.
-Nothing changes in combat, and a carry-distance slider scales it, so stealth stays a game of distance and stance instead of NPCs being deaf.
+Nothing changes in combat, and a carry-distance slider scales it, so stealth stays a game of distance and stance.
 Compatible with stealth mods: stealth in Anomaly is about being seen, through light, cover, and stance, and the sound system never touches vision or detection.
 Hearing only adds the short-range sense vanilla lacks, and crouched movement is silent, so the crouched approach your stealth setup allows is never given away by sound.
-Neutral and friendly stalkers get one reaction of their own: fire close to them and they go weapon-ready facing your shots instead of ignoring gunfire next to their heads.
-They only go alert, never hostile, and settle down when the shooting stops. Every reaction has its own toggle.
+Neutral and friendly stalkers get one reaction of their own. Fire close to them and they go weapon-ready facing your shots.
+They go alert but stay friendly. They settle down when the shooting stops. Every reaction has its own toggle.
 
 Vision:
 Stalker rank shapes the eyes as well as the trigger, applied per stalker.
 Vision Speed sets how fast each rank turns a glimpse into a confirmed threat, from your setup's own detection speed at the bottom rank (a novice matches it) to about 21 percent faster at the top.
-No rank notices slower than your baseline.
-It scales the rate only: sight range, vision cone, light and darkness response, cover and occlusion, and hearing all stay exactly as your setup has them.
+No rank is slower to notice than your baseline.
+It scales the rate only. Sight range, vision cone, light and darkness response, cover and occlusion, and hearing all stay exactly as your setup has them.
 Vision Range sets how far out each rank begins to notice a threat, the same band, from your baseline at novice to about 15 percent farther at the top.
 Both are per-rank MCM slider curves under one Vision toggle, on their own Vision page.
 
@@ -205,20 +208,20 @@ AlifeTactics turns that roll off for NPCs, so they now jam only for real and rel
 Your own weapon still jams normally when worn.
 
 Ammo:
-NPCs fire the ammunition they actually carry, not infinite generic rounds.
+NPCs fire the ammunition they actually carry.
 Veteran-rank and higher stalkers use armor-piercing rounds from their own inventory, with real ballistics, and fall back to standard rounds once it runs out.
 That AP comes from trade and looting through the Alife Collection, so what an NPC scavenged shapes how dangerous he is. NPCs drop no AP as loot.
-Rank threshold and consumption rate are tunable in configs/alifetactics/at_ammo_config.ltx.
+Rank threshold and consumption rate are tunable in the ammo config under configs/alifetactics/.
 
 Gear:
 Items a stalker carries give him combat advantages, read from each item's own game data, so artefacts from any mod work.
-An artefact grants one advantage chosen by its anomaly class, scaled by its own tier: gravity, chemical, and armour-plate artefacts cut the damage he takes.
+An artefact grants one advantage chosen by its anomaly class, scaled by its own tier. Gravity and armour-plate artefacts cut the damage he takes.
 Thermal artefacts tighten his fire, and electric and quest artefacts raise the damage he deals.
-Any single artefact tops out at 10 percent and never stacks. The strongest source wins, so gear tilts a fight and never decides one.
-A chemical artefact instead heals its carrier slowly over time, in place of the damage cut above.
+Any single artefact tops out at 10 percent, and only the strongest applies. Gear tilts a fight without deciding it.
+A chemical artefact heals its carrier slowly over time.
 Any artefact carrier warps the air around his body, so a distorting stalker is a real, huntable artefact drop.
 Binoculars extend his sight range by day and night-vision by night.
-Effect strengths and the artefact class tables are tunable in configs/alifetactics/at_gear_config.ltx.
+Effect strengths and the artefact class tables are tunable in the gear config under configs/alifetactics/.
 
 Fixes to Vanilla:
 AlifeTactics corrects dozens of vanilla Anomaly and xray defects, grouped below by the system each repairs.
@@ -238,7 +241,7 @@ Danger scheme:
 - A danger transition no longer leaves a stale lower-body animation playing.
 - Leaving danger clears only its own cover reservation, not every stalker's.
 - A stalker attacked again later reacts to the new attacker, not his first attacker's old position, and the corpse search plays for every corpse, not only his first.
-- The grenade dodge distance read on the wrong scale; a stalker dodges within the intended radius and faces distant grenades.
+- The grenade dodge distance read on the wrong scale. A stalker now dodges within the intended radius and faces distant grenades.
 - The danger check parses its config once and caches the result.
 - A stalker sniped from far off reacts and seeks cover, where vanilla left him standing.
 
@@ -329,7 +332,7 @@ It depends on no other mod, not even the author's own. The only shared layers ar
 That pipeline runs on every commit and publishes what it finds. The header links a live health page and a JitProfiler capture of the mod's real CPU and allocation cost.
 
 Credits:
-Altogolik: support, ideas, source materials
+Altogolik provided support, ideas, and source materials.
 
 Usage and License:
   Modpacks: allowed and encouraged. Keep the readme and license files.
