@@ -1,4 +1,4 @@
-Version: 1.2.1-snapshot (xlibs 1.8.5, demonized 20250908)
+Version: 1.2.2-snapshot (xlibs 1.8.5, demonized 20250908)
 Changelog: https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/changelog
 Health: https://damiansirbu-stalker.github.io/AlifeTactics/health/
 JitProfiler: https://damiansirbu-stalker.github.io/AlifeTactics/jitprofiler/
