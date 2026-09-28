@@ -1,4 +1,4 @@
-Version: 1.2.2-snapshot (xlibs 1.8.5, demonized 20250908)
+Version: 1.2.2-snapshot (xlibs 1.9.0, demonized 20250908)
 Changelog: https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/changelog
 Health: https://damiansirbu-stalker.github.io/AlifeTactics/health/
 JitProfiler: https://damiansirbu-stalker.github.io/AlifeTactics/jitprofiler/
@@ -13,7 +13,9 @@ Nexus: https://www.nexusmods.com/profile/damiansirbu/mods
 My contributions:
 X-Ray Monolith: https://github.com/themrdemonized/xray-monolith
 
-Reset MCM settings to defaults after updating.
+[ Hero image: alifetactics-hero.gif - stalkers fight to survive ]
+
+! Reset MCM settings to defaults after updating !
 
 Everyone wants to live.
 
@@ -178,7 +180,7 @@ They go alert but stay friendly. They settle down when the shooting stops. Every
 
 Vision:
 Stalker rank shapes the eyes as well as the trigger, applied per stalker.
-Vision Speed sets how fast each rank turns a glimpse into a confirmed threat, from your setup's own detection speed at the bottom rank (a novice matches it) to about 21 percent faster at the top.
+Vision Speed sets how fast each rank turns a glimpse into a confirmed threat, from your setup's detection speed at the bottom rank (a novice matches it) to about 21 percent faster at the top.
 No rank is slower to notice than your baseline.
 It scales the rate only. Sight range, vision cone, light and darkness response, cover and occlusion, and hearing all stay exactly as your setup has them.
 Vision Range sets how far out each rank begins to notice a threat, the same band, from your baseline at novice to about 15 percent farther at the top.
@@ -316,7 +318,7 @@ Not AlifeTactics (base game or your setup):
 How It's Built:
 
 The code and patterns are original, built on best practices from the best STALKER modders and hands-on reverse-engineering of X-Ray.
-The design stays engine-native and minimal, with event-native pub/sub over polling, work spread across frames through deferred queues and rate limiters, and per-level caches that replace world scans.
+The design stays engine-native and minimal, with event-native pub/sub not polling, work spread across frames via deferred queues and rate limiters, and per-level caches replacing world scans.
 The raycasting and range math are hand-written and load-tested live, following the engine's own standards and flags.
 Where scripting hits an engine limit, the fix is made in X-Ray itself, in the modded exes.
 Performance is the first invariant, so every flow stays under 2ms or the build rewrites or drops it, profiled continuously with JitProfiler and hand-tested on unoptimized, single-threaded exes.
