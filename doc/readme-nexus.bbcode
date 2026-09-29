@@ -1,21 +1,12 @@
-Version: 1.2.1 (xlibs 1.9.0, demonized 20250908)
-[url=https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/changelog]Changelog[/url]
-[url=https://damiansirbu-stalker.github.io/AlifeTactics/health/]Health[/url]
-[url=https://damiansirbu-stalker.github.io/AlifeTactics/jitprofiler/]JitProfiler[/url]
-[url=https://github.com/damiansirbu-stalker/AlifeTactics/issues]Bugs[/url]
-[url=https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/readme_ru.txt]Russian / На русском[/url]
-
-My work:
-[url=https://github.com/orgs/damiansirbu-stalker/repositories]GitHub[/url]
-[url=https://www.moddb.com/members/damian-sirbu/addons]ModDB[/url]
-[url=https://www.nexusmods.com/profile/damiansirbu/mods]Nexus[/url]
-
-My contributions:
-[url=https://github.com/themrdemonized/xray-monolith]X-Ray Monolith[/url]
-
-
-! Reset MCM settings to defaults after updating !
-
+[line]
+[center]
+[size=5][b]Version 1.2.1 (xlibs 1.9.0, demonized 20250908)[/b][/size]
+[size=4][b][url=https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/changelog]Changelog[/url] · [url=https://damiansirbu-stalker.github.io/AlifeTactics/health/]Health[/url] · [url=https://damiansirbu-stalker.github.io/AlifeTactics/jitprofiler/]JitProfiler[/url] · [url=https://github.com/damiansirbu-stalker/AlifeTactics/issues]Bugs[/url] · [url=https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/readme_ru.txt]Russian / На русском[/url][/b][/size]
+[b]My work:[/b]  [url=https://github.com/orgs/damiansirbu-stalker/repositories]GitHub[/url] · [url=https://www.moddb.com/members/damian-sirbu/addons]ModDB[/url] · [url=https://www.nexusmods.com/profile/damiansirbu/mods]Nexus[/url]
+[b]My contributions:[/b]  [url=https://github.com/themrdemonized/xray-monolith]X-Ray Monolith[/url]
+[size=4][b][color=#e03b2f]! Reset MCM settings to defaults after updating ![/color][/b][/size]
+[/center]
+[line]
 Everyone wants to live.
 
 AlifeTactics rebuilds how creatures behave and fight in STALKER Anomaly.
@@ -27,7 +18,7 @@ Maneuvers take a stalker over for an action the vanilla engine has no mechanism 
 Commitment holds a stalker to a decision while it still makes sense.
 Threat, accuracy, and the rest read state and decide the same way.
 
-Effects:
+[b]Effects[/b]
 - Creatures make emergent decisions from environment, own state, enemy state, squad state, weapons, and faction doctrine.
 - Every faction fights its own way: who routs, who presses your weak moment, who plants for deliberate shots, who crouches on the line, who never backs down.
 - Nothing is player-centric, and no side gets an advantage or a handicap.
@@ -36,8 +27,7 @@ Effects:
 - AP ammo is fired from its owner's inventory and consumed, where vanilla gives NPCs infinite cheap rounds and modpacks give infinite AP by rank and map.
 - Bugs disguised as features are gone, like fake weapon jamming and random tactical reloading.
 
-
-Everything is canon, engine-native, safe, and fast:
+[b]Everything is canon, engine-native, safe, and fast[/b]
 - Every behavior is built from pure X-Ray and Anomaly primitives:
   the GOAP action planner (the planner family F.E.A.R. made famous), the xr_logic scheme system, state_mgr, smart terrains and the gulag job system, condlists, and DLTX/DXML for data.
 - Nothing is faked and nothing is simulated beside the engine.
@@ -49,12 +39,11 @@ Everything is canon, engine-native, safe, and fast:
 - Perception is written as a per-stalker engine field once at spawn, so it multiplies onto whatever detection system is installed instead of replacing it.
 - It fixes dozens of vanilla Anomaly bugs: dead branches, wrong calculations, and plain crashes in original code.
 
-
 Every system below has its own MCM page in this order, where it is toggled and tuned.
+[line]
+[size=4][b]Combat[/b][/size]
 
-Combat
-
-Faction flavor:
+[b]Faction flavor[/b]
 Every faction fights its own way. Whether a stalker routs, pulls back, presses your empty magazine, plants for deliberate shots, backs out of close range,
 or takes a tactical crouch is a per-faction chance, rolled once per stalker per fight, so each man stays consistent while the fight lasts.
 Ecologists run from a losing fight and rarely press yours. Bandits and renegades press hard and rarely hold a disciplined standoff.
@@ -62,7 +51,7 @@ The militarized factions crouch on the firing line, withdraw in order, and do no
 Zombied carry none of it.
 Every number is one line in the faction config, per faction and per behavior, yours to tune.
 
-Maneuvers:
+[b]Maneuvers[/b]
 A maneuver takes one stalker over completely to perform what the vanilla engine cannot, either a mechanic it lacks or a decision it never makes.
 Planned: whole squads coordinating their movement and fire, each faction favoring the maneuvers that suit it.
 
@@ -85,7 +74,7 @@ Stalkers keep their footing under fire. A hit mid reaction no longer slides a st
 The footing hold ships ahead of its engine half and needs a modded exes build carrying engine PR 645. Older builds keep vanilla movement.
 The takeover overrides no combat scripts, so it fights side by side with vanilla and works with other combat AI. Companions are excluded by default.
 
-Commitment:
+[b]Commitment[/b]
 Vanilla stalkers re-plan the fight every moment, so any small change makes a stalker drop what he is doing and choose again.
 Better cover, a flicker of lost sight, or a teammate crossing the line sets him off, which is the twitchy strafing and cover-hopping you see in a firefight.
 Many mods answer this by switching the stalker to a camper scheme that holds him in place, muting most of Anomaly's combat variety.
@@ -96,7 +85,7 @@ When his enemy is caught reloading, out of ammo, staggered, sprinting weapon-dow
 He keeps firing through the window and repositions once the enemy can answer again.
 He sees a decision through without second-guessing himself every frame.
 
-Conduct:
+[b]Conduct[/b]
 Conduct makes better choices at moments the engine already decides, with no takeover, for stalkers the vanilla engine drives.
 Cover posture: experienced riflemen and snipers crouch to steady the shot when the line to the enemy is clear, and stand to fire over low cover that would block a crouched shot.
 It replaces vanilla's blind posture picks, such as a crouch behind a random bump, or standing tall where a crouch would steady the aim.
@@ -104,7 +93,7 @@ They crouch only past close range and only while holding a position, so they sta
 It reads the game's own cover map toward the enemy, and short-weapon carriers and green ranks keep vanilla behavior.
 Weapon spacing: a stalker's cover choices respect what his weapon is good at, submachine gunners accept closer cover so their fire stays effective, and skilled snipers hold extra distance.
 
-Behaviors:
+[b]Behaviors[/b]
 Stalkers act on weak moments in the fight, in both directions and against any enemy, you or another combatant.
 The Push: a stalker whose enemy cannot answer presses him.
 Caught reloading, out of ammo, or badly hurt, the target's attackers thicken their fire at close range.
@@ -112,20 +101,20 @@ With a clear upper hand (the target hurt or turned away) they move to closer cov
 The Pull is the mirror. A stalker caught reloading or badly hurt while his enemy is strong falls back, his own cover choices landing farther until he recovers.
 Everything reverts the moment the target can answer, each attacker presses briefly with a cooldown before pressing again, and each cause has its own switch.
 
-Effectiveness
+[size=4][b]Effectiveness[/b][/size]
 
-Accuracy:
+[b]Accuracy[/b]
 Anomaly's rank curve clamps every NPC to the same dispersion, so accuracy never scaled per rank even though the engine code exists.
 AlifeTactics restores a real per-rank curve through the engine's own dispersion callback, tunable per tier.
 A second curve covers fire on the move. Each rank keeps a share of the movement spread penalty, so rookies spray while repositioning and top ranks cut about a third of it.
 The engine has several dispersion variables, including barrel and weapon, and this one is the NPC skill-based dispersion.
 
-Crossfire:
+[b]Crossfire[/b]
 Same-faction fighters no longer cut each other down in a crossfire.
 A hit between two NPCs of the same faction deals reduced damage, set by a slider (no damage by default, up to full vanilla).
 It keys on their actual relation, so genuinely hostile factions still trade fire while allies stay safe. Your own shots are never affected.
 
-Reaction:
+[b]Reaction[/b]
 Stalker rank now shapes gun handling, applied per stalker.
 Tracking Speed sets how fast a barrel moves while tracking, from vanilla at the bottom rank to a decent step above it at the top, well short of the game's hardcore AI aim.
 Tracking Lock sets how tightly a barrel holds a strafing target. A novice's aim lags and a moving target loses it, exactly like vanilla.
@@ -138,17 +127,17 @@ Defaults keep a rank's rounds per minute at or above vanilla.
 Tracking Speed, Tracking Lock, Target Lead, and Fire Discipline are per-rank MCM slider curves. Speed and Lock share one on/off, Lead and Discipline each carry their own.
 The two rank vision curves moved to the Perception tab below. Fire Discipline is on its own Discipline tab.
 
-Range (planned):
+[b]Range (planned)[/b]
 The game stops NPC fights at a hard range cap regardless of weapon, so a sniper never fires at the distances his rifle exists for.
 A stalker sniped from beyond the cap can duck, which is the Danger hit response, but never answer. This page will let long-range NPCs answer and initiate at their weapon's real reach.
 
-Perception
+[size=4][b]Perception[/b][/size]
 
 Perception is how a stalker senses and reacts. It covers what he hears, how his rank shapes his sight, and how he reacts to being hit.
 The Sound and Danger reactions are a runtime patch laid onto whichever danger script your modpack ships, so they work with other combat AI.
 Detection distances stay owned by your setup's danger config, and AlifeTactics adds only the reactions.
 
-Sound:
+[b]Sound[/b]
 Vanilla NPCs ignore gunfire they hear but cannot see.
 A hostile stalker now reacts to an enemy's shots without line of sight. He turns to face the gun and takes a threat stance, and moves to cover once he can see the shooter.
 He is responding to the sound rather than to sight of you.
@@ -177,7 +166,7 @@ Hearing only adds the short-range sense vanilla lacks, and crouched movement is 
 Neutral and friendly stalkers get one reaction of their own. Fire close to them and they go weapon-ready facing your shots.
 They go alert but stay friendly. They settle down when the shooting stops. Every reaction has its own toggle.
 
-Vision:
+[b]Vision[/b]
 Stalker rank shapes the eyes as well as the trigger, applied per stalker.
 Vision Speed sets how fast each rank turns a glimpse into a confirmed threat, from your setup's detection speed at the bottom rank (a novice matches it) to about 21 percent faster at the top.
 No rank is slower to notice than your baseline.
@@ -185,7 +174,7 @@ It scales the rate only. Sight range, vision cone, light and darkness response, 
 Vision Range sets how far out each rank begins to notice a threat, the same band, from your baseline at novice to about 15 percent farther at the top.
 Both are per-rank MCM slider curves under one Vision toggle, on their own Vision page.
 
-Danger:
+[b]Danger[/b]
 A stalker hit from far off reacts even when vanilla would have him stand still, so sniped at 200m he turns and seeks cover.
 The reaction is the duck, and returning fire at that range is the planned Range page above.
 One tuning toggle lets danger you cause read your setup's separate player-specific ranges where the config provides them.
@@ -194,27 +183,27 @@ A hit victim turns on his shooter through the engine's own target selection, alw
 and he returns fire the moment he has line of sight. Nothing is revealed through walls, and a suppressed kill tells no one.
 The vanilla danger-check and corpse-investigation fixes are listed under Fixes to Vanilla below.
 
-Mechanics
+[size=4][b]Mechanics[/b][/size]
 
-Healing:
+[b]Healing[/b]
 Wounded NPCs heal with the items they carry.
 Vanilla's medkit heal fires unreliably and bandages do nothing, so bleeding stalkers die that should not.
 AlifeTactics has them spend real medkits when injured and real bandages when bleeding, falling back to a per-rank charge only when empty.
 The heal rate is tunable. Fixed limp and heal animations show it, out of combat only.
 
-Jamming:
+[b]Jamming[/b]
 Eliminates the fake NPC jams and the tactical-reload loop they cause.
 On modded exes an NPC rolls a per-rank jam from ammo spent, so even a full-condition rifle chokes and reloads every few rounds.
 AlifeTactics turns that roll off for NPCs, so they now jam only for real and reload only once the magazine is spent, which you can confirm in the debug log.
 Your own weapon still jams normally when worn.
 
-Ammo:
+[b]Ammo[/b]
 NPCs fire the ammunition they actually carry.
 Veteran-rank and higher stalkers use armor-piercing rounds from their own inventory, with real ballistics, and fall back to standard rounds once it runs out.
 That AP comes from trade and looting through the Alife Collection, so what an NPC scavenged shapes how dangerous he is. NPCs drop no AP as loot.
 Rank threshold and consumption rate are tunable in the ammo config under configs/alifetactics/.
 
-Gear:
+[b]Gear[/b]
 Items a stalker carries give him combat advantages, read from each item's own game data, so artefacts from any mod work.
 An artefact grants one advantage chosen by its anomaly class, scaled by its own tier. Gravity and armour-plate artefacts cut the damage he takes.
 Thermal artefacts tighten his fire, and electric and quest artefacts raise the damage he deals.
@@ -224,11 +213,12 @@ Any artefact carrier warps the air around his body, so a distorting stalker is a
 Binoculars extend his sight range by day and night-vision by night.
 Effect strengths and the artefact class tables are tunable in the gear config under configs/alifetactics/.
 
-Fixes to Vanilla:
+[size=4][b]Fixes to Vanilla[/b][/size]
+
 AlifeTactics corrects dozens of vanilla Anomaly and xray defects, grouped below by the system each repairs.
 Each shows as a locked toggle on the Fixes tab. The always-on ones cannot be turned off. The rest are switched on their own pages.
 
-Danger scheme:
+[b]Danger scheme[/b]
 - A name collision made three danger categories read the wrong range, so a ricochet read at 150m, not its own 4m. Each now reads its own range.
 - A mutant corpse no longer crashes the danger time check.
 - A torn-down NPC reference no longer crashes the evaluator.
@@ -246,55 +236,55 @@ Danger scheme:
 - The danger check parses its config once and caches the result.
 - A stalker sniped from far off reacts and seeks cover, where vanilla left him standing.
 
-Corpse investigation:
+[b]Corpse investigation[/b]
 - A despawning corpse no longer crashes the investigator.
 - The squad member who found the body investigates it, not the wrong one.
 - The investigator walks to the cover it found, not a cleared spot.
 - The corpse reaction survives firing before its stage is set.
 - A dead stalker's danger no longer lingers on a reused id.
 
-Target selection:
+[b]Target selection[/b]
 - A shot-at stalker turns on the man who hit him, not a distant target he can see.
 - NPCs no longer converge on you far harder than on each other.
 
-Accuracy:
+[b]Accuracy[/b]
 - A real per-rank accuracy curve replaces vanilla's flat clamp.
 
-Combat:
+[b]Combat[/b]
 - A stalker no longer fires into the low cover he ducks behind.
 - A stalker fires over low cover he can shoot across. The shot check reads eye height, not chest height.
 
-Movement and animation:
+[b]Movement and animation[/b]
 - A hit no longer slides a standing stalker across the ground.
 - A maneuver never starts on a stalker still playing an animation.
 
-Healing:
+[b]Healing[/b]
 - The medkit and bandage lists the engine dropped are restored.
 - The bandage gesture waits until the stalker stands still.
 - A hurt stalker drops his limp in a fight.
 - A healing stalker no longer freezes or ignores an enemy that appears mid-gesture.
 - The save-load charge re-roll is suppressed.
 
-Effects (planned):
+[b]Effects (planned)[/b]
 Player-facing combat feedback, starting with concussion: tinnitus and blur.
 
-Mutants (planned):
+[b]Mutants (planned)[/b]
 Mutants get the same combat treatment as stalkers.
 
-Intended setup:
+[b]Intended setup[/b]
 AlifeTactics is built and tuned against vanilla Anomaly on the latest demonized build.
 It runs on AOEngine and older demonized builds with fallbacks, where a feature that needs a newer hook stays inactive or reduced.
 It coexists with other combat AI mods, but vanilla plus AlifeTactics is the intended setup.
-
-Requirements:
+[line]
+[size=4][b]Requirements[/b][/size]
 Anomaly 1.5.3
 Modded exes: themrdemonized 20250908 or newer, or AOEngine v0.55 or newer. The full feature set needs the latest demonized build. A feature that needs a newer one stays inactive on older exes.
 xlibs (https://www.moddb.com/mods/stalker-anomaly/addons/xlibs-1001)
 MCM
 
-Compatibility:
+[size=4][b]Compatibility[/b][/size]
 Depends only on xlibs. Install and uninstall mid-save work. Tested: Anomaly 1.5.3, GAMMA, EFP, Zona, Forgotten Zone.
-Disable (conflict, superseded, problematic):
+[b]Disable (conflict, superseded, problematic):[/b]
 - Animated NPC Healing, and NPC-healer replacements - run in place of the Healing system.
 - G.A.M.M.A. AI Rework - blocks the combat planner and re-enables broken vanilla subschemes, so NPCs shoot through cover and never flank.
   It also keeps them out of your fights past 173m and reseeds RNG at load, on dead code with some bugs.
@@ -304,17 +294,16 @@ Disable (conflict, superseded, problematic):
 - NPC Limping and Healing (Vodoxleb) - stacks the limp and heal animation and breaks the heal cue.
 - NPC Weapon Jamming, and any NPC-jam mod - re-adds the jams the Jamming system removes, looping reloads with no end.
 - RE:DONE Combat AI - drives combat aim itself and leaves the game's aim settings altered on removal.
-- Useful Idiots (bellyillish) - a broad combat-AI overhaul that races the Danger scheme.
 - Worse NPC Vision and Accuracy, and any mod with its own NPC vision config - override the Vision and Accuracy systems.
 It coexists with everything else.
 
-Not AlifeTactics (base game or your setup):
+[size=4][b]Not AlifeTactics (base game or your setup)[/b][/size]
 - Stalkers gliding or staggering when shot - the engine moves the body while a hit animation plays, present in unmodded Anomaly.
 - Stalkers ignoring darkness - your visibility script applies its darkness curve only from 21:00 to 04:00, so dusk and dawn read as full daylight.
 - Stalkers seeing across open ground - sight range comes from your creature config, not from acquisition speed.
 - Stalkers reacting to danger across the map - vanilla's danger table uses duration values, so a shot counts as danger past 300m.
-
-How It's Built:
+[line]
+[b]How It's Built[/b]
 
 The code and patterns are original, built on best practices from the best STALKER modders and hands-on reverse-engineering of X-Ray.
 The design stays engine-native and minimal, with event-native pub/sub not polling, work spread across frames via deferred queues and rate limiters, and per-level caches replacing world scans.
@@ -328,17 +317,17 @@ Every rate, threshold, and toggle is exposed through MCM or LTX with nothing lef
 It runs on one xlibs rulebook shared across the whole mod family, the same protection, distances, faction logic, and combat reads in every mod.
 It depends on no other mod, not even the author's own, and needs only X-Ray and xlibs beneath it.
 See the Health and JitProfiler links up top for every test and smoke result, and the mod's real CPU and allocation cost.
-
-Credits:
+[line]
+[size=4][b]Credits[/b][/size]
 Altogolik provided support, ideas, and source materials.
 
-Usage and License:
+[size=4][b]Usage and License[/b][/size]
   Modpacks: allowed and encouraged. Keep the readme and license files.
   Addons, patches, integrations: allowed. Credit "AlifeTactics by Damian Sirbu" visibly on your mod page.
   Reproducing the implementation in other software: not allowed, even with credit.
   The full license is in the LICENSE file and on GitHub.
 
-Diagnostics and reporting:
+[size=4][b]Diagnostics and reporting[/b][/size]
 Every release goes through careful engineering and testing, but bugs can still slip through.
 To report one, reproduce with debug logging on, and the world log where the mod has one.
 First rule this mod out: reproduce with it off, then on. The cleanest test is this mod alone on vanilla and xlibs.
