@@ -305,7 +305,6 @@ Disable (conflict, superseded, problematic):
 - NPC Limping and Healing (Vodoxleb) - stacks the limp and heal animation and breaks the heal cue.
 - NPC Weapon Jamming, and any NPC-jam mod - re-adds the jams the Jamming system removes, looping reloads with no end.
 - RE:DONE Combat AI - drives combat aim itself and leaves the game's aim settings altered on removal.
-- Useful Idiots (bellyillish) - a broad combat-AI overhaul that races the Danger scheme.
 - Worse NPC Vision and Accuracy, and any mod with its own NPC vision config - override the Vision and Accuracy systems.
 It coexists with everything else.
 
