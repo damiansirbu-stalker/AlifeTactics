@@ -1,6 +1,6 @@
 --- at_core: the combat core - the per-stalker combat records, the timestamps, the best_enemy facts, the shared checks, the main loop, and the start budget
 
-local IsStalker, time_global, pairs, next = IsStalker, time_global, pairs, next
+local IsStalker, time_global, pairs, next, tostring = IsStalker, time_global, pairs, next, tostring
 local RegisterScriptCallback, math_floor, AC_ID = RegisterScriptCallback, math.floor, AC_ID
 local ini_file = ini_file
 
@@ -14,6 +14,17 @@ local MON_FLUSH_MS = 5000
 local BEST_ENEMY_REFRESH_MS = 600
 local COMPANION_INFO = "npcx_is_companion"
 local FROM_DEATH_CALLBACK = "from_death_callback"
+
+-- EMonsterState ids the modded-exes get_monster_state reader returns (state_defs.h; deepest substate)
+local MOB_STATES = {
+    [65536] = "Rest", [131072] = "Eat", [262144] = "Attack",
+    [262145] = "Attack_Run", [262146] = "Attack_Melee", [262147] = "Attack_RunAttack",
+    [262148] = "Attack_RunAway", [262149] = "Attack_FindEnemy", [262150] = "Attack_Steal",
+    [262151] = "Attack_Hidden", [262160] = "AttackCamp", [262169] = "Attack_On_Run",
+    [524288] = "Panic", [1048576] = "Hitted", [2097152] = "HearDanger",
+    [4194304] = "HearInteresting", [8388608] = "Controlled", [16777216] = "Threaten",
+    [33554432] = "FindEnemy", [67108864] = "Squad", [1073741824] = "Custom",
+}
 
 local GATE_RADIUS_SQR, STARTS_CAP, STARTS_WINDOW_SEC
 
@@ -292,6 +303,11 @@ end
 --- The one radius: combat systems' scope and the debug HUD's display set compare the same fact.
 function is_in_gate(state)
     return state.actor_dist_sqr ~= nil and state.actor_dist_sqr <= GATE_RADIUS_SQR
+end
+
+--- Get the mutant FSM state name for a get_monster_state id, the raw id as text when unmapped.
+function get_mob_state_name(state_id)
+    return MOB_STATES[state_id] or tostring(state_id)
 end
 
 function on_game_start()

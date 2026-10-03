@@ -43,6 +43,7 @@ local NAT_BLINDFIRE_MS    = 1000
 local NAT_DECOUPLE_DEG    = 75
 local NAT_DECOUPLE_MS     = 600
 local NAT_GESTURE_MS      = 450
+local MOB_SAMPLE_MS       = 500
 
 local TIERS = xcreature.RANK_TIERS
 
@@ -60,6 +61,7 @@ local _nat = {}
 local _shot_at = {}
 local _hit_at = {}
 local _hit_by = {}
+local _mob = {}
 local _orig_set_state
 local _MOVE
 
@@ -549,6 +551,7 @@ local function _on_unregister(se_obj)
     _near_ids[id] = nil
     _nat[id] = nil
     _shot_at[id] = nil
+    _mob[id] = nil
     _hit_at[id] = nil
     _hit_by[id] = nil
 end
@@ -799,13 +802,42 @@ local function _run_report()
     return false
 end
 
+local function _update_mob(obj, id, tg, ap)
+    local mob = _mob[id]
+    if not mob then
+        mob = { next_ms = 0 }
+        _mob[id] = mob
+    end
+    if tg < mob.next_ms then return end
+    mob.next_ms = tg + MOB_SAMPLE_MS
+    local state = obj:get_monster_state()
+    local strength = obj:get_enemy_strength()
+    local jumping = obj:is_monster_jumping()
+    if state == mob.state and strength == mob.strength and jumping == mob.jumping then return end
+    log.info("[WORLD] mob id=%d %s state=%s str=%d jmp=%s dist=%.0f",
+        id, obj:name() or "?", at_core.get_mob_state_name(state), strength or 0,
+        jumping and "y" or "n", math_sqrt(obj:position():distance_to_sqr(ap)))
+    mob.state, mob.strength, mob.jumping = state, strength, jumping
+end
+
+local function _on_mob_update(obj)
+    if not _enabled then return end
+    if not (obj and obj:alive()) then return end
+    if not obj.get_monster_state then return end
+    local ac = db.actor
+    if not ac then return end
+    local ap = ac:position()
+    if not _is_near(obj, ap) then return end
+    _update_mob(obj, obj:id(), time_global(), ap)
+end
+
 local function _apply_enabled()
     local want = cfg.world_trace_enabled and true or false
     if want == _enabled then return end
     _enabled = want
     if _enabled then
         _slide, _watch, _speed = {}, {}, {}
-        _clash, _near_ids = {}, {}
+        _clash, _near_ids, _mob = {}, {}, {}
         _speed_ceiling = _speed_ceiling or _compute_ceiling()
         _reset()
         if not _orig_set_state then
@@ -817,6 +849,7 @@ local function _apply_enabled()
         RegisterScriptCallback("npc_shot_dispersion",   _on_shot)
         RegisterScriptCallback("bullet_on_impact",      _on_impact)
         RegisterScriptCallback("actor_on_hit_callback", _on_actor_hit)
+        RegisterScriptCallback("monster_on_update",     _on_mob_update)
         RemoveTimeEvent("at_world_trace", "monitor")
         CreateTimeEvent("at_world_trace", "monitor", SAMPLE_SEC, _run_monitor)
         RemoveTimeEvent("at_world_trace", "watch")
@@ -833,6 +866,7 @@ local function _apply_enabled()
         UnregisterScriptCallback("npc_shot_dispersion",   _on_shot)
         UnregisterScriptCallback("bullet_on_impact",      _on_impact)
         UnregisterScriptCallback("actor_on_hit_callback", _on_actor_hit)
+        UnregisterScriptCallback("monster_on_update",     _on_mob_update)
         RemoveTimeEvent("at_world_trace", "monitor")
         RemoveTimeEvent("at_world_trace", "watch")
         RemoveTimeEvent("at_world_trace", "report")

@@ -3,7 +3,7 @@
 local pairs, table_sort, table_concat, math_floor, tostring = pairs, table.sort, table.concat, math.floor, tostring
 local time_global = time_global
 local string_sub, string_format, string_upper = string.sub, string.format, string.upper
-local RegisterScriptCallback = RegisterScriptCallback
+local RegisterScriptCallback, UnregisterScriptCallback = RegisterScriptCallback, UnregisterScriptCallback
 
 local cfg = at_mcm.cfg
 
@@ -25,6 +25,8 @@ local FACING_DEG = 60
 local GRID  = { 34, 28 }
 local ROW_A = { "stalker", "systems" }
 local ROW_B = { "target", "engine" }
+local MOB_SAMPLE_MS = 500
+local MOB_STALE_MS  = 2000
 local DRIVER_HOLD, DRIVER_PUSH, DRIVER_PULL, DRIVER_CONDUCT = "HOLD", "PUSH", "PULL", "CONDUCT"
 
 local CLR_AT, CLR_HOLD, CLR_PUSH, CLR_CONDUCT, CLR_NORMAL, CLR_DIM = nil, nil, nil, nil, nil, nil
@@ -32,6 +34,8 @@ local _MENTAL
 local _hud = nil
 local _shown = false
 local _tick_active = false
+local _mob = {}
+local _gate_probe = {}
 
 local function _init_colors()
     if CLR_AT then return end
@@ -142,6 +146,69 @@ local function _build_row(npc, st)
     }
 end
 
+local function _on_mob_update(obj)
+    if not _tick_active then return end
+    if not (obj and obj:alive()) then return end
+    if not obj.get_monster_state then return end
+    local ac = db.actor
+    if not ac then return end
+    local id = obj:id()
+    local tg = time_global()
+    local mob = _mob[id]
+    if mob and tg < mob.next_ms then return end
+    local dist_sqr = obj:position():distance_to_sqr(ac:position())
+    _gate_probe.actor_dist_sqr = dist_sqr
+    if not at_core.is_in_gate(_gate_probe) then
+        _mob[id] = nil
+        return
+    end
+    local enemy = obj:get_enemy()
+    _mob[id] = {
+        next_ms = tg, seen_ms = tg, dist_sqr = dist_sqr,
+        name = obj:name(), hp = obj.health or 0,
+        state = obj:get_monster_state(), strength = obj:get_enemy_strength(),
+        jumping = obj:is_monster_jumping(),
+        enemy = enemy and enemy:alive() and string_format("%s %dm",
+            _format_label(xcreature.get_name(enemy:id()), TARGET_NAME_MAX),
+            math_floor(obj:position():distance_to(enemy:position()))) or nil,
+    }
+    _mob[id].next_ms = tg + MOB_SAMPLE_MS
+end
+
+local function _build_mob_row(mob)
+    return {
+        driver  = nil,
+        stalker = string_format("(mob) %s %d%%", _format_label(mob.name, SUBJECT_NAME_MAX),
+            math_floor(mob.hp * 100)),
+        target  = mob.enemy or "-",
+        engine  = at_core.get_mob_state_name(mob.state)
+            .. string_format(" str=%d%s", mob.strength or 0, mob.jumping and " JMP" or ""),
+        systems = "-",
+        is_combat = mob.enemy ~= nil,
+    }
+end
+
+local _mob_stale = {}
+
+local function _collect_mob_rows()
+    local tg = time_global()
+    local list, stale_n = {}, 0
+    for id, mob in pairs(_mob) do
+        if tg - mob.seen_ms > MOB_STALE_MS then
+            stale_n = stale_n + 1
+            _mob_stale[stale_n] = id
+        else
+            list[#list + 1] = mob
+        end
+    end
+    for i = 1, stale_n do
+        _mob[_mob_stale[i]] = nil
+        _mob_stale[i] = nil
+    end
+    table_sort(list, function(a, b) return (a.dist_sqr or 0) < (b.dist_sqr or 0) end)
+    return list
+end
+
 local function _build_candidate(id, record, show_idle)
     local npc = xobject.get_go(id)
     if not npc then return nil end
@@ -171,7 +238,8 @@ local function _build_rows()
     table_sort(fight_list, is_closer)
     table_sort(idle_list, is_closer)
 
-    local rows, shown, total = {}, 0, #at_list + #fight_list + #idle_list
+    local mob_list = _collect_mob_rows()
+    local rows, shown, total = {}, 0, #at_list + #fight_list + #idle_list + #mob_list
     local function add_rows(list)
         for i = 1, #list do
             if #rows >= MAX_ROWS then return end
@@ -182,6 +250,11 @@ local function _build_rows()
     add_rows(at_list)
     add_rows(fight_list)
     add_rows(idle_list)
+    for i = 1, #mob_list do
+        if #rows >= MAX_ROWS then break end
+        rows[#rows + 1] = _build_mob_row(mob_list[i])
+        shown = shown + 1
+    end
 
     if shown < total then
         rows[#rows + 1] = { stalker = string_format("+%d more", total - shown), is_overflow = true }
@@ -270,6 +343,7 @@ end
 local function _start()
     if _tick_active then return end
     _tick_active = true
+    RegisterScriptCallback("monster_on_update", _on_mob_update)
     RemoveTimeEvent("at_hud", "tick")
     CreateTimeEvent("at_hud", "tick", REFRESH_INTERVAL_SEC, _update_hud)
     at_debug.info("Debug HUD enabled (position=%s, radius=gate, show_idle=%s)",
@@ -278,6 +352,8 @@ end
 
 local function _stop()
     _tick_active = false
+    UnregisterScriptCallback("monster_on_update", _on_mob_update)
+    for id in pairs(_mob) do _mob[id] = nil end
     RemoveTimeEvent("at_hud", "tick")
     _destroy_hud()
     at_debug.info("Debug HUD disabled")
