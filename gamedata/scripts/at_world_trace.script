@@ -2,7 +2,7 @@
 
 local RegisterScriptCallback, UnregisterScriptCallback = RegisterScriptCallback, UnregisterScriptCallback
 local IsStalker, IsWounded, time_global, db = IsStalker, IsWounded, time_global, db
-local math_sqrt, math_floor, math_max, pairs, tostring = math.sqrt, math.floor, math.max, pairs, tostring
+local math_sqrt, math_floor, math_max, math_min, pairs, tostring = math.sqrt, math.floor, math.max, math.min, pairs, tostring
 local math_deg, math_acos = math.deg, math.acos
 local string_format, table_concat = string.format, table.concat
 local ini_sys, tonumber = ini_sys, tonumber
@@ -44,6 +44,18 @@ local NAT_DECOUPLE_DEG    = 75
 local NAT_DECOUPLE_MS     = 600
 local NAT_GESTURE_MS      = 450
 local MOB_SAMPLE_MS       = 500
+local MOB_CONTACT_ENTER_M = 3.5
+local MOB_CONTACT_EXIT_M  = 4.5
+local MOB_IDLE_MS         = 1200
+local MOB_APPROACH_FROM_M = 7
+local MOB_CLOSE_VR        = -2
+local MOB_OPEN_VR         = 1
+local MOB_OVERSHOOT_M     = 2.2
+local MOB_ORBIT_MIN_M     = 2.5
+local MOB_ORBIT_MAX_M     = 6
+local MOB_ORBIT_VR        = 0.8
+local MOB_ORBIT_VT        = 2
+local MOB_ORBIT_MIN_MS    = 1200
 
 local TIERS = xcreature.RANK_TIERS
 
@@ -234,6 +246,7 @@ end
 local _MOVER_STATES = { assault = true, assault_fire = true, raid = true, sprint = true, rush = true }
 local _COMBAT_OPS = { combat = true, danger = true }
 local _nat_ms, _nat_n = 0, 0
+local _mob_ms, _mob_n = 0, 0
 local _occ_n, _occ_danger = 0, 0
 
 local function _get_nat(id)
@@ -274,25 +287,52 @@ local function _check_move(nat, id, name, tg, pos)
     log.info("[SHUF] id=%d %s kind=move 3reversals/%.0fs", id, name, NAT_SHUF_WINDOW_MS / 1000)
 end
 
--- Body forward fighting the travel direction while locomoting, OUT of combat only - the fighting backpedal is legitimate.
-local function _check_decouple(nat, npc, id, tg, mt, be)
-    local mv = nat.move
-    if be or not (_is_locomoting(mt) and mv and (mv.dx ~= 0 or mv.dz ~= 0)) then nat.dec_since = nil return end
+-- The body-forward vs travel-direction angle in degrees, nil on a degenerate pair.
+local function _get_travel_angle(npc, mv)
     local dir = npc:direction()
     local dot = dir.x * mv.dx + dir.z * mv.dz
     local len = math_sqrt((dir.x * dir.x + dir.z * dir.z) * (mv.dx * mv.dx + mv.dz * mv.dz))
-    if len == 0 then return end
+    if len == 0 then return nil end
     dot = dot / len
     if dot > 1 then dot = 1 elseif dot < -1 then dot = -1 end
-    local angle = math_deg(math_acos(dot))
-    if angle <= NAT_DECOUPLE_DEG then nat.dec_since = nil return end
-    nat.dec_since = nat.dec_since or tg
-    if (tg - nat.dec_since) <= NAT_DECOUPLE_MS then return end
-    if (tg - (nat.dec_cd or 0)) < NAT_FIRE_COOLDOWN_MS then return end
-    nat.dec_cd = tg
-    local cause = at_danger.get_script_danger(id) or (at_danger.has_danger(npc) and "danger") or "-"
+    return math_deg(math_acos(dot)), dir
+end
+
+local function _get_danger_cause(npc, id)
+    return at_danger.get_script_danger(id) or (at_danger.has_danger(npc) and "danger") or "-"
+end
+
+-- The shared fire latch: arm since on first sight, hold for hold_ms, then fire once per cooldown.
+local function _check_fire_window(nat, since_key, cd_key, tg, hold_ms)
+    nat[since_key] = nat[since_key] or tg
+    if (tg - nat[since_key]) <= hold_ms then return false end
+    if (tg - (nat[cd_key] or 0)) < NAT_FIRE_COOLDOWN_MS then return false end
+    nat[cd_key] = tg
+    return true
+end
+
+-- The travel vector while locomoting out of combat, nil otherwise - the fighting backpedal is legitimate.
+local function _get_travel_vector(nat, mt, be)
+    local mv = nat.move
+    if be or not (_is_locomoting(mt) and mv and (mv.dx ~= 0 or mv.dz ~= 0)) then return nil end
+    return mv
+end
+
+local function _log_decouple(npc, id, mt, angle, dir, mv)
+    local cause = _get_danger_cause(npc, id)
     log.info("[DECOUPLE] id=%d %s angle=%.0fdeg mt=%s drv=%s cause=%s body=(%.2f,%.2f) travel=(%.2f,%.2f)",
         id, npc:name() or "?", angle, _get_mt_name(mt), _get_driver(id), tostring(cause), dir.x, dir.z, mv.dx, mv.dz)
+end
+
+-- Body forward fighting the travel direction.
+local function _check_decouple(nat, npc, id, tg, mt, be)
+    local mv = _get_travel_vector(nat, mt, be)
+    if not mv then nat.dec_since = nil return end
+    local angle, dir = _get_travel_angle(npc, mv)
+    if not angle then return end
+    if angle <= NAT_DECOUPLE_DEG then nat.dec_since = nil return end
+    if not _check_fire_window(nat, "dec_since", "dec_cd", tg, NAT_DECOUPLE_MS) then return end
+    _log_decouple(npc, id, mt, angle, dir, mv)
 end
 
 -- A script animation locking a walking body: the hand-gesture glide, legs frozen while the body translates.
@@ -300,11 +340,8 @@ local function _check_gesture(nat, npc, id, tg, mt, state)
     if not _is_locomoting(mt) then nat.ges_since = nil return end
     local anims = npc:animation_count()
     if anims == 0 then nat.ges_since = nil return end
-    nat.ges_since = nat.ges_since or tg
-    if (tg - nat.ges_since) <= NAT_GESTURE_MS then return end
-    if (tg - (nat.ges_cd or 0)) < NAT_FIRE_COOLDOWN_MS then return end
-    nat.ges_cd = tg
-    local cause = at_danger.get_script_danger(id) or (at_danger.has_danger(npc) and "danger") or "-"
+    if not _check_fire_window(nat, "ges_since", "ges_cd", tg, NAT_GESTURE_MS) then return end
+    local cause = _get_danger_cause(npc, id)
     log.info("[GESTURE] id=%d %s mt=%s anims=%d held=%dms state=%s drv=%s cause=%s",
         id, npc:name() or "?", _get_mt_name(mt), anims, tg - nat.ges_since, tostring(state), _get_driver(id), tostring(cause))
 end
@@ -391,9 +428,7 @@ end
 local function _check_aimoff(nat, npc, id, name, be, tg)
     local aim = xcombat.get_sight_target(npc)
     if not (be and aim and aim ~= be:id()) then nat.aimoff_since = nil return end
-    nat.aimoff_since = nat.aimoff_since or tg
-    if (tg - nat.aimoff_since) <= NAT_AIM_OFF_MS or (tg - (nat.ao_cd or 0)) < NAT_FIRE_COOLDOWN_MS then return end
-    nat.ao_cd = tg
+    if not _check_fire_window(nat, "aimoff_since", "ao_cd", tg, NAT_AIM_OFF_MS) then return end
     log.info("[AIMOFF] id=%d %s aim=%d enemy=%d held=%dms", id, name, aim, be:id(), tg - nat.aimoff_since)
 end
 
@@ -437,9 +472,7 @@ local function _check_unresolved(nat, npc, name, be, drv, tg)
         return
     end
     if be and xcombat.get_unseen_ms(npc, be, tg) < NAT_UNSEEN_MS then nat.unres_since = nil return end
-    nat.unres_since = nat.unres_since or tg
-    if (tg - nat.unres_since) <= NAT_UNSEEN_MS or (tg - (nat.unres_cd or 0)) < NAT_FIRE_COOLDOWN_MS then return end
-    nat.unres_cd = tg
+    if not _check_fire_window(nat, "unres_since", "unres_cd", tg, NAT_UNSEEN_MS) then return end
     log.info("[UNRESOLVED] id=%d %s op=%s no seen enemy %dms", id, name, op, tg - nat.unres_since)
 end
 
@@ -551,6 +584,11 @@ local function _on_unregister(se_obj)
     _near_ids[id] = nil
     _nat[id] = nil
     _shot_at[id] = nil
+    local mob = _mob[id]
+    if mob and (mob.contacts > 0 or mob.overshoots > 0 or mob.orbit_s > 0 or (mob.hits or 0) > 0) then
+        log.info("[WORLD] mob id=%d %s summary contacts=%d hits_in=%d hits_total=%d overshoots=%d orbit=%.1fs",
+            id, mob.name or "?", mob.contacts, mob.contact_hits, mob.hits or 0, mob.overshoots, mob.orbit_s)
+    end
     _mob[id] = nil
     _hit_at[id] = nil
     _hit_by[id] = nil
@@ -775,6 +813,11 @@ end
 
 local function _on_actor_hit(obj, amount, local_direction, who, bone_index)
     if not (who and amount and amount > 0) then return end
+    local mob = _mob[who:id()]
+    if mob then
+        mob.hits = (mob.hits or 0) + 1
+        mob.hit_ms = time_global()
+    end
     if not IsStalker(who) then return end
     local tier = ranks.get_obj_rank_name(who)
     if not tier or tier == "" then return end
@@ -802,22 +845,105 @@ local function _run_report()
     return false
 end
 
-local function _update_mob(obj, id, tg, ap)
-    local mob = _mob[id]
-    if not mob then
-        mob = { next_ms = 0 }
-        _mob[id] = mob
+local function _log_mob_contact(mob, id, tg, jumping)
+    local contact = mob.contact
+    contact.min_d = math_min(contact.min_d, mob.d)
+    if (mob.hit_ms and mob.hit_ms > contact.last_event_ms) or jumping then contact.last_event_ms = tg end
+    if tg - contact.last_event_ms >= MOB_IDLE_MS then
+        contact.idle_ms = contact.idle_ms + (tg - mob.sampled_ms)
     end
-    if tg < mob.next_ms then return end
-    mob.next_ms = tg + MOB_SAMPLE_MS
+    if mob.d <= MOB_CONTACT_EXIT_M then return end
+    local hits = (mob.hits or 0) - contact.hits0
+    mob.contact_hits = mob.contact_hits + hits
+    log.info("[WORLD] mob id=%d contact end dur=%.1fs hits=%d min=%.1f idle=%.1fs",
+        id, (tg - contact.t0) / 1000, hits, contact.min_d, contact.idle_ms / 1000)
+    mob.contact = nil
+end
+
+local function _try_open_mob_approach(mob, vr)
+    if mob.d > MOB_APPROACH_FROM_M and vr < MOB_CLOSE_VR then
+        mob.approach = { min_d = mob.d, hits0 = mob.hits or 0, jumped = false }
+    end
+end
+
+local function _log_mob_overshoot(mob, id, vr, jumping)
+    local app = mob.approach
+    if not app then return _try_open_mob_approach(mob, vr) end
+    app.min_d = math_min(app.min_d, mob.d)
+    if jumping then app.jumped = true end
+    if vr <= MOB_OPEN_VR or mob.d <= app.min_d + 1 then return end
+    if app.min_d < MOB_OVERSHOOT_M and (mob.hits or 0) == app.hits0 and not app.jumped then
+        mob.overshoots = mob.overshoots + 1
+        log.info("[WORLD] mob id=%d overshoot n=%d min=%.1f (ran through, nothing delivered)",
+            id, mob.overshoots, app.min_d)
+    end
+    mob.approach = nil
+end
+
+local function _log_mob_orbit(mob, id, tg, vr, vt)
+    local circling = mob.d >= MOB_ORBIT_MIN_M and mob.d <= MOB_ORBIT_MAX_M
+        and vr < MOB_ORBIT_VR and vr > -MOB_ORBIT_VR and vt > MOB_ORBIT_VT
+    if circling then
+        mob.orbit_t0 = mob.orbit_t0 or tg
+        return
+    end
+    if not mob.orbit_t0 then return end
+    local segment_ms = tg - mob.orbit_t0
+    if segment_ms >= MOB_ORBIT_MIN_MS then
+        mob.orbit_s = mob.orbit_s + segment_ms / 1000
+        log.info("[WORLD] mob id=%d orbit %.1fs (total %.1fs)", id, segment_ms / 1000, mob.orbit_s)
+    end
+    mob.orbit_t0 = nil
+end
+
+local function _read_mob_motion(mob, pos, ap, tg)
+    local dist = math_sqrt(pos:distance_to_sqr(ap))
+    local vr, vt, had_prev = 0, 0, mob.sampled_ms ~= nil
+    if had_prev and tg > mob.sampled_ms then
+        local dt = (tg - mob.sampled_ms) / 1000
+        vr = (dist - mob.d) / dt
+        local speed = math_sqrt((pos.x - mob.px) ^ 2 + (pos.z - mob.pz) ^ 2) / dt
+        local tangential_sqr = speed * speed - vr * vr
+        vt = tangential_sqr > 0 and math_sqrt(tangential_sqr) or 0
+    end
+    mob.d, mob.px, mob.pz = dist, pos.x, pos.z
+    return dist, vr, vt, had_prev
+end
+
+local function _log_mob_edge(mob, obj, id, dist)
     local state = obj:get_monster_state()
     local strength = obj:get_enemy_strength()
     local jumping = obj:is_monster_jumping()
-    if state == mob.state and strength == mob.strength and jumping == mob.jumping then return end
-    log.info("[WORLD] mob id=%d %s state=%s str=%d jmp=%s dist=%.0f",
-        id, obj:name() or "?", at_core.get_mob_state_name(state), strength or 0,
-        jumping and "y" or "n", math_sqrt(obj:position():distance_to_sqr(ap)))
-    mob.state, mob.strength, mob.jumping = state, strength, jumping
+    if not mob.name then mob.name = obj:name() or "?" end
+    if state ~= mob.state or strength ~= mob.strength or jumping ~= mob.jumping then
+        log.info("[WORLD] mob id=%d %s state=%s str=%d jmp=%s dist=%.0f",
+            id, mob.name, at_core.get_mob_state_name(state), strength or 0, jumping and "y" or "n", dist)
+        mob.state, mob.strength, mob.jumping = state, strength, jumping
+    end
+    return jumping
+end
+
+local function _update_mob(obj, id, tg, ap)
+    local mob = _mob[id]
+    if not mob then
+        mob = { next_ms = 0, contacts = 0, contact_hits = 0, overshoots = 0, orbit_s = 0 }
+        _mob[id] = mob
+    end
+    if tg < mob.next_ms then return end
+    local dist, vr, vt, had_prev = _read_mob_motion(mob, obj:position(), ap, tg)
+    local jumping = _log_mob_edge(mob, obj, id, dist)
+    if mob.contact then
+        _log_mob_contact(mob, id, tg, jumping)
+    elseif dist <= MOB_CONTACT_ENTER_M and had_prev then
+        mob.contacts = mob.contacts + 1
+        mob.contact = { t0 = tg, hits0 = mob.hits or 0, min_d = dist, idle_ms = 0, last_event_ms = tg }
+        log.info("[WORLD] mob id=%d contact start n=%d", id, mob.contacts)
+        mob.approach = nil
+    end
+    if had_prev and not mob.contact then _log_mob_overshoot(mob, id, vr, jumping) end
+    if had_prev then _log_mob_orbit(mob, id, tg, vr, vt) end
+    mob.sampled_ms = tg
+    mob.next_ms = tg + MOB_SAMPLE_MS
 end
 
 local function _on_mob_update(obj)
@@ -828,7 +954,10 @@ local function _on_mob_update(obj)
     if not ac then return end
     local ap = ac:position()
     if not _is_near(obj, ap) then return end
+    local timer = xprofiler.new_if(_enabled):start()
     _update_mob(obj, obj:id(), time_global(), ap)
+    timer:stop()
+    _mob_ms, _mob_n = _mob_ms + timer:get_ms(), _mob_n + 1
 end
 
 local function _apply_enabled()
@@ -920,6 +1049,10 @@ function write_report()
     end
     for kind, hist in pairs(_bursts) do
         log.info("bursts kind=%-10s %s", tostring(kind), _format_hist_line(hist))
+    end
+    if _mob_n > 0 then
+        log.info("[MOB] samples=%d total=%.1fms avg=%.3fms", _mob_n, _mob_ms, _mob_ms / _mob_n)
+        _mob_ms, _mob_n = 0, 0
     end
     if _nat_n > 0 then
         log.info("[NAT] checks=%d total=%.1fms avg=%.3fms", _nat_n, _nat_ms, _nat_ms / _nat_n)
