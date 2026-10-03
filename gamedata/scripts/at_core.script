@@ -17,6 +17,7 @@ local FROM_DEATH_CALLBACK = "from_death_callback"
 
 -- EMonsterState ids the modded-exes get_monster_state reader returns (state_defs.h; deepest substate)
 local MOB_STATES = {
+    [-1] = "none",
     [65536] = "Rest", [131072] = "Eat", [262144] = "Attack",
     [262145] = "Attack_Run", [262146] = "Attack_Melee", [262147] = "Attack_RunAttack",
     [262148] = "Attack_RunAway", [262149] = "Attack_FindEnemy", [262150] = "Attack_Steal",
