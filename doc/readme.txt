@@ -308,6 +308,7 @@ Drop:
 - RE:DONE Combat AI - drives combat aim itself and leaves the game's aim settings altered on removal.
 - Worse NPC Vision and Accuracy, and any mod with its own NPC vision config - override the Vision and Accuracy systems; no toggle, so remove its accuracy LTX by hand or drop it.
 - Companion Spotters - replaces vanilla NPC movement game-wide so one bug breaks every NPC, does per-frame work plus a full world scan, and misroutes companions on large maps with a broken vertex check.
+- Useful Idiots - a broad combat-AI overhaul that races the Danger scheme on the same NPCs.
 Avoid:
 - G.A.M.M.A. AI Rework - runs alongside, but cripples NPC combat: they shoot through cover and never flank, a 173m gate keeps them out of your fights, and it reseeds RNG at load.
 Change:
