@@ -299,18 +299,19 @@ MCM
 
 Compatibility:
 Depends only on xlibs. Install and uninstall mid-save work. Tested: Anomaly 1.5.3, GAMMA, EFP, Zona, Forgotten Zone.
-Disable (conflict, superseded, problematic):
+Drop:
 - Animated NPC Healing, and NPC-healer replacements - run in place of the Healing system.
-- G.A.M.M.A. AI Rework - blocks the combat planner and re-enables broken vanilla subschemes, so NPCs shoot through cover and never flank.
-  It also keeps them out of your fights past 173m and reseeds RNG at load, on dead code with some bugs.
 - G.A.M.M.A. No NPC Friendly Fire, and community friendly-fire blockers - re-filter the friendly hits Crossfire already handles and rewrite NPC relations on hit.
-- G.A.M.M.A. No logs and Log spam remover - GAMMA log-suppression mods, off by default, that disable the Accuracy system if enabled.
-- G.A.M.M.A. NPCs Faster Reactions - raises NPC sight range and detection, so NPCs see across open ground and swamp the Vision curve.
+- G.A.M.M.A. NPCs Faster Reactions - raises sight range and detection, so NPCs see across open ground and swamp the Vision curve; no toggle, so lower its LTX keys by hand or drop it.
 - NPC Limping and Healing (Vodoxleb) - stacks the limp and heal animation and breaks the heal cue.
 - NPC Weapon Jamming, and any NPC-jam mod - re-adds the jams the Jamming system removes, looping reloads with no end.
 - RE:DONE Combat AI - drives combat aim itself and leaves the game's aim settings altered on removal.
-- Worse NPC Vision and Accuracy, and any mod with its own NPC vision config - override the Vision and Accuracy systems.
-It coexists with everything else.
+- Worse NPC Vision and Accuracy, and any mod with its own NPC vision config - override the Vision and Accuracy systems; no toggle, so remove its accuracy LTX by hand or drop it.
+Avoid:
+- G.A.M.M.A. AI Rework - runs alongside, but cripples NPC combat: they shoot through cover and never flank, a 173m gate keeps them out of your fights, and it reseeds RNG at load.
+Change:
+- G.A.M.M.A. No logs and Log spam remover - leave their option off (off by default); enabling it disables the Accuracy system.
+Everything else coexists, as long as it extends X-Ray and Anomaly and never overrides them.
 
 Not AlifeTactics (base game or your setup):
 - Stalkers gliding or staggering when shot - the engine moves the body while a hit animation plays, present in unmodded Anomaly.
