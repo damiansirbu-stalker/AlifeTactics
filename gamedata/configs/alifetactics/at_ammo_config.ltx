@@ -1,17 +1,11 @@
-; AlifeTactics ammo system tuning. Paired with gamedata/scripts/at_ammo.script.
-; All keys have script-side fallback defaults so a missing key won't crash.
+; AlifeTactics ammo system tuning. Paired with gamedata/scripts/at_ammo.script. All keys have script-side fallback defaults so a missing key won't crash.
 ;
-; Each veteran-and-up NPC fires AP from the loose ammo it carries (stocked by
-; AlifePlus trade/loot). The budget is the inventory itself -- its AP boxes
-; (box_size 15 rifle / 16 pistol). At the end of each engagement there is a
-; chance to consume one whole AP box; when the NPC runs out it reverts to
-; vanilla magic FMJ. No death hook is needed: vanilla decide_items_to_keep
-; already releases every ammo box > 5 on death (death_manager.script:457), so
-; the 15-round AP boxes never drop as loot.
+; Each veteran-and-up NPC fires AP from the loose ammo it carries (stocked by normal trade and loot). The budget is the inventory itself, its AP boxes (box_size 15 rifle / 16 pistol). At the
+; end of each engagement there is a chance to consume one whole AP box; when the NPC runs out it reverts to vanilla magic FMJ. No death hook is needed: vanilla decide_items_to_keep already
+; releases every ammo box > 5 on death (death_manager.script:457), so the 15-round AP boxes never drop as loot.
 ;
-; Per-fight delete chance = ap_decay_base * (weapon rpm / rpm_ref) * rank_weight,
-; where rank_weight falls from 1.0 at min_ap_rank to rank_weight_floor at
-; rank_ceiling. Fast weapons burn AP quickly; high rank conserves it.
+; Per-fight delete chance = ap_decay_base * (weapon rpm / rpm_ref) * rank_weight, where rank_weight falls from 1.0 at min_ap_rank to rank_weight_floor at rank_ceiling. Fast weapons burn AP
+; quickly; high rank conserves it.
 
 [at_ammo]
 ; NPC character_rank floor for AP. 12000 = veteran (professional caps at 11999

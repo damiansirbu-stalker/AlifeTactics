@@ -1,16 +1,10 @@
-; AlifeTactics cleanup overlay on ai_tweaks\xr_danger.ltx - paired with the at_danger runtime patch.
-; Delete-lines only, no value rows: every detection distance and inertion comes from whichever
-; xr_danger.ltx won the MO2 slot (vanilla or any AI overhaul copy) plus later DLTX
-; overlays. The setup owns the danger tuning; AlifeTactics owns the reactions and the bug fixes.
-; (The 1.1.0 value rows were copied verbatim from a popular AI overhaul and cut vanilla's effective reaction
-; ranges 3-50x; removed 2026-07-10.)
+; AlifeTactics cleanup overlay on ai_tweaks\xr_danger.ltx, paired with the at_danger runtime patch. Delete-lines only, no value rows: every detection distance and inertion comes from
+; whichever xr_danger.ltx won the MO2 slot (vanilla or any AI overhaul copy) plus later DLTX overlays. The setup owns the danger tuning; AlifeTactics owns the reactions and the bug fixes.
+; (The 1.1.0 value rows were copied verbatim from a popular AI overhaul and cut vanilla's effective reaction ranges 3-50x; removed 2026-07-10.)
 ;
-; The deleted keys are the leftovers of the danger_object enum name collision (danger_object.h:16-27):
-; the PerceiveType names hit/sound/visual share values 0/1/2 with entity_attacked/attack_sound/
-; bullet_ricochet, so vanilla-derived xr_danger read three danger types from the wrong rows. at_danger's
-; bd_types fix redirects those types to their true rows; nothing reads hit/sound/visual after it, and
-; these lines drop them from the merged config.
-; NOT !![section]: that is DLTX section-DELETE (Xr_ini.cpp:721-739) and would discard the setup's rows.
+; The deleted keys are leftovers of the danger_object enum name collision (danger_object.h:16-27): the PerceiveType names hit/sound/visual share values 0/1/2 with entity_attacked/
+; attack_sound/bullet_ricochet, so vanilla-derived xr_danger read three danger types from the wrong rows. at_danger's bd_types fix redirects those types to their true rows; nothing reads
+; hit/sound/visual after it, and these lines drop them from the merged config. Not !![section]: that is DLTX section-delete (Xr_ini.cpp:721-739) and would discard the setup's rows.
 
 ![danger_inertion]
 !hit

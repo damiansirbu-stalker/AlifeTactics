@@ -30,10 +30,8 @@ action_wpn_reload = 8, solid
 action_wpn_empty  = 6, solid
 action_itm_use    = 5, faint
 
-; Creature awareness radii, the same room-scale band as the player rows above (5-10m) - nobody
-; alerts to distant sounds. The reaction is a standing glance (a same-state look turn), never a
-; danger stamp: a walking stalker ignores it, a mutant sound always qualifies, a stalker sound
-; qualifies only when the source is hostile to the hearer. Attack and damage sounds are absent;
+; Creature awareness radii, the same room-scale band as the player rows above (5-10m); nobody alerts to distant sounds. The reaction is a standing glance (a same-state look turn), never a
+; danger stamp: a walking stalker ignores it, a mutant sound always qualifies, a stalker sound qualifies only when the source is hostile to the hearer. Attack and damage sounds are absent;
 ; the danger config's own fight reaction covers active fights.
 creature_step = 5
 creature_talk = 8

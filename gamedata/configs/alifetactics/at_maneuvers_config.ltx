@@ -52,11 +52,9 @@ kite_distance_m_w_rifle     = 8
 kite_distance_m_w_sniper    = 15
 kite_distance_m_w_explosive = 8
 
-; The combat core (at_core.script reads this section): the gate and the shared start budget.
-; The gate admits any combatant within gate_radius_m of the player - one radius for everything,
-; the debug HUD shows exactly the gated set. The budget is one sliding-window pool for everything
-; the main loop starts - a maneuver grant, a press, a pull - split into a vs-player and a vs-npc
-; bucket so neither class can starve the other. Starts only ever spend; continuing never counts.
+; The combat core (at_core.script reads this section): the gate and the shared start budget. The gate admits any combatant within gate_radius_m of the player, one radius for everything,
+; and the debug HUD shows exactly the gated set. The budget is one sliding-window pool for everything the main loop starts (a maneuver grant, a press, a pull), split into a vs-player and a
+; vs-npc bucket so neither class can starve the other. Starts only ever spend; continuing never counts.
 [at_core]
 gate_radius_m = 150              ; the sniper band maximum; the gate never excludes a fight the weapon bands model
 starts_per_window_vs_player = 6  ; starts allowed per window against the player (0 = no limit)

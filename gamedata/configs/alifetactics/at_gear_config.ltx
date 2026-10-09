@@ -1,59 +1,42 @@
-; at_gear tunables and the artefact anomaly-class membership.
+; at_gear tunables and artefact anomaly-class membership.
 ;
-; at_gear is the gear SOURCE: it walks a stalker's inventory and registers per-NPC effect contributions
-; into at_effects_resolver, which combines them highest-wins and writes the engine. The class -> effect
-; ASSIGNMENT (which anomaly class becomes which combat edge) is a design choice and lives in
-; at_gear.script (D6); this file holds the DATA - the tier ladder, the optic factors, and which artefact
-; section belongs to which anomaly class. Missing keys fall back to the values compiled into at_gear.script.
+; at_gear is the gear source: it walks a stalker's inventory and registers per-NPC effect contributions into at_effects_resolver, which combines them highest-wins and writes the engine.
+; The class-to-effect assignment (which anomaly class becomes which combat edge) is a design choice in at_gear.script (D6); this file holds the data: the tier ladder, the optic factors,
+; and which artefact section belongs to which class. Missing keys fall back to the values compiled into at_gear.script.
 
 [at_gear]
-; Artefact effect strength: tier x tier_step, capped tier_cap. Vanilla artefacts are tier 2-4, so the
-; ladder is 4/6/8% with 10% reserved for a tier-5 artefact - the ceiling, since effects never stack
-; (strongest source wins) and there is no aggregate cap.
+; Artefact effect strength: tier x tier_step, capped at tier_cap. Vanilla artefacts are tier 2-4, so the ladder is 4/6/8% with 10% reserved for a tier-5 artefact: the ceiling, since
+; effects never stack (strongest source wins) and there is no aggregate cap.
 tier_step   = 0.02
 tier_cap    = 0.10
 
-; Carried optics -> VISION_RANGE (detection distance), day/night complementary. Binoculars extend range
-; by day only (glass needs light); NVG by night only (goggles do nothing in daylight). Each is a
-; multiplier on the effective visible distance; the day/night split is read live at apply time, no tick.
+; Carried optics raise VISION_RANGE (detection distance), day and night complementary: binoculars extend range by day only (glass needs light), NVG by night only. Each is a multiplier
+; on the effective visible distance; the day/night split is read live at apply time, no tick.
 binoc_range   = 1.50
 nvg_range     = 1.50
 night_start_h = 22
 night_end_h   = 5
 
-; Chemical -> passive regen when the n039 engine bind (set_health_restore_boost) is present: an additive
-; boost on the restore velocity (base 0.00003), sized as the chemical tier strength x regen_scale.
-; PROVISIONAL - tuned when n039 deploys. Until then chemical folds into DAMAGE_RESIST (the D18 interim)
-; and this key does nothing.
+; Chemical gives passive regen when the n039 engine bind (set_health_restore_boost) is present: an additive boost on the restore velocity (base 0.00003), sized as the chemical tier
+; strength x regen_scale. Provisional, tuned when n039 deploys; until then chemical folds into DAMAGE_RESIST (the D18 interim) and this key does nothing.
 regen_scale = 0.003
 
-; The aura every artefact carrier wears, whatever the artefact does. Applied by at_effects_resolver (the
-; particle owner); this file holds the name because the carrier set is a gear fact. Carried binoculars,
-; NVG, and plates grant no aura - they are tools and armour, not anomalous matter.
+; The aura every artefact carrier wears, whatever the artefact does. Applied by at_effects_resolver (the particle owner); this file holds the name because the carrier set is a gear fact.
+; Carried binoculars, NVG, and plates grant no aura: they are tools and armour, not anomalous matter.
 ;
-; anomaly2\burer_prepare is the burer's gravity wind-up: a colourless space distortion that tracks the
-; body (user pick 2026-07-26, auditioned in game against 8 other candidates). The coloured idle glows
-; were tested the same day - thermal red, electric red with sparkle, acidic green, gravi a wide air
-; distortion - and rejected as too loud.
+; anomaly2\burer_prepare is the burer's gravity wind-up, a colourless space distortion that tracks the body (user pick 2026-07-26, auditioned against 8 other candidates; the coloured idle
+; glows tested the same day, thermal red, electric red, acidic green, a wide gravi distortion, were rejected as too loud). Blank or missing means no aura: there is deliberately no fallback
+; to the artefact's own particles key, so an unset row can never bring back an effect nobody chose.
 ;
-; BLANK OR MISSING MEANS NO AURA - there is deliberately no fallback to the artefact's own particles key,
-; so an unset row can never bring back an effect nobody chose.
-;
-; ONLY config-referenced particle names belong here. A name that lives solely inside particles.xr can be
-; absent from a modpack that ships its own library, and a missing name is an engine fatal with no
-; existence check from script (r4.cpp:738-748, doc/library/modding/particles.md). Proven case:
-; artefact\effects\af_gravi_idle_color exists in vanilla and is ABSENT from GAMMA's Particles Cinematic
-; VFX library. anomaly2\burer_prepare passes that rule - vanilla m_burer.ltx:272 names it as
-; Particle_Gravi_Prepare, so every library ships it or its own burers stop telegraphing their gravi
-; attack; present in GAMMA's Particles Cinematic VFX 3.5 and the Boomsticks and Sharpsticks library.
-; aura_bone is the single torso bone the carrier glow attaches to (at_effects_resolver, bone-verified,
-; with a default-bone fallback if it is absent). One bone on purpose - burer_prepare is a wide effect,
-; so a second emitter overlaps into a smoke cloud.
+; Only config-referenced particle names belong here. A name living solely inside particles.xr can be absent from a particle library that ships its own set, and a missing name is an engine
+; fatal with no script-side existence check (r4.cpp:738-748, doc/library/modding/particles.md). burer_prepare is safe because vanilla m_burer.ltx:272 names it as Particle_Gravi_Prepare, so
+; any particle library ships it or its own burers stop telegraphing the gravi attack. aura_bone is the single torso bone the glow attaches to (at_effects_resolver, bone-verified, default-bone
+; fallback if absent); one bone on purpose, since burer_prepare is wide and a second emitter overlaps into a smoke cloud.
 aura      = anomaly2\burer_prepare
 aura_bone = bip01_spine
 
-; Artefact anomaly-class membership (the 33 classed vanilla artefacts + 6 unclassed quest/unique). A
-; section not listed here and not modded in grants nothing. Verified against artefacts.ltx class groups.
+; Artefact anomaly-class membership (the 33 classed vanilla artefacts plus 6 unclassed quest/unique). A section not listed here and not modded in grants nothing. Verified against
+; artefacts.ltx class groups.
 gravi    = af_black_spray, af_night_star, af_gravi, af_gold_fish, af_medusa, af_vyvert, af_empty, af_full_empty, af_death_lamp
 thermal  = af_itcher, af_pin, af_cristall, af_fireball, af_dummy_glassbeads, af_eye, af_fire, af_lobster_eyes
 chemical = af_blood, af_mincer_meat, af_bracelet, af_baloon, af_soul, af_fuzz_kolobok, af_glass, af_cristall_flower
