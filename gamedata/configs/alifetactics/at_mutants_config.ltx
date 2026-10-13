@@ -1,0 +1,66 @@
+; AlifeTactics mutants - the innate numbers: participation chances, tempo bands, jitter envelopes, species rows.
+; MCM owns only the per-tier stat tracks and the ability toggles; nothing here is user-facing.
+; Every band is BOUNDED (the performance law): variation never leaves a field-sane envelope.
+
+[tempo] ; per-spawn rolls, ms
+pounce_cd_min    = 4000
+pounce_cd_max    = 9000
+jab_cd_min       = 1400
+jab_cd_max       = 2800
+retreat_cd_min   = 16000
+retreat_cd_max   = 32000
+retreat_hold_min = 6000
+retreat_hold_max = 10000
+stare_min        = 2000
+stare_max        = 4000
+gravi_cd_min     = 9000
+gravi_cd_max     = 16000
+
+[pounce]
+band_min_m      = 5
+band_max_m      = 11
+facing_cone_deg = 35
+
+[jab] ; the chimera-class contact strike (covers the lurker: same engine class and anim table)
+species  = chimera, lurker
+motion   = jump_attack_0
+range_m  = 2.2
+clear_ms = 1100
+
+[melee] ; per-species motion pair for the rear spin-strike; motions must carry attack_params rows
+arc_deg = 120
+chimera = jump_attack_0, jump_attack_1
+lurker  = jump_attack_0, jump_attack_1
+
+[jitter] ; bounded value variation as a fraction of the install's own loaded value
+attack_dist_pct = 0.15
+jump_band_pct   = 0.15
+circle_pct      = 0.20
+rush_band_pct   = 0.20
+turn_min        = 0.90
+turn_max        = 1.25
+
+[invisibility] ; bloodsucker visibility-transition dwell band, ms
+delay_min_ms = 700
+delay_max_ms = 2400
+
+[controller] ; the psi tube pacing stays inside a SLOW envelope
+tube_delay_min_ms = 5000
+tube_delay_max_ms = 9000
+see_min_ms        = 800
+see_max_ms        = 2000
+
+[poltergeist] ; hover-height band rolled per spawn, metres
+height_min_low  = 0.4
+height_min_high = 1.2
+height_max_low  = 1.6
+height_max_high = 3.0
+
+[lifesteal] ; health points restored to the bloodsucker per landed claw, by tier
+min_tier = 2
+t0 = 0
+t1 = 0
+t2 = 4
+t3 = 7
+t4 = 10
+t5 = 14

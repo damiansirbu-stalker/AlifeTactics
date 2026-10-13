@@ -915,10 +915,12 @@ local function _log_mob_edge(mob, obj, id, dist)
     local strength = obj:get_enemy_strength()
     local jumping = obj:is_monster_jumping()
     if not mob.name then mob.name = obj:name() or "?" end
-    if state ~= mob.state or strength ~= mob.strength or jumping ~= mob.jumping then
-        log.info("[WORLD] mob id=%d %s state=%s str=%d jmp=%s dist=%.0f",
-            id, mob.name, at_core.get_mob_state_name(state), strength or 0, jumping and "y" or "n", dist)
-        mob.state, mob.strength, mob.jumping = state, strength, jumping
+    local driver = at_mutants.get_driver(id)
+    if state ~= mob.state or strength ~= mob.strength or jumping ~= mob.jumping or driver ~= mob.driver then
+        log.info("[WORLD] mob id=%d %s state=%s str=%d jmp=%s drv=%s dist=%.0f",
+            id, mob.name, at_core.get_mob_state_name(state), strength or 0, jumping and "y" or "n",
+            driver or "-", dist)
+        mob.state, mob.strength, mob.jumping, mob.driver = state, strength, jumping, driver
     end
     return jumping
 end

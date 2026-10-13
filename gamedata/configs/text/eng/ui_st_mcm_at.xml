@@ -137,8 +137,108 @@
   <string id="ui_mcm_at_effects_desc">
     <text>Planned: player-facing combat feedback, concussion first. Nothing to configure yet.</text>
   </string>
-  <string id="ui_mcm_at_mutants_desc">
-    <text>Planned: mutant combat behavior. Nothing to configure yet.</text>
+  <!-- ==================== MUTANTS ==================== -->
+  <string id="ui_mcm_menu_damage">
+    <text>Damage</text>
+  </string>
+  <string id="ui_mcm_menu_health">
+    <text>Health</text>
+  </string>
+  <string id="ui_mcm_menu_abilities">
+    <text>Abilities</text>
+  </string>
+  <string id="ui_mcm_menu_chimera">
+    <text>Chimera</text>
+  </string>
+  <string id="ui_mcm_at_mutants_damage_desc">
+    <text>What a mutant deals, scaled by the map rank (rookie maps rank 0 up to endgame maps rank 5): hit power grows by the slider's percent per rank. Multiplies the installed balance, so other mutant overhauls keep their numbers.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_health_desc">
+    <text>What a mutant survives, growing per map rank: health pool, damage resistance, and idle regeneration, each a percent-per-rank slider over the installed balance.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_abilities_desc">
+    <text>The mutant move set. Each ability applies to every species that carries the component and refuses safely on the rest. Which individual uses which ability, when, and with what timing is rolled per spawn and rises with the map tier.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_chimera_desc">
+    <text>The chimera's own moves (covers the lurker, same engine class). Species with unique moves get their own page here as their kits grow.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_mut_damage_pct">
+    <text>Damage bonus per rank (%)</text>
+  </string>
+  <string id="ui_mcm_at_mutants_mut_damage_pct_desc">
+    <text>Hit power grows by this percent for each map rank: rank 0 stays vanilla, rank 5 gets 5 times this bonus.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_mut_health_pct">
+    <text>Health bonus per rank (%)</text>
+  </string>
+  <string id="ui_mcm_at_mutants_mut_health_pct_desc">
+    <text>The health pool grows by this percent for each map rank.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_mut_resist_pct">
+    <text>Resistance per rank (%)</text>
+  </string>
+  <string id="ui_mcm_at_mutants_mut_resist_pct_desc">
+    <text>Damage a mutant receives shrinks by this percent for each map rank.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_mut_regen_pct">
+    <text>Regeneration per rank (%)</text>
+  </string>
+  <string id="ui_mcm_at_mutants_mut_regen_pct_desc">
+    <text>Idle regeneration: this percent of the health pool per minute, for each map rank.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_mut_chance_base">
+    <text>Move chance (%)</text>
+  </string>
+  <string id="ui_mcm_at_mutants_mut_chance_base_desc">
+    <text>The base chance a mutant carries each ability and takes its riskier variants, before the rank bonus.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_mut_chance_rank_pct">
+    <text>Move chance per rank (%)</text>
+  </string>
+  <string id="ui_mcm_at_mutants_mut_chance_rank_pct_desc">
+    <text>Added to the move chance for each map rank.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_mut_unpredictability">
+    <text>Unpredictability</text>
+  </string>
+  <string id="ui_mcm_at_mutants_mut_unpredictability_desc">
+    <text>The innate randomness layer: every move fires on a chance roll and every timing, distance, and cadence varies inside a bounded band, wider on harder maps. Off: fixed mid-band behavior, no rolls.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_mut_pounce">
+    <text>Pounce</text>
+  </string>
+  <string id="ui_mcm_at_mutants_mut_pounce_desc">
+    <text>Commanded leaps at varied moments and angles for the jumping species; a rationed share comes with no wind-up, rising with the map tier. Dodge-play survives: the telegraphed leap stays the default.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_mut_melee">
+    <text>Melee</text>
+  </string>
+  <string id="ui_mcm_at_mutants_mut_melee_desc">
+    <text>The turn-and-hit on rear orbiting: a mutant punishes an enemy circling behind it with a spin strike. Armed only on species with the strike motions.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_mut_rush">
+    <text>Rush</text>
+  </string>
+  <string id="ui_mcm_at_mutants_mut_rush_desc">
+    <text>Full-speed charge openings at varied distances for the charging species (bloodsucker, boar, pseudogiant), biased open when your weapon is out of its effective band.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_mut_retreat">
+    <text>Retreat</text>
+  </string>
+  <string id="ui_mcm_at_mutants_mut_retreat_desc">
+    <text>A freshly hurt mutant pulls back through its own motions and returns - the pull-back that comes back. Also triggers when you draw a shotgun at close range.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_mut_invisibility">
+    <text>Invisibility</text>
+  </string>
+  <string id="ui_mcm_at_mutants_mut_invisibility_desc">
+    <text>Varies the bloodsucker's invisibility pacing per individual: one flickers fast, another holds long cloaked stretches.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_mut_jab">
+    <text>Jab</text>
+  </string>
+  <string id="ui_mcm_at_mutants_mut_jab_desc">
+    <text>The point-blank claw strike at contact. Vanilla chimeras reach you and wander off with nothing to swing; this gives the contact its hit.</text>
   </string>
   <!-- ==================== SHARED ==================== -->
   <string id="ui_mcm_at_title">

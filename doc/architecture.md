@@ -26,7 +26,8 @@ The Substrate and Observability containers carry no MCM page.
 - Effectiveness: Accuracy, Crossfire, Reaction, Discipline, Range (planned).
 - Perception: Sound, Vision, Danger.
 - Mechanics: Healing, Jamming, Ammo, Gear.
-- Effects (planned), Mutants (planned).
+- Mutants: Damage, Health, Abilities, Chimera.
+- Effects (planned).
 - Fixes to Vanilla: the always-on repairs, shown as locked toggles.
 - Development: log level, World trace, debug HUD, reset.
 - Substrate (no page): at_core, at_faction, at_effects_resolver, the xcombat boundary, the GOAP graft.
@@ -162,7 +163,7 @@ A change that breaks one is wrong even when it works.
 - Performance first. Only correctness and never-break-base-gameplay outrank it. A feature that cannot meet the budget is reworked, dropped, or handed to an engine PR.
 - The 2ms ceiling. Every measured flow targets 0.1ms average per call with a 2ms hard ceiling, an eighth of a 60fps frame. Cold start, save load, and level transition count.
 - The 20v20 bound. The monitor pass at `at_test.start_arena(40)` averages 0.1ms to 0.4ms under a 4ms ceiling. 50v50 is not a test scale, because Anomaly malfunctions near 100 combatants.
-- No per-frame work. Ongoing work runs on a scheduled time event or a discrete engine event. Dispatch in front of a throttle is per-frame work.
+- No per-frame work. Ongoing work runs on a scheduled time event or a discrete engine event. Dispatch in front of a throttle is per-frame work when the carrier fires every render frame (actor_on_update, the shot and visibility functors). A scheduler-cadence callback is a discrete engine event: monster_on_update fires per binder schedule tick, 100ms near to 625ms far, so a cadence gate inside it is a legitimate carrier.
 - No file overrides. Every system attaches by a callback, a function patch, a DLTX overlay, a scheme patch, or the time-boxed takeover.
 - Engine truth. Every mechanism claim carries an engine source cite. Where the engine had no seam, the seam was added upstream first.
 - The xcombat boundary. Every NPC combat command and read goes through an xcombat primitive.
@@ -644,12 +645,39 @@ Optics read day and night live at the provider, so a carrier's range tracks the 
 Passive regen routes through `xcombat.set_health_restore_boost` when the n039 bind is present, else the chemical strength folds into the resist pool.
 The loot and trade inventory floors own carrier persistence, and Gear only marks the carrier.
 
+## Mutants
+
+Mutant combat runs the stalker doctrine with no takeover: the engine FSM stays the sole mover, and the module binds stats, varies values innately, and nudges moves the engine validates itself.
+Every behavior fires on a base chance plus a rank modifier, and every value it takes carries a bounded jitter - the pattern, applied whole.
+Rank is the map tier (`xlevel.get_danger_tier`, 0-5) until the per-mutant rank arrives.
+One formula drives the numbers: stat = 1 + x% * rank and chance = base% + y% * rank, six MCM sliders in total (damage, health, resistance, regeneration, the chance base, the chance per rank).
+
+Does: adopts each online mutant on its first binder update, scales it by tier, and orchestrates its moves on a 200ms gate.
+Changes: per-object stats and params once at adoption, as MULTIPLIERS over the install's own LTX values, so modpack mutant balance survives; one-shot invokes and proposal windows in the fight.
+Stops: inert below the monster seam set with one INACTIVE line; nothing on a species that refuses a component; everything unregisters when the Mutants toggles go off.
+
+```
+monster_on_update (binder scheduler, 100ms near to 625ms far) -> the driver, gated 200ms per mutant (at_mutants.script)
+  adopt: tier + participation rolls (chance = base + tier * slope, rolled ONCE per life - the identity),
+         stat push (health, regeneration, the damage tracks), bounded jitters over ini_sys basis values
+         (turn factor, attack distances, jump band, circle geometry), species pacing rolls
+  tick:  jab    - the chimera-class contact strike via the animation override, cleared by its window or any jump
+         pounce - a bounded commanded leap at the enemy, the instant share rationed and rising with tier
+         rush   - a run-attack opening, biased open when the player's weapon is past its band
+         retreat- a freshly hurt mutant holds an eStateAttack_RunAway proposal window; also on the shotgun draw edge
+         gravi  - a burer answers a held stare with a forced gravity attack, released next tick
+monster_on_combat_action -> the proposal subscriber: pure Lua on the silent path, re-proposes while a window holds
+before-hit seams: damage dealt + bloodsucker lifesteal (victim-side, keyed on shit.draftsman), damage taken (monster_on_before_hit)
+```
+
+- Every engine verb crosses xmonster, the xlibs monster surface; the module holds no raw engine call.
+- The MCM carries the six formula sliders and the move toggles; the jitter is innate (Unpredictability off = the fixed mid-band baseline), every band bounded in `at_mutants_config.ltx`.
+- The jab's damage is author-owned: the DLTX rows give `jump_attack_0` its own `attack_params` numbers (chimera and lurker), instead of the release fallback to the leap row.
+- The HUD mob rows carry the driver label and color, and the world log gains the driver column; both PULL from `at_mutants.get_driver`, the module never writes an observability surface.
+
 ## Planned
 
-- Effects: player-facing combat feedback, starting with concussion (tinnitus and blur).
-- Mutants: the same combat treatment as stalkers.
-
-Both carry a decided MCM category and no built system.
+- Effects: player-facing combat feedback, starting with concussion (tinnitus and blur). It carries a decided MCM category and no built system.
 
 ## Fixes to Vanilla
 
@@ -705,6 +733,8 @@ Healing        the NPC health and bleeding fields, the healing_charge var    cha
 Jamming        a module function on xr_weapon_jam                            xr_weapon_jam.GetConditionMisfireProbability
 Ammo           the CWeapon m_ammoType field, a per-fight box delete          wpn:set_ammo_type, alife_release
 Gear           five resolver providers plus the single regen bind           register, set_health_restore_boost
+Mutants        per-mutant stats and params at adoption, one-shot move       the xmonster setters and invokes, play/stop animation,
+               invokes, the retreat proposal, the hit-power scaling         monster_on_combat_action, the three before-hit seams
 ```
 
 ## File and config layout
@@ -735,11 +765,13 @@ AlifeTactics/gamedata/
     at_gear.script               the functional-inventory source
     at_effects_resolver.script   the multi-source effects substrate
     at_compat.script             the grok_bo hit-pipeline compatibility wrapper
+    at_mutants.script            the mutant combat driver (tier scaling, innate unpredictability, moves)
     at_world_trace.script        the slide watchdog and ballistics recorder
     at_hud.script                the live debug HUD
     at_test.script               console test commands
   configs/
     ai_tweaks/                   the DLTX overlays (mod_xr_danger_at.ltx, mod_xr_eat_medkit_at.ltx)
+    creatures/                   the jab damage rows (mod_m_chimera_at.ltx, mod_m_lurker_at.ltx)
     alifetactics/                the per-system numeric tunables (at_<system>_config.ltx)
     ui/ui_at_stats.xml           the debug-HUD layout
     text/eng,rus                 the MCM strings
