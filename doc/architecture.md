@@ -73,6 +73,35 @@ The per-event systems hold no loop.
 Their cadence is the engine callback the engine already fires.
 Commitment runs on the action-switch and cover-repick vetoes, Conduct on the body-state and combat-distance asks, Accuracy on the per-shot dispersion callback.
 
+## Decision model
+
+Every behaviour decides the same way.
+An objective premise gates a chance, and only a passed roll acts.
+The premise is a read of the fight.
+The chance is one formula, a base plus a per-rank term plus a side term, the faction for a stalker and the species for a mutant.
+A missed roll passes and spends the opening.
+A passed roll commits to a window.
+Push, Pull, the LIQUIDATE deferral, and the maneuver catalog run this on the stalker side, where the premise is each `check_need` or `is_enemy_vulnerable` and the chance is the faction flavour.
+The mutant moves run it in `at_mutants`, where the premise is `rec.memo` and `_update_premises` and the chance is `_check_fire`.
+
+Correctness fixes and skill scaling sit outside the pattern.
+A correctness fix, a veto or a vanilla-bug repair, carries no premise and no roll and always applies.
+Commitment's switch denial, the danger-scheme repairs, and the targeting fixes are correctness.
+Skill scaling is a per-rank curve gated only by participation, with no situational premise.
+The accuracy, aim, vision, and discipline curves and the mutant damage, resistance, and regeneration tracks are skill scaling.
+
+The premise reads on two independent axes.
+Advantage against disadvantage is the power balance.
+When the enemy cannot answer or stands mispositioned and I am able, I press.
+When the enemy is strong and I cannot answer, I protect.
+Efficacy against inefficacy is whether my current action lands.
+An action that reaches and hits means continue.
+An action that cannot reach its target means reposition.
+Advantage and efficacy are orthogonal.
+Advantage decides press against protect, and efficacy decides continue against reposition.
+The exploit a mutant falls to is both at once, advantaged and inefficacious.
+It should win and achieves nothing.
+
 ## Data and ownership
 
 There is one store and one pass.
@@ -647,7 +676,7 @@ The loot and trade inventory floors own carrier persistence, and Gear only marks
 
 ## Mutants
 
-Mutant combat runs the stalker doctrine with no takeover: the engine FSM stays the sole mover, and the module binds stats, varies values innately, and nudges moves the engine validates itself.
+Mutant combat runs the shared decision model with no takeover: the engine FSM stays the sole mover, and the module binds stats, varies values innately, and nudges moves the engine validates itself.
 The moves are maneuvers, like the stalker Push, Pull, and LIQUIDATE: every mutant of a species can always use its species' moves, each OPENING rolls the chance (a missed roll lets the opening pass), and a fired move commits to its window.
 The chance is the unified formula, mutant side: base + map-rank slope + species modifier, capped.
 Participation timing deliberately differs from stalkers, for now: a stalker's participation is computed and applied in waves (the flavor roll holds 300s, then re-rolls), a mutant rolls at every opening.
@@ -659,7 +688,7 @@ Every value a move takes carries a bounded jitter.
 Rank is the map tier (`xlevel.get_danger_tier`, 0-5) until the per-mutant rank arrives.
 One formula drives the numbers: stat = 1 + x% * rank and chance = base% + y% * rank, six MCM sliders in total (damage, health, resistance, regeneration, the chance base, the chance per rank).
 
-Does: adopts each online mutant on its first binder update, scales it by tier, and orchestrates its moves on a 200ms gate.
+Does: adopts each online mutant on its first binder update, scales it by tier, and orchestrates its moves on a 200ms tick with a 600ms assessment sub-gate.
 Changes: per-object stats and params once at adoption, as MULTIPLIERS over the install's own LTX values, so modpack mutant balance survives; one-shot invokes and proposal windows in the fight.
 Stops: inert below the monster seam set with one INACTIVE line; a move never rolls outside its species envelope; on toggle-off the module releases what it still owns live (the animation override, a pending gravi force, the regen boost) - pushed params revert on the next spawn, and scaled health keeps engine save semantics.
 
@@ -670,8 +699,9 @@ monster_on_update (binder scheduler, 100ms near to 625ms far) -> the driver, gat
          regeneration; the damage tracks), bounded jitters over ini_sys basis values (turn factor, one
          shared factor per band pair so a narrow band cannot invert, circle geometry, the rush band),
          species pacing rolls
-  tick (each move rolls base + rank at its opening; a miss consumes the opening, a fire commits to its window):
-         jab    - the chimera-class contact strike via the animation override, cleared by its window or any jump
+  jab 200ms: the chimera-class contact strike via the animation override, cleared by its window or any jump
+  assess 600ms (each move rolls base + rank at its opening; a miss consumes the opening, a fire commits to its window):
+         the fight read into rec.memo (weapon band, facing, the shotgun gates, the charge opening) and the premise re-arm
          pounce - a bounded commanded leap at the enemy, the instant share rationed and rising with tier
          rush   - a run-attack opening: a weapon past its band always charges, otherwise the opening rolls
          retreat- a fresh hit or a close shotgun draw rolls an eStateAttack_RunAway proposal window, on the

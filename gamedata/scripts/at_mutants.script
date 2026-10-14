@@ -10,6 +10,7 @@ local cfg = at_mcm.cfg
 
 local LTX_PATH        = "alifetactics\\at_mutants_config.ltx"
 local GATE_MS         = 200
+local ASSESS_MS       = 600
 local STALE_MS        = 12000
 local SWEEP_MS        = 10000
 local BASE_HEALTH_EPS = 1
@@ -231,12 +232,12 @@ local function _add_mutant(mob, id, now)
         tier = tier,
         chance_mod = species and xltx.read_num(_tun, "chance_species", species) or 0,
         next_ms = 0,
+        assess_at = 0,
         seen_ms = now,
         tick_now = now,
         driver = "-",
         moves = moves,
         vuln = false, fleeing = false, mismatch = false, turned = false,
-        shotgun_threat = false, shotgun_open = false, charge_open = false,
         pounce_cd = _select_band(_tun_num.pounce_cd_min, _tun_num.pounce_cd_max),
         rush_cd = _select_band(_tun_num.pounce_cd_min, _tun_num.pounce_cd_max),
         pounce_min = _compute_jitter(_tun_num.pounce_min, _tun_num.jump_band_pct),
@@ -293,15 +294,17 @@ local function _check_enemy_vulnerable(enemy, is_actor, now)
     return _actor_vuln
 end
 
--- Premise edges (enemy newly vulnerable, fleeing, weapon out of band, or a near shotgun turning away) re-arm pounce and rush for one fresh opening.
-local function _update_edges(mob_pos, rec, enemy, is_actor, dist, mismatch)
+-- A newly-held premise (enemy turns vulnerable, flees, weapon out of band, near shotgun turns away) re-arms pounce and rush for one fresh opening.
+local function _update_premises(rec, now)
     if not (rec.moves.pounce or rec.moves.rush) then return end
-    local vuln = _check_enemy_vulnerable(enemy, is_actor, rec.tick_now)
+    local memo = rec.memo
+    local vuln = _check_enemy_vulnerable(memo.enemy, memo.is_actor, now)
     local last = rec.last_dist
-    rec.last_dist = dist
-    local fleeing = last ~= nil and dist - last >= _tun_num.flee_recede
-        and not xcombat.is_facing(enemy, mob_pos, _tun_num.flee_cone)
-    local turned = rec.shotgun_open == true
+    rec.last_dist = memo.dist
+    local fleeing = last ~= nil and memo.dist - last >= _tun_num.flee_recede
+        and not xcombat.is_facing(memo.enemy, memo.mob_pos, _tun_num.flee_cone)
+    local turned = memo.shotgun_open == true
+    local mismatch = memo.mismatch
     if (vuln and not rec.vuln) or (fleeing and not rec.fleeing) or (mismatch and not rec.mismatch)
         or (turned and not rec.turned) then
         rec.pounce_at, rec.rush_at = 0, 0
@@ -333,20 +336,22 @@ local function _update_jab(mob, rec, enemy_pos, dist, now)
 end
 
 -- The commanded leap, bounded to the jump band; never into an aimed shotgun, a missed roll consumes the opening.
-local function _update_pounce(mob, rec, enemy_pos, dist, now)
+local function _update_pounce(mob, rec, now)
     if not cfg.mut_pounce or not rec.moves.pounce then return end
-    if rec.shotgun_threat then return end
+    local memo = rec.memo
+    if memo.shotgun_aimed then return end
     if now < rec.pounce_at or rec.jab_until > 0 then return end
+    local dist = memo.dist
     if dist < rec.pounce_min or dist > rec.pounce_max then return end
     if rec.jump_max_m and dist > rec.jump_max_m then return end
-    if not xcombat.is_facing(mob, enemy_pos, _tun_num.pounce_cone) then return end
+    if not xcombat.is_facing(mob, memo.enemy_pos, _tun_num.pounce_cone) then return end
     if not _check_fire(rec) then
         rec.pounce_at = now + rec.pounce_cd
         if at_debug.is_on() then at_debug.debug("[MUT] PASS id=%d move=pounce", rec.id) end
         return
     end
     local instant = cfg.mut_untelegraph and cfg.mut_unpredictability and math_random() < _compute_chance(rec) or false
-    if xmonster.try_monster_jump(mob, enemy_pos, 1, { skip_prepare = instant }) then
+    if xmonster.try_monster_jump(mob, memo.enemy_pos, 1, { skip_prepare = instant }) then
         rec.pounce_at = now + rec.pounce_cd
         rec.driver = instant and "POUNCE!" or "POUNCE"
         if at_debug.is_on() then at_debug.debug("[MUT] %s id=%d d=%.1f", rec.driver, rec.id, dist) end
@@ -354,9 +359,10 @@ local function _update_pounce(mob, rec, enemy_pos, dist, now)
 end
 
 -- A charge is a flank or weak-gun move (behind/side, pistol/SMG, or a weapon past its band); every opening rolls, a miss consumes it.
-local function _update_rush(mob, rec, now, mismatch)
+local function _update_rush(mob, rec, now)
     if not cfg.mut_rush or not rec.moves.rush then return end
-    if rec.shotgun_threat or not rec.charge_open then return end
+    local memo = rec.memo
+    if memo.shotgun_aimed or not memo.charge_open then return end
     if now < rec.rush_at then return end
     if not _check_fire(rec) then
         rec.rush_at = now + rec.rush_cd
@@ -366,7 +372,7 @@ local function _update_rush(mob, rec, now, mismatch)
     if xmonster.try_monster_run_attack(mob) then
         rec.rush_at = now + rec.rush_cd
         rec.driver = "RUSH"
-        if at_debug.is_on() then at_debug.debug("[MUT] RUSH id=%d mismatch=%s", rec.id, tostring(mismatch)) end
+        if at_debug.is_on() then at_debug.debug("[MUT] RUSH id=%d mismatch=%s", rec.id, tostring(memo.mismatch)) end
     end
 end
 
@@ -413,13 +419,14 @@ local function _update_retreat(mob, rec, now)
 end
 
 -- A held stare on the burer rolls a forced gravi; a missed roll consumes the opening, Unpredictability varies the stare window.
-local function _update_stare(mob, rec, enemy, dist_sqr, now)
+local function _update_stare(mob, rec, now)
     if not cfg.mut_gravi or not rec.moves.gravi then return end
-    if now < rec.gravi_at or dist_sqr > _tun_num.stare_range_sqr then
+    local memo = rec.memo
+    if now < rec.gravi_at or memo.dist_sqr > _tun_num.stare_range_sqr then
         rec.stare_since = nil
         return
     end
-    if not xcombat.is_in_sight(enemy, mob, _tun_num.stare_cone) then
+    if not xcombat.is_in_sight(memo.enemy, mob, _tun_num.stare_cone) then
         rec.stare_since = nil
         return
     end
@@ -440,26 +447,37 @@ local function _update_stare(mob, rec, enemy, dist_sqr, now)
     end
 end
 
--- The enemy weapon read, once per tick: the facing-aware shotgun gates, the charge permission, the actor's out-of-band premise.
-local function _read_enemy_weapon(rec, enemy, mob_pos, dist, is_actor)
+-- The per-beat fight scratch: positions, distance, and the enemy weapon reads (shotgun gates, charge permission, the actor mismatch).
+-- Transient reads live in rec.memo; the premise state (vuln/fleeing/mismatch/turned) stays on rec, like at_maneuvers state.memo.
+local function _reset_memo(rec, enemy, enemy_pos, mob_pos, dist, dist_sqr)
+    local memo = rec.memo
+    if not memo then memo = {} rec.memo = memo end
     local kind = xcombat.get_weapon_kind(enemy)
     local band = kind and xcombat.get_range_band(dist, kind) or nil
     local aimed = kind ~= nil and xcombat.is_facing(enemy, mob_pos, _tun_num.threat_cone)
     local shotgun_near = kind == SHOTGUN_KIND and band == BAND_IN
     local shotgun_aimed = shotgun_near and aimed
-    if shotgun_aimed and not rec.shotgun_threat and at_debug.is_on() then
+    if shotgun_aimed and not memo.shotgun_aimed and at_debug.is_on() then
         at_debug.debug("[MUT] THREAT id=%d shotgun aimed d=%.1f", rec.id, dist)
     end
-    rec.shotgun_threat = shotgun_aimed
-    rec.shotgun_open = shotgun_near and not aimed
-    rec.charge_open = not aimed or WEAK_KIND[kind] == true or band == BAND_OUT
-    local mismatch = is_actor and kind ~= nil and RUSH_KIND[kind] == true and band == BAND_OUT
-    return kind, shotgun_near, mismatch
+    memo.enemy = enemy
+    memo.enemy_pos = enemy_pos
+    memo.mob_pos = mob_pos
+    memo.dist = dist
+    memo.dist_sqr = dist_sqr
+    memo.is_actor = enemy:id() == AC_ID
+    memo.kind = kind
+    memo.shotgun_near = shotgun_near
+    memo.shotgun_aimed = shotgun_aimed
+    memo.shotgun_open = shotgun_near and not aimed
+    memo.charge_open = not aimed or WEAK_KIND[kind] == true or band == BAND_OUT
+    memo.mismatch = memo.is_actor and kind ~= nil and RUSH_KIND[kind] == true and band == BAND_OUT
 end
 
 -- The close shotgun-draw retreat: rolls once on the draw edge inside the band, on the retreat cooldown.
-local function _try_shotgun_retreat(rec, shotgun_near, dist, now)
-    if not shotgun_near or rec.last_actor_kind == SHOTGUN_KIND then return end
+local function _try_shotgun_retreat(rec, now)
+    local memo = rec.memo
+    if not memo.shotgun_near or rec.last_actor_kind == SHOTGUN_KIND then return end
     if not rec.moves.retreat or not _runaway_id or now < rec.retreat_at then return end
     if not _check_fire(rec) then
         if at_debug.is_on() then at_debug.debug("[MUT] PASS id=%d move=shotgun_retreat", rec.id) end
@@ -468,9 +486,11 @@ local function _try_shotgun_retreat(rec, shotgun_near, dist, now)
     rec.retreat_until = now + _select_band(_tun_num.retreat_hold_min, _tun_num.retreat_hold_max)
     rec.retreat_at = now + rec.retreat_cd
     rec.driver = "RETREAT"
-    if at_debug.is_on() then at_debug.debug("[MUT] RETREAT id=%d cause=shotgun d=%.1f", rec.id, dist) end
+    if at_debug.is_on() then at_debug.debug("[MUT] RETREAT id=%d cause=shotgun d=%.1f", rec.id, memo.dist) end
 end
 
+-- The per-tick body (200ms): the gravi-force release, the enemy read, the jab contact and jump-owner clear.
+-- The assessment and every ranged/timed move ride the 600ms sub-gate; only the jab stays per-tick (contact cannot wait).
 local function _update_mutant(mob, rec, now)
     rec.tick_now = now
     rec.seen_ms = now
@@ -488,24 +508,25 @@ local function _update_mutant(mob, rec, now)
         rec.stare_since = nil
         rec.last_dist = nil
         rec.vuln, rec.fleeing, rec.mismatch, rec.turned = false, false, false, false
-        rec.shotgun_threat, rec.shotgun_open, rec.charge_open = false, false, false
         return
     end
     local enemy_pos = enemy:position()
     local mob_pos = mob:position()
     local dist_sqr = mob_pos:distance_to_sqr(enemy_pos)
     local dist = math_sqrt(dist_sqr)
-    local is_actor = enemy:id() == AC_ID
-    local kind, shotgun_near, mismatch = _read_enemy_weapon(rec, enemy, mob_pos, dist, is_actor)
-    if is_actor then
-        _try_shotgun_retreat(rec, shotgun_near, dist, now)
-        rec.last_actor_kind = kind
-        _update_stare(mob, rec, enemy, dist_sqr, now)
-    end
-    _update_edges(mob_pos, rec, enemy, is_actor, dist, mismatch)
     _update_jab(mob, rec, enemy_pos, dist, now)
-    _update_pounce(mob, rec, enemy_pos, dist, now)
-    _update_rush(mob, rec, now, mismatch)
+    if now < rec.assess_at then return end
+    rec.assess_at = now + ASSESS_MS
+    _reset_memo(rec, enemy, enemy_pos, mob_pos, dist, dist_sqr)
+    local memo = rec.memo
+    if memo.is_actor then
+        _try_shotgun_retreat(rec, now)
+        rec.last_actor_kind = memo.kind
+        _update_stare(mob, rec, now)
+    end
+    _update_premises(rec, now)
+    _update_pounce(mob, rec, now)
+    _update_rush(mob, rec, now)
     _update_retreat(mob, rec, now)
     _try_survival_flee(mob, rec, now)
 end
