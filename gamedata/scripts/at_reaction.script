@@ -158,7 +158,7 @@ local function _get_ammo_speed_k(wpn, sect)
     if not ammo_sect then return 1.0 end
     local k = _ammok[ammo_sect]
     if k == nil then
-        k = ini_sys:r_float_ex(ammo_sect, "k_get_bullet_speed") or 1.0
+        k = ini_sys:r_float_ex(ammo_sect, "k_bullet_speed") or 1.0
         _ammok[ammo_sect] = k
     end
     return k
