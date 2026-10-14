@@ -339,7 +339,7 @@
     - Added Crossfire: a same-faction friendly-fire damage block, default on. Same-faction hits deal no damage, tunable back up to full vanilla.
     - Added Danger: an xr_danger rework, always-on bug fixes plus 3 toggleable improvements. Hits, ricochets, and gunshots read separate config rows, with weather-scaled detection range.
       A sniped or shot-at stalker reacts at any range, even to gunfire vanilla left unanswered. Corpse investigation survives despawned corpses, drives the right stalker, and takes its cover.
-    - Added Disclosure: a survivor gate, default on. An outright kill no longer discloses the shooter, so stealth kills stay quiet.
+    - Added Disclosure: a survivor gate, default on. A clean kill no longer discloses the shooter, so stealth kills stay quiet.
     - Fixed lone stalkers never being alerted to their shooter, disclosure was squad-only.
 
   Mechanics
