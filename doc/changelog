@@ -1,4 +1,26 @@
 1.2.2-snapshot
+  Summary: Mutants, rank scaling, species abilities, smart openings, the chimera claw, survival flee, mutant HUD and trace
+
+  Mutants
+    Damage
+      - Added per-rank damage: a mutant hits harder on deeper maps, a percent-per-rank slider over your install's own damage.
+          Rank is the map tier, 0 on the starting maps up to 5 at the endgame; rank 0 stays vanilla, and every value multiplies the installed balance so a mutant overhaul keeps its numbers.
+          The whole Mutants system needs the latest demonized build and stays inactive on older exes and on AOEngine.
+    Health
+      - Added per-rank health, resistance, and regeneration, each its own percent-per-rank slider: a deeper-map mutant has a bigger pool, takes less, and heals between wounds.
+          Health scales only from the vanilla base, so the scaling never heals a wounded mutant back to full; regeneration is a share of the pool per minute per rank.
+    Abilities
+      - Added the mutant move set: every mutant of a species carries its species' moves, and each opening rolls a chance that climbs with the map rank and the species.
+          Leaps for the jumping species, the full-speed flank charge for the chargers, a brief pull-back and a near-death break-and-run for the common ground species,
+          invisibility pacing for the bloodsucker kind, and the burer's forced gravity throw. Each move names its species in MCM, and a species without it is untouched.
+      - Added smart openings: a mutant takes an extra chance at your weak moment, you reloading, defenseless, sprinting, or fleeing, or your weapon past its effective range.
+          A shotgun aimed at a charging mutant in range stops the leap and the charge; turned away or out of reach, it invites them.
+      - Added per-individual variation under the Unpredictability toggle: each mutant's tempo, reach, and move timing roll within bounded ranges at spawn, so individuals of a species differ.
+    Chimera
+      - Added the chimera's point-blank claw: vanilla chimeras reach you and wander off with nothing to swing, and this gives the contact its hit. Covers the lurker, the same engine class.
+
+  Development
+    - Added the mutant rows to the debug HUD and the mutant columns to the world trace: the driver state, the engine state, health, morale, and the species moves.
 
 1.2.1
   Summary: Combat substrate, maneuvers widened to every nearby fight, Faction flavor, Push and Pull windows, Weapon spacing, Glide stop, targeting fixes, the Disclosure page removed,

@@ -1,4 +1,4 @@
-; AlifeTactics mutants - the innate numbers: participation chances, tempo bands, jitter envelopes, species rows.
+; AlifeTactics mutants - the innate numbers: species envelopes, tempo bands, jitter envelopes, premise rows.
 ; MCM owns only the per-tier stat tracks and the ability toggles; nothing here is user-facing.
 ; Every band is BOUNDED (the performance law): variation never leaves a field-sane envelope.
 
@@ -7,19 +7,60 @@ pounce_cd_min    = 4000
 pounce_cd_max    = 9000
 jab_cd_min       = 1400
 jab_cd_max       = 2800
-retreat_cd_min   = 16000
-retreat_cd_max   = 32000
-retreat_hold_min = 6000
-retreat_hold_max = 10000
+retreat_cd_min   = 30000
+retreat_cd_max   = 60000
+retreat_hold_min = 4000
+retreat_hold_max = 7000
 stare_min        = 2000
 stare_max        = 4000
 gravi_cd_min     = 9000
 gravi_cd_max     = 16000
 
+[moves] ; per-move species envelope: a move exists only for species that can execute it (engine components; retreat = the shared-attack-tree species the proposal reaches)
+pounce       = chimera, lurker, cat, bloodsucker, psysucker, dog, snork, pseudodog, psy_dog
+rush         = bloodsucker, psysucker, boar, gigant
+retreat      = boar, bloodsucker, psysucker, cat, dog, flesh, fracture, gigant, karlik, pseudodog, psy_dog, snork, tushkano, zombie
+invisibility = bloodsucker, psysucker
+gravi        = burer
+
+[chance]
+cap = 0.95
+
+[chance_species] ; percentage points added to the move chance, the species term of the unified formula
+chimera     = 10
+lurker      = 10
+bloodsucker = 5
+psysucker   = 5
+burer       = 5
+cat         = 5
+boar        = -5
+fracture    = -5
+karlik      = -5
+zombie      = -10
+flesh       = -10
+tushkano    = -15
+
+[fleeing] ; the enemy-fleeing read: receding per 200ms tick with the back turned
+recede_m = 0.3
+cone_deg = 90
+
+[survival] ; crossing below this fraction of the scaled pool rolls one long run-away window
+health_frac = 0.30
+hold_min    = 8000
+hold_max    = 15000
+
+[threat] ; an enemy weapon aimed within this cone counts as facing the mutant (the shotgun and charge gates read it)
+facing_cone_deg = 60
+
 [pounce]
 band_min_m      = 5
 band_max_m      = 11
 facing_cone_deg = 35
+
+[gravi] ; the burer stare trigger premise
+range_m    = 40
+cone_deg   = 12
+release_ms = 1000
 
 [jab] ; the chimera-class contact strike (covers the lurker: same engine class and anim table)
 species  = chimera, lurker
@@ -37,6 +78,7 @@ attack_dist_pct = 0.15
 jump_band_pct   = 0.15
 circle_pct      = 0.20
 rush_band_pct   = 0.20
+window_pct      = 0.20
 turn_min        = 0.90
 turn_max        = 1.25
 

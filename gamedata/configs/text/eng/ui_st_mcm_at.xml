@@ -157,7 +157,7 @@
     <text>What a mutant survives, growing per map rank: health pool, damage resistance, and idle regeneration, each a percent-per-rank slider over the installed balance.</text>
   </string>
   <string id="ui_mcm_at_mutants_abilities_desc">
-    <text>The mutant move set. Each ability applies to every species that carries the component and refuses safely on the rest. Which individual uses which ability, when, and with what timing is rolled per spawn and rises with the map tier.</text>
+    <text>The mutant move set. Each ability names the exact species it applies to; every other species is untouched. Whether a move fires at each opening is a chance roll rising with the map rank and the species; smart moments (you reloading or defenseless, you fleeing, your weapon out of its range) grant extra openings that roll the same chance.</text>
   </string>
   <string id="ui_mcm_at_mutants_chimera_desc">
     <text>The chimera's own moves (covers the lurker, same engine class). Species with unique moves get their own page here as their kits grow.</text>
@@ -190,7 +190,7 @@
     <text>Move chance (%)</text>
   </string>
   <string id="ui_mcm_at_mutants_mut_chance_base_desc">
-    <text>The base chance a mutant carries each ability and takes its riskier variants, before the rank bonus.</text>
+    <text>The chance a move fires at each opening (a pounce window, a charge clock, a fresh hit), before the rank bonus. A missed roll lets the opening pass and the move's cooldown runs.</text>
   </string>
   <string id="ui_mcm_at_mutants_mut_chance_rank_pct">
     <text>Move chance per rank (%)</text>
@@ -202,43 +202,55 @@
     <text>Unpredictability</text>
   </string>
   <string id="ui_mcm_at_mutants_mut_unpredictability_desc">
-    <text>The innate randomness layer: every move fires on a chance roll and every timing, distance, and cadence varies inside a bounded band, wider on harder maps. Off: fixed mid-band behavior, no rolls.</text>
+    <text>The innate randomness layer: every move fires on a chance roll and every timing, distance, and cadence varies inside a bounded band. Off: fixed mid-band timing, and moves fire deterministically once their chance crosses half.</text>
   </string>
   <string id="ui_mcm_at_mutants_mut_pounce">
     <text>Pounce</text>
   </string>
   <string id="ui_mcm_at_mutants_mut_pounce_desc">
-    <text>Commanded leaps at varied moments and angles for the jumping species; a rationed share comes with no wind-up, rising with the map tier. Dodge-play survives: the telegraphed leap stays the default.</text>
+    <text>Commanded leaps at varied moments; a rationed share comes with no wind-up, rising with the map rank. No mutant leaps into a shotgun aimed at it in range; a shotgunner looking away gets leapt at. Applies to: chimera, lurker, cat, bloodsucker, psysucker, dog, snork, pseudodog, psy dog.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_mut_untelegraph">
+    <text>Untelegraphed leaps</text>
+  </string>
+  <string id="ui_mcm_at_mutants_mut_untelegraph_desc">
+    <text>A rationed share of leaps come with no wind-up, rising with the map rank. Off: every leap keeps its telegraph, so all are dodgeable. Applies to: chimera, lurker, cat, bloodsucker, psysucker, dog, snork, pseudodog.</text>
   </string>
   <string id="ui_mcm_at_mutants_mut_melee">
     <text>Melee</text>
   </string>
   <string id="ui_mcm_at_mutants_mut_melee_desc">
-    <text>The turn-and-hit on rear orbiting: a mutant punishes an enemy circling behind it with a spin strike. Armed only on species with the strike motions.</text>
+    <text>The turn-and-hit on rear orbiting: a mutant punishes an enemy circling behind it with a spin strike. Applies to: chimera, lurker.</text>
   </string>
   <string id="ui_mcm_at_mutants_mut_rush">
     <text>Rush</text>
   </string>
   <string id="ui_mcm_at_mutants_mut_rush_desc">
-    <text>Full-speed charge openings at varied distances for the charging species (bloodsucker, boar, pseudogiant), biased open when your weapon is out of its effective band.</text>
+    <text>The full-speed charge is a flank and weak-gun move: it comes from behind or the side, against a pistol or SMG, or when your weapon is past its effective range. Never into an aimed shotgun. Applies to: bloodsucker, psysucker, boar, pseudogiant.</text>
   </string>
   <string id="ui_mcm_at_mutants_mut_retreat">
     <text>Retreat</text>
   </string>
   <string id="ui_mcm_at_mutants_mut_retreat_desc">
-    <text>A freshly hurt mutant pulls back through its own motions and returns - the pull-back that comes back. Also triggers when you draw a shotgun at close range.</text>
+    <text>A freshly hurt mutant briefly pulls back through its own motions and returns; rare by design. Also rolls when you draw a shotgun at close range. Near death it can break off and run outright, for longer. Applies to: boar, bloodsucker, psysucker, cat, dog, flesh, fracture, pseudogiant, karlik, pseudodog, psy dog, snork, tushkano, zombie.</text>
   </string>
   <string id="ui_mcm_at_mutants_mut_invisibility">
     <text>Invisibility</text>
   </string>
   <string id="ui_mcm_at_mutants_mut_invisibility_desc">
-    <text>Varies the bloodsucker's invisibility pacing per individual: one flickers fast, another holds long cloaked stretches.</text>
+    <text>Varies the invisibility pacing per individual: one flickers fast, another holds long cloaked stretches. Applies to: bloodsucker, psysucker.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_mut_gravi">
+    <text>Gravi</text>
+  </string>
+  <string id="ui_mcm_at_mutants_mut_gravi_desc">
+    <text>Holding your aim on a burer for a few seconds can draw its gravity attack as the answer; rolls the move chance, on a long cooldown. Applies to: burer.</text>
   </string>
   <string id="ui_mcm_at_mutants_mut_jab">
     <text>Jab</text>
   </string>
   <string id="ui_mcm_at_mutants_mut_jab_desc">
-    <text>The point-blank claw strike at contact. Vanilla chimeras reach you and wander off with nothing to swing; this gives the contact its hit.</text>
+    <text>The point-blank claw strike at contact. Vanilla chimeras reach you and wander off with nothing to swing; this gives the contact its hit. Applies to: chimera, lurker.</text>
   </string>
   <!-- ==================== SHARED ==================== -->
   <string id="ui_mcm_at_title">

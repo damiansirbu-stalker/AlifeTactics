@@ -910,16 +910,29 @@ local function _read_mob_motion(mob, pos, ap, tg)
     return dist, vr, vt, had_prev
 end
 
-local function _log_mob_edge(mob, obj, id, dist)
+-- The four monster FSM memories (hit, sound, enemy, home) as one column string, read only when an edge prints.
+-- The #725 readers are all-or-nothing per exe, so one absent reader means all four are.
+local function _format_mob_memory(obj, tg)
+    local hit = xmonster.get_monster_hit_info(obj)
+    if not hit then return "mem=-" end
+    local snd = xmonster.get_monster_sound_info(obj)
+    local foe = xmonster.get_monster_enemy_info(obj)
+    local home = xmonster.get_monster_home_info(obj)
+    local seen = foe.time_last_seen
+    return string_format("hits=%d snd=%d/%d seen=%dms home=%s",
+        hit.count, snd.type, snd.count, seen > 0 and (tg - seen) or -1, tostring(home.has_home))
+end
+
+local function _log_mob_edge(mob, obj, id, dist, tg)
     local state = obj:get_monster_state()
     local strength = obj:get_enemy_strength()
     local jumping = obj:is_monster_jumping()
     if not mob.name then mob.name = obj:name() or "?" end
     local driver = at_mutants.get_driver(id)
     if state ~= mob.state or strength ~= mob.strength or jumping ~= mob.jumping or driver ~= mob.driver then
-        log.info("[WORLD] mob id=%d %s state=%s str=%d jmp=%s drv=%s dist=%.0f",
-            id, mob.name, at_core.get_mob_state_name(state), strength or 0, jumping and "y" or "n",
-            driver or "-", dist)
+        log.info("[WORLD] mob id=%d %s state=%s str=%d jmp=%s drv=%s dist=%.0f %s",
+            id, mob.name, at_core.get_mob_state_name(state), strength, jumping and "y" or "n",
+            driver or "-", dist, _format_mob_memory(obj, tg))
         mob.state, mob.strength, mob.jumping, mob.driver = state, strength, jumping, driver
     end
     return jumping
@@ -933,7 +946,7 @@ local function _update_mob(obj, id, tg, ap)
     end
     if tg < mob.next_ms then return end
     local dist, vr, vt, had_prev = _read_mob_motion(mob, obj:position(), ap, tg)
-    local jumping = _log_mob_edge(mob, obj, id, dist)
+    local jumping = _log_mob_edge(mob, obj, id, dist, tg)
     if mob.contact then
         _log_mob_contact(mob, id, tg, jumping)
     elseif dist <= MOB_CONTACT_ENTER_M and had_prev then

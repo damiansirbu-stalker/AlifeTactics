@@ -197,7 +197,7 @@ A stalker starting a walk-over check calls it out, so you hear the reaction as w
 Nothing changes in combat, and a carry-distance slider scales it, so stealth stays a game of distance and stance.
 Compatible with stealth mods: stealth in Anomaly is about being seen, through light, cover, and stance, and the sound system never touches vision or detection.
 Hearing only adds the short-range sense vanilla lacks, and crouched movement is silent, so the crouched approach your stealth setup allows is never given away by sound.
-Neutral and friendly stalkers get one reaction of their own. Fire close to them and they go weapon-ready facing your shots.
+Neutral and friendly stalkers get one reaction of their own. Gunfire close to them turns them weapon-ready facing the shots.
 They go alert but stay friendly. They settle down when the shooting stops. Every reaction has its own toggle.
 
 Vision:
@@ -246,6 +246,35 @@ A chemical artefact heals its carrier slowly over time.
 Any artefact carrier warps the air around his body, so a distorting stalker is a real, huntable artefact drop.
 Binoculars extend his sight range by day and night-vision by night.
 Effect strengths and the artefact class tables are tunable in the gear config under configs/alifetactics/.
+
+Mutants
+
+Mutants get the combat treatment stalkers do, tougher as the Zone deepens and sharper against a weak target.
+The engine drives every mutant as it always has. AlifeTactics scales its stats and proposes smarter moves for the engine to run. It never takes a mutant over.
+Rank is the map tier, from 0 on the starting maps to 5 at the endgame, so a Cordon dog barely changes while a deep-Zone chimera is far deadlier.
+The whole system needs the latest demonized build and stays inactive on older exes and on AOEngine.
+
+Damage:
+A mutant deals more per map rank, a percent-per-rank bonus over your install's own damage.
+Rank 0 stays vanilla, and the bonus multiplies the installed balance, so a mutant overhaul keeps its numbers.
+
+Health:
+A mutant's pool, its damage resistance, and its idle regeneration each grow per map rank, each on its own percent-per-rank slider.
+The pool scales from the vanilla base, so the scaling never heals a wounded mutant back to full. Regeneration is a share of the pool per minute per rank.
+
+Abilities:
+Each species fights with the moves its body has, and every mutant of that species carries them. Which move fires at a given opening is a chance that climbs with the map rank and the species.
+Pounce is the commanded leap, carried by chimera, lurker, cat, bloodsucker, dog, snork, and pseudodog.
+Melee is a spin strike that turns on an enemy circling to the rear, carried by chimera and lurker.
+Rush is the full-speed charge, carried by bloodsucker, boar, and pseudogiant, and comes from a flank or against a weapon too weak for the range.
+Retreat is a brief pull-back, and near death a run from the fight, carried by the common ground species.
+Invisibility varies the bloodsucker kind's cloak rhythm, and Gravi is the burer's forced gravity throw drawn by a held aim.
+A weak target opens an extra chance at these moves: one reloading, defenseless, sprinting, or fleeing.
+A shotgun aimed at a charging mutant in range stops the leap and the charge, and a shotgunner turned away invites them.
+Unpredictability varies each mutant's tempo, reach, and move timing within bounded ranges, set per individual at spawn.
+
+Chimera:
+The chimera and lurker land a point-blank claw at contact that vanilla never gave them. A vanilla chimera reaches its target and wanders off with nothing to swing.
 
 Fixes to Vanilla:
 AlifeTactics corrects dozens of vanilla Anomaly and xray defects, grouped below by the system each repairs.
@@ -301,9 +330,6 @@ Healing:
 Effects (planned):
 Player-facing combat feedback, starting with concussion: tinnitus and blur.
 
-Mutants (planned):
-Mutants get the same combat treatment as stalkers.
-
 Intended setup:
 AlifeTactics is built and tuned against vanilla Anomaly on the latest demonized build.
 It runs on AOEngine and older demonized builds with fallbacks, where a feature that needs a newer hook stays inactive or reduced.
@@ -320,17 +346,19 @@ Depends only on xlibs. Install and uninstall mid-save work. Tested: Anomaly 1.5.
 Drop:
 - Animated NPC Healing, and NPC-healer replacements - run in place of the Healing system.
 - G.A.M.M.A. No NPC Friendly Fire, and community friendly-fire blockers - re-filter the friendly hits Crossfire already handles and rewrite NPC relations on hit.
-- G.A.M.M.A. NPCs Faster Reactions - raises sight range and detection, so NPCs see across open ground and swamp the Vision curve; no toggle, so lower its LTX keys by hand or drop it.
+- G.A.M.M.A. NPCs Faster Reactions - raises sight range and detection, so NPCs see across open ground and swamp the Vision curve. No toggle, so lower its LTX keys by hand or drop it.
 - NPC Limping and Healing (Vodoxleb) - stacks the limp and heal animation and breaks the heal cue.
 - NPC Weapon Jamming, and any NPC-jam mod - re-adds the jams the Jamming system removes, looping reloads with no end.
 - RE:DONE Combat AI - drives combat aim itself and leaves the game's aim settings altered on removal.
-- Worse NPC Vision and Accuracy, and any mod with its own NPC vision config - override the Vision and Accuracy systems; no toggle, so remove its accuracy LTX by hand or drop it.
-- Companion Spotters - replaces vanilla NPC movement game-wide so one bug breaks every NPC, does per-frame work plus a full world scan, and misroutes companions on large maps with a broken vertex check.
+- Worse NPC Vision and Accuracy, and any mod with its own NPC vision config - override the Vision and Accuracy systems. No toggle, so remove its accuracy LTX by hand or drop it.
+- Companion Spotters - replaces vanilla NPC movement game-wide so one bug breaks every NPC, does per-frame work plus a full world scan,
+  and misroutes companions on large maps with a broken vertex check.
 - Useful Idiots - a companion overhaul whose game-wide reach replaces xr_danger, racing the Danger system on every NPC.
 Avoid:
-- G.A.M.M.A. AI Rework - runs alongside, but cripples NPC combat: it swaps the engine's targeting and firing for its own logic, revives broken combat subschemes, reseeds RNG at load, and is littered with dead code and hardcoded values.
+- G.A.M.M.A. AI Rework - runs alongside, but cripples NPC combat: it swaps the engine's targeting and firing for its own logic, revives broken combat subschemes,
+  reseeds RNG at load, and is littered with dead code and hardcoded values.
 Change:
-- G.A.M.M.A. No logs and Log spam remover - leave their option off (off by default); enabling it disables the Accuracy system.
+- G.A.M.M.A. No logs and Log spam remover - leave their option off (off by default). Enabling it disables the Accuracy system.
 Everything else coexists, as long as it extends X-Ray and Anomaly and never overrides them.
 
 Not AlifeTactics (base game or your setup):
