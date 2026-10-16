@@ -169,7 +169,7 @@ local function _apply_stats(mob, rec)
         if current > base_health - BASE_HEALTH_EPS and current < base_health + BASE_HEALTH_EPS then
             xmonster.set_monster_health(mob, base_health * _tracks.health[rec.tier])
         end
-        xcombat.set_health_restore_boost(mob, base_health * _tracks.regen[rec.tier])
+        xcombat.set_health_restore_boost(mob, _tracks.regen[rec.tier])
     end
     xmonster.set_monster_turn_factor(mob, _select_band(_tun_num.turn_min, _tun_num.turn_max))
     local atk_min, atk_max = _compute_band(_read_basis(section, "MinAttackDist"),
