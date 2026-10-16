@@ -78,7 +78,7 @@ Commitment runs on the action-switch and cover-repick vetoes, Conduct on the bod
 Every behaviour decides the same way.
 An objective premise gates a chance, and only a passed roll acts.
 The premise is a read of the fight.
-The chance is one formula, a base plus a per-rank term plus a side term, the faction for a stalker and the species for a mutant.
+The chance is per-side: a mutant's is one formula, a base plus a per-rank term plus a species term; a stalker's is the faction flavour alone.
 A missed roll passes and spends the opening.
 A passed roll commits to a window.
 Push, Pull, the LIQUIDATE deferral, and the maneuver catalog run this on the stalker side, where the premise is each `check_need` or `is_enemy_vulnerable` and the chance is the faction flavour.
