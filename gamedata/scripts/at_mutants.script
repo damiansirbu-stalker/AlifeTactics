@@ -1,4 +1,4 @@
---- at_mutants: the mutant combat driver - tier stat scaling, innate unpredictability, moves over the engine FSM
+--- at_mutants: the mutant combat driver - tier stat scaling, innate Wild, moves over the engine FSM
 
 local math_random, math_min, math_sqrt = math.random, math.min, math.sqrt
 local time_global, pairs, next, rawget, tostring, tonumber = time_global, pairs, next, rawget, tostring, tonumber
@@ -65,9 +65,9 @@ local function _log_tick(ms, now)
     _prop_ms, _prop_n, _prop_silent = 0, 0, 0
 end
 
--- A bounded pick in [low, high]; Unpredictability off returns the band middle.
+-- A bounded pick in [low, high]; Wild off returns the band middle.
 local function _select_band(low, high)
-    if not cfg.mut_unpredictability then return (low + high) * 0.5 end
+    if not cfg.mut_wild then return (low + high) * 0.5 end
     return low + math_random() * (high - low)
 end
 
@@ -77,10 +77,10 @@ local function _compute_chance(rec)
         _tun_num.chance_cap)
 end
 
--- One opportunity roll on the shared chance; Unpredictability off fires whenever the chance crosses half.
+-- One opportunity roll on the shared chance; Wild off fires whenever the chance crosses half.
 local function _check_fire(rec)
     local chance = _compute_chance(rec)
-    if not cfg.mut_unpredictability then return chance >= 0.5 end
+    if not cfg.mut_wild then return chance >= 0.5 end
     return math_random() < chance
 end
 
@@ -350,7 +350,7 @@ local function _update_pounce(mob, rec, now)
         if at_debug.is_on() then at_debug.debug("[MUT] PASS id=%d move=pounce", rec.id) end
         return
     end
-    local instant = cfg.mut_untelegraph and cfg.mut_unpredictability and math_random() < _compute_chance(rec) or false
+    local instant = cfg.mut_untelegraph and cfg.mut_wild and math_random() < _compute_chance(rec) or false
     if xmonster.try_monster_jump(mob, memo.enemy_pos, 1, { skip_prepare = instant }) then
         rec.pounce_at = now + rec.pounce_cd
         rec.driver = instant and "POUNCE!" or "POUNCE"
@@ -418,7 +418,7 @@ local function _update_retreat(mob, rec, now)
     end
 end
 
--- A held stare on the burer rolls a forced gravi; a missed roll consumes the opening, Unpredictability varies the stare window.
+-- A held stare on the burer rolls a forced gravi; a missed roll consumes the opening, Wild varies the stare window.
 local function _update_stare(mob, rec, now)
     if not cfg.mut_gravi or not rec.moves.gravi then return end
     local memo = rec.memo

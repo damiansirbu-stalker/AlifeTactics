@@ -271,7 +271,7 @@ Retreat is a brief pull-back, and near death a run from the fight, carried by th
 Invisibility varies the bloodsucker kind's cloak rhythm, and Gravi is the burer's forced gravity throw drawn by a held aim.
 A weak target opens an extra chance at these moves: one reloading, defenseless, sprinting, or fleeing.
 A shotgun aimed at a charging mutant in range stops the leap and the charge, and a shotgunner turned away invites them.
-Unpredictability varies each mutant's tempo, reach, and move timing within bounded ranges, set per individual at spawn.
+Wild varies each mutant's tempo, reach, and move timing within bounded ranges, set per individual at spawn.
 
 Chimera:
 The chimera and lurker land a point-blank claw at contact that vanilla never gave them. A vanilla chimera reaches its target and wanders off with nothing to swing.

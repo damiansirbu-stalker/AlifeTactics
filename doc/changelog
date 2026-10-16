@@ -13,7 +13,7 @@
       - Added the mutant move set: every mutant of a species carries its species' moves, and each opening rolls a chance that climbs with the map rank and the species.
           Each move names its species in MCM, and a species without it is untouched. A weak target opens an extra chance: one reloading, defenseless, sprinting, or fleeing,
           or holding a weapon past its range. A shotgun aimed at a charging mutant in range stops the leap and the charge, and a shotgunner turned away invites them.
-      - Added Unpredictability: each mutant's tempo, reach, and move timing roll within bounded ranges at spawn, so individuals of a species differ.
+      - Added Wild: each mutant's tempo, reach, and move timing roll within bounded ranges at spawn, so individuals of a species differ.
       - Added Pounce, the commanded leap for the jumping species, with a rationed no-wind-up share under its own Untelegraphed leaps toggle.
       - Added Melee, a rear spin-strike that turns on an enemy circling behind the chimera or lurker.
       - Added Rush, the full-speed charge for the charging species, from a flank or against a weapon weak for the range, never into an aimed shotgun.

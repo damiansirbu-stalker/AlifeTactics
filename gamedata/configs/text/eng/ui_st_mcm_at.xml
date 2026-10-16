@@ -198,10 +198,10 @@
   <string id="ui_mcm_at_mutants_mut_chance_rank_pct_desc">
     <text>Added to the move chance for each map rank.</text>
   </string>
-  <string id="ui_mcm_at_mutants_mut_unpredictability">
-    <text>Unpredictability</text>
+  <string id="ui_mcm_at_mutants_mut_wild">
+    <text>Wild</text>
   </string>
-  <string id="ui_mcm_at_mutants_mut_unpredictability_desc">
+  <string id="ui_mcm_at_mutants_mut_wild_desc">
     <text>The innate randomness layer: every move fires on a chance roll and every timing, distance, and cadence varies inside a bounded band. Off: fixed mid-band timing, and moves fire deterministically once their chance crosses half.</text>
   </string>
   <string id="ui_mcm_at_mutants_mut_pounce">

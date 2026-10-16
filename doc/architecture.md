@@ -709,14 +709,14 @@ monster_on_update (binder scheduler, 100ms near to 625ms far) -> the driver, gat
                   once per crossing (shared-attack-tree species only - the proposal reaches no monolithic
                   selector on the merged floor)
          gravi  - a burer answers a held stare with a forced gravity attack, released next tick;
-                  Unpredictability varies only the stare window
+                  Wild varies only the stare window
 monster_on_combat_action -> the proposal subscriber: pure Lua on the silent path, re-proposes while a window holds
 before-hit seams: damage dealt + bloodsucker lifesteal (victim-side, keyed on shit.draftsman), damage taken
                   (monster_on_before_hit); a 1.0 track skips the engine write, so rank-0 maps pay a table lookup
 ```
 
 - Every engine verb crosses xmonster, the xlibs monster surface; the module holds no raw engine call.
-- The MCM carries the six formula sliders and the move toggles, each toggle naming its exact species; any nonzero stat slider keeps the module live with every move off. The jitter is innate (Unpredictability off = the fixed mid-band baseline and deterministic openings), every band bounded in `at_mutants_config.ltx`, the species envelopes in its `[moves]` section.
+- The MCM carries the six formula sliders and the move toggles, each toggle naming its exact species; any nonzero stat slider keeps the module live with every move off. The jitter is innate (Wild off = the fixed mid-band baseline and deterministic openings), every band bounded in `at_mutants_config.ltx`, the species envelopes in its `[moves]` section.
 - The jab's damage is author-owned: the DLTX rows give `jump_attack_0` its own `attack_params` numbers (chimera and lurker), instead of the release fallback to the leap row.
 - The HUD mob rows follow the stalker rules (the same gate radius, fighting mutants only) and speak plain words - the live window ("retreating 4.2s", "jabbing") or the carried moves; the world log gains the driver column plus the four monster FSM memories (hit, sound, enemy, home) on every edge line. Both PULL from `at_mutants.get_mutant_record`/`get_driver`, the module never writes an observability surface.
 - The [MUT] window line aggregates tick, adoption, and proposal spans, the per-session cost measured against the 0.1ms average and 2ms ceiling budget.
@@ -811,7 +811,7 @@ AlifeTactics/gamedata/
     at_gear.script               the functional-inventory source
     at_effects_resolver.script   the multi-source effects substrate
     at_compat.script             the grok_bo hit-pipeline compatibility wrapper
-    at_mutants.script            the mutant combat driver (tier scaling, innate unpredictability, moves)
+    at_mutants.script            the mutant combat driver (tier scaling, innate Wild, moves)
     at_world_trace.script        the slide watchdog and ballistics recorder
     at_hud.script                the live debug HUD
     at_test.script               console test commands
