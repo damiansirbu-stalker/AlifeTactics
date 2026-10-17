@@ -265,7 +265,7 @@
     <text>How much every move value varies: timings, distances, bands, geometry. 0 keeps every value at the middle of its band, so mutants are identical and learnable; 100 rolls any point across the band, so each spawn and each action differ.</text>
   </string>
   <string id="ui_mcm_at_mutants_mut_damage_pct">
-    <text>Damage bonus per rank (%)</text>
+    <text>Damage per rank (%)</text>
   </string>
   <string id="ui_mcm_at_mutants_mut_damage_pct_desc">
     <text>Hit power grows by this percent for each map rank: rank 0 stays vanilla, rank 5 gets 5 times this bonus.</text>
