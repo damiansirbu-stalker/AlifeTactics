@@ -259,19 +259,19 @@ A mutant hits harder and takes less as the Zone deepens: damage dealt and damage
 Rank 0 stays vanilla, and every value multiplies the installed balance, so a mutant overhaul keeps its numbers.
 
 General:
-Intelligence is the chance a mutant acts on an opening, a base plus a bonus per map rank; a missed roll lets the opening pass.
+Observing is free, deciding is hard: every mutant sees your reload from the first fight, and Intelligence is the chance it answers with the RIGHT move, a base plus a bonus per map rank.
+A missed roll picks at random from the moves its species never had, or does nothing at all, so even a dull mutant shows every move, mistimed. One decision every few seconds, and only a few driven moves run at once across the pack.
 Wild is how much every move value varies: at 0 mutants are identical and learnable, at 100 no two spawns or actions read alike.
 
 Species:
-Each species gets its own page carrying only the moves its body has: first the managed moves, the creature's own attacks whose timing AlifeTactics decides, then the new moves the vanilla game never fires for it.
-Pounce is the commanded leap, and Lunge is the same leap with no wind-up; Wild sets how often the second replaces the first, so turning Lunge off keeps every leap dodgeable.
-A rare share of leaps steers mid-air, rising with Intelligence and Wild.
-Rush is the full-speed charge, from a flank or against a weapon too weak for the range, never into an aimed shotgun.
-Dodge is a sideways juke when you draw a bead up close. Backstrike is a spin strike on an enemy circling behind. Claw gives the chimera the point-blank strike vanilla never gave it.
-Flee breaks a hurt, cornered, or dying mutant out of the fight for a moment. Cloak varies the bloodsucker kind's invisibility rhythm. Gravity is the burer's forced gravity throw drawn by a held aim.
+Each species gets its own page carrying only the moves its body has: first the managed moves, the creature's own attacks and the values AlifeTactics varies, then the new moves the vanilla game never fires for it.
+The jump family reads your attention: Jump attack is the telegraphed leap at a turned back, Jump lunge drops the wind-up when you are watching, and Jump adapt steers mid-air when you watch AND strafe.
+Every jumper also leaps at an enemy exploiting elevation, and a burer answers a held aim or a perched shooter with its Gravity attack - camping stops being safe.
+Rush is the full-speed charge against a fleeing enemy or a weapon too weak for the range, never into an aimed shotgun.
+Dodge is a sideways juke when you draw a bead up close. Backstrike arms a spin strike on an enemy circling behind, once per individual, on the four species whose models carry the motions. Claw gives the chimera the point-blank strike vanilla never gave it.
+Flee breaks a hurt, cornered, or dying mutant out of the fight for a moment, rarely. Cloak varies the bloodsucker kind's invisibility rhythm.
 Roar is a threat display on first contact at range, the warning motion the vanilla game never plays in a fight.
-A weak target opens an extra chance at these moves: one reloading, defenseless, sprinting, or fleeing.
-A shotgun aimed at a charging mutant in range stops the leap and the charge, and a shotgunner turned away invites them.
+A reloading, defenseless, or fleeing enemy opens the decision early; a shotgun aimed at a charging mutant in range stops the leap and the charge, and a shotgunner turned away invites them.
 
 Fixes to Vanilla:
 AlifeTactics corrects dozens of vanilla Anomaly and xray defects, grouped below by the system each repairs.

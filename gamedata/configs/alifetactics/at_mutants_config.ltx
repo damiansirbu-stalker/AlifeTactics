@@ -1,4 +1,4 @@
-; AlifeTactics mutants - the innate numbers: species envelopes, tempo bands, wild envelopes, premise rows.
+; AlifeTactics mutants - the innate numbers: species envelopes, the decision clocks, wild envelopes, premise rows.
 ; MCM owns the formula sliders and the per-species move toggles; nothing here is user-facing.
 ; Every band is BOUNDED (the performance law): variation never leaves a field-sane envelope.
 
@@ -8,6 +8,8 @@ lurker      = chimera
 bloodsucker = bloodsucker
 psysucker   = bloodsucker
 burer       = burer
+controller  = controller
+poltergeist = poltergeist
 dog         = dog
 boar        = boar
 snork       = snork
@@ -21,81 +23,91 @@ karlik      = karlik
 tushkano    = tushkano
 
 [moves] ; per-move species envelope: a species either has a move or not (anatomy; engine components, flee = the shared-attack-tree species the proposal reaches)
-pounce     = chimera, lurker, cat, bloodsucker, psysucker, dog, snork, pseudodog, psy_dog
-lunge      = chimera, lurker, cat, bloodsucker, psysucker, dog, snork, pseudodog, psy_dog
-rush       = bloodsucker, psysucker, boar, gigant
-dodge      = bloodsucker, psysucker, dog, pseudodog, psy_dog, boar, gigant
-flee       = bloodsucker, psysucker, dog, boar, snork, pseudodog, psy_dog, gigant, cat, flesh, fracture, karlik, tushkano
-cloak      = bloodsucker, psysucker
-gravity    = burer
-claw       = chimera, lurker
-backstrike = chimera, lurker
-roar       = snork, gigant
+jump_attack    = chimera, lurker, cat, bloodsucker, psysucker, dog, snork, pseudodog, psy_dog
+jump_lunge     = chimera, lurker, cat, bloodsucker, psysucker, dog, snork, pseudodog, psy_dog
+jump_adapt     = chimera, lurker, cat, bloodsucker, psysucker, dog, snork, pseudodog, psy_dog
+rush           = bloodsucker, psysucker, boar, gigant
+dodge          = bloodsucker, psysucker, dog, pseudodog, psy_dog, boar, gigant
+flee           = bloodsucker, psysucker, dog, boar, snork, pseudodog, psy_dog, gigant, cat, flesh, fracture, karlik, tushkano
+cloak          = bloodsucker, psysucker
+gravity_attack = burer
+claw           = chimera, lurker
+backstrike     = chimera, lurker, burer, controller
+roar           = snork, gigant
+
+[managed] ; the vanilla FSM already fires it for these species (the MANAGED section of their page); absent = NEW
+jump_attack    = chimera, lurker, dog, snork, pseudodog, psy_dog, cat
+rush           = bloodsucker, psysucker, boar, gigant
+gravity_attack = burer
+cloak          = bloodsucker, psysucker
+
+[quadrupeds] ; the body-plan law: these jump carriers take OUR commanded leap ONLY at an elevated enemy
+species = dog, pseudodog, psy_dog, cat, chimera, lurker
+
+[throttle] ; the decision clocks, seconds, flat (no Wild on our clocks)
+default = 6
+flee    = 60
+
+[caps] ; max driven moves assumed running at once per bucket; a slot counts slot_s seconds
+slot_s    = 3
+vs_player = 3
+vs_npc    = 3
 
 [intelligence]
 cap = 0.75
 
-[tempo] ; per-spawn rolls, ms
-pounce_cd_min  = 4000
-pounce_cd_max  = 9000
-claw_cd_min    = 1400
-claw_cd_max    = 2800
-dodge_cd_min   = 6000
-dodge_cd_max   = 12000
-flee_cd_min    = 30000
-flee_cd_max    = 60000
-flee_hold_min  = 4000
-flee_hold_max  = 7000
-stare_min      = 2000
-stare_max      = 4000
-gravity_cd_min = 9000
-gravity_cd_max = 16000
-roar_cd_min    = 15000
-roar_cd_max    = 30000
+[premises] ; the anti-exploit reads
+aim_held_s   = 3
+above_m      = 0.8
+strafe_lat_m = 1.0
 
-[fleeing] ; the enemy-fleeing read: receding per 200ms tick with the back turned
+[fleeing] ; the enemy-fleeing read: receding per beat with the back turned
 recede_m = 0.3
 cone_deg = 90
+
+[flee] ; the run-away window a fresh hit or close shotgun draw rolls
+hold_min = 4000
+hold_max = 7000
 
 [survival] ; crossing below this health fraction rolls one long run-away window
 health_frac = 0.30
 hold_min    = 8000
 hold_max    = 15000
 
-[threat] ; an enemy weapon aimed within this cone counts as facing the mutant (the shotgun, charge, and dodge gates read it)
+[threat] ; an enemy weapon aimed within this cone counts as watching the mutant (the shotgun, dodge, and watching-split gates read it)
 facing_cone_deg = 60
 
-[pounce]
-band_min_m      = 5
-band_max_m      = 11
+[jump] ; the commanded-jump fire gate; the distance band is the species' own jump_min/max_distance
 facing_cone_deg = 35
+
+[jump_adapt] ; the air-steering gain band = the vanilla envelope (borya 0.3, pseudodog 0.5, cat 0.6)
+factor_min = 0.3
+factor_max = 0.6
 
 [dodge] ; the stare-break juke: the enemy aiming inside this range opens a dodge roll
 range_m = 10
-
-[aim] ; the homing-leap share: a fired jump steers mid-air on an Intelligence x Wild x share roll; the gain band sits inside the vanilla envelope (borya 0.3, cat 0.6)
-share      = 0.25
-factor_min = 0.2
-factor_max = 0.5
 
 [roar] ; the threat display on a fresh enemy at range, once per engagement
 range_min_m = 3
 range_max_m = 15
 
-[gravity] ; the burer stare trigger premise
+[gravity_attack] ; the burer is_aim_held premise: a held aim inside this range forces the gravity attack
 range_m    = 40
 cone_deg   = 12
 release_ms = 1000
 
 [claw] ; the chimera-class contact strike (covers the lurker: same engine class and anim table)
-motion   = jump_attack_0
-range_m  = 2.2
-clear_ms = 1100
+motion          = jump_attack_0
+range_m         = 2.2
+facing_cone_deg = 35
+clear_ms        = 1100
 
 [backstrike] ; per-species motion pair for the rear spin-strike; motions must carry attack_params rows
-arc_deg = 120
-chimera = jump_attack_0, jump_attack_1
-lurker  = jump_attack_0, jump_attack_1
+arc_deg    = 120
+chimera    = jump_attack_0, jump_attack_1
+lurker     = jump_attack_0, jump_attack_1
+burer      = stand_attack_0, stand_attack_0
+controller = stand_attack_0, stand_attack_1
 
 [wild] ; bounded value variation as a fraction of the install's own loaded value
 attack_dist_pct = 0.15

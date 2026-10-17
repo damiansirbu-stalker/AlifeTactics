@@ -80,10 +80,10 @@ An objective premise gates a chance, and only a passed roll acts.
 The premise is a read of the fight.
 The chance is per-side: a mutant's is Intelligence, a base plus a per-rank term, capped; a stalker's is the faction flavour alone.
 A mutant carries no flavour gate - a species either has a move or it does not, the `[moves]` envelope in `at_mutants_config.ltx`.
-A missed roll passes and spends the opening.
-A passed roll commits to a window.
-Push, Pull, the LIQUIDATE deferral, and the maneuver catalog run this on the stalker side, where the premise is each `check_need` or `is_enemy_vulnerable` and the chance is the faction flavour.
-The mutant moves run it in `at_mutants`, where the premise is `rec.memo` and `_update_premises` and the chance is `_check_intelligence`.
+Push, Pull, the LIQUIDATE deferral, and the maneuver catalog run this on the stalker side, where the premise is each `check_need` or `is_enemy_vulnerable` and the chance is the faction flavour, a missed roll spends the opening, and a passed roll commits to a window.
+The mutant moves run it in `at_mutants` as one decision clock: every 600ms beat a fighting mutant observes the premise table (`BEST_MOVES`), the first eligible true premise takes ONE Intelligence roll (`_check_intelligence`), and the flat 6s clock stamps either way.
+A passed roll fires that premise's mapped best move; a failed roll picks uniformly from the species' NEW moves plus nothing.
+Observing is free, deciding is hard: every mutant sees the reload from the first fight, and rank buys the correct answer, not the move's existence - the fail-random path is why every move is visible from the lowest-rank maps.
 
 Correctness fixes and skill scaling sit outside the pattern.
 A correctness fix, a veto or a vanilla-bug repair, carries no premise and no roll and always applies.
@@ -677,57 +677,52 @@ The loot and trade inventory floors own carrier persistence, and Gear only marks
 
 ## Mutants
 
-Mutant combat runs the shared decision model with no takeover: the engine FSM stays the sole mover, and the module varies values innately and nudges moves the engine validates itself.
-The moves are maneuvers, like the stalker Push, Pull, and LIQUIDATE: a species either has a move or it does not (the `[moves]` envelope, anatomy with no dice), each OPENING rolls Intelligence (a missed roll lets the opening pass), and a fired move commits to its window.
-Intelligence is base + map-rank slope, capped.
-Wild scales how far every value strays from the middle of its bounded band: 0 reads identical and learnable, 100 rolls any point across the band.
-Participation timing deliberately differs from stalkers, for now: a stalker's participation is computed and applied in waves (the flavor roll holds 300s, then re-rolls), a mutant rolls at every opening.
-The premise reads grant extra openings, never skipped dice: the enemy turning vulnerable (the same `at_core.is_enemy_vulnerable` read Push and LIQUIDATE use, the actor's cached once per driver window), the enemy fleeing (back turned and receding), or the weapon going past its band re-arm the jumps and the rush for one fresh roll.
-The shotgun is respected everywhere, facing-aware: inside its 15m band (the one home: `xcombat.WEAPON_RANGES`) and AIMED at the mutant it closes the jumps and the rush; turned away it grants an opening; the close draw rolls a flee; past the band it counts as a weak weapon.
-The two jumps are distinct moves: Pounce telegraphs its leap, Lunge launches with no wind-up, and Wild sets how often the second replaces the first.
-The rush is a flank and weak-gun move: it opens only from behind or the side, against a pistol or SMG, or against a weapon past its band.
-The dodge is a sideways rotation juke when the enemy draws a bead up close, on the species carrying the engine component.
-A rare share of fired jumps steers mid-air: probability Intelligence times Wild times the `[aim]` share, the gain rolled inside the vanilla `jump_auto_aim_factor` envelope and restored to the species' own value after the leap.
-The roar is a threat display on first contact at range - the warning motion vanilla never plays in a fight - once per engagement, on the two species whose models carry it.
-The flee window (eStateAttack_RunAway = a path away from the enemy, no cover search) is the interim disengage, deliberately rare; the true flee and combat cover replace it when the open engine levers merge.
-Rank is the map tier (`xlevel.get_danger_tier`, 0-5).
-One formula drives the numbers: stat = 1 + x% * rank and chance = base% + y% * rank; the sliders are Power's damage and resistance and General's Intelligence base, per-rank slope, and Wild.
-Monster health is a normalized fraction clamped to 1.0 every condition update, so a health pool, regeneration, or lifesteal cannot raise it; toughness lives in resistance alone.
+Mutant combat runs the shared decision model with no takeover: the engine FSM stays the sole mover, and the module varies values innately and commands moves the engine validates itself.
+THE INVARIANT: every 600ms a fighting mutant checks its flat 6s decision clock; when free, it observes the premise table - the first eligible true premise takes ONE Intelligence roll and the clock stamps either way.
+PASS fires that premise's mapped best move from the global premise-to-move table (`BEST_MOVES`, species-filtered); FAIL picks uniformly from the species' NEW moves plus nothing, where nothing means no intervention.
+A refused invoke spends the decision - no fall-through.
+The edges (a fresh hit, the shotgun draw, the low-health crossing, first contact) compare against the last PROCESSED state, so an edge inside a throttled stretch latches until the next free beat.
+Intelligence is base + map-rank slope, capped; rank is the map tier (`xlevel.get_danger_tier`, 0-5).
+Wild varies GAME values only - the engine's own bands multiplied inside bounded envelopes; our clocks are flat constants and no move carries a per-move cooldown.
+The flee rarity is the one extra clock: 60s between flee windows, and a flee is never denied; while its window holds, no other move fires and the proposal subscriber re-proposes `eStateAttack_RunAway`.
+CAPS bound the spice: at most 3 driven moves assumed running per bucket (vs_player, vs_npc) on 3s slots - an offensive fire checks then adds, flee adds unchecked, claw and the armed backstrike sit outside; a dry bucket skips the weapon reads entirely, the 100-mutant guard.
+THE JUMP FAMILY is the watching split, predator logic: an enemy NOT watching gets the telegraphed Jump attack (the wind-up costs nothing against a turned back); a watching enemy gets the Jump lunge with no wind-up (winding up in front of a gun hands it a free second); a watching AND strafing enemy gets the Jump adapt, the air-steering leap - `set_monster_jump_flags` auto-aim with the gain rolled inside the vanilla envelope and the species' own basis restored after.
+THE BODY-PLAN LAW: every jump carrier leaps at an enemy exploiting elevation (`xcombat.is_enemy_above`, the engine's own 0.8m dog-gate standard); quadrupeds take OUR commanded leap ONLY on elevation (flat ground stays their vanilla character), bipeds take the full jump-band premises.
+THE ANTI-EXPLOIT LAW: an exploit premise always maps to a punish move - a held aim (`is_aim_held`, 3s) draws the burer's Gravity attack, an elevated enemy draws the leap or the gravity answer, a strafing watcher draws the adapt.
+The shotgun is respected everywhere, facing-aware: in its band and AIMED it blocks the jumps and the rush; turned away it is a leap premise; the close draw is a flee premise; past its band it is a weak gun.
+Monster health is a normalized fraction clamped to 1.0 every condition update, so a health pool, regeneration, or lifesteal cannot raise it; toughness lives in resistance alone, stat = 1 + x% * rank.
 
-Does: adopts each online mutant on its first binder update, scales its hits by tier, and orchestrates its moves on a 200ms tick with a 600ms assessment sub-gate.
+Does: adopts each online mutant on its first binder update, scales its hits by tier, and runs the decision model on one 600ms lane.
 Changes: per-object params once at adoption, as MULTIPLIERS over the install's own LTX values (the jump, melee, circle, rush, and species ability families), so modpack mutant balance survives; the damage dealt and taken multipliers per hit; one-shot invokes and proposal windows in the fight.
-Stops: inert below the monster seam set with one INACTIVE line; a move never rolls outside its species envelope; on toggle-off the module releases what it still owns live (the animation override, a pending gravi force) - pushed params revert on the next spawn.
+Stops: inert below the monster seam set with one INACTIVE line; a move never fires outside its species envelope; on toggle-off the module releases what it still owns live (the animation override, a pending gravi force) - pushed params revert on the next spawn.
 
 ```
-monster_on_update (binder scheduler, 100ms near to 625ms far) -> the driver, gated 200ms per mutant (at_mutants.script)
-  adopt: tier + the species' move set from the [moves] envelope (anatomy, no dice), bounded wild offsets
-         over ini_sys basis values (turn factor, one shared factor per band pair so a narrow band
-         cannot invert, circle geometry, the rush band, the chimera/burer/controller ability families,
-         the aura strength), species pacing rolls, the backstrike arm roll
-  claw 200ms: the chimera-class contact strike via the animation override, Intelligence-rolled at contact,
-         cleared by its window or any jump
-  assess 600ms (each move rolls Intelligence at its opening; a miss consumes the opening, a fire commits to its window):
-         the fight read into rec.memo (weapon band, facing, the aim, the shotgun gates) and the premise re-arm
-         roar    - the threat display on the fresh-enemy edge at range (snork, gigant), once per engagement
-         jump    - Pounce or Lunge, bounded to the jump band; Wild sets the untelegraphed share and the
-                   rare mid-air homing roll
-         rush    - a run-attack opening: a weapon past its band always opens, otherwise flank or weak gun
-         dodge   - a sideways rotation jump when aimed at up close
-         flee    - a fresh hit or a close shotgun draw rolls an eStateAttack_RunAway window, on the
-                   flee cooldown; crossing below the survival health line rolls one LONG window,
-                   once per crossing (shared-attack-tree species only - the proposal reaches no monolithic
-                   selector on the merged floor)
-         gravity - a burer answers a held stare with a forced gravity attack, released next tick;
-                   Wild varies only the stare window
-monster_on_combat_action -> the proposal subscriber: pure Lua on the silent path, re-proposes while a window holds
+monster_on_update (binder scheduler, 100ms near to 625ms far) -> the one lane, gated 600ms per mutant (at_mutants.script)
+  adopt: tier, the [moves] envelope and the NEW pool ([managed] complement), the quadruped flag,
+         bounded wild offsets over ini_sys basis values behind the page's vary rows (Movement,
+         the rush band, the chimera leap economy, the burer gravity numbers and telekinesis,
+         the controller tube and stamina, the poltergeist hover and detection, the aura row),
+         species pacing rolls, the backstrike arm roll (once, for life)
+  every beat: upkeep (the claw-override clear on its window or any jump, the gravity-force release),
+         the motion samples (recede, lateral strafe) and the burer aim-held timer
+  free decision beat (the 6s clock): the weapon memo (skipped dry), the premise walk down BEST_MOVES -
+         vulnerable / shotgun-turned-away / elevated -> the jump family (the watching split picks the variant)
+         elevated vs a burer / a 3s held aim      -> Gravity attack (forced, released next beat)
+         enemy fleeing / a weak gun                -> Rush
+         aimed at up close                         -> Dodge
+         a fresh hit / the low-health crossing / a close shotgun draw -> Flee (the long hold when low)
+         first contact at range                    -> Roar (once per engagement; snork, gigant)
+         contact, facing                           -> Claw (the chimera-class strike, outside the caps)
+monster_on_combat_action -> the proposal subscriber: pure Lua on the silent path, re-proposes while a flee window holds
 before-hit seams: damage dealt (victim-side, keyed on shit.draftsman) and damage taken
                   (monster_on_before_hit); a 1.0 track skips the engine write, so rank-0 maps pay a table lookup
 ```
 
-- Every engine verb crosses xmonster, the xlibs monster surface; the module holds no raw engine call.
-- The MCM is a General page (Intelligence base, per rank, Wild), Power (damage, resistance), then one page per species - chimera, bloodsucker, burer, dog, boar, snork, pseudodog, pseudogigant, cat, and the flee-only flesh, fracture, karlik, and tushkano, a subclass folding into its base page via `[pages]` - each with a MANAGED MOVES section (the creature's own attacks whose timing the module decides) then NEW MOVES (attacks vanilla never fires for that species); every row's tooltip opens with its gates (int, wild). Any nonzero stat slider keeps the module live with every move off. The variation is innate (Wild 0 = the fixed mid-band baseline), every band bounded in `at_mutants_config.ltx`, the species envelopes in its `[moves]` section.
+- Every engine verb crosses xmonster, the xlibs monster surface; every premise is a named boolean method composing xcombat primitives (`is_enemy_watching`, `is_aim_held`, `is_enemy_above`), no raw engine read and no if/else decision tree - predicates and data tables.
+- The MCM is a General page (Intelligence base, per rank, Wild), Power (damage, resistance), then one page per species - chimera, bloodsucker, burer, controller, poltergeist, dog, boar, snork, pseudodog, pseudogigant, cat, flesh, fracture, karlik, tushkano, a subclass folding into its base page via `[pages]` - each with a MANAGED MOVES section (the creature's own attacks and the varied-vanilla rows) then NEW MOVES (attacks vanilla never fires for that species); every row's tooltip opens with its gates as the first bracketed token ([int, wild] or [wild]). Any nonzero stat slider, move toggle, or vary row keeps the module live. Every band is bounded in `at_mutants_config.ltx`; the classification lives in its `[moves]` and `[managed]` sections.
+- The Backstrike arms chimera, lurker, burer, and controller with their own models' strike motions; every armed motion carries its own `attack_params` row (the damage law) - the chimera-class DLTX rows, the burer's `stand_attack_0`, the controller's `stand_attack_0`/`stand_attack_1`.
 - The claw's damage is author-owned: the DLTX rows give `jump_attack_0` its own `attack_params` numbers (chimera and lurker), instead of the release fallback to the leap row.
-- The HUD mob rows follow the stalker rules (the same gate radius, fighting mutants only) and speak plain words - the live window ("fleeing 4.2s", "clawing") or the carried moves; every fired move stamps the driver with its gates ("POUNCE int, wild"); the world log gains the driver column plus the four monster FSM memories (hit, sound, enemy, home) on every edge line. Both PULL from `at_mutants.get_mutant_record`/`get_driver`, the module never writes an observability surface. Every influenced value traces at adoption as a `[MUT] vary` line, every fire/pass/block edge as its own `[MUT]` line, all at DEBUG and free when off.
+- The HUD mob rows follow the stalker rules (the same gate radius, fighting mutants only) and speak plain words - the live window ("fleeing 4.2s", "clawing") or the carried moves; every fired move stamps the driver with its gates ("JUMP ATTACK int, wild"); the world log gains the driver column plus the four monster FSM memories (hit, sound, enemy, home) on every edge line. Both PULL from `at_mutants.get_mutant_record`/`get_driver`, the module never writes an observability surface. Every influenced value traces at adoption as a `[MUT] vary` line, every fire/pass/block edge as its own `[MUT]` line with the pick and gate tokens, all at DEBUG and free when off.
 - The [MUT] window line aggregates tick, adoption, and proposal spans, the per-session cost measured against the 0.1ms average and 2ms ceiling budget.
 
 ## Planned

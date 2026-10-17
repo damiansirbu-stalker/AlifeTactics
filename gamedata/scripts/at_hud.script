@@ -147,9 +147,9 @@ local function _build_row(npc, st)
 end
 
 local MOVE_WORDS = {
-    { "pounce", "pounce" }, { "lunge", "lunge" }, { "rush", "rush" }, { "dodge", "dodge" },
-    { "flee", "flee" }, { "cloak", "cloak" }, { "gravity", "gravity" },
-    { "claw", "claw" }, { "backstrike", "backstrike" }, { "roar", "roar" },
+    { "jump_attack", "jump" }, { "jump_lunge", "lunge" }, { "jump_adapt", "adapt" },
+    { "rush", "rush" }, { "dodge", "dodge" }, { "flee", "flee" }, { "cloak", "cloak" },
+    { "gravity_attack", "gravity" }, { "claw", "claw" }, { "backstrike", "backstrike" }, { "roar", "roar" },
 }
 
 -- The mutant systems cell in plain words: the live move window first, else the species' possible moves.

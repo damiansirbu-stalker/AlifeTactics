@@ -153,6 +153,12 @@
   <string id="ui_mcm_menu_burer">
     <text>Burer</text>
   </string>
+  <string id="ui_mcm_menu_controller">
+    <text>Controller</text>
+  </string>
+  <string id="ui_mcm_menu_poltergeist">
+    <text>Poltergeist</text>
+  </string>
   <string id="ui_mcm_menu_dog">
     <text>Dog</text>
   </string>
@@ -198,6 +204,12 @@
   <string id="ui_mcm_at_mutants_burer_desc">
     <text>Burer.</text>
   </string>
+  <string id="ui_mcm_at_mutants_controller_desc">
+    <text>Controller.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_poltergeist_desc">
+    <text>Poltergeist.</text>
+  </string>
   <string id="ui_mcm_at_mutants_dog_desc">
     <text>Blind dog.</text>
   </string>
@@ -238,7 +250,7 @@
     <text>Intelligence (%)</text>
   </string>
   <string id="ui_mcm_at_mutants_mut_int_base_desc">
-    <text>The chance a mutant acts on an opening (a pounce window, a charge clock, a fresh hit), before the rank bonus. A missed roll lets the opening pass and the move's cooldown runs.</text>
+    <text>The chance a mutant answers an opening with the RIGHT move, before the rank bonus. Observing is free, deciding is hard: every mutant sees the reload; a passed roll fires the best answer, a missed roll picks at random from its new moves or does nothing. One decision per few seconds.</text>
   </string>
   <string id="ui_mcm_at_mutants_mut_int_rank_pct">
     <text>Per rank (%)</text>
@@ -250,7 +262,7 @@
     <text>Wild</text>
   </string>
   <string id="ui_mcm_at_mutants_mut_wild_desc">
-    <text>How much every move value varies: timings, distances, cadences, and the share of leaps that come with no wind-up. 0 keeps every value at the middle of its band, so mutants are identical and learnable; 100 rolls any point across the band, so each spawn and each action differ.</text>
+    <text>How much every move value varies: timings, distances, bands, geometry. 0 keeps every value at the middle of its band, so mutants are identical and learnable; 100 rolls any point across the band, so each spawn and each action differ.</text>
   </string>
   <string id="ui_mcm_at_mutants_mut_damage_pct">
     <text>Damage bonus per rank (%)</text>
@@ -264,17 +276,23 @@
   <string id="ui_mcm_at_mutants_mut_resist_pct_desc">
     <text>Damage a mutant receives shrinks by this percent for each map rank.</text>
   </string>
-  <string id="ui_mcm_at_mutants_pounce">
-    <text>Pounce</text>
+  <string id="ui_mcm_at_mutants_jump_attack">
+    <text>Jump attack</text>
   </string>
-  <string id="ui_mcm_at_mutants_pounce_desc">
-    <text>[int, wild] A commanded leap at the enemy on an opening. No mutant leaps into a shotgun aimed at it in range; a shotgunner looking away gets leapt at. A rare share of leaps steers mid-air, rising with Intelligence and Wild.</text>
+  <string id="ui_mcm_at_mutants_jump_attack_desc">
+    <text>[int, wild] The telegraphed leap, fired when the enemy is NOT watching: the wind-up costs nothing against a turned back. Every jump carrier leaps at an enemy exploiting elevation; never into an aimed shotgun.</text>
   </string>
-  <string id="ui_mcm_at_mutants_lunge">
-    <text>Lunge</text>
+  <string id="ui_mcm_at_mutants_jump_lunge">
+    <text>Jump lunge</text>
   </string>
-  <string id="ui_mcm_at_mutants_lunge_desc">
-    <text>[int, wild] A leap with no wind-up, nothing to see and dodge. Wild sets how often it replaces the telegraphed Pounce. Off: every leap keeps its telegraph, so all are dodgeable. A rare share of leaps steers mid-air, rising with Intelligence and Wild.</text>
+  <string id="ui_mcm_at_mutants_jump_lunge_desc">
+    <text>[int, wild] The leap with no wind-up, fired when the enemy IS watching: winding up in front of a gun hands it a free second. Off: every leap keeps its telegraph, so all are dodgeable.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_jump_adapt">
+    <text>Jump adapt</text>
+  </string>
+  <string id="ui_mcm_at_mutants_jump_adapt_desc">
+    <text>[int, wild] The air-steering leap, fired when the enemy watches AND strafes: the glide follows the mover mid-air, with the steering inside the game's own envelope.</text>
   </string>
   <string id="ui_mcm_at_mutants_rush">
     <text>Rush</text>
@@ -292,7 +310,7 @@
     <text>Backstrike</text>
   </string>
   <string id="ui_mcm_at_mutants_backstrike_desc">
-    <text>[int, wild] A spin-strike when the enemy orbits to its back.</text>
+    <text>[int, wild] A spin-strike when the enemy orbits to its back, armed once per individual: some carry the reflex for life, some never do.</text>
   </string>
   <string id="ui_mcm_at_mutants_claw">
     <text>Claw</text>
@@ -300,11 +318,65 @@
   <string id="ui_mcm_at_mutants_claw_desc">
     <text>[int, wild] A close standing strike the chimera otherwise lacks: vanilla chimeras reach you and wander off with nothing to swing.</text>
   </string>
-  <string id="ui_mcm_at_mutants_gravity">
-    <text>Gravity</text>
+  <string id="ui_mcm_at_mutants_gravity_attack">
+    <text>Gravity attack</text>
   </string>
-  <string id="ui_mcm_at_mutants_gravity_desc">
-    <text>[int, wild] Holding your aim on a burer for a few seconds can draw its gravity attack as the answer, on a long cooldown.</text>
+  <string id="ui_mcm_at_mutants_gravity_attack_desc">
+    <text>[int, wild] Holding your aim on a burer for a few seconds draws its gravity attack as the answer; an enemy exploiting elevation draws it too.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_gravity_numbers">
+    <text>Gravity numbers</text>
+  </string>
+  <string id="ui_mcm_at_mutants_gravity_numbers_desc">
+    <text>[wild] Varies the gravity attack's numbers per individual: cooldown, distance band, speed, radius.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_telekinesis">
+    <text>Telekinesis</text>
+  </string>
+  <string id="ui_mcm_at_mutants_telekinesis_desc">
+    <text>[wild] Varies the telekinesis per individual: find radius, distance band, fly speed.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_movement">
+    <text>Movement</text>
+  </string>
+  <string id="ui_mcm_at_mutants_movement_desc">
+    <text>[wild] Varies the body values per individual: turn speed, melee reach, circle geometry.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_leap_economy">
+    <text>Leap economy</text>
+  </string>
+  <string id="ui_mcm_at_mutants_leap_economy_desc">
+    <text>[wild] Varies the native leap geometry and pacing per individual: attack radius, the prepare and attack timeouts.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_tube">
+    <text>Psi tube</text>
+  </string>
+  <string id="ui_mcm_at_mutants_tube_desc">
+    <text>[wild] Varies the psi tube pacing per individual, inside a slow envelope.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_stamina">
+    <text>Stamina</text>
+  </string>
+  <string id="ui_mcm_at_mutants_stamina_desc">
+    <text>[wild] Varies the per-hit stamina drain per individual.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_aura">
+    <text>Aura</text>
+  </string>
+  <string id="ui_mcm_at_mutants_aura_desc">
+    <text>[wild] Varies the aura strength and reach per individual.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_hover">
+    <text>Hover</text>
+  </string>
+  <string id="ui_mcm_at_mutants_hover_desc">
+    <text>[wild] Varies the hover-height band per spawn.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_detection">
+    <text>Detection</text>
+  </string>
+  <string id="ui_mcm_at_mutants_detection_desc">
+    <text>[wild] Varies the actor-detection pacing per individual.</text>
   </string>
   <string id="ui_mcm_at_mutants_cloak">
     <text>Cloak</text>
