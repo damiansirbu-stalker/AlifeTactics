@@ -1,30 +1,35 @@
 1.2.2-snapshot
-  Summary: Mutants, rank scaling, species abilities, smart openings, the chimera claw, survival flee, mutant HUD and trace
+  Summary: Mutants, Intelligence and Wild, per-species move pages, smart openings, the chimera claw, mutant HUD and trace
 
   Mutants
-    Damage
-      - Added per-rank damage: a mutant hits harder on deeper maps, a percent-per-rank slider over your install's own damage.
-          Rank is the map tier, 0 on the starting maps up to 5 at the endgame. Rank 0 stays vanilla, and every value multiplies the installed balance so a mutant overhaul keeps its numbers.
+    General
+      - Added Intelligence: the chance a mutant acts on an opening, a base slider plus a per-rank slider over the map tier. A missed roll lets the opening pass and the move's cooldown runs.
+          Rank is the map tier, 0 on the starting maps up to 5 at the endgame. A weak target opens an extra chance: one reloading, defenseless, sprinting, or fleeing, or holding a weapon past its range.
           The whole Mutants system needs the latest demonized build and stays inactive on older exes and on AOEngine.
-    Health
-      - Added per-rank health, resistance, and regeneration, each its own percent-per-rank slider: a deeper-map mutant has a bigger pool, takes less, and heals between wounds.
-          Health scales only from the vanilla base, so the scaling never heals a wounded mutant back to full. Regeneration is a share of the pool per minute per rank.
-    Abilities
-      - Added the mutant move set: every mutant of a species carries its species' moves, and each opening rolls a chance that climbs with the map rank and the species.
-          Each move names its species in MCM, and a species without it is untouched. A weak target opens an extra chance: one reloading, defenseless, sprinting, or fleeing,
-          or holding a weapon past its range. A shotgun aimed at a charging mutant in range stops the leap and the charge, and a shotgunner turned away invites them.
-      - Added Wild: each mutant's tempo, reach, and move timing roll within bounded ranges at spawn, so individuals of a species differ.
-      - Added Pounce, the commanded leap for the jumping species, with a rationed no-wind-up share under its own Untelegraphed leaps toggle.
-      - Added Melee, a rear spin-strike that turns on an enemy circling behind the chimera or lurker.
-      - Added Rush, the full-speed charge for the charging species, from a flank or against a weapon weak for the range, never into an aimed shotgun.
-      - Added Retreat, a brief pull-back for the common ground species, and a near-death break-and-run.
-      - Added Invisibility, a varied cloak rhythm for the bloodsucker kind.
-      - Added Gravi, the burer's forced gravity throw drawn by a held aim.
-    Chimera
-      - Added the chimera's point-blank claw: vanilla chimeras reach you and wander off with nothing to swing, and this gives the contact its hit. Covers the lurker, the same engine class.
+      - Added Wild: how much every move value varies (timings, distances, cadences, the no-wind-up leap share). 0 keeps mutants identical and learnable, 100 rolls every value across its band.
+    Power
+      - Added per-rank damage and resistance: a mutant hits harder and takes less on deeper maps, each a percent-per-rank slider over your install's own balance.
+          Rank 0 stays vanilla, and every value multiplies the installed balance so a mutant overhaul keeps its numbers.
+    Species
+      - Added a page per species (chimera, bloodsucker, burer, dog, boar, snork, pseudodog, pseudogigant, cat, and the flee-only flesh, fracture, karlik, tushkano; a subclass follows its base page):
+          first the managed moves, the creature's own attacks whose timing AlifeTactics decides, then the new moves the vanilla game never fires for that species. Every move's tooltip names its gates.
+      - Added Pounce and Lunge as separate leaps: Pounce keeps the wind-up, Lunge launches without one; Wild sets the mix, so disabling Lunge keeps every leap dodgeable.
+          A shotgun aimed at a charging mutant in range stops the leap and the charge, and a shotgunner turned away invites them.
+      - Added a rare homing leap: a share of fired jumps steers mid-air, rising with Intelligence and Wild, the steering strength inside the game's own envelope.
+      - Added Roar, a threat display on first contact at range for snork and pseudogigant: their own warning motion the vanilla game never plays in a fight, once per engagement.
+      - Added Rush, the full-speed charge from a flank or against a weapon weak for the range, never into an aimed shotgun.
+      - Added Dodge, a sideways juke when a weapon is aimed at the mutant up close.
+      - Added Backstrike, a spin strike on an enemy circling behind the chimera or lurker.
+      - Added Claw, the chimera's point-blank strike at contact: vanilla chimeras reach you and wander off with nothing to swing. Covers the lurker, the same engine class.
+      - Added Flee, a pull-back on a fresh hit or a close shotgun draw, and near death one long break from the fight.
+      - Added Cloak, a varied invisibility rhythm for the bloodsucker kind.
+      - Added Gravity, the burer's forced gravity throw drawn by a held aim.
+      - Added bounded variation over each species' own ability numbers: the chimera leap economy, the burer gravity and telekinesis, the controller psi pacing and stamina drain,
+          the poltergeist hover and detection, and the aura strengths, all over the install's own values.
 
   Development
     - Added the mutant rows to the debug HUD and the mutant columns to the world trace: the driver state, the engine state, health, morale, and the species moves.
+    - Every mutant move the mod influences, triggers, or blocks traces at DEBUG: the adoption variation lines, and each fire, pass, and block edge naming its gates.
 
 1.2.1
   Summary: Combat substrate, maneuvers widened to every nearby fight, Faction flavor, Push and Pull windows, Weapon spacing, Glide stop, targeting fixes, the Disclosure page removed,

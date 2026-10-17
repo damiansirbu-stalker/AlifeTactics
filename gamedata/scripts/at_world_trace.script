@@ -923,6 +923,15 @@ local function _format_mob_memory(obj, tg)
         hit.count, snd.type, snd.count, seen > 0 and (tg - seen) or -1, tostring(home.has_home))
 end
 
+-- The mutant driver column with its gate suffix ("POUNCE[int, wild]"); "-" when idle.
+local function _format_mob_driver(id, driver)
+    if not driver or driver == "-" then return "-" end
+    local rec = at_mutants.get_mutant_record(id)
+    local gate = rec and rec.gate
+    if not gate then return driver end
+    return driver .. "[" .. gate .. "]"
+end
+
 local function _log_mob_edge(mob, obj, id, dist, tg)
     local state = obj:get_monster_state()
     local strength = obj:get_enemy_strength()
@@ -932,7 +941,7 @@ local function _log_mob_edge(mob, obj, id, dist, tg)
     if state ~= mob.state or strength ~= mob.strength or jumping ~= mob.jumping or driver ~= mob.driver then
         log.info("[WORLD] mob id=%d %s state=%s str=%d jmp=%s drv=%s dist=%.0f %s",
             id, mob.name, at_core.get_mob_state_name(state), strength, jumping and "y" or "n",
-            driver or "-", dist, _format_mob_memory(obj, tg))
+            _format_mob_driver(id, driver), dist, _format_mob_memory(obj, tg))
         mob.state, mob.strength, mob.jumping, mob.driver = state, strength, jumping, driver
     end
     return jumping

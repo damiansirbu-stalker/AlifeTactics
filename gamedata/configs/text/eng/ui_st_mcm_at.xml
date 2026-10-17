@@ -138,29 +138,119 @@
     <text>Planned: player-facing combat feedback, concussion first. Nothing to configure yet.</text>
   </string>
   <!-- ==================== MUTANTS ==================== -->
-  <string id="ui_mcm_menu_damage">
-    <text>Damage</text>
+  <string id="ui_mcm_menu_general">
+    <text>General</text>
   </string>
-  <string id="ui_mcm_menu_health">
-    <text>Health</text>
-  </string>
-  <string id="ui_mcm_menu_abilities">
-    <text>Abilities</text>
+  <string id="ui_mcm_menu_power">
+    <text>Power</text>
   </string>
   <string id="ui_mcm_menu_chimera">
     <text>Chimera</text>
   </string>
-  <string id="ui_mcm_at_mutants_damage_desc">
-    <text>What a mutant deals, scaled by the map rank (rookie maps rank 0 up to endgame maps rank 5): hit power grows by the slider's percent per rank. Multiplies the installed balance, so other mutant overhauls keep their numbers.</text>
+  <string id="ui_mcm_menu_bloodsucker">
+    <text>Bloodsucker</text>
   </string>
-  <string id="ui_mcm_at_mutants_health_desc">
-    <text>What a mutant survives, growing per map rank: health pool, damage resistance, and idle regeneration, each a percent-per-rank slider over the installed balance.</text>
+  <string id="ui_mcm_menu_burer">
+    <text>Burer</text>
   </string>
-  <string id="ui_mcm_at_mutants_abilities_desc">
-    <text>The mutant move set. Each ability names the exact species it applies to; every other species is untouched. Whether a move fires at each opening is a chance roll rising with the map rank and the species; smart moments (you reloading or defenseless, you fleeing, your weapon out of its range) grant extra openings that roll the same chance.</text>
+  <string id="ui_mcm_menu_dog">
+    <text>Dog</text>
+  </string>
+  <string id="ui_mcm_menu_boar">
+    <text>Boar</text>
+  </string>
+  <string id="ui_mcm_menu_snork">
+    <text>Snork</text>
+  </string>
+  <string id="ui_mcm_menu_pseudodog">
+    <text>Pseudodog</text>
+  </string>
+  <string id="ui_mcm_menu_gigant">
+    <text>Pseudogigant</text>
+  </string>
+  <string id="ui_mcm_menu_cat">
+    <text>Cat</text>
+  </string>
+  <string id="ui_mcm_menu_flesh">
+    <text>Flesh</text>
+  </string>
+  <string id="ui_mcm_menu_fracture">
+    <text>Fracture</text>
+  </string>
+  <string id="ui_mcm_menu_karlik">
+    <text>Karlik</text>
+  </string>
+  <string id="ui_mcm_menu_tushkano">
+    <text>Tushkano</text>
+  </string>
+  <string id="ui_mcm_at_mutants_general_desc">
+    <text>How often mutants act on an opening, and how much their moves vary. Each species page lists its moves: MANAGED MOVES are the creature's own attacks whose timing this mod decides, NEW MOVES are attacks the vanilla game never fires for that species. Every move's tooltip names its gates: int (Intelligence decides when) and wild (the values vary).</text>
+  </string>
+  <string id="ui_mcm_at_mutants_power_desc">
+    <text>A mutant's raw hit and toughness, scaled by the map rank (rookie maps rank 0 up to endgame maps rank 5): damage dealt and damage resistance each grow by their slider's percent per rank. Multiplies the installed balance, so other mutant overhauls keep their numbers.</text>
   </string>
   <string id="ui_mcm_at_mutants_chimera_desc">
-    <text>The chimera's own moves (covers the lurker, same engine class). Species with unique moves get their own page here as their kits grow.</text>
+    <text>Chimera and lurker.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_bloodsucker_desc">
+    <text>Bloodsucker and psysucker.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_burer_desc">
+    <text>Burer.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_dog_desc">
+    <text>Blind dog.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_boar_desc">
+    <text>Boar.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_snork_desc">
+    <text>Snork.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_pseudodog_desc">
+    <text>Pseudodog and psy dog.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_gigant_desc">
+    <text>Pseudogigant.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_cat_desc">
+    <text>Cat.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_flesh_desc">
+    <text>Flesh.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_fracture_desc">
+    <text>Fracture.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_karlik_desc">
+    <text>Karlik.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_tushkano_desc">
+    <text>Tushkano.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_managed">
+    <text>MANAGED MOVES</text>
+  </string>
+  <string id="ui_mcm_at_mutants_new">
+    <text>NEW MOVES</text>
+  </string>
+  <string id="ui_mcm_at_mutants_mut_int_base">
+    <text>Intelligence (%)</text>
+  </string>
+  <string id="ui_mcm_at_mutants_mut_int_base_desc">
+    <text>The chance a mutant acts on an opening (a pounce window, a charge clock, a fresh hit), before the rank bonus. A missed roll lets the opening pass and the move's cooldown runs.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_mut_int_rank_pct">
+    <text>Per rank (%)</text>
+  </string>
+  <string id="ui_mcm_at_mutants_mut_int_rank_pct_desc">
+    <text>Added to the Intelligence chance for each map rank.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_mut_wild">
+    <text>Wild</text>
+  </string>
+  <string id="ui_mcm_at_mutants_mut_wild_desc">
+    <text>How much every move value varies: timings, distances, cadences, and the share of leaps that come with no wind-up. 0 keeps every value at the middle of its band, so mutants are identical and learnable; 100 rolls any point across the band, so each spawn and each action differ.</text>
   </string>
   <string id="ui_mcm_at_mutants_mut_damage_pct">
     <text>Damage bonus per rank (%)</text>
@@ -168,89 +258,71 @@
   <string id="ui_mcm_at_mutants_mut_damage_pct_desc">
     <text>Hit power grows by this percent for each map rank: rank 0 stays vanilla, rank 5 gets 5 times this bonus.</text>
   </string>
-  <string id="ui_mcm_at_mutants_mut_health_pct">
-    <text>Health bonus per rank (%)</text>
-  </string>
-  <string id="ui_mcm_at_mutants_mut_health_pct_desc">
-    <text>The health pool grows by this percent for each map rank.</text>
-  </string>
   <string id="ui_mcm_at_mutants_mut_resist_pct">
     <text>Resistance per rank (%)</text>
   </string>
   <string id="ui_mcm_at_mutants_mut_resist_pct_desc">
     <text>Damage a mutant receives shrinks by this percent for each map rank.</text>
   </string>
-  <string id="ui_mcm_at_mutants_mut_regen_pct">
-    <text>Regeneration per rank (%)</text>
-  </string>
-  <string id="ui_mcm_at_mutants_mut_regen_pct_desc">
-    <text>Idle regeneration: this percent of the health pool per minute, for each map rank.</text>
-  </string>
-  <string id="ui_mcm_at_mutants_mut_chance_base">
-    <text>Move chance (%)</text>
-  </string>
-  <string id="ui_mcm_at_mutants_mut_chance_base_desc">
-    <text>The chance a move fires at each opening (a pounce window, a charge clock, a fresh hit), before the rank bonus. A missed roll lets the opening pass and the move's cooldown runs.</text>
-  </string>
-  <string id="ui_mcm_at_mutants_mut_chance_rank_pct">
-    <text>Move chance per rank (%)</text>
-  </string>
-  <string id="ui_mcm_at_mutants_mut_chance_rank_pct_desc">
-    <text>Added to the move chance for each map rank.</text>
-  </string>
-  <string id="ui_mcm_at_mutants_mut_wild">
-    <text>Wild</text>
-  </string>
-  <string id="ui_mcm_at_mutants_mut_wild_desc">
-    <text>The innate randomness layer: every move fires on a chance roll and every timing, distance, and cadence varies inside a bounded band. Off: fixed mid-band timing, and moves fire deterministically once their chance crosses half.</text>
-  </string>
-  <string id="ui_mcm_at_mutants_mut_pounce">
+  <string id="ui_mcm_at_mutants_pounce">
     <text>Pounce</text>
   </string>
-  <string id="ui_mcm_at_mutants_mut_pounce_desc">
-    <text>Commanded leaps at varied moments; a rationed share comes with no wind-up, rising with the map rank. No mutant leaps into a shotgun aimed at it in range; a shotgunner looking away gets leapt at. Applies to: chimera, lurker, cat, bloodsucker, psysucker, dog, snork, pseudodog, psy dog.</text>
+  <string id="ui_mcm_at_mutants_pounce_desc">
+    <text>[int, wild] A commanded leap at the enemy on an opening. No mutant leaps into a shotgun aimed at it in range; a shotgunner looking away gets leapt at. A rare share of leaps steers mid-air, rising with Intelligence and Wild.</text>
   </string>
-  <string id="ui_mcm_at_mutants_mut_untelegraph">
-    <text>Untelegraphed leaps</text>
+  <string id="ui_mcm_at_mutants_lunge">
+    <text>Lunge</text>
   </string>
-  <string id="ui_mcm_at_mutants_mut_untelegraph_desc">
-    <text>A rationed share of leaps come with no wind-up, rising with the map rank. Off: every leap keeps its telegraph, so all are dodgeable. Applies to: chimera, lurker, cat, bloodsucker, psysucker, dog, snork, pseudodog.</text>
+  <string id="ui_mcm_at_mutants_lunge_desc">
+    <text>[int, wild] A leap with no wind-up, nothing to see and dodge. Wild sets how often it replaces the telegraphed Pounce. Off: every leap keeps its telegraph, so all are dodgeable. A rare share of leaps steers mid-air, rising with Intelligence and Wild.</text>
   </string>
-  <string id="ui_mcm_at_mutants_mut_melee">
-    <text>Melee</text>
-  </string>
-  <string id="ui_mcm_at_mutants_mut_melee_desc">
-    <text>The turn-and-hit on rear orbiting: a mutant punishes an enemy circling behind it with a spin strike. Applies to: chimera, lurker.</text>
-  </string>
-  <string id="ui_mcm_at_mutants_mut_rush">
+  <string id="ui_mcm_at_mutants_rush">
     <text>Rush</text>
   </string>
-  <string id="ui_mcm_at_mutants_mut_rush_desc">
-    <text>The full-speed charge is a flank and weak-gun move: it comes from behind or the side, against a pistol or SMG, or when your weapon is past its effective range. Never into an aimed shotgun. Applies to: bloodsucker, psysucker, boar, pseudogiant.</text>
+  <string id="ui_mcm_at_mutants_rush_desc">
+    <text>[int, wild] A full-speed run straight into the enemy: a flank and weak-gun move, from behind or the side, against a pistol or SMG, or when your weapon is past its effective range. Never into an aimed shotgun.</text>
   </string>
-  <string id="ui_mcm_at_mutants_mut_retreat">
-    <text>Retreat</text>
+  <string id="ui_mcm_at_mutants_dodge">
+    <text>Dodge</text>
   </string>
-  <string id="ui_mcm_at_mutants_mut_retreat_desc">
-    <text>A freshly hurt mutant briefly pulls back through its own motions and returns; rare by design. Also rolls when you draw a shotgun at close range. Near death it can break off and run outright, for longer. Applies to: boar, bloodsucker, psysucker, cat, dog, flesh, fracture, pseudogiant, karlik, pseudodog, psy dog, snork, tushkano, zombie.</text>
+  <string id="ui_mcm_at_mutants_dodge_desc">
+    <text>[int, wild] A sideways juke when you draw a bead on it up close.</text>
   </string>
-  <string id="ui_mcm_at_mutants_mut_invisibility">
-    <text>Invisibility</text>
+  <string id="ui_mcm_at_mutants_backstrike">
+    <text>Backstrike</text>
   </string>
-  <string id="ui_mcm_at_mutants_mut_invisibility_desc">
-    <text>Varies the invisibility pacing per individual: one flickers fast, another holds long cloaked stretches. Applies to: bloodsucker, psysucker.</text>
+  <string id="ui_mcm_at_mutants_backstrike_desc">
+    <text>[int, wild] A spin-strike when the enemy orbits to its back.</text>
   </string>
-  <string id="ui_mcm_at_mutants_mut_gravi">
-    <text>Gravi</text>
+  <string id="ui_mcm_at_mutants_claw">
+    <text>Claw</text>
   </string>
-  <string id="ui_mcm_at_mutants_mut_gravi_desc">
-    <text>Holding your aim on a burer for a few seconds can draw its gravity attack as the answer; rolls the move chance, on a long cooldown. Applies to: burer.</text>
+  <string id="ui_mcm_at_mutants_claw_desc">
+    <text>[int, wild] A close standing strike the chimera otherwise lacks: vanilla chimeras reach you and wander off with nothing to swing.</text>
   </string>
-  <string id="ui_mcm_at_mutants_mut_jab">
-    <text>Jab</text>
+  <string id="ui_mcm_at_mutants_gravity">
+    <text>Gravity</text>
   </string>
-  <string id="ui_mcm_at_mutants_mut_jab_desc">
-    <text>The point-blank claw strike at contact. Vanilla chimeras reach you and wander off with nothing to swing; this gives the contact its hit. Applies to: chimera, lurker.</text>
+  <string id="ui_mcm_at_mutants_gravity_desc">
+    <text>[int, wild] Holding your aim on a burer for a few seconds can draw its gravity attack as the answer, on a long cooldown.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_cloak">
+    <text>Cloak</text>
+  </string>
+  <string id="ui_mcm_at_mutants_cloak_desc">
+    <text>[wild] Varies the flicker timing of the invisibility per individual: one flickers fast, another holds long cloaked stretches.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_roar">
+    <text>Roar</text>
+  </string>
+  <string id="ui_mcm_at_mutants_roar_desc">
+    <text>[int, wild] A threat display on first contact at range: the creature's own warning motion the vanilla game never plays in a fight, once per engagement.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_flee">
+    <text>Flee</text>
+  </string>
+  <string id="ui_mcm_at_mutants_flee_desc">
+    <text>[int, wild] Breaks off and runs when hurt, cornered by a close shotgun draw, or near death; a brief pull-back through its own motions, longer when low.</text>
   </string>
   <!-- ==================== SHARED ==================== -->
   <string id="ui_mcm_at_title">

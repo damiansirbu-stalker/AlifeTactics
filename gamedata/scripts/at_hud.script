@@ -147,16 +147,17 @@ local function _build_row(npc, st)
 end
 
 local MOVE_WORDS = {
-    { "pounce", "pounce" }, { "rush", "rush" }, { "retreat", "retreat" },
-    { "invisibility", "invis" }, { "gravi", "gravi" },
+    { "pounce", "pounce" }, { "lunge", "lunge" }, { "rush", "rush" }, { "dodge", "dodge" },
+    { "flee", "flee" }, { "cloak", "cloak" }, { "gravity", "gravity" },
+    { "claw", "claw" }, { "backstrike", "backstrike" }, { "roar", "roar" },
 }
 
 -- The mutant systems cell in plain words: the live move window first, else the species' possible moves.
 local function _format_mob_systems(rec, tg)
-    if rec.retreat_until > rec.tick_now then
-        return string_format("retreating %.1fs", (rec.retreat_until - tg) / 1000)
+    if rec.flee_until > rec.tick_now then
+        return string_format("fleeing %.1fs", (rec.flee_until - tg) / 1000)
     end
-    if rec.jab_until > 0 then return "jabbing" end
+    if rec.claw_until > 0 then return "clawing" end
     local words = {}
     for i = 1, #MOVE_WORDS do
         local pair = MOVE_WORDS[i]
@@ -207,6 +208,10 @@ end
 
 local function _build_mob_row(mob)
     local driver = at_mutants.get_driver(mob.id)
+    local rec = at_mutants.get_mutant_record(mob.id)
+    if driver and driver ~= "-" and rec and rec.gate then
+        driver = driver .. " " .. rec.gate
+    end
     return {
         is_mob  = true,
         driver  = driver ~= "-" and driver or nil,

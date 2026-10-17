@@ -13,26 +13,29 @@ local GATE_MS         = 200
 local ASSESS_MS       = 600
 local STALE_MS        = 12000
 local SWEEP_MS        = 10000
-local BASE_HEALTH_EPS = 1
 local TIER_MIN, TIER_MAX = 0, 5
 local RUSH_KIND       = { w_pistol = true, w_smg = true, w_shotgun = true }
 local WEAK_KIND       = { w_pistol = true, w_smg = true }
 local SHOTGUN_KIND    = "w_shotgun"
 local BAND_OUT        = "out"
 local BAND_IN         = "in"
-local BLOODSUCKER     = "bloodsucker"
+local BURER           = "burer"
 local CONTROLLER      = "controller"
 local POLTERGEIST     = "poltergeist"
-local MOVE_KEYS       = { "pounce", "rush", "retreat", "invisibility", "gravi" }
+local MOVE_KEYS       = { "pounce", "lunge", "rush", "dodge", "flee", "cloak", "gravity", "claw", "backstrike", "roar" }
+local AURA_NAMES      = { "psy", "radiation", "fire" }
+local CHIMERA_CLASS   = { chimera = true, lurker = true }
+local GATE_BOTH       = "int, wild"
 
 local _states = {}
-local _tracks = { damage = {}, health = {}, taken = {}, regen = {} }
+local _tracks = { damage = {}, taken = {} }
 local _tun = nil
 local _tun_num = nil
 local _move_species = {}
-local _jab_species = {}
-local _jab_motion = nil
-local _melee_motions = {}
+local _move_cfg = {}
+local _all_move_keys = {}
+local _claw_motion = nil
+local _backstrike_motions = {}
 local _active = false
 local _seams = nil
 local _runaway_id = nil
@@ -65,26 +68,32 @@ local function _log_tick(ms, now)
     _prop_ms, _prop_n, _prop_silent = 0, 0, 0
 end
 
--- A bounded pick in [low, high]; Wild off returns the band middle.
+-- A bounded pick in [low, high]; the Wild slider scales the spread - 0 = the band middle, 100 = any point across the band.
 local function _select_band(low, high)
-    if not cfg.mut_wild then return (low + high) * 0.5 end
-    return low + math_random() * (high - low)
+    local mid = (low + high) * 0.5
+    local wild = (cfg.mut_wild or 0) * 0.01
+    if wild <= 0 then return mid end
+    return mid + (low + math_random() * (high - low) - mid) * wild
 end
 
--- The move chance: (base + per-rank * tier + species modifier) / 100, capped - the unified formula, mutant side.
-local function _compute_chance(rec)
-    return math_min((cfg.mut_chance_base + cfg.mut_chance_rank_pct * rec.tier + rec.chance_mod) / 100,
-        _tun_num.chance_cap)
+-- The Intelligence probability: (base + per-rank * tier) / 100, capped - the act chance of the decision model.
+local function _compute_intelligence(rec)
+    return math_min((cfg.mut_int_base + cfg.mut_int_rank_pct * rec.tier) / 100, _tun_num.int_cap)
 end
 
--- One opportunity roll on the shared chance; Wild off fires whenever the chance crosses half.
-local function _check_fire(rec)
-    local chance = _compute_chance(rec)
-    if not cfg.mut_wild then return chance >= 0.5 end
-    return math_random() < chance
+-- One opening's Intelligence roll; a miss consumes the opening (the caller stamps the cooldown).
+local function _check_intelligence(rec)
+    return math_random() < _compute_intelligence(rec)
 end
 
--- The adopt-line move list: the species' applicable moves.
+-- The species' MCM toggle for a move (page-keyed); false for a species carrying no page row.
+local function _check_toggle(rec, move)
+    local keys = rec.species and _move_cfg[rec.species]
+    local key = keys and keys[move]
+    return key ~= nil and cfg[key] == true
+end
+
+-- The adopt-line move list: the species' applicable moves (anatomy, the [moves] envelope).
 local function _format_moves(species)
     if not species then return "-" end
     local parts = {}
@@ -112,23 +121,21 @@ local function _get_tier()
     return tier
 end
 
--- Rebuild the per-tier multipliers from the formula sliders; regen is percent of the pool per minute per rank.
+-- Rebuild the per-tier damage and resistance multipliers from the formula sliders.
 local function _build_tracks()
     for tier = TIER_MIN, TIER_MAX do
         _tracks.damage[tier] = 1 + (cfg.mut_damage_pct or 0) / 100 * tier
-        _tracks.health[tier] = 1 + (cfg.mut_health_pct or 0) / 100 * tier
         _tracks.taken[tier] = 1 - (cfg.mut_resist_pct or 0) / 100 * tier
-        _tracks.regen[tier] = (cfg.mut_regen_pct or 0) / 100 * tier / 60
     end
 end
 
--- A basis value under a bounded jitter fraction; nil basis skips the family.
-local function _compute_jitter(basis, pct)
+-- A basis value under a bounded wild fraction; nil basis skips the family.
+local function _compute_offset(basis, pct)
     if not basis then return nil end
     return basis * _select_band(1 - pct, 1 + pct)
 end
 
--- A band pair under ONE shared jitter factor, so a narrow band can never invert min over max.
+-- A band pair under ONE shared wild factor, so a narrow band can never invert min over max.
 local function _compute_band(min_basis, max_basis, pct)
     if not (min_basis or max_basis) then return nil, nil end
     local factor = _select_band(1 - pct, 1 + pct)
@@ -144,7 +151,7 @@ local function _read_pair(section, key)
     return { tonumber(first), tonumber(second) }
 end
 
--- Jitter the run-attack band and re-arm delay over the install's own tuple rows; absent rows skip the family.
+-- Vary the run-attack band and re-arm delay over the install's own tuple rows; absent rows skip the family.
 local function _apply_rush_params(mob, section)
     local pct = _tun_num.rush_band_pct
     local dist = _read_pair(section, "Run_Attack_Dist")
@@ -156,63 +163,143 @@ local function _apply_rush_params(mob, section)
         min_dist = dist_min, max_dist = dist_max,
         min_delay_ms = delay_min, max_delay_ms = delay_max,
     })
+    if at_debug.is_on() and dist_min then
+        at_debug.debug("[MUT] vary id=%d rush=%.1f-%.1f", mob:id(), dist_min, dist_max)
+    end
 end
 
--- Push the stat multipliers and the jittered param families once at adoption, over the install's own values.
--- Health scales ONLY from the vanilla base: a wounded or already-scaled mutant is never re-healed.
-local function _apply_stats(mob, rec)
+-- Push the varied param families once at adoption, over the install's own values.
+local function _apply_params(mob, rec)
     local section = mob:section()
-    local base_health = _read_basis(section, "Health")
-    if base_health then
-        rec.base_health = base_health
-        local current = xmonster.get_monster_health(mob)
-        if current > base_health - BASE_HEALTH_EPS and current < base_health + BASE_HEALTH_EPS then
-            xmonster.set_monster_health(mob, base_health * _tracks.health[rec.tier])
-        end
-        xcombat.set_health_restore_boost(mob, _tracks.regen[rec.tier])
-    end
-    xmonster.set_monster_turn_factor(mob, _select_band(_tun_num.turn_min, _tun_num.turn_max))
+    local turn = _select_band(_tun_num.turn_min, _tun_num.turn_max)
+    xmonster.set_monster_turn_factor(mob, turn)
     local atk_min, atk_max = _compute_band(_read_basis(section, "MinAttackDist"),
         _read_basis(section, "MaxAttackDist"), _tun_num.attack_dist_pct)
     xmonster.set_monster_attack_dist(mob, { min_dist = atk_min, max_dist = atk_max })
     local jump_max = _read_basis(section, "jump_max_distance")
     if jump_max then
         rec.jump_max_m = jump_max
+        rec.aim_basis = _read_basis(section, "jump_auto_aim_factor") or 0
         local band_min, band_max = _compute_band(_read_basis(section, "jump_min_distance"),
             jump_max, _tun_num.jump_band_pct)
         xmonster.set_monster_jump_params(mob, { min_dist = band_min, max_dist = band_max,
-            delay_ms = _compute_jitter(_read_basis(section, "jump_delay"), _tun_num.window_pct) })
+            delay_ms = _compute_offset(_read_basis(section, "jump_delay"), _tun_num.window_pct) })
+        if at_debug.is_on() and band_max then
+            at_debug.debug("[MUT] vary id=%d jump=%.1f-%.1f", rec.id, band_min or 0, band_max)
+        end
     end
     local circle_pct = _tun_num.circle_pct
     xmonster.set_monster_circle_params(mob, {
-        far_radius = _compute_jitter(_read_basis(section, "aom_far_radius"), circle_pct),
-        attack_radius = _compute_jitter(_read_basis(section, "aom_attack_radius"), circle_pct),
-        update_side_period = _compute_jitter(_read_basis(section, "aom_update_side_period"), circle_pct),
+        far_radius = _compute_offset(_read_basis(section, "aom_far_radius"), circle_pct),
+        attack_radius = _compute_offset(_read_basis(section, "aom_attack_radius"), circle_pct),
+        update_side_period = _compute_offset(_read_basis(section, "aom_update_side_period"), circle_pct),
     })
+    if at_debug.is_on() then
+        at_debug.debug("[MUT] vary id=%d turn=%.2f atk=%.1f-%.1f", rec.id, turn, atk_min or 0, atk_max or 0)
+    end
     if rec.moves.rush then _apply_rush_params(mob, section) end
 end
 
--- Species pacing rolls and the armed strike, once at adoption.
-local function _apply_species(mob, rec)
-    if rec.moves.invisibility and cfg.mut_invisibility then
-        xmonster.set_bloodsucker_invisibility_delay(mob, _select_band(_tun_num.invis_min, _tun_num.invis_max))
+-- The species pacing rolls: the cloak dwell, the controller tube and stamina, the poltergeist hover.
+local function _apply_pacing(mob, rec, section)
+    if rec.moves.cloak and _check_toggle(rec, "cloak") then
+        local dwell = _select_band(_tun_num.cloak_min, _tun_num.cloak_max)
+        xmonster.set_bloodsucker_invisibility_delay(mob, dwell)
+        if at_debug.is_on() then at_debug.debug("[MUT] vary id=%d cloak=%.0fms", rec.id, dwell) end
     end
     if rec.species == CONTROLLER then
         xmonster.set_controller_tube_params(mob, {
             see_duration_ms = _select_band(_tun_num.see_min, _tun_num.see_max),
             min_delay_ms = _select_band(_tun_num.tube_min, _tun_num.tube_max),
         })
+        xmonster.set_controller_stamina_hit(mob, _compute_offset(_read_basis(section, "stamina_hit"), _tun_num.ability_pct))
+        if at_debug.is_on() then at_debug.debug("[MUT] vary id=%d tube+stamina", rec.id) end
     end
     if rec.species == POLTERGEIST then
+        local pct = _tun_num.ability_pct
         xmonster.set_poltergeist_height_params(mob, {
             height_min = _select_band(_tun_num.height_min_low, _tun_num.height_min_high),
             height_max = _select_band(_tun_num.height_max_low, _tun_num.height_max_high),
         })
+        xmonster.set_poltergeist_detection_params(mob, {
+            near_factor = _compute_offset(_read_basis(section, "detection_near_range_factor"), pct),
+            far_factor = _compute_offset(_read_basis(section, "detection_far_range_factor"), pct),
+            far_range = _compute_offset(_read_basis(section, "detection_far_range"), pct),
+            speed_factor = _compute_offset(_read_basis(section, "detection_speed_factor"), pct),
+            loose_speed = _compute_offset(_read_basis(section, "detection_loose_speed"), pct),
+        })
+        if at_debug.is_on() then at_debug.debug("[MUT] vary id=%d hover+detection", rec.id) end
     end
-    local motions = cfg.mut_melee and rec.species and _melee_motions[rec.species] or nil
-    if motions then
-        xmonster.set_monster_melee_strike(mob, motions[1], motions[2], _tun_num.melee_arc)
+end
+
+-- The chimera-class and burer ability families, varied over the install's own values.
+local function _apply_class_params(mob, rec, section)
+    local pct = _tun_num.ability_pct
+    if CHIMERA_CLASS[rec.species] then
+        xmonster.set_chimera_attack_params(mob, {
+            attack_radius = _compute_offset(_read_basis(section, "attack_radius"), pct),
+            prepare_timeout_ms = _compute_offset(_read_basis(section, "prepare_jump_timeout"), pct),
+            attack_timeout_ms = _compute_offset(_read_basis(section, "attack_jump_timeout"), pct),
+        })
+        if at_debug.is_on() then at_debug.debug("[MUT] vary id=%d chimera_attack", rec.id) end
     end
+    if rec.species ~= BURER then return end
+    local gravi_min, gravi_max = _compute_band(_read_basis(section, "Gravi_MinDist"),
+        _read_basis(section, "Gravi_MaxDist"), pct)
+    xmonster.set_burer_gravi_params(mob, {
+        cooldown_ms = _compute_offset(_read_basis(section, "Gravi_Cooldown"), pct),
+        min_dist = gravi_min, max_dist = gravi_max,
+        speed = _compute_offset(_read_basis(section, "Gravi_Speed"), pct),
+        radius = _compute_offset(_read_basis(section, "Gravi_Radius"), pct),
+    })
+    local tele_min, tele_max = _compute_band(_read_basis(section, "tele_min_distance"),
+        _read_basis(section, "tele_max_distance"), pct)
+    xmonster.set_burer_telekinesis_params(mob, {
+        find_radius = _compute_offset(_read_basis(section, "Tele_Find_Radius"), pct),
+        min_dist = tele_min, max_dist = tele_max,
+        fly_velocity = _compute_offset(_read_basis(section, "tele_fly_velocity"), pct),
+    })
+    if at_debug.is_on() then at_debug.debug("[MUT] vary id=%d gravi+tele", rec.id) end
+end
+
+-- One aura family, strength and reach varied; a species without the keys skips it.
+local function _apply_aura(mob, rec, section, name)
+    local pct = _tun_num.ability_pct
+    local power = _read_basis(section, name .. "_max_power")
+    local dist = _read_basis(section, name .. "_max_distance")
+    if not (power or dist) then return end
+    xmonster.set_monster_aura_params(mob, name, {
+        max_power = _compute_offset(power, pct),
+        max_distance = _compute_offset(dist, pct),
+    })
+    if at_debug.is_on() then at_debug.debug("[MUT] vary id=%d aura=%s", rec.id, name) end
+end
+
+-- Every aura the species carries.
+local function _apply_auras(mob, rec, section)
+    for i = 1, #AURA_NAMES do
+        _apply_aura(mob, rec, section, AURA_NAMES[i])
+    end
+end
+
+-- The rear spin-strike arms once at adoption on an Intelligence roll; the engine self-fires it after.
+local function _try_arm_backstrike(mob, rec)
+    local motions = rec.moves.backstrike and _check_toggle(rec, "backstrike")
+        and _backstrike_motions[rec.species] or nil
+    if not motions or not _check_intelligence(rec) then return end
+    xmonster.set_monster_melee_strike(mob, motions[1], motions[2], _tun_num.backstrike_arc)
+    if at_debug.is_on() then
+        at_debug.debug("[MUT] arm id=%d backstrike arc=%.0f gate=int,wild", rec.id, _tun_num.backstrike_arc)
+    end
+end
+
+-- The species ability families: pacing rolls, the per-species wild over the ability params, the armed strike.
+local function _apply_species(mob, rec)
+    local section = mob:section()
+    _apply_pacing(mob, rec, section)
+    _apply_class_params(mob, rec, section)
+    _apply_auras(mob, rec, section)
+    _try_arm_backstrike(mob, rec)
 end
 
 local function _add_mutant(mob, id, now)
@@ -230,7 +317,6 @@ local function _add_mutant(mob, id, now)
         id = id,
         species = species,
         tier = tier,
-        chance_mod = species and xltx.read_num(_tun, "chance_species", species) or 0,
         next_ms = 0,
         assess_at = 0,
         seen_ms = now,
@@ -240,30 +326,32 @@ local function _add_mutant(mob, id, now)
         vuln = false, fleeing = false, mismatch = false, turned = false,
         pounce_cd = _select_band(_tun_num.pounce_cd_min, _tun_num.pounce_cd_max),
         rush_cd = _select_band(_tun_num.pounce_cd_min, _tun_num.pounce_cd_max),
-        pounce_min = _compute_jitter(_tun_num.pounce_min, _tun_num.jump_band_pct),
-        pounce_max = _compute_jitter(_tun_num.pounce_max, _tun_num.jump_band_pct),
-        jab_cd = _select_band(_tun_num.jab_cd_min, _tun_num.jab_cd_max),
-        retreat_cd = _select_band(_tun_num.retreat_cd_min, _tun_num.retreat_cd_max),
-        gravi_cd = _select_band(_tun_num.gravi_cd_min, _tun_num.gravi_cd_max),
+        dodge_cd = _select_band(_tun_num.dodge_cd_min, _tun_num.dodge_cd_max),
+        pounce_min = _compute_offset(_tun_num.pounce_min, _tun_num.jump_band_pct),
+        pounce_max = _compute_offset(_tun_num.pounce_max, _tun_num.jump_band_pct),
+        claw_cd = _select_band(_tun_num.claw_cd_min, _tun_num.claw_cd_max),
+        flee_cd = _select_band(_tun_num.flee_cd_min, _tun_num.flee_cd_max),
+        gravity_cd = _select_band(_tun_num.gravity_cd_min, _tun_num.gravity_cd_max),
+        roar_cd = _select_band(_tun_num.roar_cd_min, _tun_num.roar_cd_max),
         stare_ms = _select_band(_tun_num.stare_min, _tun_num.stare_max),
-        jab_clear = _compute_jitter(_tun_num.jab_clear, _tun_num.window_pct),
-        gravi_release_ms = _compute_jitter(_tun_num.gravi_release, _tun_num.window_pct),
-        jab_motion = species and _jab_species[species] and _jab_motion or nil,
-        pounce_at = 0, jab_at = 0, rush_at = 0, retreat_at = 0, gravi_at = 0,
-        retreat_until = 0, jab_until = 0,
+        claw_clear = _compute_offset(_tun_num.claw_clear, _tun_num.window_pct),
+        gravity_release_ms = _compute_offset(_tun_num.gravity_release, _tun_num.window_pct),
+        claw_motion = species and moves.claw and _claw_motion or nil,
+        pounce_at = 0, claw_at = 0, rush_at = 0, flee_at = 0, gravity_at = 0, dodge_at = 0, roar_at = 0,
+        flee_until = 0, claw_until = 0,
         last_hit_count = hit_info and hit_info.count or 0,
+        low_health = false,
     }
     _states[id] = rec
-    _apply_stats(mob, rec)
+    _apply_params(mob, rec)
     _apply_species(mob, rec)
-    rec.low_health = false
     tmr:stop()
     if dbg then
         local ms = tmr:get_ms()
         _adopt_n = _adopt_n + 1
         _adopt_ms = _adopt_ms + ms
-        at_debug.debug("[MUT] adopt id=%s species=%s tier=%d hp=%d moves=%s [%.3fms]",
-            id, tostring(species), tier, xmonster.get_monster_health(mob), _format_moves(species), ms)
+        at_debug.debug("[MUT] adopt id=%s species=%s tier=%d moves=%s [%.3fms]",
+            id, tostring(species), tier, _format_moves(species), ms)
     end
     return rec
 end
@@ -294,7 +382,7 @@ local function _check_enemy_vulnerable(enemy, is_actor, now)
     return _actor_vuln
 end
 
--- A newly-held premise (enemy turns vulnerable, flees, weapon out of band, near shotgun turns away) re-arms pounce and rush for one fresh opening.
+-- A newly-held premise (enemy turns vulnerable, flees, weapon out of band, near shotgun turns away) re-arms the jumps and rush for one fresh opening.
 local function _update_premises(rec, now)
     if not (rec.moves.pounce or rec.moves.rush) then return end
     local memo = rec.memo
@@ -316,55 +404,99 @@ local function _update_premises(rec, now)
     rec.vuln, rec.fleeing, rec.mismatch, rec.turned = vuln, fleeing, mismatch, turned
 end
 
--- The chimera-class contact strike; one animation owner, cleared by its window or any jump.
-local function _update_jab(mob, rec, enemy_pos, dist, now)
-    if rec.jab_until > 0 and (now >= rec.jab_until or xmonster.is_monster_jumping(mob)) then
-        xmonster.stop_monster_animation(mob)
-        rec.jab_until = 0
+-- The one-animation-owner clear: the claw override stops at its window's end or the moment any jump takes the body.
+local function _clear_claw(mob, rec, now)
+    if rec.claw_until <= 0 then return end
+    local jumping = xmonster.is_monster_jumping(mob)
+    if now < rec.claw_until and not jumping then return end
+    xmonster.stop_monster_animation(mob)
+    rec.claw_until = 0
+    if jumping and at_debug.is_on() then
+        at_debug.debug("[MUT] CLAW id=%d cleared cause=jump", rec.id)
     end
-    if not cfg.mut_jab or not rec.jab_motion then return end
-    if rec.jab_until > 0 or now < rec.jab_at then return end
-    if dist > _tun_num.jab_range then return end
+end
+
+-- The chimera-class contact strike; one animation owner, cleared by its window or any jump; Intelligence rolls the contact.
+local function _update_claw(mob, rec, enemy_pos, dist, now)
+    _clear_claw(mob, rec, now)
+    if not rec.claw_motion or not _check_toggle(rec, "claw") then return end
+    if rec.claw_until > 0 or now < rec.claw_at then return end
+    if dist > _tun_num.claw_range then return end
     if xmonster.is_monster_jumping(mob) then return end
     if not xcombat.is_facing(mob, enemy_pos, _tun_num.pounce_cone) then return end
-    if xmonster.play_monster_animation(mob, rec.jab_motion) then
-        rec.jab_until = now + rec.jab_clear
-        rec.jab_at = now + rec.jab_cd
-        rec.driver = "JAB"
-        if at_debug.is_on() then at_debug.debug("[MUT] JAB id=%d d=%.1f", rec.id, dist) end
-    end
-end
-
--- The commanded leap, bounded to the jump band; never into an aimed shotgun, a missed roll consumes the opening.
-local function _update_pounce(mob, rec, now)
-    if not cfg.mut_pounce or not rec.moves.pounce then return end
-    local memo = rec.memo
-    if memo.shotgun_aimed then return end
-    if now < rec.pounce_at or rec.jab_until > 0 then return end
-    local dist = memo.dist
-    if dist < rec.pounce_min or dist > rec.pounce_max then return end
-    if rec.jump_max_m and dist > rec.jump_max_m then return end
-    if not xcombat.is_facing(mob, memo.enemy_pos, _tun_num.pounce_cone) then return end
-    if not _check_fire(rec) then
-        rec.pounce_at = now + rec.pounce_cd
-        if at_debug.is_on() then at_debug.debug("[MUT] PASS id=%d move=pounce", rec.id) end
+    if not _check_intelligence(rec) then
+        rec.claw_at = now + rec.claw_cd
+        if at_debug.is_on() then at_debug.debug("[MUT] PASS id=%d move=claw", rec.id) end
         return
     end
-    local instant = cfg.mut_untelegraph and cfg.mut_wild and math_random() < _compute_chance(rec) or false
-    if xmonster.try_monster_jump(mob, memo.enemy_pos, 1, { skip_prepare = instant }) then
-        rec.pounce_at = now + rec.pounce_cd
-        rec.driver = instant and "POUNCE!" or "POUNCE"
-        if at_debug.is_on() then at_debug.debug("[MUT] %s id=%d d=%.1f", rec.driver, rec.id, dist) end
+    if xmonster.play_monster_animation(mob, rec.claw_motion) then
+        rec.claw_until = now + rec.claw_clear
+        rec.claw_at = now + rec.claw_cd
+        rec.driver = "CLAW"
+        rec.gate = GATE_BOTH
+        if at_debug.is_on() then at_debug.debug("[MUT] CLAW id=%d d=%.1f gate=int,wild", rec.id, dist) end
     end
 end
 
--- A charge is a flank or weak-gun move (behind/side, pistol/SMG, or a weapon past its band); every opening rolls, a miss consumes it.
+-- The jump window: no aimed shotgun, off cooldown, no claw override, inside the band, facing the enemy.
+local function _check_jump_window(mob, rec, now)
+    local memo = rec.memo
+    if memo.shotgun_aimed then return false end
+    if now < rec.pounce_at or rec.claw_until > 0 then return false end
+    local dist = memo.dist
+    if dist < rec.pounce_min or dist > rec.pounce_max then return false end
+    if rec.jump_max_m and dist > rec.jump_max_m then return false end
+    return xcombat.is_facing(mob, memo.enemy_pos, _tun_num.pounce_cone)
+end
+
+-- Which jump fires: both toggled rolls the Wild-scaled untelegraphed share, else the one enabled kind.
+local function _check_lunge(rec, pounce_on, lunge_on)
+    if lunge_on and pounce_on then
+        return math_random() < _compute_intelligence(rec) * (cfg.mut_wild or 0) * 0.01
+    end
+    return lunge_on
+end
+
+-- The homing share: a rare fired jump steers mid-air (Intelligence x Wild x the share), the gain inside the vanilla envelope.
+local function _check_homing(rec)
+    if math_random() >= _compute_intelligence(rec) * (cfg.mut_wild or 0) * 0.01 * _tun_num.aim_share then
+        return nil
+    end
+    return _select_band(_tun_num.aim_min, _tun_num.aim_max)
+end
+
+-- The two jump moves on one opening: Pounce telegraphed, Lunge without the wind-up; Wild sets the alternation share.
+local function _update_jump(mob, rec, now)
+    if not rec.moves.pounce then return end
+    local pounce_on = _check_toggle(rec, "pounce")
+    local lunge_on = rec.moves.lunge and _check_toggle(rec, "lunge")
+    if not (pounce_on or lunge_on) then return end
+    if not _check_jump_window(mob, rec, now) then return end
+    if not _check_intelligence(rec) then
+        rec.pounce_at = now + rec.pounce_cd
+        if at_debug.is_on() then at_debug.debug("[MUT] PASS id=%d move=jump", rec.id) end
+        return
+    end
+    local lunge = _check_lunge(rec, pounce_on, lunge_on)
+    local aim = rec.aim_basis ~= nil and _check_homing(rec) or nil
+    if aim then xmonster.set_monster_jump_flags(mob, { auto_aim = true, auto_aim_factor = aim }) end
+    local fired = xmonster.try_monster_jump(mob, rec.memo.enemy_pos, 1, { skip_prepare = lunge })
+    if aim then xmonster.set_monster_jump_flags(mob, { auto_aim_factor = rec.aim_basis }) end
+    if fired then
+        rec.pounce_at = now + rec.pounce_cd
+        rec.driver = lunge and "LUNGE" or "POUNCE"
+        rec.gate = GATE_BOTH
+        if at_debug.is_on() then at_debug.debug("[MUT] %s id=%d d=%.1f aim=%.2f gate=int,wild", rec.driver, rec.id, rec.memo.dist, aim or 0) end
+    end
+end
+
+-- A rush is a flank or weak-gun move (behind/side, pistol/SMG, or a weapon past its band); every opening rolls, a miss consumes it.
 local function _update_rush(mob, rec, now)
-    if not cfg.mut_rush or not rec.moves.rush then return end
+    if not rec.moves.rush or not _check_toggle(rec, "rush") then return end
     local memo = rec.memo
     if memo.shotgun_aimed or not memo.charge_open then return end
     if now < rec.rush_at then return end
-    if not _check_fire(rec) then
+    if not _check_intelligence(rec) then
         rec.rush_at = now + rec.rush_cd
         if at_debug.is_on() then at_debug.debug("[MUT] PASS id=%d move=rush", rec.id) end
         return
@@ -372,57 +504,100 @@ local function _update_rush(mob, rec, now)
     if xmonster.try_monster_run_attack(mob) then
         rec.rush_at = now + rec.rush_cd
         rec.driver = "RUSH"
-        if at_debug.is_on() then at_debug.debug("[MUT] RUSH id=%d mismatch=%s", rec.id, tostring(memo.mismatch)) end
+        rec.gate = GATE_BOTH
+        if at_debug.is_on() then at_debug.debug("[MUT] RUSH id=%d mismatch=%s gate=int,wild", rec.id, tostring(memo.mismatch)) end
+    end
+end
+
+-- The stare-break juke: the enemy aiming up close rolls a sideways rotation jump.
+local function _update_dodge(mob, rec, now)
+    if not rec.moves.dodge or not _check_toggle(rec, "dodge") then return end
+    if now < rec.dodge_at then return end
+    local memo = rec.memo
+    if not memo.aimed or memo.dist > _tun_num.dodge_range then return end
+    if xmonster.is_monster_jumping(mob) then return end
+    if not _check_intelligence(rec) then
+        rec.dodge_at = now + rec.dodge_cd
+        if at_debug.is_on() then at_debug.debug("[MUT] PASS id=%d move=dodge", rec.id) end
+        return
+    end
+    if xmonster.try_monster_rotation_jump(mob) then
+        rec.dodge_at = now + rec.dodge_cd
+        rec.driver = "DODGE"
+        rec.gate = GATE_BOTH
+        if at_debug.is_on() then at_debug.debug("[MUT] DODGE id=%d d=%.1f gate=int,wild", rec.id, memo.dist) end
+    end
+end
+
+-- The threat display on a fresh enemy at range: one Intelligence roll per engagement, held until the band is entered.
+local function _update_roar(mob, rec, now)
+    if not rec.moves.roar or not _check_toggle(rec, "roar") then return end
+    if not rec.roar_open or now < rec.roar_at then return end
+    local memo = rec.memo
+    if memo.dist < _tun_num.roar_min or memo.dist > _tun_num.roar_max then return end
+    rec.roar_open = nil
+    if not _check_intelligence(rec) then
+        rec.roar_at = now + rec.roar_cd
+        if at_debug.is_on() then at_debug.debug("[MUT] PASS id=%d move=roar", rec.id) end
+        return
+    end
+    if xmonster.try_monster_threaten(mob) then
+        rec.roar_at = now + rec.roar_cd
+        rec.driver = "ROAR"
+        rec.gate = GATE_BOTH
+        if at_debug.is_on() then at_debug.debug("[MUT] ROAR id=%d d=%.1f gate=int,wild", rec.id, memo.dist) end
     end
 end
 
 -- The survival flee: crossing below the low-health line rolls one LONG run-away window, once per crossing.
 local function _try_survival_flee(mob, rec, now)
-    if not cfg.mut_retreat or not rec.moves.retreat or not _runaway_id then return end
+    if not rec.moves.flee or not _check_toggle(rec, "flee") or not _runaway_id then return end
     local low = xmonster.get_monster_health(mob) <= _tun_num.survival_frac
     if not low or rec.low_health then
         rec.low_health = low
         return
     end
     rec.low_health = true
-    if not _check_fire(rec) then
+    if not _check_intelligence(rec) then
         if at_debug.is_on() then at_debug.debug("[MUT] PASS id=%d move=flee", rec.id) end
         return
     end
-    rec.retreat_until = now + _select_band(_tun_num.survival_hold_min, _tun_num.survival_hold_max)
-    rec.retreat_at = now + rec.retreat_cd
+    rec.flee_until = now + _select_band(_tun_num.survival_hold_min, _tun_num.survival_hold_max)
+    rec.flee_at = now + rec.flee_cd
     rec.driver = "FLEE"
+    rec.gate = GATE_BOTH
     if at_debug.is_on() then
-        at_debug.debug("[MUT] FLEE id=%d cause=low_health hold=%dms", rec.id, rec.retreat_until - now)
+        at_debug.debug("[MUT] FLEE id=%d cause=low_health hold=%dms gate=int,wild", rec.id, rec.flee_until - now)
     end
 end
 
--- A freshly hurt mutant rolls a retreat window; a missed roll waits for the next hit, the fire stamps the cooldown.
-local function _update_retreat(mob, rec, now)
-    if not cfg.mut_retreat or not rec.moves.retreat or not _runaway_id then return end
-    if now < rec.retreat_at or rec.retreat_until > now then return end
+-- A freshly hurt mutant rolls a flee window; a missed roll waits for the next hit, the fire stamps the cooldown.
+local function _update_flee(mob, rec, now)
+    if not rec.moves.flee or not _check_toggle(rec, "flee") or not _runaway_id then return end
+    if now < rec.flee_at or rec.flee_until > now then return end
     local info = xmonster.get_monster_hit_info(mob)
     local count = info and info.count or 0
     local hurt = count > rec.last_hit_count
     rec.last_hit_count = count
     if not hurt then return end
-    if not _check_fire(rec) then
-        if at_debug.is_on() then at_debug.debug("[MUT] PASS id=%d move=retreat", rec.id) end
+    if not _check_intelligence(rec) then
+        if at_debug.is_on() then at_debug.debug("[MUT] PASS id=%d move=flee_hit", rec.id) end
         return
     end
-    rec.retreat_until = now + _select_band(_tun_num.retreat_hold_min, _tun_num.retreat_hold_max)
-    rec.retreat_at = now + rec.retreat_cd
-    rec.driver = "RETREAT"
+    rec.flee_until = now + _select_band(_tun_num.flee_hold_min, _tun_num.flee_hold_max)
+    rec.flee_at = now + rec.flee_cd
+    rec.driver = "FLEE"
+    rec.gate = GATE_BOTH
     if at_debug.is_on() then
-        at_debug.debug("[MUT] RETREAT id=%d cause=hit hold=%dms", rec.id, rec.retreat_until - now)
+        at_debug.debug("[MUT] FLEE id=%d cause=hit hold=%dms gate=int,wild", rec.id, rec.flee_until - now)
     end
 end
 
--- A held stare on the burer rolls a forced gravi; a missed roll consumes the opening, Wild varies the stare window.
-local function _update_stare(mob, rec, now)
-    if not cfg.mut_gravi or not rec.moves.gravi then return end
+-- A held stare on the burer rolls a forced gravity attack; a missed roll consumes the opening, Wild varies the stare window.
+local function _update_gravity(mob, rec, now)
+    if not rec.moves.gravity or not _check_toggle(rec, "gravity") then return end
     local memo = rec.memo
-    if now < rec.gravi_at or memo.dist_sqr > _tun_num.stare_range_sqr then
+    if now < rec.gravity_at or memo.dist_sqr > _tun_num.stare_range_sqr then
         rec.stare_since = nil
         return
     end
@@ -432,22 +607,23 @@ local function _update_stare(mob, rec, now)
     end
     rec.stare_since = rec.stare_since or now
     if now - rec.stare_since < rec.stare_ms then return end
-    if not _check_fire(rec) then
-        rec.gravi_at = now + rec.gravi_cd
+    if not _check_intelligence(rec) then
+        rec.gravity_at = now + rec.gravity_cd
         rec.stare_since = nil
-        if at_debug.is_on() then at_debug.debug("[MUT] PASS id=%d move=gravi", rec.id) end
+        if at_debug.is_on() then at_debug.debug("[MUT] PASS id=%d move=gravity", rec.id) end
         return
     end
     if xmonster.set_burer_gravi_force(mob, true) then
-        rec.gravi_at = now + rec.gravi_cd
-        rec.gravi_release = now + rec.gravi_release_ms
+        rec.gravity_at = now + rec.gravity_cd
+        rec.gravity_release = now + rec.gravity_release_ms
         rec.stare_since = nil
-        rec.driver = "GRAVI"
-        if at_debug.is_on() then at_debug.debug("[MUT] GRAVI id=%d stare=%dms", rec.id, rec.stare_ms) end
+        rec.driver = "GRAVITY"
+        rec.gate = GATE_BOTH
+        if at_debug.is_on() then at_debug.debug("[MUT] GRAVITY id=%d stare=%dms release=%dms gate=int,wild", rec.id, rec.stare_ms, rec.gravity_release_ms) end
     end
 end
 
--- The per-beat fight scratch: positions, distance, and the enemy weapon reads (shotgun gates, charge permission, the actor mismatch).
+-- The per-beat fight scratch: positions, distance, and the enemy weapon reads (the aim, the shotgun gates, charge permission, the actor mismatch).
 -- Transient reads live in rec.memo; the premise state (vuln/fleeing/mismatch/turned) stays on rec, like at_maneuvers state.memo.
 local function _reset_memo(rec, enemy, enemy_pos, mob_pos, dist, dist_sqr)
     local memo = rec.memo
@@ -457,8 +633,12 @@ local function _reset_memo(rec, enemy, enemy_pos, mob_pos, dist, dist_sqr)
     local aimed = kind ~= nil and xcombat.is_facing(enemy, mob_pos, _tun_num.threat_cone)
     local shotgun_near = kind == SHOTGUN_KIND and band == BAND_IN
     local shotgun_aimed = shotgun_near and aimed
-    if shotgun_aimed and not memo.shotgun_aimed and at_debug.is_on() then
-        at_debug.debug("[MUT] THREAT id=%d shotgun aimed d=%.1f", rec.id, dist)
+    if at_debug.is_on() then
+        if shotgun_aimed and not memo.shotgun_aimed then
+            at_debug.debug("[MUT] THREAT id=%d shotgun aimed d=%.1f", rec.id, dist)
+        elseif memo.shotgun_aimed and not shotgun_aimed then
+            at_debug.debug("[MUT] THREAT id=%d shotgun clear", rec.id)
+        end
     end
     memo.enemy = enemy
     memo.enemy_pos = enemy_pos
@@ -467,6 +647,7 @@ local function _reset_memo(rec, enemy, enemy_pos, mob_pos, dist, dist_sqr)
     memo.dist_sqr = dist_sqr
     memo.is_actor = enemy:id() == AC_ID
     memo.kind = kind
+    memo.aimed = aimed
     memo.shotgun_near = shotgun_near
     memo.shotgun_aimed = shotgun_aimed
     memo.shotgun_open = shotgun_near and not aimed
@@ -474,60 +655,71 @@ local function _reset_memo(rec, enemy, enemy_pos, mob_pos, dist, dist_sqr)
     memo.mismatch = memo.is_actor and kind ~= nil and RUSH_KIND[kind] == true and band == BAND_OUT
 end
 
--- The close shotgun-draw retreat: rolls once on the draw edge inside the band, on the retreat cooldown.
-local function _try_shotgun_retreat(rec, now)
+-- The close shotgun-draw flee: rolls once on the draw edge inside the band, on the flee cooldown.
+local function _try_shotgun_flee(rec, now)
     local memo = rec.memo
     if not memo.shotgun_near or rec.last_actor_kind == SHOTGUN_KIND then return end
-    if not rec.moves.retreat or not _runaway_id or now < rec.retreat_at then return end
-    if not _check_fire(rec) then
-        if at_debug.is_on() then at_debug.debug("[MUT] PASS id=%d move=shotgun_retreat", rec.id) end
+    if not rec.moves.flee or not _check_toggle(rec, "flee") or not _runaway_id then return end
+    if now < rec.flee_at then return end
+    if not _check_intelligence(rec) then
+        if at_debug.is_on() then at_debug.debug("[MUT] PASS id=%d move=flee_shotgun", rec.id) end
         return
     end
-    rec.retreat_until = now + _select_band(_tun_num.retreat_hold_min, _tun_num.retreat_hold_max)
-    rec.retreat_at = now + rec.retreat_cd
-    rec.driver = "RETREAT"
-    if at_debug.is_on() then at_debug.debug("[MUT] RETREAT id=%d cause=shotgun d=%.1f", rec.id, memo.dist) end
+    rec.flee_until = now + _select_band(_tun_num.flee_hold_min, _tun_num.flee_hold_max)
+    rec.flee_at = now + rec.flee_cd
+    rec.driver = "FLEE"
+    rec.gate = GATE_BOTH
+    if at_debug.is_on() then at_debug.debug("[MUT] FLEE id=%d cause=shotgun d=%.1f gate=int,wild", rec.id, memo.dist) end
 end
 
--- The per-tick body (200ms): the gravi-force release, the enemy read, the jab contact and jump-owner clear.
--- The assessment and every ranged/timed move ride the 600ms sub-gate; only the jab stays per-tick (contact cannot wait).
+-- The per-tick body (200ms): the gravity-force release, the enemy read, the claw contact and jump-owner clear.
+-- The assessment and every ranged/timed move ride the 600ms sub-gate; only the claw stays per-tick (contact cannot wait).
 local function _update_mutant(mob, rec, now)
     rec.tick_now = now
     rec.seen_ms = now
-    if rec.gravi_release and now >= rec.gravi_release then
+    if rec.gravity_release and now >= rec.gravity_release then
         xmonster.set_burer_gravi_force(mob, false)
-        rec.gravi_release = nil
+        rec.gravity_release = nil
     end
     local enemy = xmonster.get_monster_enemy(mob)
     if not enemy or not enemy:alive() then
-        if rec.jab_until > 0 then
+        if rec.claw_until > 0 then
             xmonster.stop_monster_animation(mob)
-            rec.jab_until = 0
+            rec.claw_until = 0
         end
         rec.driver = "-"
+        rec.gate = nil
         rec.stare_since = nil
         rec.last_dist = nil
+        rec.engaged = nil
+        rec.roar_open = nil
         rec.vuln, rec.fleeing, rec.mismatch, rec.turned = false, false, false, false
         return
+    end
+    if not rec.engaged then
+        rec.engaged = true
+        rec.roar_open = true
     end
     local enemy_pos = enemy:position()
     local mob_pos = mob:position()
     local dist_sqr = mob_pos:distance_to_sqr(enemy_pos)
     local dist = math_sqrt(dist_sqr)
-    _update_jab(mob, rec, enemy_pos, dist, now)
+    _update_claw(mob, rec, enemy_pos, dist, now)
     if now < rec.assess_at then return end
     rec.assess_at = now + ASSESS_MS
     _reset_memo(rec, enemy, enemy_pos, mob_pos, dist, dist_sqr)
     local memo = rec.memo
     if memo.is_actor then
-        _try_shotgun_retreat(rec, now)
+        _try_shotgun_flee(rec, now)
         rec.last_actor_kind = memo.kind
-        _update_stare(mob, rec, now)
+        _update_gravity(mob, rec, now)
     end
     _update_premises(rec, now)
-    _update_pounce(mob, rec, now)
+    _update_roar(mob, rec, now)
+    _update_jump(mob, rec, now)
     _update_rush(mob, rec, now)
-    _update_retreat(mob, rec, now)
+    _update_dodge(mob, rec, now)
+    _update_flee(mob, rec, now)
     _try_survival_flee(mob, rec, now)
 end
 
@@ -555,10 +747,10 @@ local function _on_mob_update(mob)
     if at_debug.is_on() then _log_tick(timer:get_ms(), now) end
 end
 
--- Re-propose eStateAttack_RunAway while a retreat window holds; the silent path stays pure Lua.
+-- Re-propose eStateAttack_RunAway while a flee window holds; the silent path stays pure Lua.
 local function _on_combat_action(monster, _enemy, _dist, _enemy_strength, _can_jump, flags)
     local rec = _states[monster:id()]
-    if not rec or rec.retreat_until <= rec.tick_now then
+    if not rec or rec.flee_until <= rec.tick_now then
         if at_debug.is_on() then _prop_silent = _prop_silent + 1 end
         return
     end
@@ -572,16 +764,6 @@ local function _on_combat_action(monster, _enemy, _dist, _enemy_strength, _can_j
     end
 end
 
--- Bloodsucker claws steal life at higher tiers, capped at the tier-scaled pool.
-local function _try_lifesteal(rec, attacker)
-    if rec.species ~= BLOODSUCKER or rec.tier < _tun_num.lifesteal_min_tier then return end
-    local steal = _tun_num["lifesteal_t" .. rec.tier]
-    if not steal or steal <= 0 or not rec.base_health then return end
-    local cap = rec.base_health * _tracks.health[rec.tier]
-    xmonster.set_monster_health(attacker, math_min(xmonster.get_monster_health(attacker) + steal, cap))
-    if at_debug.is_on() then at_debug.debug("[MUT] lifesteal id=%d steal=%d", rec.id, steal) end
-end
-
 -- Scale what an adopted mutant deals; shared by the three victim seams. A 1.0 track skips the engine write.
 local function _apply_dealt(shit)
     if next(_states) == nil or not shit then return end
@@ -593,7 +775,6 @@ local function _apply_dealt(shit)
     local tmr = xprofiler.new_if(dbg):start()
     local dealt = _tracks.damage[rec.tier]
     if dealt ~= 1 then xcombat.apply_hit_power(shit, dealt) end
-    _try_lifesteal(rec, attacker)
     tmr:stop()
     if dbg then
         at_debug.debug("[MUT] dealt id=%d mult=%.2f power=%.3f [%.3fms]", rec.id, dealt, shit.power, tmr:get_ms())
@@ -630,25 +811,25 @@ local function _on_entity_unregister(se_obj)
     _states[se_obj.id] = nil
 end
 
--- Release what a dropped record pushed and still owns live: the animation override, a pending gravi force, the regen boost.
--- Pushed params revert on the next spawn (not serialized); scaled health keeps engine save semantics.
+-- Release what a dropped record pushed and still owns live: the animation override, a pending gravity force.
+-- Pushed params revert on the next spawn (not serialized).
 local function _release_mutant(rec)
     local mob = xobject.get_go(rec.id)
     if not mob then return end
-    if rec.jab_until > 0 then xmonster.stop_monster_animation(mob) end
-    if rec.gravi_release then xmonster.set_burer_gravi_force(mob, false) end
-    xcombat.set_health_restore_boost(mob, 0)
+    if rec.claw_until > 0 then xmonster.stop_monster_animation(mob) end
+    if rec.gravity_release then xmonster.set_burer_gravi_force(mob, false) end
 end
 
--- Any nonzero stat slider or any move toggle keeps the module live.
+-- Any nonzero stat slider or any species move toggle keeps the module live.
 local function _check_wanted()
     if _seams == false then return false end
-    if (cfg.mut_damage_pct or 0) > 0 or (cfg.mut_health_pct or 0) > 0
-        or (cfg.mut_resist_pct or 0) > 0 or (cfg.mut_regen_pct or 0) > 0 then
+    if (cfg.mut_damage_pct or 0) > 0 or (cfg.mut_resist_pct or 0) > 0 then
         return true
     end
-    return (cfg.mut_pounce or cfg.mut_melee or cfg.mut_rush or cfg.mut_retreat
-        or cfg.mut_invisibility or cfg.mut_gravi or cfg.mut_jab) == true
+    for i = 1, #_all_move_keys do
+        if cfg[_all_move_keys[i]] == true then return true end
+    end
+    return false
 end
 
 _apply_enabled = function()
@@ -670,42 +851,61 @@ _apply_enabled = function()
     end
 end
 
+-- One species' move-toggle keys (mut_<page>_<move>), each new key collected into the global list once.
+local function _build_species_keys(species, page, seen_keys)
+    local keys = {}
+    for k = 1, #MOVE_KEYS do
+        local move = MOVE_KEYS[k]
+        local key = _move_species[move][species] and ("mut_" .. page .. "_" .. move) or nil
+        if key then
+            keys[move] = key
+        end
+        if key and not seen_keys[key] then
+            seen_keys[key] = true
+            _all_move_keys[#_all_move_keys + 1] = key
+        end
+    end
+    return keys
+end
+
 local function _load_tunables()
     _tun = xltx.resolve_handle(LTX_PATH)
     _tun_num = {
         pounce_cd_min = _read_num("tempo", "pounce_cd_min"), pounce_cd_max = _read_num("tempo", "pounce_cd_max"),
-        jab_cd_min = _read_num("tempo", "jab_cd_min"), jab_cd_max = _read_num("tempo", "jab_cd_max"),
-        retreat_cd_min = _read_num("tempo", "retreat_cd_min"), retreat_cd_max = _read_num("tempo", "retreat_cd_max"),
-        retreat_hold_min = _read_num("tempo", "retreat_hold_min"), retreat_hold_max = _read_num("tempo", "retreat_hold_max"),
+        claw_cd_min = _read_num("tempo", "claw_cd_min"), claw_cd_max = _read_num("tempo", "claw_cd_max"),
+        dodge_cd_min = _read_num("tempo", "dodge_cd_min"), dodge_cd_max = _read_num("tempo", "dodge_cd_max"),
+        flee_cd_min = _read_num("tempo", "flee_cd_min"), flee_cd_max = _read_num("tempo", "flee_cd_max"),
+        flee_hold_min = _read_num("tempo", "flee_hold_min"), flee_hold_max = _read_num("tempo", "flee_hold_max"),
         stare_min = _read_num("tempo", "stare_min"), stare_max = _read_num("tempo", "stare_max"),
-        gravi_cd_min = _read_num("tempo", "gravi_cd_min"), gravi_cd_max = _read_num("tempo", "gravi_cd_max"),
+        gravity_cd_min = _read_num("tempo", "gravity_cd_min"), gravity_cd_max = _read_num("tempo", "gravity_cd_max"),
         pounce_min = _read_num("pounce", "band_min_m"), pounce_max = _read_num("pounce", "band_max_m"),
         pounce_cone = _read_num("pounce", "facing_cone_deg"),
-        jab_range = _read_num("jab", "range_m"), jab_clear = _read_num("jab", "clear_ms"),
-        melee_arc = _read_num("melee", "arc_deg"),
-        attack_dist_pct = _read_num("jitter", "attack_dist_pct"), jump_band_pct = _read_num("jitter", "jump_band_pct"),
-        circle_pct = _read_num("jitter", "circle_pct"), window_pct = _read_num("jitter", "window_pct"),
-        turn_min = _read_num("jitter", "turn_min"), turn_max = _read_num("jitter", "turn_max"),
-        invis_min = _read_num("invisibility", "delay_min_ms"), invis_max = _read_num("invisibility", "delay_max_ms"),
+        dodge_range = _read_num("dodge", "range_m"),
+        aim_share = _read_num("aim", "share"),
+        aim_min = _read_num("aim", "factor_min"), aim_max = _read_num("aim", "factor_max"),
+        roar_min = _read_num("roar", "range_min_m"), roar_max = _read_num("roar", "range_max_m"),
+        roar_cd_min = _read_num("tempo", "roar_cd_min"), roar_cd_max = _read_num("tempo", "roar_cd_max"),
+        claw_range = _read_num("claw", "range_m"), claw_clear = _read_num("claw", "clear_ms"),
+        backstrike_arc = _read_num("backstrike", "arc_deg"),
+        attack_dist_pct = _read_num("wild", "attack_dist_pct"), jump_band_pct = _read_num("wild", "jump_band_pct"),
+        circle_pct = _read_num("wild", "circle_pct"), window_pct = _read_num("wild", "window_pct"),
+        rush_band_pct = _read_num("wild", "rush_band_pct"), ability_pct = _read_num("wild", "ability_pct"),
+        turn_min = _read_num("wild", "turn_min"), turn_max = _read_num("wild", "turn_max"),
+        cloak_min = _read_num("cloak", "delay_min_ms"), cloak_max = _read_num("cloak", "delay_max_ms"),
         tube_min = _read_num("controller", "tube_delay_min_ms"), tube_max = _read_num("controller", "tube_delay_max_ms"),
         see_min = _read_num("controller", "see_min_ms"), see_max = _read_num("controller", "see_max_ms"),
         height_min_low = _read_num("poltergeist", "height_min_low"), height_min_high = _read_num("poltergeist", "height_min_high"),
         height_max_low = _read_num("poltergeist", "height_max_low"), height_max_high = _read_num("poltergeist", "height_max_high"),
-        lifesteal_min_tier = _read_num("lifesteal", "min_tier"),
-        lifesteal_t0 = _read_num("lifesteal", "t0"), lifesteal_t1 = _read_num("lifesteal", "t1"),
-        lifesteal_t2 = _read_num("lifesteal", "t2"), lifesteal_t3 = _read_num("lifesteal", "t3"),
-        lifesteal_t4 = _read_num("lifesteal", "t4"), lifesteal_t5 = _read_num("lifesteal", "t5"),
-        chance_cap = _read_num("chance", "cap"),
-        rush_band_pct = _read_num("jitter", "rush_band_pct"),
+        int_cap = _read_num("intelligence", "cap"),
         flee_recede = _read_num("fleeing", "recede_m"),
         flee_cone = _read_num("fleeing", "cone_deg"),
         survival_frac = _read_num("survival", "health_frac"),
         survival_hold_min = _read_num("survival", "hold_min"),
         survival_hold_max = _read_num("survival", "hold_max"),
         threat_cone = _read_num("threat", "facing_cone_deg"),
-        stare_range_sqr = (_read_num("gravi", "range_m") or 0) ^ 2,
-        stare_cone = _read_num("gravi", "cone_deg"),
-        gravi_release = _read_num("gravi", "release_ms"),
+        stare_range_sqr = (_read_num("gravity", "range_m") or 0) ^ 2,
+        stare_cone = _read_num("gravity", "cone_deg"),
+        gravity_release = _read_num("gravity", "release_ms"),
     }
     _move_species = {}
     for i = 1, #MOVE_KEYS do
@@ -715,15 +915,19 @@ local function _load_tunables()
         for k = 1, #list do set[list[k]] = true end
         _move_species[move] = set
     end
-    _jab_motion = xltx.read_str(_tun, "jab", "motion")
-    _jab_species = {}
-    local jab_list = xltx.read_list(_tun, "jab", "species")
-    for i = 1, #jab_list do _jab_species[jab_list[i]] = true end
-    _melee_motions = {}
-    local chimera_pair = xltx.read_list(_tun, "melee", "chimera")
-    if #chimera_pair >= 2 then _melee_motions.chimera = chimera_pair end
-    local lurker_pair = xltx.read_list(_tun, "melee", "lurker")
-    if #lurker_pair >= 2 then _melee_motions.lurker = lurker_pair end
+    _move_cfg = {}
+    _all_move_keys = {}
+    local seen_keys = {}
+    local pages = xltx.read_section(_tun, "pages")
+    for species, page in pairs(pages) do
+        _move_cfg[species] = _build_species_keys(species, page, seen_keys)
+    end
+    _claw_motion = xltx.read_str(_tun, "claw", "motion")
+    _backstrike_motions = {}
+    local chimera_pair = xltx.read_list(_tun, "backstrike", "chimera")
+    if #chimera_pair >= 2 then _backstrike_motions.chimera = chimera_pair end
+    local lurker_pair = xltx.read_list(_tun, "backstrike", "lurker")
+    if #lurker_pair >= 2 then _backstrike_motions.lurker = lurker_pair end
 end
 
 local function _on_option_change()
@@ -742,7 +946,8 @@ function get_mutant_record(id)
     return _states[id]
 end
 
---- The driver label for one adopted mutant ("JAB"/"POUNCE"/"RUSH"/"RETREAT"/"GRAVI"/"-"), nil when not adopted.
+--- The driver label for one adopted mutant ("CLAW"/"POUNCE"/"LUNGE"/"RUSH"/"DODGE"/"FLEE"/"GRAVITY"/"-"), nil when not adopted.
+--- The record's .gate ("int, wild") names what influenced the fired move; the HUD appends it.
 function get_driver(id)
     local rec = _states[id]
     return rec and rec.driver or nil
