@@ -147,7 +147,7 @@ local function _build_row(npc, st)
 end
 
 local MOVE_WORDS = {
-    { "jump_attack", "jump" }, { "jump_lunge", "lunge" }, { "jump_adapt", "adapt" },
+    { "leap", "leap" }, { "jump", "jump" }, { "leap_adapt", "leap-adapt" }, { "jump_adapt", "jump-adapt" },
     { "rush", "rush" }, { "dodge", "dodge" }, { "flee", "flee" }, { "cloak", "cloak" },
     { "gravity_attack", "gravity" }, { "claw", "claw" }, { "backstrike", "backstrike" }, { "roar", "roar" },
 }

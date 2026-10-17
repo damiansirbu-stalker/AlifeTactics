@@ -686,7 +686,7 @@ Intelligence is base + map-rank slope, capped; rank is the map tier (`xlevel.get
 Wild varies GAME values only - the engine's own bands multiplied inside bounded envelopes; our clocks are flat constants and no move carries a per-move cooldown.
 The flee rarity is the one extra clock: 60s between flee windows, and a flee is never denied; while its window holds, no other move fires and the proposal subscriber re-proposes `eStateAttack_RunAway`.
 CAPS bound the spice: at most 3 driven moves assumed running per bucket (vs_player, vs_npc) on 3s slots - an offensive fire checks then adds, flee adds unchecked, claw and the armed backstrike sit outside; a dry bucket skips the weapon reads entirely, the 100-mutant guard.
-THE JUMP FAMILY is the watching split, predator logic: an enemy NOT watching gets the telegraphed Jump attack (the wind-up costs nothing against a turned back); a watching enemy gets the Jump lunge with no wind-up (winding up in front of a gun hands it a free second); a watching AND strafing enemy gets the Jump adapt, the air-steering leap - `set_monster_jump_flags` auto-aim with the gain rolled inside the vanilla envelope and the species' own basis restored after.
+THE LEAP FAMILY is a 2x2, predator logic: watching decides the wind-up, strafing decides the steering. An enemy NOT watching gets the telegraphed Leap (the wind-up costs nothing against a turned back); a watching enemy gets the Jump with no wind-up (winding up in front of a gun hands it a free second); a strafing enemy gets the adapt variant of either - Leap adapt unwatched, Jump adapt watched - the air-steering leap via `set_monster_jump_flags` auto-aim, the gain rolled inside the vanilla envelope and the species' own basis restored after.
 THE BODY-PLAN LAW: every jump carrier leaps at an enemy exploiting elevation (`xcombat.is_enemy_above`, the engine's own 0.8m dog-gate standard); quadrupeds take OUR commanded leap ONLY on elevation (flat ground stays their vanilla character), bipeds take the full jump-band premises.
 THE ANTI-EXPLOIT LAW: an exploit premise always maps to a punish move - a held aim (`is_aim_held`, 3s) draws the burer's Gravity attack, an elevated enemy draws the leap or the gravity answer, a strafing watcher draws the adapt.
 The shotgun is respected everywhere, facing-aware: in its band and AIMED it blocks the jumps and the rush; turned away it is a leap premise; the close draw is a flee premise; past its band it is a weak gun.
@@ -700,13 +700,14 @@ Stops: inert below the monster seam set with one INACTIVE line; a move never fir
 monster_on_update (binder scheduler, 100ms near to 625ms far) -> the one lane, gated 600ms per mutant (at_mutants.script)
   adopt: tier, the [moves] envelope and the NEW pool ([managed] complement), the quadruped flag,
          bounded wild offsets over ini_sys basis values behind the page's vary rows (Movement,
-         the rush band, the chimera leap economy, the burer gravity numbers and telekinesis,
-         the controller tube and stamina, the poltergeist hover and detection, the aura row),
-         species pacing rolls, the backstrike arm roll (once, for life)
+         Leap range - the leap band and delay, plus the chimera's private attack pacing - Rush range,
+         the burer gravity numbers and telekinesis, the controller tube and stamina, the
+         poltergeist hover and detection, the aura row), species pacing rolls, the backstrike
+         arm roll (re-decided each adoption)
   every beat: upkeep (the claw-override clear on its window or any jump, the gravity-force release),
          the motion samples (recede, lateral strafe) and the burer aim-held timer
   free decision beat (the 6s clock): the weapon memo (skipped dry), the premise walk down BEST_MOVES -
-         vulnerable / shotgun-turned-away / elevated -> the jump family (the watching split picks the variant)
+         vulnerable / shotgun-turned-away / elevated -> the leap family (the 2x2 picks the variant)
          elevated vs a burer / a 3s held aim      -> Gravity attack (forced, released next beat)
          enemy fleeing / a weak gun                -> Rush
          aimed at up close                         -> Dodge

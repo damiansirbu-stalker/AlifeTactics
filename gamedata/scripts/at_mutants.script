@@ -24,40 +24,42 @@ local CHIMERA_CLASS   = { chimera = true, lurker = true }
 local AURA_NAMES      = { "psy", "radiation", "fire" }
 local GATE_BOTH       = "int, wild"
 local VS_PLAYER, VS_NPC = "vs_player", "vs_npc"
-local JUMP_FAMILY     = "jump_attack"
+local LEAP_FAMILY     = "leap"
+local MOVE_JUMP       = "jump"
+local MOVE_LEAP_ADAPT = "leap_adapt"
+local MOVE_JUMP_ADAPT = "jump_adapt"
 local MOVE_FLEE       = "flee"
 local MOVE_ROAR       = "roar"
-local MOVE_ADAPT      = "jump_adapt"
 local PICK_BEST       = "best"
 local PICK_RANDOM     = "random"
 local PREMISE_LOW     = "low_health"
 
 local MOVE_KEYS = {
-    "jump_attack", "jump_lunge", "jump_adapt", "rush", "dodge", "flee",
+    "leap", "jump", "leap_adapt", "jump_adapt", "rush", "dodge", "flee",
     "cloak", "gravity_attack", "claw", "backstrike", "roar",
 }
 
 -- The tag classes: SELECTABLE moves enter the pools; flee adds a slot but is never denied; claw sits outside the caps.
 local SELECTABLE = {
-    jump_attack = true, jump_lunge = true, jump_adapt = true, rush = true,
+    leap = true, jump = true, leap_adapt = true, jump_adapt = true, rush = true,
     dodge = true, gravity_attack = true, roar = true, claw = true, flee = true,
 }
 local CAPPED = {
-    jump_attack = true, jump_lunge = true, jump_adapt = true, rush = true,
+    leap = true, jump = true, leap_adapt = true, jump_adapt = true, rush = true,
     dodge = true, gravity_attack = true, roar = true,
 }
 
 local DRIVER_LABEL = {
-    jump_attack = "JUMP ATTACK", jump_lunge = "JUMP LUNGE", jump_adapt = "JUMP ADAPT",
+    leap = "LEAP", jump = "JUMP", leap_adapt = "LEAP ADAPT", jump_adapt = "JUMP ADAPT",
     rush = "RUSH", dodge = "DODGE", flee = "FLEE", gravity_attack = "GRAVITY ATTACK",
     claw = "CLAW", roar = "ROAR",
 }
 
 -- The premise-to-move table: array order is priority; bipeds marks rows the body-plan law denies quadrupeds.
 local BEST_MOVES = {
-    { premise = "vulnerable",    move = "jump_attack", bipeds = true },
-    { premise = "shotgun_open",  move = "jump_attack", bipeds = true },
-    { premise = "enemy_above",   move = "jump_attack" },
+    { premise = "vulnerable",    move = "leap", bipeds = true },
+    { premise = "shotgun_open",  move = "leap", bipeds = true },
+    { premise = "enemy_above",   move = "leap" },
     { premise = "enemy_above",   move = "gravity_attack" },
     { premise = "fleeing",       move = "rush" },
     { premise = "weak_gun",      move = "rush" },
@@ -146,10 +148,10 @@ local function _check_vary(rec, family)
     return page ~= nil and cfg["mut_" .. page .. "_" .. family] == true
 end
 
--- True when any of the three jump variants is toggled on for the species (the family row's eligibility).
-local function _check_jump_toggled(rec)
-    return _check_toggle(rec, "jump_attack") or _check_toggle(rec, "jump_lunge")
-        or _check_toggle(rec, "jump_adapt")
+-- True when any of the four leap-family variants is toggled on for the species (the family row's eligibility).
+local function _check_leap_toggled(rec)
+    return _check_toggle(rec, "leap") or _check_toggle(rec, "jump")
+        or _check_toggle(rec, "leap_adapt") or _check_toggle(rec, "jump_adapt")
 end
 
 -- The adopt-line move list: the species' applicable moves (anatomy, the [moves] envelope).
@@ -255,19 +257,22 @@ local function _apply_movement(mob, rec, section)
     end
 end
 
--- The jump basis stash (the premise band and the adapt restore point) plus the band vary where any jump row is on.
-local function _apply_jump(mob, rec, section)
+-- The leap basis stash (the premise band and the adapt restore point) plus the Leap range vary.
+-- The varied band becomes the premise band too, so the commanded leaps read the same numbers the native ones run on.
+local function _apply_leap(mob, rec, section)
     local jump_max = _read_basis(section, "jump_max_distance")
     if not jump_max then return end
     rec.jump_min_m = _read_basis(section, "jump_min_distance")
     rec.jump_max_m = jump_max
     rec.aim_basis = _read_basis(section, "jump_auto_aim_factor")
-    if not _check_jump_toggled(rec) then return end
+    if not _check_vary(rec, "leap_range") then return end
     local band_min, band_max = _compute_band(rec.jump_min_m, jump_max, _tun_num.jump_band_pct)
+    rec.jump_min_m = band_min or rec.jump_min_m
+    rec.jump_max_m = band_max or jump_max
     xmonster.set_monster_jump_params(mob, { min_dist = band_min, max_dist = band_max,
         delay_ms = _compute_offset(_read_basis(section, "jump_delay"), _tun_num.window_pct) })
     if at_debug.is_on() and band_max then
-        at_debug.debug("[MUT] vary id=%d jump=%.1f-%.1f", rec.id, band_min or 0, band_max)
+        at_debug.debug("[MUT] vary id=%d leap=%.1f-%.1f", rec.id, band_min or 0, band_max)
     end
 end
 
@@ -311,9 +316,9 @@ local function _apply_pacing(mob, rec, section)
     end
 end
 
--- The chimera-class leap economy, varied over the install's own values.
+-- The chimera-class private attack family, varied under the same Leap range row.
 local function _apply_chimera_params(mob, rec, section)
-    if not CHIMERA_CLASS[rec.species] or not _check_vary(rec, "leap_economy") then return end
+    if not CHIMERA_CLASS[rec.species] or not _check_vary(rec, "leap_range") then return end
     local pct = _tun_num.ability_pct
     xmonster.set_chimera_attack_params(mob, {
         attack_radius = _compute_offset(_read_basis(section, "attack_radius"), pct),
@@ -430,8 +435,8 @@ local function _add_mutant(mob, id, now)
     _states[id] = rec
     local section = mob:section()
     if _check_vary(rec, "movement") then _apply_movement(mob, rec, section) end
-    _apply_jump(mob, rec, section)
-    if rec.moves.rush and _check_toggle(rec, "rush") then _apply_rush_params(mob, section) end
+    _apply_leap(mob, rec, section)
+    if rec.moves.rush and _check_vary(rec, "rush_range") then _apply_rush_params(mob, section) end
     _apply_pacing(mob, rec, section)
     _apply_chimera_params(mob, rec, section)
     _apply_burer_params(mob, rec, section)
@@ -603,20 +608,23 @@ local function _log_fire(rec, move, pick, detail)
     end
 end
 
--- The watching split: unwatched = the telegraphed attack, watched = the lunge, watched and strafing = the adapt.
-local function _resolve_jump_variant(mob, rec)
+-- The 2x2 split: watching decides the wind-up (Leap keeps it, Jump drops it), strafing decides the steering (adapt).
+local function _resolve_leap_variant(mob, rec)
     local memo = rec.memo
     local watching = xcombat.is_enemy_watching(memo.enemy, mob, _tun_num.threat_cone)
-    if watching and rec.strafing and rec.aim_basis and _check_toggle(rec, "jump_adapt") then return "jump_adapt" end
-    if watching and _check_toggle(rec, "jump_lunge") then return "jump_lunge" end
-    if _check_toggle(rec, "jump_attack") then return "jump_attack" end
-    if _check_toggle(rec, "jump_lunge") then return "jump_lunge" end
-    if rec.aim_basis and _check_toggle(rec, "jump_adapt") then return "jump_adapt" end
+    local steered = rec.strafing and rec.aim_basis ~= nil
+    if watching and steered and _check_toggle(rec, MOVE_JUMP_ADAPT) then return MOVE_JUMP_ADAPT end
+    if watching and _check_toggle(rec, MOVE_JUMP) then return MOVE_JUMP end
+    if steered and _check_toggle(rec, MOVE_LEAP_ADAPT) then return MOVE_LEAP_ADAPT end
+    if _check_toggle(rec, LEAP_FAMILY) then return LEAP_FAMILY end
+    if _check_toggle(rec, MOVE_JUMP) then return MOVE_JUMP end
+    if rec.aim_basis and _check_toggle(rec, MOVE_JUMP_ADAPT) then return MOVE_JUMP_ADAPT end
+    if rec.aim_basis and _check_toggle(rec, MOVE_LEAP_ADAPT) then return MOVE_LEAP_ADAPT end
     return nil
 end
 
--- One commanded jump: the mechanical gates, the caps, the override clear, the variant's flags, the basis restore.
-local function _execute_jump(mob, rec, move, pick, now)
+-- One commanded leap: the mechanical gates, the caps, the override clear, the variant's flags, the basis restore.
+local function _execute_leap(mob, rec, move, pick, now)
     local memo = rec.memo
     if memo.shotgun_aimed then return _log_block(rec, move, "shotgun") end
     if rec.quadruped and not xcombat.is_enemy_above(memo.enemy, mob, _tun_num.above_m) then
@@ -625,20 +633,22 @@ local function _execute_jump(mob, rec, move, pick, now)
     if not rec.jump_max_m or memo.dist > rec.jump_max_m or memo.dist < (rec.jump_min_m or 0) then
         return _log_block(rec, move, "band")
     end
-    if not xcombat.is_facing(mob, memo.enemy_pos, _tun_num.jump_cone) then return _log_block(rec, move, "facing") end
+    if not xcombat.is_facing(mob, memo.enemy_pos, _tun_num.leap_cone) then return _log_block(rec, move, "facing") end
     if xmonster.is_monster_jumping(mob) then return _log_block(rec, move, "air") end
-    local variant = pick == PICK_BEST and _resolve_jump_variant(mob, rec) or move
+    local variant = pick == PICK_BEST and _resolve_leap_variant(mob, rec) or move
     if variant == nil then return _log_block(rec, move, "toggle") end
-    if variant == MOVE_ADAPT and not rec.aim_basis then return _log_block(rec, variant, "basis") end
+    local steered = variant == MOVE_LEAP_ADAPT or variant == MOVE_JUMP_ADAPT
+    if steered and not rec.aim_basis then return _log_block(rec, variant, "basis") end
     local bucket = memo.is_actor and VS_PLAYER or VS_NPC
     if not _check_slot(bucket) then return _log_block(rec, variant, "caps") end
     _clear_claw(mob, rec, now, true)
     local aim = nil
-    if variant == MOVE_ADAPT then
+    if steered then
         aim = _select_band(_tun_num.adapt_min, _tun_num.adapt_max)
         xmonster.set_monster_jump_flags(mob, { auto_aim = true, auto_aim_factor = aim })
     end
-    local fired = xmonster.try_monster_jump(mob, memo.enemy_pos, 1, { skip_prepare = variant ~= "jump_attack" })
+    local sudden = variant == MOVE_JUMP or variant == MOVE_JUMP_ADAPT
+    local fired = xmonster.try_monster_jump(mob, memo.enemy_pos, 1, { skip_prepare = sudden })
     if aim then xmonster.set_monster_jump_flags(mob, { auto_aim_factor = rec.aim_basis }) end
     if not fired then return _log_block(rec, variant, "refused") end
     _add_slot(bucket)
@@ -711,7 +721,7 @@ local function _execute_claw(mob, rec, move, pick, now)
 end
 
 local MOVE_EXEC = {
-    jump_attack = _execute_jump, jump_lunge = _execute_jump, jump_adapt = _execute_jump,
+    leap = _execute_leap, jump = _execute_leap, leap_adapt = _execute_leap, jump_adapt = _execute_leap,
     rush = _execute_rush, dodge = _execute_dodge, roar = _execute_roar,
     gravity_attack = _execute_gravity, flee = _execute_flee, claw = _execute_claw,
 }
@@ -738,6 +748,7 @@ local function _execute_random(mob, rec, now)
         if at_debug.is_on() then at_debug.debug("[MUT] PASS id=%d pick=nothing", rec.id) end
         return
     end
+    if picks[slot] == MOVE_ROAR then rec.roar_open = nil end
     _execute_move(mob, rec, picks[slot], PICK_RANDOM, now)
 end
 
@@ -748,8 +759,8 @@ local function _check_row(mob, rec, row, now)
     if row.bipeds and rec.quadruped then return false end
     if move == MOVE_FLEE and (not _runaway_id or now < rec.flee_ok_at) then return false end
     if CAPPED[move] and rec.memo.dry then return false end
-    if move == JUMP_FAMILY then
-        if not _check_jump_toggled(rec) then return false end
+    if move == LEAP_FAMILY then
+        if not _check_leap_toggled(rec) then return false end
     elseif not _check_toggle(rec, move) then
         return false
     end
@@ -993,11 +1004,11 @@ local function _build_species_keys(species, page, seen_keys)
     return keys
 end
 
--- The vary-row keys that exist as MCM rows; _check_vary reads them, _check_wanted counts them.
+-- The fixed vary-row keys; the per-page movement/leap_range/rush_range keys are collected from [pages] at load.
 local VARY_KEYS = {
     "mut_controller_tube", "mut_controller_stamina", "mut_controller_aura",
     "mut_poltergeist_hover", "mut_poltergeist_detection",
-    "mut_chimera_leap_economy", "mut_burer_gravity_numbers", "mut_burer_telekinesis",
+    "mut_burer_gravity_numbers", "mut_burer_telekinesis",
 }
 
 local function _load_tunables()
@@ -1018,8 +1029,8 @@ local function _load_tunables()
         survival_hold_min = _read_num("survival", "hold_min"),
         survival_hold_max = _read_num("survival", "hold_max"),
         threat_cone = _read_num("threat", "facing_cone_deg"),
-        jump_cone = _read_num("jump", "facing_cone_deg"),
-        adapt_min = _read_num("jump_adapt", "factor_min"), adapt_max = _read_num("jump_adapt", "factor_max"),
+        leap_cone = _read_num("leap", "facing_cone_deg"),
+        adapt_min = _read_num("adapt", "factor_min"), adapt_max = _read_num("adapt", "factor_max"),
         dodge_range = _read_num("dodge", "range_m"),
         roar_min = _read_num("roar", "range_min_m"), roar_max = _read_num("roar", "range_max_m"),
         stare_range_sqr = (_read_num("gravity_attack", "range_m") or 0) ^ 2,
@@ -1059,12 +1070,15 @@ local function _load_tunables()
     _all_toggle_keys = {}
     local seen_keys = {}
     _pages = xltx.read_section(_tun, "pages")
+    local vary_families = { "movement", "leap_range", "rush_range" }
     for species, page in pairs(_pages) do
         _move_cfg[species] = _build_species_keys(species, page, seen_keys)
-        local movement_key = "mut_" .. page .. "_movement"
-        if not seen_keys[movement_key] then
-            seen_keys[movement_key] = true
-            _all_toggle_keys[#_all_toggle_keys + 1] = movement_key
+        for v = 1, #vary_families do
+            local vary_key = "mut_" .. page .. "_" .. vary_families[v]
+            if seen_keys[vary_key] then goto continue end
+            seen_keys[vary_key] = true
+            _all_toggle_keys[#_all_toggle_keys + 1] = vary_key
+            ::continue::
         end
     end
     for i = 1, #VARY_KEYS do

@@ -265,7 +265,7 @@ Wild is how much every move value varies: at 0 mutants are identical and learnab
 
 Species:
 Each species gets its own page carrying only the moves its body has: first the managed moves, the creature's own attacks and the values AlifeTactics varies, then the new moves the vanilla game never fires for it.
-The jump family reads your attention: Jump attack is the telegraphed leap at a turned back, Jump lunge drops the wind-up when you are watching, and Jump adapt steers mid-air when you watch AND strafe.
+The leap family reads your attention: Leap is the telegraphed leap at a turned back, Jump drops the wind-up when you are watching, and the adapt versions of each steer mid-air when you strafe.
 Every jumper also leaps at an enemy exploiting elevation, and a burer answers a held aim or a perched shooter with its Gravity attack - camping stops being safe.
 Rush is the full-speed charge against a fleeing enemy or a weapon too weak for the range, never into an aimed shotgun.
 Dodge is a sideways juke when you draw a bead up close. Backstrike arms a spin strike on an enemy circling behind, once per individual, on the four species whose models carry the motions. Claw gives the chimera the point-blank strike vanilla never gave it.

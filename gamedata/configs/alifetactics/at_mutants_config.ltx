@@ -23,8 +23,9 @@ karlik      = karlik
 tushkano    = tushkano
 
 [moves] ; per-move species envelope: a species either has a move or not (anatomy; engine components, flee = the shared-attack-tree species the proposal reaches)
-jump_attack    = chimera, lurker, cat, bloodsucker, psysucker, dog, snork, pseudodog, psy_dog
-jump_lunge     = chimera, lurker, cat, bloodsucker, psysucker, dog, snork, pseudodog, psy_dog
+leap           = chimera, lurker, cat, bloodsucker, psysucker, dog, snork, pseudodog, psy_dog
+jump           = chimera, lurker, cat, bloodsucker, psysucker, dog, snork, pseudodog, psy_dog
+leap_adapt     = chimera, lurker, cat, bloodsucker, psysucker, dog, snork, pseudodog, psy_dog
 jump_adapt     = chimera, lurker, cat, bloodsucker, psysucker, dog, snork, pseudodog, psy_dog
 rush           = bloodsucker, psysucker, boar, gigant
 dodge          = bloodsucker, psysucker, dog, pseudodog, psy_dog, boar, gigant
@@ -36,7 +37,7 @@ backstrike     = chimera, lurker, burer, controller
 roar           = snork, gigant
 
 [managed] ; the vanilla FSM already fires it for these species (the MANAGED section of their page); absent = NEW
-jump_attack    = chimera, lurker, dog, snork, pseudodog, psy_dog, cat
+leap           = chimera, lurker, dog, snork, pseudodog, psy_dog, cat
 rush           = bloodsucker, psysucker, boar, gigant
 gravity_attack = burer
 cloak          = bloodsucker, psysucker
@@ -77,10 +78,10 @@ hold_max    = 15000
 [threat] ; an enemy weapon aimed within this cone counts as watching the mutant (the shotgun, dodge, and watching-split gates read it)
 facing_cone_deg = 60
 
-[jump] ; the commanded-jump fire gate; the distance band is the species' own jump_min/max_distance
+[leap] ; the commanded leap-family fire gate; the distance band is the species' own jump_min/max_distance
 facing_cone_deg = 35
 
-[jump_adapt] ; the air-steering gain band = the vanilla envelope (borya 0.3, pseudodog 0.5, cat 0.6)
+[adapt] ; the air-steering gain band for both adapt leaps = the vanilla envelope (borya 0.3, pseudodog 0.5, cat 0.6)
 factor_min = 0.3
 factor_max = 0.6
 
