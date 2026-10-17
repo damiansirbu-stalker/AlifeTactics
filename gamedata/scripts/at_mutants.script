@@ -222,14 +222,17 @@ local function _add_slot(bucket)
     _slots:add(bucket)
 end
 
--- Vary the run-attack band and re-arm delay over the install's own tuple rows; absent rows skip the family.
-local function _apply_rush_params(mob, section)
-    local pct = _tun_num.rush_band_pct
+-- The rush basis stash (the premise range = the species' own trigger band) plus the Rush range vary.
+local function _apply_rush_params(mob, rec, section)
     local dist = _read_pair(section, "Run_Attack_Dist")
     local delay = _read_pair(section, "Run_Attack_Delay")
     if not (dist or delay) then return end
+    rec.rush_max_m = dist and dist[2] or nil
+    if not _check_vary(rec, "rush_range") then return end
+    local pct = _tun_num.rush_band_pct
     local dist_min, dist_max = _compute_band(dist and dist[1], dist and dist[2], pct)
     local delay_min, delay_max = _compute_band(delay and delay[1], delay and delay[2], pct)
+    rec.rush_max_m = dist_max or rec.rush_max_m
     xmonster.set_monster_rush_params(mob, {
         min_dist = dist_min, max_dist = dist_max,
         min_delay_ms = delay_min, max_delay_ms = delay_max,
@@ -436,7 +439,7 @@ local function _add_mutant(mob, id, now)
     local section = mob:section()
     if _check_vary(rec, "movement") then _apply_movement(mob, rec, section) end
     _apply_leap(mob, rec, section)
-    if rec.moves.rush and _check_vary(rec, "rush_range") then _apply_rush_params(mob, section) end
+    if rec.moves.rush then _apply_rush_params(mob, rec, section) end
     _apply_pacing(mob, rec, section)
     _apply_chimera_params(mob, rec, section)
     _apply_burer_params(mob, rec, section)
@@ -555,11 +558,13 @@ local PREMISES = {
     end,
     fleeing = function(_mob, rec, _now)
         local memo = rec.memo
+        if rec.rush_max_m == nil or memo.dist > rec.rush_max_m then return false end
         if rec.recede == nil or rec.recede < _tun_num.flee_recede then return false end
         return not xcombat.is_facing(memo.enemy, memo.mob_pos, _tun_num.flee_cone)
     end,
     weak_gun = function(_mob, rec, _now)
         local memo = rec.memo
+        if rec.rush_max_m == nil or memo.dist > rec.rush_max_m then return false end
         if memo.kind == nil then return false end
         return WEAK_KIND[memo.kind] == true or memo.band == BAND_OUT
     end,
@@ -602,6 +607,7 @@ end
 local function _log_fire(rec, move, pick, detail)
     rec.driver = DRIVER_LABEL[move]
     rec.gate = GATE_BOTH
+    rec.fired_at = rec.tick_now
     if at_debug.is_on() then
         at_debug.debug("[MUT] FIRE id=%d move=%s pick=%s d=%.1f%s gate=int,wild",
             rec.id, move, pick, rec.memo.dist, detail or "")

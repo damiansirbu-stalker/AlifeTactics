@@ -2,7 +2,7 @@
 
 local pairs, table_sort, table_concat, math_floor, tostring = pairs, table.sort, table.concat, math.floor, tostring
 local time_global = time_global
-local string_sub, string_format, string_upper = string.sub, string.format, string.upper
+local string_sub, string_format, string_upper, string_lower = string.sub, string.format, string.upper, string.lower
 local RegisterScriptCallback, UnregisterScriptCallback = RegisterScriptCallback, UnregisterScriptCallback
 
 local cfg = at_mcm.cfg
@@ -26,6 +26,7 @@ local GRID  = { 34, 28 }
 local ROW_A = { "stalker", "systems" }
 local ROW_B = { "target", "engine" }
 local MOB_SAMPLE_MS = 500
+local MOB_LINGER_MS = 3000
 local MOB_STALE_MS  = 2000
 local DRIVER_HOLD, DRIVER_PUSH, DRIVER_PULL, DRIVER_CONDUCT = "HOLD", "PUSH", "PULL", "CONDUCT"
 
@@ -128,12 +129,10 @@ local function _build_row(npc, st)
     local id = npc:id()
     local maneuver = at_maneuvers.get_maneuver(id)
     local enemy = npc:best_enemy()
-    local rank = ranks.get_obj_rank_name(npc)
     local systems, driver = _format_systems(id, maneuver)
     return {
         driver  = driver,
-        stalker = string_format("(%s) %s %d%%",
-            rank or "-",
+        stalker = string_format("%s %d%%",
             _format_label(npc:character_name() or npc:name(), SUBJECT_NAME_MAX),
             math_floor((npc.health or 0) * 100)),
         target  = _get_target_cell(npc, enemy),
@@ -146,25 +145,16 @@ local function _build_row(npc, st)
     }
 end
 
-local MOVE_WORDS = {
-    { "leap", "leap" }, { "jump", "jump" }, { "leap_adapt", "leap-adapt" }, { "jump_adapt", "jump-adapt" },
-    { "rush", "rush" }, { "dodge", "dodge" }, { "flee", "flee" }, { "cloak", "cloak" },
-    { "gravity_attack", "gravity" }, { "claw", "claw" }, { "backstrike", "backstrike" }, { "roar", "roar" },
-}
-
--- The mutant systems cell in plain words: the live move window first, else the species' possible moves.
+-- The mutant systems cell shows only what runs NOW: the live window, or the last fired move for a short linger.
 local function _format_mob_systems(rec, tg)
     if rec.flee_until > rec.tick_now then
         return string_format("fleeing %.1fs", (rec.flee_until - tg) / 1000)
     end
     if rec.claw_until > 0 then return "clawing" end
-    local words = {}
-    for i = 1, #MOVE_WORDS do
-        local pair = MOVE_WORDS[i]
-        if rec.moves[pair[1]] then words[#words + 1] = pair[2] end
+    if rec.fired_at and tg - rec.fired_at < MOB_LINGER_MS and rec.driver ~= "-" then
+        return string_lower(rec.driver)
     end
-    if #words == 0 then return "no moves" end
-    return table_concat(words, " ")
+    return nil
 end
 
 -- Mutant rows obey the stalker rules: the same gate radius, and fighting mutants only.
@@ -198,7 +188,7 @@ local function _on_mob_update(obj)
         state = obj:get_monster_state(),
         morale = xmonster.get_monster_morale(obj),
         jumping = obj:is_monster_jumping(),
-        systems = rec and _format_mob_systems(rec, tg) or "-",
+        systems = rec and _format_mob_systems(rec, tg) or nil,
         enemy = fighting and string_format("%s %dm",
             _format_label(xcreature.get_name(enemy:id()), TARGET_NAME_MAX),
             math_floor(obj:position():distance_to(enemy:position()))) or nil,
@@ -207,16 +197,11 @@ local function _on_mob_update(obj)
 end
 
 local function _build_mob_row(mob)
-    local driver = at_mutants.get_driver(mob.id)
-    local rec = at_mutants.get_mutant_record(mob.id)
-    if driver and driver ~= "-" and rec and rec.gate then
-        driver = driver .. " " .. rec.gate
-    end
     return {
         is_mob  = true,
-        driver  = driver ~= "-" and driver or nil,
-        stalker = string_format("(mob) %s hp %d", _format_label(mob.name, SUBJECT_NAME_MAX),
-            math_floor(mob.hp)),
+        driver  = mob.systems,
+        stalker = string_format("%s %d%%", _format_label(mob.name, SUBJECT_NAME_MAX),
+            math_floor((mob.hp or 0) * 100)),
         target  = mob.enemy or "-",
         engine  = string_format("%s morale %.1f%s", at_core.get_mob_state_name(mob.state),
             mob.morale or 0, mob.jumping and " air" or ""),

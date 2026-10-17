@@ -306,9 +306,21 @@ function is_in_gate(state)
     return state.actor_dist_sqr ~= nil and state.actor_dist_sqr <= GATE_RADIUS_SQR
 end
 
---- Get the mutant FSM state name for a get_monster_state id, the raw id as text when unmapped.
+-- The base ids descending, for composite/substate ids the exact map misses (e.g. 524291 = Panic + sub).
+local MOB_STATE_BASES = {
+    1073741824, 67108864, 33554432, 16777216, 8388608,
+    4194304, 2097152, 1048576, 524288, 262144, 131072, 65536,
+}
+
+--- Get the mutant FSM state name for a get_monster_state id; an unmapped substate reads as its base state's name.
 function get_mob_state_name(state_id)
-    return MOB_STATES[state_id] or tostring(state_id)
+    local name = MOB_STATES[state_id]
+    if name then return name end
+    for i = 1, #MOB_STATE_BASES do
+        local base = MOB_STATE_BASES[i]
+        if state_id >= base then return MOB_STATES[base] end
+    end
+    return tostring(state_id)
 end
 
 function on_game_start()
