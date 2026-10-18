@@ -85,6 +85,14 @@ local function _try_extend_hold(hold, enemy, tg, id, label)
     if tg - hold.since > _hold_cap_ms + VULNERABLE_EXTEND_MS then return false end
     local vuln, why = at_core.is_enemy_vulnerable(enemy)
     if not vuln then return false end
+    if not hold.vuln then
+        local bucket = enemy:id() == AC_ID and "vs_player" or "vs_npc"
+        if not at_core.check_start(bucket) then
+            if at_debug.is_on() then at_debug.debug("[CMT] %s id=%d denied cause=caps", label, id) end
+            return false
+        end
+        at_core.add_start(bucket)
+    end
     hold.vuln = true
     if at_debug.is_on() and not hold.vuln_logged then
         hold.vuln_logged = true
@@ -156,7 +164,7 @@ local function _on_action_switch(npc, from_op, to_op, flags)
     if not _attack_ops then _resolve_ops() end
     _log_census(npc, from_op, to_op)
     if not cfg.commitment_enabled then return end
-    if not at_faction.has_flavor(npc, "commitment") then return end
+    if not at_faction.is_participant(npc) then return end
     local is_fire_exit  = _attack_ops[from_op] and _cover_ops[to_op]
     local is_flank_exit = from_op == stalker_ids.action_detour_enemy and to_op == stalker_ids.action_take_cover
     if not (is_fire_exit or is_flank_exit) then return end
@@ -240,7 +248,7 @@ local function _on_cover_repick(npc, flags)
     if not _attack_ops then _resolve_ops() end
     local id = npc:id()
     if not _attack_ops[_cur_op[id]] then return end
-    if not at_faction.has_flavor(npc, "commitment") then return end
+    if not at_faction.is_participant(npc) then return end
     local enemy = xcombat.get_best_enemy(npc)
     if not enemy then _log_decline(npc, id, "cover_no_enemy") return end
     if not xcombat.can_see(npc, enemy) then _log_decline(npc, id, "cover_no_sight") return end

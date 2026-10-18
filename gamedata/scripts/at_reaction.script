@@ -1,6 +1,6 @@
 --- at_reaction: per-rank aim, target lead, vision, and fire discipline - one mechanism, three MCM pages
 
-local RegisterScriptCallback, time_global, AC_ID = RegisterScriptCallback, time_global, AC_ID
+local RegisterScriptCallback, time_global, AC_ID, pairs = RegisterScriptCallback, time_global, AC_ID, pairs
 
 local cfg = at_mcm.cfg
 
@@ -19,81 +19,23 @@ local KIND_BSPEED = {
 
 local TIERS = xcreature.RANK_TIERS
 
-local _aim = {
-    novice       = 0.24,
-    trainee      = 0.40,
-    experienced  = 0.54,
-    professional = 0.66,
-    veteran      = 0.80,
-    expert       = 0.92,
-    master       = 1.06,
-    legend       = 1.50,
+-- The curve pairs (base + percent per rank), fitted to the retired 8-value tables; LTX then MCM override them.
+local _curve_pairs = {
+    aim       = { base = 0.24,  pct = 64 },
+    track     = { base = 0.196, pct = 12.5 },
+    lead      = { base = 2.00,  pct = -7.4 },
+    vision    = { base = 1.00,  pct = 3.0 },
+    vrange    = { base = 1.00,  pct = 2.2 },
+    qsize     = { base = 1.00,  pct = -0.6 },
+    qinterval = { base = 1.00,  pct = -0.7 },
 }
 
-local _track = {
-    novice       = 0.196,
-    trainee      = 0.222,
-    experienced  = 0.245,
-    professional = 0.264,
-    veteran      = 0.287,
-    expert       = 0.306,
-    master       = 0.328,
-    legend       = 0.400,
+local _aim, _track, _vision, _vrange, _lead, _qsize, _qinterval = {}, {}, {}, {}, {}, {}, {}
+local CURVES = {
+    aim = _aim, track = _track, lead = _lead, vision = _vision,
+    vrange = _vrange, qsize = _qsize, qinterval = _qinterval,
 }
-
-local _vision = {
-    novice       = 1.00,
-    trainee      = 1.03,
-    experienced  = 1.06,
-    professional = 1.09,
-    veteran      = 1.12,
-    expert       = 1.15,
-    master       = 1.18,
-    legend       = 1.21,
-}
-
-local _vrange = {
-    novice       = 1.00,
-    trainee      = 1.02,
-    experienced  = 1.05,
-    professional = 1.07,
-    veteran      = 1.09,
-    expert       = 1.11,
-    master       = 1.13,
-    legend       = 1.15,
-}
-
-local _lead = {
-    novice       = 2.00,
-    trainee      = 1.85,
-    experienced  = 1.70,
-    professional = 1.55,
-    veteran      = 1.40,
-    expert       = 1.25,
-    master       = 1.10,
-    legend       = 1.00,
-}
-
-local _qsize = {
-    novice       = 1.00,
-    trainee      = 0.99,
-    experienced  = 0.99,
-    professional = 0.98,
-    veteran      = 0.98,
-    expert       = 0.97,
-    master       = 0.97,
-    legend       = 0.96,
-}
-local _qinterval = {
-    novice       = 1.00,
-    trainee      = 0.99,
-    experienced  = 0.98,
-    professional = 0.98,
-    veteran      = 0.97,
-    expert       = 0.97,
-    master       = 0.96,
-    legend       = 0.95,
-}
+local CURVE_FLOOR = 0.01
 
 local _next_lead = {}
 local _bspeed    = {}
@@ -104,6 +46,20 @@ local _bind_logged = false
 local _lead_logged = false
 
 local _get_obj_rank_name = ranks.get_obj_rank_name
+
+-- Project one pair onto the 8 rank tiers: value = base * (1 + pct% * tier index), floored against extreme pairs.
+local function _build_curve(tbl, base, pct)
+    for i = 1, #TIERS do
+        local v = base * (1 + pct * 0.01 * (i - 1))
+        tbl[TIERS[i]] = v > CURVE_FLOOR and v or CURVE_FLOOR
+    end
+end
+
+local function _build_curves()
+    for name, pair in pairs(_curve_pairs) do
+        _build_curve(CURVES[name], pair.base, pair.pct)
+    end
+end
 
 local function _log_binds_once(ok_aim, ok_vision, ok_disc)
     if _bind_logged then return end
@@ -207,7 +163,7 @@ local function _on_shot_lead(obj, wpn, body_state, move_type, temp_disp)
     local nxt = _next_lead[id]
     if nxt and tg < nxt then return end
     _next_lead[id] = tg + LEAD_THROTTLE_MS
-    if not at_faction.has_flavor(obj, "reaction") then return end
+    if not at_faction.is_participant(obj) then return end
 
     local enemy = xcombat.get_best_enemy(obj)
     if not enemy then return end
@@ -254,7 +210,7 @@ end
 
 local function _compute_vision_range(npc)
     if not cfg.vision_enabled then return nil end
-    if not at_faction.has_flavor(npc, "reaction") then return nil end
+    if not at_faction.is_participant(npc) then return nil end
     local tier = _get_obj_rank_name(npc)
     if not tier or tier == "" then return nil end
     return _vrange[tier]
@@ -264,30 +220,20 @@ local function _load_config()
     local ini = ini_file(CONFIG_PATH)
     TURN_MAX       = ini:r_float_ex(CONFIG_SECTION, "turn_max") or TURN_MAX
     TURN_FALLOFF_M = ini:r_float_ex(CONFIG_SECTION, "turn_falloff_m") or TURN_FALLOFF_M
-    for i = 1, #TIERS do
-        local tier = TIERS[i]
-        _aim[tier]       = ini:r_float_ex(CONFIG_SECTION, "aim_" .. tier)       or _aim[tier]
-        _track[tier]     = ini:r_float_ex(CONFIG_SECTION, "track_" .. tier)     or _track[tier]
-        _lead[tier]      = ini:r_float_ex(CONFIG_SECTION, "lead_" .. tier)      or _lead[tier]
-        _vision[tier]    = ini:r_float_ex(CONFIG_SECTION, "vision_" .. tier)    or _vision[tier]
-        _vrange[tier]    = ini:r_float_ex(CONFIG_SECTION, "vrange_" .. tier)    or _vrange[tier]
-        _qsize[tier]     = ini:r_float_ex(CONFIG_SECTION, "qsize_" .. tier)     or _qsize[tier]
-        _qinterval[tier] = ini:r_float_ex(CONFIG_SECTION, "qinterval_" .. tier) or _qinterval[tier]
+    for name, pair in pairs(_curve_pairs) do
+        pair.base = ini:r_float_ex(CONFIG_SECTION, name .. "_base") or pair.base
+        pair.pct  = ini:r_float_ex(CONFIG_SECTION, name .. "_rank_pct") or pair.pct
     end
+    _build_curves()
 end
 
 local function _update_config()
     at_debug.update_config()
-    for i = 1, #TIERS do
-        local tier = TIERS[i]
-        _aim[tier]       = at_mcm.get_config("rct_aim_" .. tier)       or _aim[tier]
-        _track[tier]     = at_mcm.get_config("rct_track_" .. tier)     or _track[tier]
-        _lead[tier]      = at_mcm.get_config("rct_lead_" .. tier)      or _lead[tier]
-        _vision[tier]    = at_mcm.get_config("rct_vision_" .. tier)    or _vision[tier]
-        _vrange[tier]    = at_mcm.get_config("rct_vrange_" .. tier)    or _vrange[tier]
-        _qsize[tier]     = at_mcm.get_config("rct_qsize_" .. tier)     or _qsize[tier]
-        _qinterval[tier] = at_mcm.get_config("rct_qinterval_" .. tier) or _qinterval[tier]
+    for name, pair in pairs(_curve_pairs) do
+        pair.base = at_mcm.get_config("rct_" .. name .. "_base") or pair.base
+        pair.pct  = at_mcm.get_config("rct_" .. name .. "_rank_pct") or pair.pct
     end
+    _build_curves()
 end
 
 local function _on_first_update()
@@ -318,7 +264,7 @@ end
 --- The two targeting binds are always-on vanilla fixes (the hit-victim turn, the player-pull dial), never behind the page toggles.
 function apply(npc)
     if not (npc and npc:alive()) then return end
-    if not at_faction.has_flavor(npc, "reaction") then return end
+    if not at_faction.is_participant(npc) then return end
 
     local ok_turn = xcombat.set_hit_redirect(npc, TURN_MAX, TURN_FALLOFF_M)
     xcombat.set_visible_enemy_bias(npc, cfg.selection_actor_bias, -1)

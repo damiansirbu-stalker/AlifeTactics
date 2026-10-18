@@ -14,7 +14,7 @@ local _move = {}
 
 local function _compute_disp(obj)
     if not cfg.disp_enabled then return nil end
-    if not at_faction.has_flavor(obj, "accuracy") then return nil end
+    if not at_faction.is_participant(obj) then return nil end
     local tier = _get_obj_rank_name(obj)
     if not tier or tier == "" then return nil end
     return _disp[tier]
@@ -23,7 +23,7 @@ end
 local function _on_move_penalty(obj, wpn, body_state, move_type, temp_disp)
     if not cfg.move_enabled then return end
     if not (obj and temp_disp and temp_disp.dispersion) then return end
-    if not at_faction.has_flavor(obj, "accuracy") then return end
+    if not at_faction.is_participant(obj) then return end
     if not (move_type and move_type <= MT_RUN) then return end
 
     local tier = _get_obj_rank_name(obj)
@@ -43,13 +43,18 @@ local function _on_move_penalty(obj, wpn, body_state, move_type, temp_disp)
     end
 end
 
+-- Project one base + percent-per-rank pair onto the 8 rank tiers, floored so an extreme pair cannot go negative.
+local function _build_curve(tbl, base, pct)
+    for i = 1, #TIERS do
+        local v = base * (1 + pct * 0.01 * (i - 1))
+        tbl[TIERS[i]] = v > 0.01 and v or 0.01
+    end
+end
+
 local function _update_config()
     at_debug.update_config()
-    for i = 1, #TIERS do
-        local tier = TIERS[i]
-        _disp[tier] = at_mcm.get_config("acc_disp_" .. tier)
-        _move[tier] = at_mcm.get_config("acc_move_" .. tier)
-    end
+    _build_curve(_disp, cfg.acc_disp_base, cfg.acc_disp_rank_pct)
+    _build_curve(_move, cfg.acc_move_base, cfg.acc_move_rank_pct)
 end
 
 local function _on_first_update()

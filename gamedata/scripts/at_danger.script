@@ -913,7 +913,7 @@ function at_evaluator_check_danger:evaluate()
 		return false
 	end
 
-	if (not at_faction.has_flavor(self.object, "danger")) then
+	if (not at_faction.is_participant(self.object)) then
 		return false
 	end
 

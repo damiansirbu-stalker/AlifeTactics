@@ -80,6 +80,21 @@
     <text>Range</text>
   </string>
   <!-- ==================== PLANNED PAGE DESCRIPTIONS ==================== -->
+  <string id="ui_mcm_at_combat_general_desc">
+    <text>The stalker decision gate. Every AlifeTactics decision a stalker makes - a maneuver, a push, a pull, a crouch - passes his faction's participation roll and this Intelligence roll, the chance of a good decision. Both are capped, so nothing is ever certain.</text>
+  </string>
+  <string id="ui_mcm_at_general_int_base">
+    <text>Intelligence</text>
+  </string>
+  <string id="ui_mcm_at_general_int_base_desc">
+    <text>The base chance a stalker acts on a decision his faction carries, before rank. Higher means more stalkers act on their reads.</text>
+  </string>
+  <string id="ui_mcm_at_general_int_rank_pct">
+    <text>Intelligence per rank (%)</text>
+  </string>
+  <string id="ui_mcm_at_general_int_rank_pct_desc">
+    <text>Percent added to the act chance for every rank above novice. Rank buys the correct decision more often, never new abilities.</text>
+  </string>
   <string id="ui_mcm_at_behaviors_desc">
     <text>Stalkers act on weak moments in a fight, in both directions and against any enemy. The push: a stalker whose enemy cannot answer presses him, whether that enemy is you or another combatant. The pull: a stalker caught vulnerable while his enemy is strong falls back until he recovers.</text>
   </string>
@@ -501,104 +516,32 @@
   <string id="ui_mcm_at_hdr_accuracy_curve">
     <text>Rank Accuracy</text>
   </string>
-  <string id="ui_mcm_at_accuracy_acc_disp_novice">
-    <text>Novice dispersion</text>
+  <string id="ui_mcm_at_accuracy_acc_disp_base">
+    <text>Dispersion base</text>
   </string>
-  <string id="ui_mcm_at_accuracy_acc_disp_novice_desc">
-    <text>Shot cone scale for novice-rank stalkers. Lower is tighter and more lethal. 1.00 matches the vanilla cone.</text>
+  <string id="ui_mcm_at_accuracy_acc_disp_base_desc">
+    <text>Shot cone scale for novice-rank stalkers, the curve's base. Lower is tighter and more lethal. 1.00 matches the vanilla cone.</text>
   </string>
-  <string id="ui_mcm_at_accuracy_acc_disp_trainee">
-    <text>Trainee dispersion</text>
+  <string id="ui_mcm_at_accuracy_acc_disp_rank_pct">
+    <text>Dispersion per rank (%)</text>
   </string>
-  <string id="ui_mcm_at_accuracy_acc_disp_trainee_desc">
-    <text>Shot cone scale for trainee-rank stalkers. Lower is tighter.</text>
-  </string>
-  <string id="ui_mcm_at_accuracy_acc_disp_experienced">
-    <text>Experienced dispersion</text>
-  </string>
-  <string id="ui_mcm_at_accuracy_acc_disp_experienced_desc">
-    <text>Shot cone scale for experienced-rank stalkers. Lower is tighter.</text>
-  </string>
-  <string id="ui_mcm_at_accuracy_acc_disp_professional">
-    <text>Professional dispersion</text>
-  </string>
-  <string id="ui_mcm_at_accuracy_acc_disp_professional_desc">
-    <text>Shot cone scale for professional-rank stalkers. Lower is tighter.</text>
-  </string>
-  <string id="ui_mcm_at_accuracy_acc_disp_veteran">
-    <text>Veteran dispersion</text>
-  </string>
-  <string id="ui_mcm_at_accuracy_acc_disp_veteran_desc">
-    <text>Shot cone scale for veteran-rank stalkers. Lower is tighter.</text>
-  </string>
-  <string id="ui_mcm_at_accuracy_acc_disp_expert">
-    <text>Expert dispersion</text>
-  </string>
-  <string id="ui_mcm_at_accuracy_acc_disp_expert_desc">
-    <text>Shot cone scale for expert-rank stalkers. Lower is tighter.</text>
-  </string>
-  <string id="ui_mcm_at_accuracy_acc_disp_master">
-    <text>Master dispersion</text>
-  </string>
-  <string id="ui_mcm_at_accuracy_acc_disp_master_desc">
-    <text>Shot cone scale for master-rank stalkers. Lower is tighter.</text>
-  </string>
-  <string id="ui_mcm_at_accuracy_acc_disp_legend">
-    <text>Legend dispersion</text>
-  </string>
-  <string id="ui_mcm_at_accuracy_acc_disp_legend_desc">
-    <text>Shot cone scale for legend-rank stalkers, the highest rank. Lower is tighter.</text>
+  <string id="ui_mcm_at_accuracy_acc_disp_rank_pct_desc">
+    <text>Percent the cone changes with every rank above novice. Negative tightens it rank by rank, so high ranks shoot sharper.</text>
   </string>
   <string id="ui_mcm_at_hdr_accuracy_move">
     <text>Moving Fire</text>
   </string>
-  <string id="ui_mcm_at_accuracy_acc_move_novice">
-    <text>Novice moving fire</text>
+  <string id="ui_mcm_at_accuracy_acc_move_base">
+    <text>Moving fire base</text>
   </string>
-  <string id="ui_mcm_at_accuracy_acc_move_novice_desc">
-    <text>How much of the movement spread penalty a novice-rank stalker keeps while shooting on the move. 1.00 is the full vanilla penalty; lower is steadier fire on the move.</text>
+  <string id="ui_mcm_at_accuracy_acc_move_base_desc">
+    <text>How much of the movement spread penalty a novice-rank stalker keeps while shooting on the move, the curve's base. 1.00 is the full vanilla penalty; lower is steadier fire on the move.</text>
   </string>
-  <string id="ui_mcm_at_accuracy_acc_move_trainee">
-    <text>Trainee moving fire</text>
+  <string id="ui_mcm_at_accuracy_acc_move_rank_pct">
+    <text>Moving fire per rank (%)</text>
   </string>
-  <string id="ui_mcm_at_accuracy_acc_move_trainee_desc">
-    <text>How much of the movement spread penalty a trainee-rank stalker keeps while shooting on the move. Lower is steadier.</text>
-  </string>
-  <string id="ui_mcm_at_accuracy_acc_move_experienced">
-    <text>Experienced moving fire</text>
-  </string>
-  <string id="ui_mcm_at_accuracy_acc_move_experienced_desc">
-    <text>How much of the movement spread penalty an experienced-rank stalker keeps while shooting on the move. Lower is steadier.</text>
-  </string>
-  <string id="ui_mcm_at_accuracy_acc_move_professional">
-    <text>Professional moving fire</text>
-  </string>
-  <string id="ui_mcm_at_accuracy_acc_move_professional_desc">
-    <text>How much of the movement spread penalty a professional-rank stalker keeps while shooting on the move. Lower is steadier.</text>
-  </string>
-  <string id="ui_mcm_at_accuracy_acc_move_veteran">
-    <text>Veteran moving fire</text>
-  </string>
-  <string id="ui_mcm_at_accuracy_acc_move_veteran_desc">
-    <text>How much of the movement spread penalty a veteran-rank stalker keeps while shooting on the move. Lower is steadier.</text>
-  </string>
-  <string id="ui_mcm_at_accuracy_acc_move_expert">
-    <text>Expert moving fire</text>
-  </string>
-  <string id="ui_mcm_at_accuracy_acc_move_expert_desc">
-    <text>How much of the movement spread penalty an expert-rank stalker keeps while shooting on the move. Lower is steadier.</text>
-  </string>
-  <string id="ui_mcm_at_accuracy_acc_move_master">
-    <text>Master moving fire</text>
-  </string>
-  <string id="ui_mcm_at_accuracy_acc_move_master_desc">
-    <text>How much of the movement spread penalty a master-rank stalker keeps while shooting on the move. Lower is steadier.</text>
-  </string>
-  <string id="ui_mcm_at_accuracy_acc_move_legend">
-    <text>Legend moving fire</text>
-  </string>
-  <string id="ui_mcm_at_accuracy_acc_move_legend_desc">
-    <text>How much of the movement spread penalty a legend-rank stalker keeps while shooting on the move, the highest rank. 0.50 makes his moving fire as steady as his standing fire.</text>
+  <string id="ui_mcm_at_accuracy_acc_move_rank_pct_desc">
+    <text>Percent the moving-fire penalty changes with every rank above novice. Negative steadies it rank by rank, so high ranks stay accurate on the move.</text>
   </string>
   <!-- ==================== REACTION PAGE ==================== -->
   <string id="ui_mcm_at_reaction_aim_enabled">
@@ -610,104 +553,32 @@
   <string id="ui_mcm_at_hdr_reaction_aim">
     <text>Tracking Speed</text>
   </string>
-  <string id="ui_mcm_at_reaction_rct_aim_novice">
-    <text>Novice tracking speed</text>
+  <string id="ui_mcm_at_reaction_rct_aim_base">
+    <text>Tracking speed base</text>
   </string>
-  <string id="ui_mcm_at_reaction_rct_aim_novice_desc">
-    <text>How tightly a novice-rank barrel follows a moving target, radians per second. 0.24 matches the vanilla engine.</text>
+  <string id="ui_mcm_at_reaction_rct_aim_base_desc">
+    <text>How tightly a novice-rank barrel follows a moving target, radians per second - the curve's base. 0.24 matches the vanilla engine.</text>
   </string>
-  <string id="ui_mcm_at_reaction_rct_aim_trainee">
-    <text>Trainee tracking speed</text>
+  <string id="ui_mcm_at_reaction_rct_aim_rank_pct">
+    <text>Tracking speed per rank (%)</text>
   </string>
-  <string id="ui_mcm_at_reaction_rct_aim_trainee_desc">
-    <text>How tightly a trainee-rank barrel follows a moving target. Higher tracks closer.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_aim_experienced">
-    <text>Experienced tracking speed</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_aim_experienced_desc">
-    <text>How tightly an experienced-rank barrel follows a moving target. Higher tracks closer.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_aim_professional">
-    <text>Professional tracking speed</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_aim_professional_desc">
-    <text>How tightly a professional-rank barrel follows a moving target. Higher tracks closer.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_aim_veteran">
-    <text>Veteran tracking speed</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_aim_veteran_desc">
-    <text>How tightly a veteran-rank barrel follows a moving target. Higher tracks closer.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_aim_expert">
-    <text>Expert tracking speed</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_aim_expert_desc">
-    <text>How tightly an expert-rank barrel follows a moving target. Higher tracks closer.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_aim_master">
-    <text>Master tracking speed</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_aim_master_desc">
-    <text>How tightly a master-rank barrel follows a moving target. Higher tracks closer.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_aim_legend">
-    <text>Legend tracking speed</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_aim_legend_desc">
-    <text>Tracking speed for legend rank, the highest. 1.50 is a decent step above vanilla, well below the game's 2.50 hardcore aim.</text>
+  <string id="ui_mcm_at_reaction_rct_aim_rank_pct_desc">
+    <text>Percent the tracking speed grows with every rank above novice. Higher ranks swing the barrel onto a mover faster; the top of the range stays below the game's hardcore aim.</text>
   </string>
   <string id="ui_mcm_at_hdr_reaction_track">
     <text>Tracking Lock</text>
   </string>
-  <string id="ui_mcm_at_reaction_rct_track_novice">
-    <text>Novice tracking lock</text>
+  <string id="ui_mcm_at_reaction_rct_track_base">
+    <text>Tracking lock base</text>
   </string>
-  <string id="ui_mcm_at_reaction_rct_track_novice_desc">
-    <text>How tightly a novice-rank barrel holds a strafing target - the width of the lock band, radians. 0.196 matches vanilla, where a strafer can juke the aim.</text>
+  <string id="ui_mcm_at_reaction_rct_track_base_desc">
+    <text>How tightly a novice-rank barrel holds a strafing target - the width of the lock band, radians, the curve's base. 0.196 matches vanilla, where a strafer can juke the aim.</text>
   </string>
-  <string id="ui_mcm_at_reaction_rct_track_trainee">
-    <text>Trainee tracking lock</text>
+  <string id="ui_mcm_at_reaction_rct_track_rank_pct">
+    <text>Tracking lock per rank (%)</text>
   </string>
-  <string id="ui_mcm_at_reaction_rct_track_trainee_desc">
-    <text>How tightly a trainee-rank barrel holds a strafing target. Higher holds tighter and is harder to dodge.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_track_experienced">
-    <text>Experienced tracking lock</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_track_experienced_desc">
-    <text>How tightly an experienced-rank barrel holds a strafing target. Higher holds tighter and is harder to dodge.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_track_professional">
-    <text>Professional tracking lock</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_track_professional_desc">
-    <text>How tightly a professional-rank barrel holds a strafing target. Higher holds tighter and is harder to dodge.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_track_veteran">
-    <text>Veteran tracking lock</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_track_veteran_desc">
-    <text>How tightly a veteran-rank barrel holds a strafing target. Higher holds tighter and is harder to dodge.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_track_expert">
-    <text>Expert tracking lock</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_track_expert_desc">
-    <text>How tightly an expert-rank barrel holds a strafing target. Higher holds tighter and is harder to dodge.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_track_master">
-    <text>Master tracking lock</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_track_master_desc">
-    <text>How tightly a master-rank barrel holds a strafing target. Higher holds tighter and is harder to dodge.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_track_legend">
-    <text>Legend tracking lock</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_track_legend_desc">
-    <text>How tightly a legend-rank barrel holds a strafing target, the highest rank. 0.40 locks across the firing window, far below the game's 17 hardcore aimbot.</text>
+  <string id="ui_mcm_at_reaction_rct_track_rank_pct_desc">
+    <text>Percent the lock band widens with every rank above novice. Higher ranks hold a strafer across the firing window and are harder to dodge.</text>
   </string>
   <string id="ui_mcm_at_hdr_reaction_lead">
     <text>Target Lead</text>
@@ -718,53 +589,17 @@
   <string id="ui_mcm_at_reaction_lead_enabled_desc">
     <text>How far ahead of a moving target a stalker aims, from the round's real flight time. Top ranks lead true and hit movers, low ranks over-lead. Off leaves the engine's fixed lead.</text>
   </string>
-  <string id="ui_mcm_at_reaction_rct_lead_novice">
-    <text>Novice target lead</text>
+  <string id="ui_mcm_at_reaction_rct_lead_base">
+    <text>Target lead base</text>
   </string>
-  <string id="ui_mcm_at_reaction_rct_lead_novice_desc">
-    <text>Lead error for novice rank, multiplied onto the physically-correct lead. 2.00 over-leads a mover, 1.00 leads true.</text>
+  <string id="ui_mcm_at_reaction_rct_lead_base_desc">
+    <text>Lead error for novice rank, multiplied onto the physically-correct lead - the curve's base. 2.00 over-leads a mover, 1.00 leads true.</text>
   </string>
-  <string id="ui_mcm_at_reaction_rct_lead_trainee">
-    <text>Trainee target lead</text>
+  <string id="ui_mcm_at_reaction_rct_lead_rank_pct">
+    <text>Target lead per rank (%)</text>
   </string>
-  <string id="ui_mcm_at_reaction_rct_lead_trainee_desc">
-    <text>Lead error for trainee rank. Above 1.00 over-leads a moving target, 1.00 leads true.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_lead_experienced">
-    <text>Experienced target lead</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_lead_experienced_desc">
-    <text>Lead error for experienced rank. Above 1.00 over-leads a moving target, 1.00 leads true.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_lead_professional">
-    <text>Professional target lead</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_lead_professional_desc">
-    <text>Lead error for professional rank. Above 1.00 over-leads a moving target, 1.00 leads true.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_lead_veteran">
-    <text>Veteran target lead</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_lead_veteran_desc">
-    <text>Lead error for veteran rank. Above 1.00 over-leads a moving target, 1.00 leads true.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_lead_expert">
-    <text>Expert target lead</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_lead_expert_desc">
-    <text>Lead error for expert rank. Above 1.00 over-leads a moving target, 1.00 leads true.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_lead_master">
-    <text>Master target lead</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_lead_master_desc">
-    <text>Lead error for master rank. Above 1.00 over-leads a moving target, 1.00 leads true.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_lead_legend">
-    <text>Legend target lead</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_lead_legend_desc">
-    <text>Lead error for legend rank, the highest. 1.00 leads true and hits movers.</text>
+  <string id="ui_mcm_at_reaction_rct_lead_rank_pct_desc">
+    <text>Percent the lead error shrinks with every rank above novice. Negative walks it toward 1.00, where a legend leads true and hits movers.</text>
   </string>
   <string id="ui_mcm_at_hdr_reaction_vision">
     <text>Vision Speed</text>
@@ -784,203 +619,59 @@
   <string id="ui_mcm_at_reaction_discipline_enabled_desc">
     <text>Scales each rank's burst length and cadence. High ranks fire crisper short bursts more often; low ranks stay vanilla. Defaults keep the burst-size scale at or above the interval scale, so hits per minute never drops below vanilla. Off = vanilla queues.</text>
   </string>
-  <string id="ui_mcm_at_reaction_rct_qsize_novice">
-    <text>Novice burst size</text>
+  <string id="ui_mcm_at_reaction_rct_qsize_base">
+    <text>Burst size base</text>
   </string>
-  <string id="ui_mcm_at_reaction_rct_qsize_novice_desc">
-    <text>Multiplier on the novice-rank burst length. 1.00 = vanilla; below 1 trims the burst toward its accurate opening rounds.</text>
+  <string id="ui_mcm_at_reaction_rct_qsize_base_desc">
+    <text>Multiplier on the novice-rank burst length, the curve's base. 1.00 = vanilla; below 1 trims the burst toward its accurate opening rounds.</text>
   </string>
-  <string id="ui_mcm_at_reaction_rct_qsize_trainee">
-    <text>Trainee burst size</text>
+  <string id="ui_mcm_at_reaction_rct_qsize_rank_pct">
+    <text>Burst size per rank (%)</text>
   </string>
-  <string id="ui_mcm_at_reaction_rct_qsize_trainee_desc">
-    <text>Multiplier on the trainee-rank burst length. 1.00 = vanilla; below 1 trims to the accurate opening rounds.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qsize_experienced">
-    <text>Experienced burst size</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qsize_experienced_desc">
-    <text>Multiplier on the experienced-rank burst length. 1.00 = vanilla; below 1 trims to the accurate opening rounds.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qsize_professional">
-    <text>Professional burst size</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qsize_professional_desc">
-    <text>Multiplier on the professional-rank burst length. 1.00 = vanilla; below 1 trims to the accurate opening rounds.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qsize_veteran">
-    <text>Veteran burst size</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qsize_veteran_desc">
-    <text>Multiplier on the veteran-rank burst length. 1.00 = vanilla; below 1 trims to the accurate opening rounds.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qsize_expert">
-    <text>Expert burst size</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qsize_expert_desc">
-    <text>Multiplier on the expert-rank burst length. 1.00 = vanilla; below 1 trims to the accurate opening rounds.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qsize_master">
-    <text>Master burst size</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qsize_master_desc">
-    <text>Multiplier on the master-rank burst length. 1.00 = vanilla; below 1 trims to the accurate opening rounds.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qsize_legend">
-    <text>Legend burst size</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qsize_legend_desc">
-    <text>Multiplier on the legend-rank burst length, the highest rank. Below 1 = crisp short bursts. Keep at or above the interval multiplier so volume holds.</text>
+  <string id="ui_mcm_at_reaction_rct_qsize_rank_pct_desc">
+    <text>Percent the burst length changes with every rank above novice. Negative trims high ranks toward crisp short bursts. Keep at or above the cadence slope so volume holds.</text>
   </string>
   <string id="ui_mcm_at_hdr_reaction_qinterval">
     <text>Fire Cadence</text>
   </string>
-  <string id="ui_mcm_at_reaction_rct_qinterval_novice">
-    <text>Novice fire cadence</text>
+  <string id="ui_mcm_at_reaction_rct_qinterval_base">
+    <text>Fire cadence base</text>
   </string>
-  <string id="ui_mcm_at_reaction_rct_qinterval_novice_desc">
-    <text>Multiplier on the novice-rank pause between bursts. 1.00 = vanilla; below 1 fires more often.</text>
+  <string id="ui_mcm_at_reaction_rct_qinterval_base_desc">
+    <text>Multiplier on the novice-rank pause between bursts, the curve's base. 1.00 = vanilla; below 1 fires more often.</text>
   </string>
-  <string id="ui_mcm_at_reaction_rct_qinterval_trainee">
-    <text>Trainee fire cadence</text>
+  <string id="ui_mcm_at_reaction_rct_qinterval_rank_pct">
+    <text>Fire cadence per rank (%)</text>
   </string>
-  <string id="ui_mcm_at_reaction_rct_qinterval_trainee_desc">
-    <text>Multiplier on the trainee-rank pause between bursts. 1.00 = vanilla; below 1 fires more often.</text>
+  <string id="ui_mcm_at_reaction_rct_qinterval_rank_pct_desc">
+    <text>Percent the pause between bursts changes with every rank above novice. Negative tightens high ranks' cadence for more volume.</text>
   </string>
-  <string id="ui_mcm_at_reaction_rct_qinterval_experienced">
-    <text>Experienced fire cadence</text>
+  <string id="ui_mcm_at_reaction_rct_vision_base">
+    <text>Vision speed base</text>
   </string>
-  <string id="ui_mcm_at_reaction_rct_qinterval_experienced_desc">
-    <text>Multiplier on the experienced-rank pause between bursts. 1.00 = vanilla; below 1 fires more often.</text>
+  <string id="ui_mcm_at_reaction_rct_vision_base_desc">
+    <text>How fast a novice-rank stalker notices a threat, the curve's base. 1.00 is your setup's baseline; below it is slower. Point-blank detection is unaffected.</text>
   </string>
-  <string id="ui_mcm_at_reaction_rct_qinterval_professional">
-    <text>Professional fire cadence</text>
+  <string id="ui_mcm_at_reaction_rct_vision_rank_pct">
+    <text>Vision speed per rank (%)</text>
   </string>
-  <string id="ui_mcm_at_reaction_rct_qinterval_professional_desc">
-    <text>Multiplier on the professional-rank pause between bursts. 1.00 = vanilla; below 1 fires more often.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qinterval_veteran">
-    <text>Veteran fire cadence</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qinterval_veteran_desc">
-    <text>Multiplier on the veteran-rank pause between bursts. 1.00 = vanilla; below 1 fires more often.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qinterval_expert">
-    <text>Expert fire cadence</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qinterval_expert_desc">
-    <text>Multiplier on the expert-rank pause between bursts. 1.00 = vanilla; below 1 fires more often.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qinterval_master">
-    <text>Master fire cadence</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qinterval_master_desc">
-    <text>Multiplier on the master-rank pause between bursts. 1.00 = vanilla; below 1 fires more often.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qinterval_legend">
-    <text>Legend fire cadence</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qinterval_legend_desc">
-    <text>Multiplier on the legend-rank pause between bursts, the highest rank. Below 1 = tighter cadence, more volume.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vision_novice">
-    <text>Novice vision speed</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vision_novice_desc">
-    <text>How fast a novice-rank stalker notices a threat. Higher notices sooner; below 1.00 is slower than your setup's baseline, 1.00 is unchanged. Point-blank detection is unaffected.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vision_trainee">
-    <text>Trainee vision speed</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vision_trainee_desc">
-    <text>Detection speed factor for trainee-rank stalkers. Higher notices targets faster at range.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vision_experienced">
-    <text>Experienced vision speed</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vision_experienced_desc">
-    <text>Detection speed factor for experienced-rank stalkers. Higher notices targets faster at range.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vision_professional">
-    <text>Professional vision speed</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vision_professional_desc">
-    <text>Detection speed factor for professional-rank stalkers. Higher notices targets faster at range.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vision_veteran">
-    <text>Veteran vision speed</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vision_veteran_desc">
-    <text>Detection speed factor for veteran-rank stalkers. Higher notices targets faster at range.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vision_expert">
-    <text>Expert vision speed</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vision_expert_desc">
-    <text>Detection speed factor for expert-rank stalkers. Higher notices targets faster at range.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vision_master">
-    <text>Master vision speed</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vision_master_desc">
-    <text>Detection speed factor for master-rank stalkers. Higher notices targets faster at range.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vision_legend">
-    <text>Legend vision speed</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vision_legend_desc">
-    <text>How fast a legend-rank stalker, the highest rank, notices a threat. Higher notices sooner; 1.00 is your setup's baseline. Point-blank detection is unaffected.</text>
+  <string id="ui_mcm_at_reaction_rct_vision_rank_pct_desc">
+    <text>Percent the detection speed grows with every rank above novice. Higher ranks turn a glimpse into a confirmed threat sooner.</text>
   </string>
   <string id="ui_mcm_at_hdr_vision_range">
     <text>Vision Range</text>
   </string>
-  <string id="ui_mcm_at_reaction_rct_vrange_novice">
-    <text>Novice vision range</text>
+  <string id="ui_mcm_at_reaction_rct_vrange_base">
+    <text>Vision range base</text>
   </string>
-  <string id="ui_mcm_at_reaction_rct_vrange_novice_desc">
-    <text>How far out a novice-rank stalker begins to notice a threat. Above 1.00 sees farther at range, 1.00 is your setup's baseline. Needs a recent engine build with the per-stalker view-distance bind; inactive on older ones.</text>
+  <string id="ui_mcm_at_reaction_rct_vrange_base_desc">
+    <text>How far out a novice-rank stalker begins to notice a threat, the curve's base. 1.00 is your setup's baseline. Needs a recent engine build with the per-stalker view-distance bind; inactive on older ones.</text>
   </string>
-  <string id="ui_mcm_at_reaction_rct_vrange_trainee">
-    <text>Trainee vision range</text>
+  <string id="ui_mcm_at_reaction_rct_vrange_rank_pct">
+    <text>Vision range per rank (%)</text>
   </string>
-  <string id="ui_mcm_at_reaction_rct_vrange_trainee_desc">
-    <text>Detection distance factor for trainee-rank stalkers. Higher begins seeing targets from farther out.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vrange_experienced">
-    <text>Experienced vision range</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vrange_experienced_desc">
-    <text>Detection distance factor for experienced-rank stalkers. Higher begins seeing targets from farther out.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vrange_professional">
-    <text>Professional vision range</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vrange_professional_desc">
-    <text>Detection distance factor for professional-rank stalkers. Higher begins seeing targets from farther out.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vrange_veteran">
-    <text>Veteran vision range</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vrange_veteran_desc">
-    <text>Detection distance factor for veteran-rank stalkers. Higher begins seeing targets from farther out.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vrange_expert">
-    <text>Expert vision range</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vrange_expert_desc">
-    <text>Detection distance factor for expert-rank stalkers. Higher begins seeing targets from farther out.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vrange_master">
-    <text>Master vision range</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vrange_master_desc">
-    <text>Detection distance factor for master-rank stalkers. Higher begins seeing targets from farther out.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vrange_legend">
-    <text>Legend vision range</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vrange_legend_desc">
-    <text>How far out a legend-rank stalker, the highest rank, begins to notice a threat. Above 1.00 sees farther; 1.00 is your setup's baseline. Needs the view-distance engine bind.</text>
+  <string id="ui_mcm_at_reaction_rct_vrange_rank_pct_desc">
+    <text>Percent the detection distance grows with every rank above novice. Higher ranks begin seeing targets from farther out.</text>
   </string>
   <!-- ==================== COMMITMENT PAGE ==================== -->
   <string id="ui_mcm_at_commitment_commitment_cover_pin">

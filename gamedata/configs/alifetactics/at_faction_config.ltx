@@ -1,8 +1,13 @@
-; AlifeTactics faction flavor - the chance a faction's stalker carries each behavior. Paired with
-; gamedata/scripts/at_faction.script. Section = faction, key = the decision, value = 0..1.
-; Lookup: [<faction>] key, else [default] key, else 1 (carries it). The answer is rolled once per
-; NPC per key and held for the fight; 0 and 1 never roll. Zombied carry 0 on everything - this
-; file is also the zombied participation filter.
+; AlifeTactics faction flavor - the participation chance a faction's stalker carries each behavior. Paired
+; with gamedata/scripts/at_faction.script. Section = faction, key = the decision, value = 0..1.
+; Lookup: [<faction>] key, else [default] key, else 1 (carries it). Participation is one of the two gates:
+; it rolls against the capped chance AND the Intelligence roll (MCM base + per-rank), the combined answer
+; rolled once per NPC per key and held for the fight; 0 never rolls. Zombied never participate in anything,
+; a universal rule in at_faction.script, so no [zombied] section exists.
+
+[caps] ; nothing is ever certain: both gates cap here
+participation = 0.75
+intelligence  = 0.75
 
 [default]
 maneuver_flee    = 0
@@ -89,21 +94,3 @@ maneuver_kite    = 0.6
 maneuver_pickoff = 0.4
 behavior_push    = 0.2
 conduct_crouch   = 0.15
-
-[zombied]
-maneuver_counterflank = 0
-maneuver_reload_cover = 0
-maneuver_flee    = 0
-maneuver_retreat = 0
-maneuver_kite    = 0
-maneuver_pickoff = 0
-behavior_push    = 0
-behavior_pull    = 0
-conduct_crouch   = 0
-accuracy         = 0
-reaction         = 0
-crossfire        = 0
-gear             = 0
-healing          = 0
-commitment       = 0
-danger           = 0
