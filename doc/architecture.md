@@ -22,7 +22,7 @@ The Substrate and Observability containers carry no MCM page.
 
 ![Container](img/container.png)
 
-- Combat: Maneuvers, Commitment, Conduct, Behaviors (Push and Pull).
+- Combat: General (the stalker Intelligence pair), Maneuvers, Commitment, Conduct, Behaviors (Push and Pull).
 - Effectiveness: Accuracy, Crossfire, Reaction, Discipline, Range (planned).
 - Perception: Sound, Vision, Danger.
 - Mechanics: Healing, Jamming, Ammo, Gear.
@@ -78,9 +78,9 @@ Commitment runs on the action-switch and cover-repick vetoes, Conduct on the bod
 Every behaviour decides the same way.
 An objective premise gates a chance, and only a passed roll acts.
 The premise is a read of the fight.
-The chance is per-side: a mutant's is Intelligence, a base plus a per-rank term, capped; a stalker's is the faction flavour alone.
-A mutant carries no flavour gate - a species either has a move or it does not, the `[moves]` envelope in `at_mutants_config.ltx`.
-Push, Pull, the LIQUIDATE deferral, and the maneuver catalog run this on the stalker side, where the premise is each `check_need` or `is_enemy_vulnerable` and the chance is the faction flavour, a missed roll spends the opening, and a passed roll commits to a window.
+The chance is Intelligence on both sides, a base plus a per-rank term, capped; a stalker passes his faction's participation roll first (the flavour gate), a mutant has no flavour gate - a species either has a move or it does not, the `[moves]` envelope in `at_mutants_config.ltx`.
+The two Intelligence pairs are separate controls (the stalker's on the Combat General page, the mutant's on the Mutants General page) because the windowing differs: a stalker holds his combined roll 300s, a mutant rolls at every opening.
+Push, Pull, the LIQUIDATE deferral, and the maneuver catalog run this on the stalker side, where the premise is each `check_need` or `is_enemy_vulnerable` and the chance is the two gates, a missed roll spends the opening, and a passed roll commits to a window; the LIQUIDATE deferral spends a start from the same window budget every other decision draws on.
 The mutant moves run it in `at_mutants` as one decision clock: every 600ms beat a fighting mutant observes the premise table (`BEST_MOVES`), the first eligible true premise takes ONE Intelligence roll (`_check_intelligence`), and the flat 6s clock stamps either way.
 A passed roll fires that premise's mapped best move; a failed roll picks uniformly from the species' NEW moves plus nothing.
 Observing is free, deciding is hard: every mutant sees the reload from the first fight, and rank buys the correct answer, not the move's existence - the fail-random path is why every move is visible from the lowest-rank maps.
@@ -208,22 +208,25 @@ Faction flavour, the effects resolver, the xcombat boundary, and the GOAP graft 
 
 ### Faction flavor
 
-Does: decides whether a behaviour triggers for this NPC before the behaviour's own mechanics run, the flavour-first law.
+Does: decides whether a behaviour triggers for this NPC before the behaviour's own mechanics run - the two stalker gates, faction participation then Intelligence.
 Changes: a per-NPC boolean held for the fight, nothing in the world.
-Stops: a zombied NPC carries 0 on every participation key, so no maneuver, veto, or press reaches him.
+Stops: a zombied NPC never participates in anything - `is_participant` is the one universal filter, and the skill and correctness systems read it alone, no rolls.
 
 ```
 has_flavor(npc, key) (at_faction.script):
+  zombied -> false (the universal filter)
   chance = get_faction_chance(community, key)   [<faction>] key, else [default], else 1
-  chance >= 1 -> true    chance <= 0 -> false   (no roll)
-  else roll once per NPC per key, hold the boolean 300s in an xttltable
+  chance <= 0 -> false   (no roll)
+  else held = roll(min(chance, participation cap)) AND roll(Intelligence)
+       Intelligence = min((int_base + int_rank_pct * rank index) / 100, intelligence cap)
+       the combined boolean held 300s per NPC per key in an xttltable
 ```
 
-The roll holds 300s so a stalker either carries a behaviour for the whole fight or does not.
+The combined roll holds 300s so a stalker either carries a behaviour for the whole fight or does not.
 The TTL avoids policing the fight edge, which flickers across lulls.
-The character lives in `at_faction_config.ltx`, all user-set.
+Both gates cap at 0.75 (`at_faction_config.ltx [caps]`), so nothing is ever certain - even a config 1.0 row rolls.
+The faction character lives in `at_faction_config.ltx`, all user-set; the Intelligence pair lives on the Combat General page.
 The militarized factions hold posture and never rout, the flee-prone run first, the aggressive factions press.
-Zombied carry 0 on every key, so the file is the zombied participation filter.
 
 ### Effects resolver
 
@@ -388,7 +391,7 @@ npc_on_best_cover_repick (PR #607, via xcombat.on_cover_repick) -> _on_cover_rep
 - every gate falsifies itself, so release needs no machinery
 - `kill_enemy` (`stalker_combat_planner.cpp`) requires `InCover`, and a best-cover re-pick clears it before the exit is proposed, so holding the cover keeps the exit unselectable
 - the cap (`commitment_hold_s`) is a time-to-live on one continuous refusal, and an allowed switch resets it
-- at the relent moment the veto consults `at_core.is_enemy_vulnerable` and defers up to VULNERABLE_EXTEND_MS (4000ms) while the enemy cannot answer, the LIQUIDATE deferral (`_try_extend_hold`)
+- at the relent moment the veto consults `at_core.is_enemy_vulnerable` and defers up to VULNERABLE_EXTEND_MS (4000ms) while the enemy cannot answer, the LIQUIDATE deferral (`_try_extend_hold`); the first deferral of a hold spends a start from the vs_player/vs_npc window budget (`at_core.check_start`), and a dry bucket relents exactly as without the feature - the one decision that previously ran outside the budget
 - a seized NPC never reaches this seam, because his blocked planner runs no combat action
 
 ### Conduct
@@ -490,8 +493,9 @@ The targeting binds are vanilla-behavior fixes (the Fixes tab's sticky targeting
 At 900/60 a close attacker outranks a fully-visible distant enemy, so a hit victim flips selection on the real hit signal.
 `fire_make_sense` still requires line of sight, so nothing fires through cover, and a suppressed kill discloses nothing to anyone.
 
-The tracking lock widens the band toward the fire cone (novice 0.196 to legend 0.40), so a legend holds a strafing target through the firing window while a novice's aim lags.
-The per-rank lead factor (2.00 novice to 1.00 legend) is the only skill lever, so a legend leads true and low ranks over-lead a crossing target.
+Every rank curve is one base + percent-per-rank pair projected over the 8 tiers (value = base * (1 + pct% * tier index)), the pairs fitted to the retired per-tier tables.
+The tracking lock widens the band toward the fire cone (base 0.196, +12.5% per rank to ~0.37 at legend), so a legend holds a strafing target through the firing window while a novice's aim lags.
+The per-rank lead factor (base 2.00, -7.4% per rank to ~0.96 at legend) is the only skill lever, so a legend leads true and low ranks over-lead a crossing target.
 Aim and lock bind per NPC through `set_aim_params` (PR #594), the seam added so a rank curve can vary per NPC.
 
 ### Discipline
@@ -686,7 +690,7 @@ Intelligence is base + map-rank slope, capped; rank is the map tier (`xlevel.get
 Wild varies GAME values only - the engine's own bands multiplied inside bounded envelopes; our clocks are flat constants and no move carries a per-move cooldown.
 The flee rarity is the one extra clock: 60s between flee windows, and a flee is never denied; while its window holds, no other move fires and the proposal subscriber re-proposes `eStateAttack_RunAway`.
 CAPS bound the spice: at most 3 driven moves assumed running per bucket (vs_player, vs_npc) on 3s slots - an offensive fire checks then adds, flee adds unchecked, claw and the armed backstrike sit outside; a dry bucket skips the weapon reads entirely, the 100-mutant guard.
-THE LEAP FAMILY is a 2x2, predator logic: watching decides the wind-up, strafing decides the steering. An enemy NOT watching gets the telegraphed Leap (the wind-up costs nothing against a turned back); a watching enemy gets the Jump with no wind-up (winding up in front of a gun hands it a free second); a strafing enemy gets the adapt variant of either - Leap adapt unwatched, Jump adapt watched - the air-steering leap via `set_monster_jump_flags` auto-aim, the gain rolled inside the vanilla envelope and the species' own basis restored after.
+THE LEAP FAMILY is a 2x2, predator logic: watching decides the wind-up, strafing decides the steering. An enemy NOT watching gets the telegraphed Leap (the wind-up costs nothing against a turned back); a watching enemy gets the Jump with no wind-up (winding up in front of a gun hands it a free second); a strafing enemy gets the adapt variant of either - Leap adapt unwatched, Jump adapt watched - the air-steering leap via `set_monster_jump_flags` auto-aim, the gain rolled inside the vanilla envelope and the species' own basis restored at the landing (the engine reads the gain live through the flight, so an immediate restore would kill the steering).
 THE BODY-PLAN LAW: every jump carrier leaps at an enemy exploiting elevation (`xcombat.is_enemy_above`, the engine's own 0.8m dog-gate standard); quadrupeds take OUR commanded leap ONLY on elevation (flat ground stays their vanilla character), bipeds take the full jump-band premises.
 THE ANTI-EXPLOIT LAW: an exploit premise always maps to a punish move - a held aim (`is_aim_held`, 3s) draws the burer's Gravity attack, an elevated enemy draws the leap or the gravity answer, a strafing watcher draws the adapt.
 The shotgun is respected everywhere, facing-aware: in its band and AIMED it blocks the jumps and the rush; turned away it is a leap premise; the close draw is a flee premise; past its band it is a weak gun.
@@ -700,10 +704,11 @@ Stops: inert below the monster seam set with one INACTIVE line; a move never fir
 monster_on_update (binder scheduler, 100ms near to 625ms far) -> the one lane, gated 600ms per mutant (at_mutants.script)
   adopt: tier, the [moves] envelope and the NEW pool ([managed] complement), the quadruped flag,
          bounded wild offsets over ini_sys basis values behind the page's vary rows (Movement,
-         Leap range - the leap band and delay, plus the chimera's private attack pacing - Rush range,
-         the burer gravity numbers and telekinesis, the controller tube and stamina, the
-         poltergeist hover and detection, the aura row), species pacing rolls, the backstrike
-         arm roll (re-decided each adoption)
+         Leap range - the leap band, delay, and the native accept gates (angle, height), plus the
+         chimera's private attack pacing - Rush range, the burer gravity numbers and telekinesis
+         with its lifted-object count, the controller tube and stamina, the poltergeist hover -
+         heights, drift speed, dwell - and detection, the aura row), species pacing rolls, the
+         backstrike arm roll (re-decided each adoption)
   every beat: upkeep (the claw-override clear on its window or any jump, the gravity-force release),
          the motion samples (recede, lateral strafe) and the burer aim-held timer
   free decision beat (the 6s clock): the weapon memo (skipped dry), the premise walk down BEST_MOVES -
@@ -723,7 +728,7 @@ before-hit seams: damage dealt (victim-side, keyed on shit.draftsman) and damage
 - The MCM is a General page (Intelligence base, per rank, Wild), Power (damage, resistance), then one page per species - chimera, bloodsucker, burer, controller, poltergeist, dog, boar, snork, pseudodog, pseudogigant, cat, flesh, fracture, karlik, tushkano, a subclass folding into its base page via `[pages]` - each with a MANAGED MOVES section (the creature's own attacks and the varied-vanilla rows) then NEW MOVES (attacks vanilla never fires for that species); every row's tooltip opens with its gates as the first bracketed token ([int, wild] or [wild]). Any nonzero stat slider, move toggle, or vary row keeps the module live. Every band is bounded in `at_mutants_config.ltx`; the classification lives in its `[moves]` and `[managed]` sections.
 - The Backstrike arms chimera, lurker, burer, and controller with their own models' strike motions; every armed motion carries its own `attack_params` row (the damage law) - the chimera-class DLTX rows, the burer's `stand_attack_0`, the controller's `stand_attack_0`/`stand_attack_1`.
 - The claw's damage is author-owned: the DLTX rows give `jump_attack_0` its own `attack_params` numbers (chimera and lurker), instead of the release fallback to the leap row.
-- The HUD mob rows follow the stalker rules (the same gate radius, fighting mutants only) and speak plain words - the live window ("fleeing 4.2s", "clawing") or the carried moves; every fired move stamps the driver with its gates ("JUMP ATTACK int, wild"); the world log gains the driver column plus the four monster FSM memories (hit, sound, enemy, home) on every edge line. Both PULL from `at_mutants.get_mutant_record`/`get_driver`, the module never writes an observability surface. Every influenced value traces at adoption as a `[MUT] vary` line, every fire/pass/block edge as its own `[MUT]` line with the pick and gate tokens, all at DEBUG and free when off.
+- The HUD mob rows follow the stalker rules (the same gate radius, fighting mutants only) and speak plain words - the live window ("fleeing 4.2s", "clawing") or the carried moves; every fired move stamps the driver with its gates ("JUMP int, wild"); the world log gains the driver column plus the four monster FSM memories (hit, sound, enemy, home) on every edge line. Both PULL from `at_mutants.get_mutant_record`/`get_driver`, the module never writes an observability surface. Every influenced value traces at adoption as a `[MUT] vary` line, every fire/pass/block edge as its own `[MUT]` line with the pick and gate tokens, all at DEBUG and free when off.
 - The [MUT] window line aggregates tick, adoption, and proposal spans, the per-session cost measured against the 0.1ms average and 2ms ceiling budget.
 
 ## Planned

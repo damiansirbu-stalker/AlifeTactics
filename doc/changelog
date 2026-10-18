@@ -1,5 +1,18 @@
 1.2.2-snapshot
-  Summary: Mutants, the decision model, the leap family, anti-camping, per-species move pages, the chimera claw, mutant HUD and trace
+  Summary: Mutants, the decision model, the leap family, anti-camping, per-species move pages, the chimera claw, mutant HUD and trace, the stalker Intelligence gate, rank curves as pairs
+
+  Combat
+    General
+      - Added Intelligence for stalkers: the chance a stalker acts on a decision his faction carries, a base slider plus a per-rank slider.
+          Every AlifeTactics stalker decision (a maneuver, a press, a pull-back, a tactical crouch) now passes two capped gates, his faction's chance and this one,
+          so nothing is ever certain and rank buys the good decision more often. Zombied never participate in anything, same as before.
+    Commitment
+      - Liquidate now draws from the same per-window budget as every other action AlifeTactics starts, so a crowd cannot all extend fire through your one reload at once.
+          A spent budget relents the hold exactly as without the feature.
+
+  Effectiveness
+    - Changed every rank curve to one base slider plus a percent-per-rank slider: accuracy, moving fire, tracking speed, tracking lock, target lead, burst size,
+        fire cadence, and in Perception the vision speed and range. 2 sliders per curve replace 8, fitted to the retired per-rank tables; moved sliders on these pages reset to defaults once.
 
   Mutants
     General
