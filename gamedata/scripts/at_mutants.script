@@ -30,8 +30,6 @@ local MOVE_LEAP_ADAPT = "leap_adapt"
 local MOVE_JUMP_ADAPT = "jump_adapt"
 local MOVE_FLEE       = "flee"
 local MOVE_ROAR       = "roar"
-local PICK_BEST       = "best"
-local PICK_RANDOM     = "random"
 local PREMISE_LOW     = "low_health"
 
 local MOVE_KEYS = {
@@ -39,11 +37,7 @@ local MOVE_KEYS = {
     "cloak", "gravity_attack", "claw", "backstrike", "roar",
 }
 
--- The tag classes: SELECTABLE moves enter the pools; flee adds a slot but is never denied; claw sits outside the caps.
-local SELECTABLE = {
-    leap = true, jump = true, leap_adapt = true, jump_adapt = true, rush = true,
-    dodge = true, gravity_attack = true, roar = true, claw = true, flee = true,
-}
+-- The capped moves check a bucket slot before firing; flee adds a slot but is never denied; claw sits outside the caps.
 local CAPPED = {
     leap = true, jump = true, leap_adapt = true, jump_adapt = true, rush = true,
     dodge = true, gravity_attack = true, roar = true,
@@ -71,7 +65,6 @@ local _tracks = { damage = {}, taken = {} }
 local _tun = nil
 local _tun_num = nil
 local _move_species = {}
-local _managed_species = {}
 local _quadrupeds = {}
 local _pages = {}
 local _move_cfg = {}
@@ -392,17 +385,6 @@ local function _try_arm_backstrike(mob, rec)
     end
 end
 
--- The NEW selectable moves of a species, the fail pool's membership (random picks draw from these plus nothing).
-local function _build_new_moves(species)
-    local pool = {}
-    for i = 1, #MOVE_KEYS do
-        local move = MOVE_KEYS[i]
-        local carried = _move_species[move][species] and SELECTABLE[move]
-        if carried and not _managed_species[move][species] then pool[#pool + 1] = move end
-    end
-    return pool
-end
-
 local function _add_mutant(mob, id, now)
     local dbg = at_debug.is_on()
     local tmr = xprofiler.new_if(dbg):start()
@@ -426,8 +408,6 @@ local function _add_mutant(mob, id, now)
         tick_now = now,
         driver = "-",
         moves = moves,
-        new_moves = species and _build_new_moves(species) or {},
-        pick_scratch = {},
         memo = {},
         decided_at = 0,
         flee_ok_at = 0,
@@ -607,13 +587,13 @@ local function _log_block(rec, move, cause)
     end
 end
 
-local function _log_fire(rec, move, pick, detail)
+local function _log_fire(rec, move, detail)
     rec.driver = move:gsub("_", " "):upper()
     rec.gate = GATE_BOTH
     rec.fired_at = rec.tick_now
     if at_debug.is_on() then
-        at_debug.debug("[MUT] FIRE id=%d move=%s pick=%s d=%.1f%s gate=int,wild",
-            rec.id, move, pick, rec.memo.dist, detail or "")
+        at_debug.debug("[MUT] FIRE id=%d move=%s d=%.1f%s gate=int,wild",
+            rec.id, move, rec.memo.dist, detail or "")
     end
 end
 
@@ -633,7 +613,7 @@ local function _resolve_leap_variant(mob, rec)
 end
 
 -- One commanded leap: the mechanical gates, the caps, the override clear, the variant's flags, the landing-deferred gain restore.
-local function _execute_leap(mob, rec, move, pick, now)
+local function _execute_leap(mob, rec, move, now)
     local memo = rec.memo
     if memo.shotgun_aimed then return _log_block(rec, move, "shotgun") end
     if rec.quadruped and not xcombat.is_enemy_above(memo.enemy, mob, _tun_num.above_m) then
@@ -644,7 +624,7 @@ local function _execute_leap(mob, rec, move, pick, now)
     end
     if not xcombat.is_facing(mob, memo.enemy_pos, _tun_num.leap_cone) then return _log_block(rec, move, "facing") end
     if xmonster.is_monster_jumping(mob) then return _log_block(rec, move, "air") end
-    local variant = pick == PICK_BEST and _resolve_leap_variant(mob, rec) or move
+    local variant = _resolve_leap_variant(mob, rec)
     if variant == nil then return _log_block(rec, move, "toggle") end
     local steered = variant == MOVE_LEAP_ADAPT or variant == MOVE_JUMP_ADAPT
     if steered and not rec.aim_basis then return _log_block(rec, variant, "basis") end
@@ -663,37 +643,37 @@ local function _execute_leap(mob, rec, move, pick, now)
     end
     if not fired then return _log_block(rec, variant, "refused") end
     _add_slot(memo.bucket)
-    _log_fire(rec, variant, pick, aim and (" aim=%.2f"):format(aim) or nil)
+    _log_fire(rec, variant, aim and (" aim=%.2f"):format(aim) or nil)
 end
 
-local function _execute_rush(mob, rec, move, pick, _now)
+local function _execute_rush(mob, rec, move, _now)
     local memo = rec.memo
     if memo.shotgun_aimed then return _log_block(rec, move, "shotgun") end
     if not _check_slot(memo.bucket) then return _log_block(rec, move, "caps") end
     if not xmonster.try_monster_run_attack(mob) then return _log_block(rec, move, "refused") end
     _add_slot(memo.bucket)
-    _log_fire(rec, move, pick)
+    _log_fire(rec, move)
 end
 
-local function _execute_dodge(mob, rec, move, pick, _now)
+local function _execute_dodge(mob, rec, move, _now)
     if xmonster.is_monster_jumping(mob) then return _log_block(rec, move, "air") end
     if not _check_slot(rec.memo.bucket) then return _log_block(rec, move, "caps") end
     if not xmonster.try_monster_rotation_jump(mob) then return _log_block(rec, move, "refused") end
     _add_slot(rec.memo.bucket)
-    _log_fire(rec, move, pick)
+    _log_fire(rec, move)
 end
 
-local function _execute_roar(mob, rec, move, pick, _now)
+local function _execute_roar(mob, rec, move, _now)
     local memo = rec.memo
     if memo.dist < _tun_num.roar_min or memo.dist > _tun_num.roar_max then return _log_block(rec, move, "band") end
     if not _check_slot(memo.bucket) then return _log_block(rec, move, "caps") end
     if not xmonster.try_monster_threaten(mob) then return _log_block(rec, move, "refused") end
     rec.roar_open = nil
     _add_slot(memo.bucket)
-    _log_fire(rec, move, pick)
+    _log_fire(rec, move)
 end
 
-local function _execute_gravity(mob, rec, move, pick, now)
+local function _execute_gravity(mob, rec, move, now)
     local memo = rec.memo
     if memo.dist_sqr > _tun_num.stare_range_sqr then return _log_block(rec, move, "band") end
     if not _check_slot(memo.bucket) then return _log_block(rec, move, "caps") end
@@ -701,22 +681,22 @@ local function _execute_gravity(mob, rec, move, pick, now)
     rec.gravity_release = now + _tun_num.gravity_release
     rec.aim_since = nil
     _add_slot(memo.bucket)
-    _log_fire(rec, move, pick)
+    _log_fire(rec, move)
 end
 
 -- The flee window: registers a slot but is NEVER denied; the hold is long on the survival crossing.
-local function _execute_flee(_mob, rec, move, pick, now, premise)
+local function _execute_flee(_mob, rec, move, now, premise)
     local survival = premise == PREMISE_LOW
     local hold = survival and _select_band(_tun_num.survival_hold_min, _tun_num.survival_hold_max)
         or _select_band(_tun_num.flee_hold_min, _tun_num.flee_hold_max)
     rec.flee_until = now + hold
     rec.flee_ok_at = now + _tun_num.flee_throttle_ms
     _add_slot(rec.memo.bucket)
-    _log_fire(rec, move, pick, (" hold=%dms"):format(hold))
+    _log_fire(rec, move, (" hold=%dms"):format(hold))
 end
 
 -- The chimera-class contact strike; one animation owner, outside the caps, cleared by its window or any jump.
-local function _execute_claw(mob, rec, move, pick, now)
+local function _execute_claw(mob, rec, move, now)
     local memo = rec.memo
     if not rec.claw_motion then return _log_block(rec, move, "motion") end
     if memo.dist > _tun_num.claw_range then return _log_block(rec, move, "range") end
@@ -725,7 +705,7 @@ local function _execute_claw(mob, rec, move, pick, now)
     if rec.claw_until > 0 then return _log_block(rec, move, "window") end
     if not xmonster.play_monster_animation(mob, rec.claw_motion) then return _log_block(rec, move, "refused") end
     rec.claw_until = now + _tun_num.claw_clear
-    _log_fire(rec, move, pick)
+    _log_fire(rec, move)
 end
 
 local MOVE_EXEC = {
@@ -733,27 +713,6 @@ local MOVE_EXEC = {
     rush = _execute_rush, dodge = _execute_dodge, roar = _execute_roar,
     gravity_attack = _execute_gravity, flee = _execute_flee, claw = _execute_claw,
 }
-
--- FAIL path: one uniform pick across the species' toggled NEW moves plus nothing; nothing = no intervention.
-local function _execute_random(mob, rec, now)
-    local picks = rec.pick_scratch
-    local count = 0
-    for i = 1, #rec.new_moves do
-        local move = rec.new_moves[i]
-        local open = _check_toggle(rec, move) and (move ~= MOVE_FLEE or (_runaway_id and now >= rec.flee_ok_at))
-        if open and (move ~= MOVE_ROAR or rec.roar_open == true) then
-            count = count + 1
-            picks[count] = move
-        end
-    end
-    local slot = math_random(count + 1)
-    if slot > count then
-        if at_debug.is_on() then at_debug.debug("[MUT] PASS id=%d pick=nothing", rec.id) end
-        return
-    end
-    if picks[slot] == MOVE_ROAR then rec.roar_open = nil end
-    MOVE_EXEC[picks[slot]](mob, rec, picks[slot], PICK_RANDOM, now)
-end
 
 -- A best row is eligible when the species carries the toggled move, the body plan admits it, and the caps/clocks allow it.
 local function _check_row(mob, rec, row, now)
@@ -786,7 +745,7 @@ local function _update_processed(rec)
     if memo.is_actor and not memo.dry then rec.actor_kind_done = memo.kind end
 end
 
--- The decision: one true premise takes ONE Intelligence roll; the 6s clock stamps either way; a miss goes random.
+-- The decision: one true premise takes ONE Intelligence roll; the 6s clock stamps either way; a miss does nothing.
 local function _run_decision(mob, rec, now)
     local row = _find_row(mob, rec, now)
     _update_processed(rec)
@@ -794,13 +753,12 @@ local function _run_decision(mob, rec, now)
     rec.decided_at = now
     if row.move == MOVE_ROAR then rec.roar_open = nil end
     if _check_intelligence(rec) then
-        MOVE_EXEC[row.move](mob, rec, row.move, PICK_BEST, now, row.premise)
+        MOVE_EXEC[row.move](mob, rec, row.move, now, row.premise)
         return
     end
     if at_debug.is_on() then
         at_debug.debug("[MUT] PASS id=%d premise=%s best=%s", rec.id, row.premise, row.move)
     end
-    _execute_random(mob, rec, now)
 end
 
 -- The no-enemy reset: release what the fight held and drop the per-engagement state.
@@ -1059,16 +1017,12 @@ local function _load_tunables()
     }
     _slots = xttltable.create_ttl_counter({ ttl = _read_num("caps", "slot_s") or 3 })
     _move_species = {}
-    _managed_species = {}
     for i = 1, #MOVE_KEYS do
         local move = MOVE_KEYS[i]
-        local set, managed = {}, {}
+        local set = {}
         local list = xltx.read_list(_tun, "moves", move)
         for k = 1, #list do set[list[k]] = true end
-        local managed_list = xltx.read_list(_tun, "managed", move)
-        for k = 1, #managed_list do managed[managed_list[k]] = true end
         _move_species[move] = set
-        _managed_species[move] = managed
     end
     _quadrupeds = {}
     local quad_list = xltx.read_list(_tun, "quadrupeds", "species")

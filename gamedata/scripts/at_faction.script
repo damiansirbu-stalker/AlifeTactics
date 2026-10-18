@@ -1,21 +1,18 @@
---- at_faction: the stalker decision gates - faction flavor (participation) and Intelligence (base + rank), from at_faction_config.ltx
+--- at_faction: the stalker decision gates - the faction maneuver lists and Intelligence (base + rank), from at_faction_config.ltx
 
 local math_random, math_min = math.random, math.min
 
 local LTX_PATH   = "alifetactics\\at_faction_config.ltx"
-local ROLL_TTL_S = 300
 local ZOMBIED    = "zombied"
 
 local cfg = at_mcm.cfg
 
 local _ini = xltx.resolve_handle(LTX_PATH)
-local _participation_cap = xltx.read_num(_ini, "caps", "participation") or 0.75
-local _intelligence_cap  = xltx.read_num(_ini, "caps", "intelligence") or 0.75
-local _chances = {}
-local _rolls = xttltable.create_ttl_table({ default_ttl = ROLL_TTL_S })
+local _intelligence_cap = xltx.read_num(_ini, "caps", "intelligence") or 0.75
+local _lists = {}
 local _tier_index = nil
 
--- The Intelligence gate: base + per-rank slope over the stalker's own rank tier, capped - the chance of a good decision.
+-- The Intelligence probability: base + per-rank slope over the stalker's own rank tier, capped - the act chance of the decision model.
 local function _compute_intelligence(npc)
     if not _tier_index then
         _tier_index = {}
@@ -26,18 +23,18 @@ local function _compute_intelligence(npc)
     return math_min((cfg.int_base + cfg.int_rank_pct * index) / 100, _intelligence_cap)
 end
 
---- The configured participation chance for one faction and key; 1 when neither the faction nor default carries it.
-function get_faction_chance(faction, key)
-    faction = faction or "default"
-    local ck = faction .. "/" .. key
-    local chance = _chances[ck]
-    if chance == nil then
-        chance = xltx.read_num(_ini, faction, key)
-        if chance == nil then chance = xltx.read_num(_ini, "default", key) end
-        if chance == nil then chance = 1 end
-        _chances[ck] = chance
+-- The faction set for one maneuver, cached; false when the config carries no [<name>] list (the maneuver is universal).
+local function _get_factions(name)
+    local cached = _lists[name]
+    if cached ~= nil then return cached end
+    local rows = xltx.read_list(_ini, name, "factions")
+    local set = false
+    if #rows > 0 then
+        set = {}
+        for i = 1, #rows do set[rows[i]] = true end
     end
-    return chance
+    _lists[name] = set
+    return set
 end
 
 --- Zombied never participate in any system - the one universal filter; skill and correctness systems read this alone.
@@ -45,17 +42,14 @@ function is_participant(npc)
     return xcreature.get_community(npc) ~= ZOMBIED
 end
 
---- Does THIS stalker act on the behavior: the capped faction participation roll AND the capped Intelligence roll.
---- The combined answer rolls once per NPC per key and holds ROLL_TTL_S, so he never flip-flops within a fight.
-function has_flavor(npc, key)
-    local community = xcreature.get_community(npc)
-    if community == ZOMBIED then return false end
-    local chance = get_faction_chance(community, key)
-    if chance <= 0 then return false end
-    local rk = npc:id() .. "/" .. key
-    if _rolls:get_remaining_ttl(rk) ~= nil then return _rolls:get(rk) end
-    local held = math_random() < math_min(chance, _participation_cap)
-        and math_random() < _compute_intelligence(npc)
-    _rolls:set(rk, held)
-    return held
+--- Does this stalker's faction carry the maneuver: listed in the maneuver's section, or no section = every faction.
+function has_maneuver(npc, name)
+    local set = _get_factions(name)
+    if not set then return true end
+    return set[xcreature.get_community(npc)] == true
+end
+
+--- The one Intelligence roll of a decision - the chance of the good answer at this opening; the caller spends the opening either way.
+function check_intelligence(npc)
+    return math_random() < _compute_intelligence(npc)
 end

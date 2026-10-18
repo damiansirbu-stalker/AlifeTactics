@@ -156,7 +156,7 @@ end
 
 local function _can_open_push(npc, state, tg)
     return at_core.is_in_gate(state) and tg >= (state.push_until or 0)
-        and at_faction.has_flavor(npc, "behavior_push")
+        and at_faction.is_participant(npc)
 end
 
 --- The stop cause for an active or eligible push (nil = keep pressing).
@@ -166,6 +166,16 @@ local function _get_stop_cause(state, human, joined, tg)
     if not human then return "no_target" end
     if joined and (tg - (state.push_at or tg)) > PUSH_WINDOW_MAX_MS then return PUSH_STOP_CAP end
     return nil
+end
+
+-- The open roll: a miss spends the opening for the press cooldown.
+local function _check_push_roll(npc, state, tg, cause)
+    if at_faction.check_intelligence(npc) then return true end
+    state.push_until = tg + PUSH_PRESS_COOLDOWN_MS
+    if at_debug.is_on() then
+        at_debug.debug("[PUSH] PASS id=%s cause=%s", show(state.id), cause)
+    end
+    return false
 end
 
 local function _update_push_npc(npc, state, tg)
@@ -188,6 +198,7 @@ local function _update_push_npc(npc, state, tg)
         return
     end
     if not joined and not _check_start(state, "[PUSH]") then return end
+    if not joined and not _check_push_roll(npc, state, tg, cause) then return end
     _apply_push_writes(npc, state, target, cause)
     if not joined and (state.push_fire ~= nil or state.push_band ~= nil) then
         state.push_cause, state.push_at = cause, tg
@@ -217,7 +228,7 @@ local function _clear_pull_npc(npc, state, why, tg)
 end
 
 local function _try_open_pull(npc, state, tg)
-    if not at_faction.has_flavor(npc, "behavior_pull") then return end
+    if not at_faction.is_participant(npc) then return end
     if tg < (state.pull_until or 0) then return end
     local target = _get_target(state)
     if not target then return end
@@ -227,6 +238,13 @@ local function _try_open_pull(npc, state, tg)
     local cause = _get_pull_cause(npc, state, tg, false)
     if not cause then return end
     if not _check_start(state, "[PULL]") then return end
+    if not at_faction.check_intelligence(npc) then
+        state.pull_until = tg + PULL_COOLDOWN_MS
+        if at_debug.is_on() then
+            at_debug.debug("[PULL] PASS id=%s cause=%s", show(state.id), cause)
+        end
+        return
+    end
     at_core.add_start(_get_bucket(state))
     local dist = npc:position():distance_to(target:position())
     local min_m = dist * PULL_BAND_K

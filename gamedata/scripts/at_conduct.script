@@ -23,7 +23,7 @@ local W_SNIPER = "w_sniper"
 local SPACING_RANKS = { "novice", "trainee", "experienced", "professional",
                         "veteran", "expert", "master", "legend" }
 local CRPOP_WINDOW_MS = 60000
-local CRPOP_GATES = { "asked", "op", "kind", "tier", "flavor", "enemy", "calm", "floor", "ray", "crouch" }
+local CRPOP_GATES = { "asked", "op", "kind", "tier", "int", "enemy", "calm", "floor", "ray", "crouch" }
 
 local _decision = {}
 local _eligible = {}
@@ -97,7 +97,7 @@ local function _log_crpop(tg)
             local set = _crpop.gates[CRPOP_GATES[i]]
             counts[i] = set and set.n or 0
         end
-        at_debug.debug("[CRPOP] asked=%d op=%d kind=%d tier=%d flavor=%d enemy=%d calm=%d floor=%d ray=%d crouch=%d", unpack(counts))
+        at_debug.debug("[CRPOP] asked=%d op=%d kind=%d tier=%d int=%d enemy=%d calm=%d floor=%d ray=%d crouch=%d", unpack(counts))
     end
     _crpop.at = tg
     _crpop.gates = {}
@@ -113,23 +113,22 @@ local function _try_crpop_entry(npc, world_operator)
     return npc_id
 end
 
---- The tier/flavor split marks; the cached-false path re-derives each sub-gate for the count only.
+--- The tier/int split marks; the cached-false path re-derives the tier sub-gate for the count (the roll is not re-derivable).
 local function _add_crpop_elig(npc, npc_id, elig)
     if elig then
         _add_crpop("tier", npc_id)
-        _add_crpop("flavor", npc_id)
+        _add_crpop("int", npc_id)
         return
     end
     if POSTURE_TIERS[ranks.get_obj_rank_name(npc) or ""] == true then _add_crpop("tier", npc_id) end
-    if at_faction.has_flavor(npc, "conduct_crouch") then _add_crpop("flavor", npc_id) end
 end
 
---- Tier and the crouch-disposition roll (at_faction conduct_crouch), cached once per NPC life.
+--- Tier and the one Intelligence roll, cached once per NPC life.
 local function _is_eligible(npc, id)
     local ok = _eligible[id]
     if ok == nil then
         ok = POSTURE_TIERS[ranks.get_obj_rank_name(npc) or ""] == true
-            and at_faction.has_flavor(npc, "conduct_crouch")
+            and at_faction.check_intelligence(npc)
         _eligible[id] = ok
     end
     return ok
@@ -140,7 +139,7 @@ local function _log_busy(id, busy_why, held)
         held and (held.want == move.crouch and "crouch" or "stand") or "none")
 end
 
---- The non-zombied admission gates (weapon kind, tier, flavor), with their [CRPOP] marks.
+--- The non-zombied admission gates (weapon kind, tier, Intelligence), with their [CRPOP] marks.
 local function _check_admission(npc, id, crpop_id)
     local kind = xcombat.get_weapon_kind(npc)
     if not (kind and LONG_KINDS[kind]) then return false end

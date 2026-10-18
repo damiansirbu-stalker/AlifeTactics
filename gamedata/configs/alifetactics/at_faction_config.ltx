@@ -1,96 +1,14 @@
-; AlifeTactics faction flavor - the participation chance a faction's stalker carries each behavior. Paired
-; with gamedata/scripts/at_faction.script. Section = faction, key = the decision, value = 0..1.
-; Lookup: [<faction>] key, else [default] key, else 1 (carries it). Participation is one of the two gates:
-; it rolls against the capped chance AND the Intelligence roll (MCM base + per-rank), the combined answer
-; rolled once per NPC per key and held for the fight; 0 never rolls. Zombied never participate in anything,
-; a universal rule in at_faction.script, so no [zombied] section exists.
+; AlifeTactics faction character - which factions carry a forked maneuver. Paired with
+; gamedata/scripts/at_faction.script. Section = maneuver, factions = the comma list carrying it; a
+; maneuver with no section here is universal. The one fork is the hurt answer: flee (stow and run to
+; base) against retreat (fighting walk to cover); a faction in neither list holds and keeps fighting.
+; Zombied never participate in anything, a universal rule in at_faction.script.
 
-[caps] ; nothing is ever certain: both gates cap here
-participation = 0.75
-intelligence  = 0.75
+[caps] ; nothing is ever certain: Intelligence caps here
+intelligence = 0.75
 
-[default]
-maneuver_flee    = 0
-conduct_crouch   = 0.3
+[flee]
+factions = stalker, freedom, killer, bandit, renegade, csky, ecolog
 
-[stalker]
-maneuver_flee    = 0.5
-maneuver_pickoff = 0.8
-behavior_push    = 0.5
-behavior_pull    = 0.5
-
-[army]
-maneuver_retreat = 0.8
-behavior_push    = 0.7
-behavior_pull    = 0.7
-conduct_crouch   = 0.6
-
-[dolg]
-maneuver_retreat = 0.8
-maneuver_pickoff = 0.9
-behavior_push    = 0.7
-behavior_pull    = 0.7
-conduct_crouch   = 0.6
-
-[freedom]
-maneuver_flee    = 0.2
-maneuver_retreat = 0.8
-maneuver_pickoff = 0.8
-behavior_push    = 0.6
-behavior_pull    = 0.7
-conduct_crouch   = 0.45
-
-[isg]
-maneuver_retreat = 0.8
-behavior_push    = 0.7
-behavior_pull    = 0.7
-conduct_crouch   = 0.6
-
-[killer]
-maneuver_flee    = 0.5
-maneuver_retreat = 0.8
-behavior_push    = 0.6
-behavior_pull    = 0.6
-conduct_crouch   = 0.45
-
-[monolith]
-maneuver_retreat = 0
-behavior_pull    = 0
-conduct_crouch   = 0.6
-
-[greh]
-maneuver_retreat = 0.3
-maneuver_pickoff = 0.8
-behavior_push    = 0.9
-behavior_pull    = 0.4
-conduct_crouch   = 0.25
-
-[bandit]
-maneuver_flee    = 0.6
-maneuver_kite    = 0.9
-maneuver_pickoff = 0.6
-behavior_push    = 0.9
-behavior_pull    = 0.8
-conduct_crouch   = 0.25
-
-[renegade]
-maneuver_flee    = 0.7
-maneuver_kite    = 0.8
-maneuver_pickoff = 0.6
-behavior_push    = 0.9
-behavior_pull    = 0.9
-conduct_crouch   = 0.2
-
-[csky]
-maneuver_flee    = 0.9
-maneuver_kite    = 0.7
-maneuver_pickoff = 0.6
-behavior_push    = 0.4
-conduct_crouch   = 0.2
-
-[ecolog]
-maneuver_flee    = 1
-maneuver_kite    = 0.6
-maneuver_pickoff = 0.4
-behavior_push    = 0.2
-conduct_crouch   = 0.15
+[retreat]
+factions = army, dolg, freedom, isg, killer, stalker, bandit, greh, renegade, csky, ecolog

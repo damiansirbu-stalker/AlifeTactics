@@ -88,15 +88,13 @@ Every system below has its own MCM page in this order, where it is toggled and t
 
 Combat
 
-Faction flavor and Intelligence:
-Every faction fights its own way, and every stalker decision passes two gates.
-The first is his faction: whether a stalker routs, pulls back, presses your empty magazine, plants for deliberate shots, backs out of close range, or takes a tactical crouch is a per-faction chance.
-The second is Intelligence, the chance of a good decision, a base plus a bonus per rank, two sliders on the General page.
-Both gates cap short of certain, and the combined roll holds per stalker per fight, so each man stays consistent while the fight lasts.
-Ecologists run from a losing fight and rarely press yours. Bandits and renegades press hard and rarely hold a disciplined standoff.
-The militarized factions crouch on the firing line, withdraw in order, and do not rout. Monolith never backs down. Loners sit in the middle, mercenaries beside them with the military edge.
+Faction character and Intelligence:
+Every stalker decision takes one Intelligence roll, the chance of a good decision, a base plus a bonus per rank, two sliders on the General page.
+The roll caps short of certain, so a veteran reads the fight sharp and a novice fumbles his openings, and nothing is ever guaranteed.
+Faction character is what a faction does when hurt: some flee the fight, some pull back to cover still firing, and Monolith does neither - it holds and keeps shooting.
+Every other maneuver belongs to every faction.
 Zombied participate in nothing, ever.
-Every faction number is one line in the faction config, per faction and per behavior, yours to tune.
+The flee and retreat lists are two lines in the faction config, yours to tune.
 
 Maneuvers:
 A maneuver takes one stalker over completely to perform what the vanilla engine cannot, either a mechanic it lacks or a decision it never makes.
@@ -276,7 +274,7 @@ Rank 0 stays vanilla, and every value multiplies the installed balance, so a mut
 
 General:
 Observing is free, deciding is hard: every mutant sees your reload from the first fight, and Intelligence is the chance it answers with the RIGHT move, a base plus a bonus per map rank.
-A missed roll picks at random from the moves its species never had, or does nothing at all, so even a dull mutant shows every move, mistimed. One decision every few seconds, and only a few driven moves run at once across the pack.
+A missed roll lets the opening go, so a dull mutant wastes chance after chance while a sharp one punishes each - every move you see has a real cause behind it. One decision every few seconds, and only a few driven moves run at once across the pack.
 Wild is how much every move value varies, timings, distances, bands, geometry: at 0 mutants are identical and learnable, at 100 no two spawns or actions read alike.
 
 Species:

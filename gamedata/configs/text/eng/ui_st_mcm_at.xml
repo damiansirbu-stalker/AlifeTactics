@@ -81,13 +81,13 @@
   </string>
   <!-- ==================== PLANNED PAGE DESCRIPTIONS ==================== -->
   <string id="ui_mcm_at_combat_general_desc">
-    <text>The stalker decision gate. Every AlifeTactics decision a stalker makes - a maneuver, a push, a pull, a crouch - passes his faction's participation roll and this Intelligence roll, the chance of a good decision. Both are capped, so nothing is ever certain.</text>
+    <text>The stalker decision gate. Every AlifeTactics decision a stalker makes - a maneuver, a push, a pull, a crouch - takes one Intelligence roll, the chance of a good decision. It is capped, so nothing is ever certain.</text>
   </string>
   <string id="ui_mcm_at_general_int_base">
     <text>Intelligence</text>
   </string>
   <string id="ui_mcm_at_general_int_base_desc">
-    <text>The base chance a stalker acts on a decision his faction carries, before rank. Higher means more stalkers act on their reads.</text>
+    <text>The base chance a stalker acts on an opening, before rank. Higher means more stalkers act on their reads.</text>
   </string>
   <string id="ui_mcm_at_general_int_rank_pct">
     <text>Intelligence per rank (%)</text>
@@ -265,7 +265,7 @@
     <text>Intelligence (%)</text>
   </string>
   <string id="ui_mcm_at_mutants_mut_int_base_desc">
-    <text>The chance a mutant answers an opening with the RIGHT move, before the rank bonus. Observing is free, deciding is hard: every mutant sees the reload; a passed roll fires the best answer, a missed roll picks at random from its new moves or does nothing. One decision per few seconds.</text>
+    <text>The chance a mutant answers an opening with the right move, before the rank bonus. Observing is free, deciding is hard: every mutant sees the reload; a passed roll fires the best answer, a missed roll lets the opening go. One decision per few seconds.</text>
   </string>
   <string id="ui_mcm_at_mutants_mut_int_rank_pct">
     <text>Per rank (%)</text>
@@ -703,7 +703,7 @@
   </string>
   <!-- ==================== MANEUVERS PAGE ==================== -->
   <string id="ui_mcm_at_combat_desc">
-    <text>A maneuver is a complete, authoritative takeover of one stalker to perform what the vanilla engine cannot, whether as a mechanic it lacks or a decision it never makes. The system reads combat events, NPC and player stats, and the world, then makes an intelligent decision in the combatant's favor, weighing squad and faction, squad and enemy state, range, angle, cover, and weapons. The design goes further than the single stalker: whole squads coordinating their movement and fire, each faction fighting in its own flavor and favoring the maneuvers that suit it. It overrides no combat scripts, so it works with other combat AI. Each maneuver below toggles on its own.</text>
+    <text>A maneuver is a complete, authoritative takeover of one stalker to perform what the vanilla engine cannot, whether as a mechanic it lacks or a decision it never makes. The system reads combat events, NPC and player stats, and the world, then makes an intelligent decision in the combatant's favor, weighing squad and faction, squad and enemy state, range, angle, cover, and weapons. The design goes further than the single stalker: whole squads coordinating their movement and fire, each faction favoring the maneuvers that suit it. It overrides no combat scripts, so it works with other combat AI. Each maneuver below toggles on its own.</text>
   </string>
   <string id="ui_mcm_at_combat_combat_enabled">
     <text>Enable combat takeover</text>

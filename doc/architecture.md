@@ -78,17 +78,18 @@ Commitment runs on the action-switch and cover-repick vetoes, Conduct on the bod
 Every behaviour decides the same way.
 An objective premise gates a chance, and only a passed roll acts.
 The premise is a read of the fight.
-The chance is Intelligence on both sides, a base plus a per-rank term, capped; a stalker passes his faction's participation roll first (the flavour gate), a mutant has no flavour gate - a species either has a move or it does not, the `[moves]` envelope in `at_mutants_config.ltx`.
-The two Intelligence pairs are separate controls (the stalker's on the Combat General page, the mutant's on the Mutants General page) because the windowing differs: a stalker holds his combined roll 300s, a mutant rolls at every opening.
-Push, Pull, the LIQUIDATE deferral, and the maneuver catalog run this on the stalker side, where the premise is each `check_need` or `is_enemy_vulnerable` and the chance is the two gates, a missed roll spends the opening, and a passed roll commits to a window; the LIQUIDATE deferral spends a start from the same window budget every other decision draws on.
+The chance is Intelligence on both sides, a base plus a per-rank term, capped, rolled at every opening; there is no other roll.
+Character is membership, never chance: a species either has a move or it does not (the `[moves]` envelope in `at_mutants_config.ltx`), and a faction either carries a forked maneuver or it does not (the `[flee]` and `[retreat]` lists in `at_faction_config.ltx`); every other maneuver is universal.
+The two Intelligence pairs are separate controls, the stalker's on the Combat General page and the mutant's on the Mutants General page.
+Push, Pull, and the maneuver catalog run this on the stalker side, where the premise is each `check_need` or the press cause, a missed roll spends the opening, and a passed roll commits to a window; the LIQUIDATE deferral carries no roll - finishing a helpless target is basic predation, not learned skill - and spends a start from the same window budget every other decision draws on.
 The mutant moves run it in `at_mutants` as one decision clock: every 600ms beat a fighting mutant observes the premise table (`BEST_MOVES`), the first eligible true premise takes ONE Intelligence roll (`_check_intelligence`), and the flat 6s clock stamps either way.
-A passed roll fires that premise's mapped best move; a failed roll picks uniformly from the species' NEW moves plus nothing.
-Observing is free, deciding is hard: every mutant sees the reload from the first fight, and rank buys the correct answer, not the move's existence - the fail-random path is why every move is visible from the lowest-rank maps.
+A passed roll fires that premise's mapped best move; a failed roll lets the opening go and the vanilla FSM fights on.
+Observing is free, deciding is hard: every mutant sees the reload from the first fight, and rank buys seizing the opening more often - every fired move has a true cause behind it, so the tells stay learnable.
 
 Correctness fixes and skill scaling sit outside the pattern.
 A correctness fix, a veto or a vanilla-bug repair, carries no premise and no roll and always applies.
 Commitment's switch denial, the danger-scheme repairs, and the targeting fixes are correctness.
-Skill scaling is a per-rank curve gated only by participation, with no situational premise.
+Skill scaling is a per-rank curve gated only by `is_participant`, with no situational premise.
 The accuracy, aim, vision, and discipline curves and the mutant damage and resistance tracks are skill scaling.
 
 The premise reads on two independent axes.
@@ -204,29 +205,23 @@ A change that breaks one is wrong even when it works.
 
 The substrate carries no user surface.
 at_core is above (Control model, Data and ownership).
-Faction flavour, the effects resolver, the xcombat boundary, and the GOAP graft follow.
+Faction character, the effects resolver, the xcombat boundary, and the GOAP graft follow.
 
-### Faction flavor
+### Faction character
 
-Does: decides whether a behaviour triggers for this NPC before the behaviour's own mechanics run - the two stalker gates, faction participation then Intelligence.
-Changes: a per-NPC boolean held for the fight, nothing in the world.
+Does: answers whether a faction carries a forked maneuver - membership, never chance - and owns the stalker Intelligence roll.
+Changes: nothing in the world; a lookup and a roll the decision systems consume.
 Stops: a zombied NPC never participates in anything - `is_participant` is the one universal filter, and the skill and correctness systems read it alone, no rolls.
 
 ```
-has_flavor(npc, key) (at_faction.script):
-  zombied -> false (the universal filter)
-  chance = get_faction_chance(community, key)   [<faction>] key, else [default], else 1
-  chance <= 0 -> false   (no roll)
-  else held = roll(min(chance, participation cap)) AND roll(Intelligence)
-       Intelligence = min((int_base + int_rank_pct * rank index) / 100, intelligence cap)
-       the combined boolean held 300s per NPC per key in an xttltable
+at_faction.script:
+  is_participant(npc)       community ~= zombied, the universal filter
+  has_maneuver(npc, name)   the maneuver's [<name>] factions list carries the NPC's faction; no list = universal
+  check_intelligence(npc)   one roll against min((int_base + int_rank_pct * rank index) / 100, intelligence cap)
 ```
 
-The combined roll holds 300s so a stalker either carries a behaviour for the whole fight or does not.
-The TTL avoids policing the fight edge, which flickers across lulls.
-Both gates cap at 0.75 (`at_faction_config.ltx [caps]`), so nothing is ever certain - even a config 1.0 row rolls.
-The faction character lives in `at_faction_config.ltx`, all user-set; the Intelligence pair lives on the Combat General page.
-The militarized factions hold posture and never rout, the flee-prone run first, the aggressive factions press.
+The one fork is the hurt answer: flee (stow and run to base) against retreat (fighting walk to cover); a faction in neither list holds and keeps fighting.
+The lists live in `at_faction_config.ltx`, all user-set; the Intelligence pair lives on the Combat General page, capped at 0.75 (`[caps]`), so nothing is ever certain.
 
 ### Effects resolver
 
@@ -337,8 +332,9 @@ begin check (600ms, _try_begin_maneuver at_maneuvers.script):
   fighting? (live best_enemy or a hit within hit_fight_ms), enemy is actor or stalker
   _check_seize_block: armed, outside smart cover, no playing animation, budget left
   _resolve_maneuver: walk the catalog from a per-NPC cursor
-    per row: scope -> toggle -> flavor -> check_need -> palette -> find_destination
-    first row whose need holds runs its find_destination (the one geometry probe) and ends the walk
+    per row: scope -> toggle -> faction -> palette -> check_need -> the Intelligence roll -> find_destination
+    first row whose need holds takes the one roll; a pass runs its find_destination (the one geometry
+    probe), a miss spends the opening; either way the walk ends
   _try_seize: spend a start, apply_takeover_block, raise the gate, stamp row + dest + committed target
 update check (200ms, _update_maneuver): re-apply the row's state, skip while reloading or a hit reaction plays
 end check   (200ms, _try_end_maneuver): wounded, the row's check_end, arrival, or the cap, target_lost ends at once
@@ -360,13 +356,13 @@ The catalog rows come from `at_maneuvers_config.script`, array order is priority
 maneuver      fires on                                   applies to               destination                      fire; move        ends on
 counterflank  actor within 5m while the committed        any NPC fighting         holds its spot, aims at actor    FIRE; STILL       3s
               target is farther (check_actor_close)      someone else (vs_actor)
-reload_cover  reloading, a watcher has him in sight      any (flavor)             nearest cover hiding him         READY; RUN        arrival, reload done, or 8s
-flee          hurt, threat in reach, last man,           the flee-prone           a friendly base 100m+ away,      STOW; RUN         arrival or 20s
+reload_cover  reloading, a watcher has him in sight      universal                nearest cover hiding him         READY; RUN        arrival, reload done, or 8s
+flee          hurt, threat in reach, last man,           the [flee] factions      a friendly base 100m+ away,      STOW; RUN         arrival or 20s
               once the shooting pauses (check_hurt)                               rear-biased
-retreat       hurt, threat in reach (check_hurt)         the flee-prone fallback  cover behind, farther from enemy FIRE; WALK        arrival or 8s
+retreat       hurt, threat in reach (check_hurt)         the [retreat] factions   cover behind, farther from enemy FIRE; WALK        arrival or 8s
 kite          nearest threat inside MY weapon minimum    universal                a clear back-lane, weapon-set    FIRE; WALK        arrival or 8s
               (check_too_close)                                                   distance to the rear
-pickoff       stalled ~4s, past the enemy's effective    the disciplined          holds its spot                   single shots; STILL  8s or premise broken
+pickoff       stalled ~4s, past the enemy's effective    universal                holds its spot                   single shots; STILL  8s or premise broken
               range, unbothered (check_stalled)
 ```
 
@@ -412,7 +408,7 @@ npc_on_get_min/max_combat_dist (#563, via xcombat.on_get_min/max_combat_dist) ->
 - every handler scales the handed base and never replaces it, so the engine's weapon-type semantics survive underneath
 - the posture decision is held for the DECIDE_MS window, because the engine re-asks the body state several times a second
 - the crouch-shot line flips between clear and blocked, so a stateless per-ask decision would flap crouch and stand
-- a per-NPC disposition roll (`conduct_crouch` flavour) crouches only some eligible stalkers, so a firing line mixes standing and crouched shooters
+- a per-NPC Intelligence roll, cached for his life, crouches only some eligible stalkers, so a firing line mixes standing and crouched shooters
 
 ### Behaviors: Push and Pull
 
@@ -425,8 +421,8 @@ at_core.update_npc -> at_behaviors.update_npc per record per pass (no seam of it
 Push (_update_push_npc at_behaviors.script): open in-gate on a human target
   press cause polled from the target: is_enemy_vulnerable under push_reload, or standing weak with hysteresis under push_finisher
   FIRE bump range-gated by the burst-tail law. BAND bump gated by target-facing advantage (bleeding, back turned, self healthy)
-  first write spends one start, caps at push_window_max_ms, cools down on his own record
-Pull (_try_open_pull / _update_pull_npc): my record shows reloading or hurt with a recent hit, my target strong, my faction rolls me in
+  the open takes one Intelligence roll, a miss stamps the press cooldown; the first write spends one start, caps at push_window_max_ms
+Pull (_try_open_pull / _update_pull_npc): my record shows reloading or hurt with a recent hit, my target strong, one Intelligence roll opens it (a miss stamps the pull cooldown)
   set_pull_band raises my accepted cover minimum so my re-picks land farther, held then cooled down
 ```
 
@@ -465,7 +461,7 @@ Stops: genuinely hostile pairs trade full damage, and the actor as shooter is ex
 
 ```
 npc_on_before_hit -> _on_before_hit (at_crossfire.script): O(1), no throttle, a damage block must catch every hit
-  stalker vs stalker, actor excluded, has_flavor(crossfire)
+  stalker vs stalker, actor excluded, is_participant
   attacker is a real enemy (xcreature.is_enemy) -> full damage
   else shit.power = power * crossfire_factor
 ```
@@ -683,7 +679,7 @@ The loot and trade inventory floors own carrier persistence, and Gear only marks
 
 Mutant combat runs the shared decision model with no takeover: the engine FSM stays the sole mover, and the module varies values innately and commands moves the engine validates itself.
 THE INVARIANT: every 600ms a fighting mutant checks its flat 6s decision clock; when free, it observes the premise table - the first eligible true premise takes ONE Intelligence roll and the clock stamps either way.
-PASS fires that premise's mapped best move from the global premise-to-move table (`BEST_MOVES`, species-filtered); FAIL picks uniformly from the species' NEW moves plus nothing, where nothing means no intervention.
+PASS fires that premise's mapped best move from the global premise-to-move table (`BEST_MOVES`, species-filtered); FAIL lets the opening go - no intervention, the vanilla FSM fights on.
 A refused invoke spends the decision - no fall-through.
 The edges (a fresh hit, the shotgun draw, the low-health crossing, first contact) compare against the last PROCESSED state, so an edge inside a throttled stretch latches until the next free beat.
 Intelligence is base + map-rank slope, capped; rank is the map tier (`xlevel.get_danger_tier`, 0-5).
@@ -803,7 +799,7 @@ AlifeTactics/gamedata/
     at_mcm.script                the MCM tree and the one config-defaults source
     at_debug.script              the code-trace primitives (one logger, the on() gate)
     at_core.script               the store, the 200ms monitor, the start budget
-    at_faction.script            faction flavour (get_faction_chance, has_flavor)
+    at_faction.script            faction character + the stalker gates (is_participant, has_maneuver, check_intelligence)
     at_maneuvers.script          the takeover lifecycle and the row methods
     at_maneuvers_config.script   the catalog rows (structure LTX cannot hold)
     at_commitment.script         the anti-shuffle veto
