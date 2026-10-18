@@ -1,51 +1,45 @@
 1.2.2-snapshot
-  Summary: Mutants, the decision model, the leap family, anti-camping, per-species move pages, the chimera claw, mutant HUD and trace, the stalker Intelligence gate, rank curves as pairs
-
-  Combat
-    General
-      - Added Intelligence for stalkers: the chance a stalker acts on a decision his faction carries, a base slider plus a per-rank slider.
-          Every AlifeTactics stalker decision (a maneuver, a press, a pull-back, a tactical crouch) now passes two capped gates, his faction's chance and this one,
-          so nothing is ever certain and rank buys the good decision more often. Zombied never participate in anything, same as before.
-    Commitment
-      - Liquidate now draws from the same per-window budget as every other action AlifeTactics starts, so a crowd cannot all extend fire through your one reload at once.
-          A spent budget relents the hold exactly as without the feature.
-
-  Effectiveness
-    - Changed every rank curve to one base slider plus a percent-per-rank slider: accuracy, moving fire, tracking speed, tracking lock, target lead, burst size,
-        fire cadence, and in Perception the vision speed and range. 2 sliders per curve replace 8, fitted to the retired per-rank tables; moved sliders on these pages reset to defaults once.
+  Summary: Mutant combat, the decision model, the leap family, anti-camping answers, per-species move pages, Wild variation, the stalker Intelligence gate, rank curves as pairs
 
   Mutants
     General
-      - Added Intelligence: the chance a mutant answers an opening with the right move, a base slider plus a per-rank slider over the map tier.
-          Observing is free, deciding is hard: every mutant sees the reload; a passed roll fires the best answer, a missed roll picks at random from its new moves or does nothing.
-          One decision per mutant every 6 seconds, and at most 3 driven moves run at once against you (3 more against NPCs), so a pack never turns into a volley.
-          Rank is the map tier, 0 on the starting maps up to 5 at the endgame. The whole Mutants system needs the latest demonized build and stays inactive on older exes and on AOEngine.
-      - Added Wild: how much every move value varies (timings, distances, bands, geometry). 0 keeps mutants identical and learnable, 100 rolls every value across its band.
+      - Added the mutant decision model: every mutant reads your weak moments and answers with its own body's moves.
+          A reload, a turned back, a held aim, a perch, a strafe, or a weak weapon opens a decision, and Intelligence (a base plus a bonus per map rank) decides whether the answer is the right move.
+          A missed roll still acts, picking at random from the species' new moves or doing nothing, so even a Cordon dog shows every move, mistimed, and a deep-Zone chimera times them.
+          One decision per mutant every few seconds and a hard cap on simultaneous driven moves keep a pack reading as waves. Needs the latest demonized build, inactive on older exes and AOEngine.
+      - Added Wild: one dial for how much every move value varies, timings, distances, bands, geometry. At 0 mutants are identical and learnable, at 100 no two spawns or actions read alike.
     Power
-      - Added per-rank damage and resistance: a mutant hits harder and takes less on deeper maps, each a percent-per-rank slider over your install's own balance.
-          Rank 0 stays vanilla, and every value multiplies the installed balance so a mutant overhaul keeps its numbers.
+      - Added per-rank damage and resistance: a mutant hits harder and takes less as the Zone deepens, each a percent-per-rank slider multiplying your install's own balance.
     Species
-      - Added a page per species (chimera, bloodsucker, burer, controller, poltergeist, dog, boar, snork, pseudodog, pseudogigant, cat, flesh, fracture, karlik, tushkano; a subclass follows its base page):
-          first the managed moves, the creature's own attacks and the values AlifeTactics varies, then the new moves the vanilla game never fires for that species. Every move's tooltip opens with its gates.
-      - Added the leap family: watching decides the wind-up, strafing decides the steering. Leap keeps its wind-up at a turned back, Jump drops it when the enemy
-          is watching, and Leap adapt and Jump adapt steer mid-air at a strafing enemy, the steering inside the game's own envelope. Disabling Jump keeps every leap dodgeable.
-          A shotgun aimed at a charging mutant in range stops the leap and the charge, and a shotgunner turned away invites them.
-      - Camping and elevation exploits now draw answers: every jump carrier leaps at an enemy perched above it, and a burer answers a held aim or a perched shooter with its gravity attack.
-      - Added Roar, a threat display on first contact at range for snork and pseudogigant: their own warning motion the vanilla game never plays in a fight, once per engagement.
-      - Added Rush, the full-speed charge against a fleeing enemy or a weapon weak for the range, never into an aimed shotgun.
-      - Added Dodge, a sideways juke when a weapon is aimed at the mutant up close.
-      - Added Backstrike, a spin strike on an enemy circling behind: armed once per individual on the chimera, lurker, burer, and controller, each with its own model's strike motions.
-      - Added Claw, the chimera's point-blank strike at contact: vanilla chimeras reach you and wander off with nothing to swing. Covers the lurker, the same engine class.
-      - Added Flee, a rare pull-back on a fresh hit or a close shotgun draw, and near death one long break from the fight. While a mutant flees, it commits: no other move fires.
+      - Added a page per species, every species in the game: its own attacks under AlifeTactics timing first, then the new moves vanilla never fires for it. Every tooltip opens with the move's gates.
+      - Added the leap family, predator logic: Leap keeps its wind-up at a turned back, Jump drops the wind-up when you are watching, Leap adapt and Jump adapt steer mid-air when you strafe.
+          Disabling Jump keeps every leap dodgeable. An aimed shotgun in range stops the leap and the charge, and a shotgunner turned away invites them.
+      - Camping stopped being safe: every jumper leaps at an enemy perched above it, and a burer answers a held aim or an elevated shooter with its Gravity attack.
+      - Added Rush, the full-speed charge at a fleeing enemy or a weapon too weak for the range.
+      - Added Dodge, a sideways juke when you draw a bead up close.
+      - Added Backstrike, a spin strike on an enemy circling behind, on the four species whose models carry the motions.
+      - Added Claw, the point-blank strike vanilla never gave the chimera and lurker.
+      - Added Roar, the snork and pseudogigant threat display vanilla never plays in a fight, once per engagement.
+      - Added Flee, a rare committed break from the fight when hurt, cornered, or near death.
       - Added Cloak, a varied invisibility rhythm for the bloodsucker kind.
-      - Added Gravity attack, the burer's forced gravity throw drawn by a held aim or an elevated shooter.
-      - Added bounded variation over each species' own numbers, each behind its own row: Movement (turn, reach, circling) on every page, Leap range and Rush range
-          on the species that leap or charge, the burer gravity numbers and telekinesis, the controller psi tube, stamina, and auras, and the poltergeist hover
-          and detection, all over the install's own values.
+      - Added Gravity attack, the burer's forced gravity throw on your held aim.
+      - Added bounded variation over each species' own numbers, each behind its own row: movement, leap and rush ranges, burer gravity and telekinesis, controller tube and stamina and auras,
+          and poltergeist hover and detection all breathe over the installed balance.
+
+  Combat
+    General
+      - Added Intelligence for stalkers: the same decision formula mutants run, a base plus a bonus per rank.
+          Every stalker decision now passes his faction's chance and this roll, both capped, so nothing is ever certain and rank buys the good decision more often.
+    Commitment
+      - Liquidate now draws from the same per-window budget as every other action AlifeTactics starts, so a crowd cannot all extend fire through your one reload at once.
+
+  Effectiveness
+    - Changed every rank curve to a base slider plus a percent-per-rank slider: accuracy, moving fire, tracking speed, tracking lock, target lead, burst size, fire cadence, and the two vision curves.
+        2 sliders per curve replace 8, fitted to the old tables. Moved sliders on these pages reset to defaults once.
 
   Development
-    - Added the mutant rows to the debug HUD and the mutant columns to the world trace: the driver state with its gates, the engine state, health, morale, and the species moves.
-    - Every mutant move the mod influences, triggers, or blocks traces at DEBUG: the adoption variation lines, and each fire, pass, and block edge naming its pick and gates.
+    - Added the mutant rows to the debug HUD and the world trace: the live move with its gates, the engine state, health, morale, and target.
+    - Every mutant move the mod influences, triggers, or blocks traces at DEBUG, naming its pick and gates, free when off.
 
 1.2.1
   Summary: Combat substrate, maneuvers widened to every nearby fight, Faction flavor, Push and Pull windows, Weapon spacing, Glide stop, targeting fixes, the Disclosure page removed,

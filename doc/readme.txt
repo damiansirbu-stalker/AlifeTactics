@@ -23,11 +23,13 @@ Engines:
   X-Ray Monolith: https://github.com/themrdemonized/xray-monolith/pulls?q=is%3Apr+author%3Adamiansirbu+is%3Amerged
   OpenXRay: https://github.com/OpenXRay/xray-16/pulls?q=is%3Apr+author%3Adamiansirbu+is%3Amerged
   IX-Ray: https://github.com/ixray-team/ixray-1.6-stcop/commits/develop?author=damiansirbu
-Integrations:
+Dependents:
+  COMPASS: https://github.com/Crimento/COMPASS
+  Nemesis Wave Spawn System: https://github.com/SirEndet/Nemesis-Wave-Spawn-System
   Word of Mouth: https://github.com/joshcoppola/word_of_mouth
+Integrations:
   Warfare (erepb): https://www.moddb.com/mods/stalker-anomaly/addons/warfare-alife-overhaul-new
   Stealth Overhaul: https://github.com/Alex-leon1594/Stealth_Overhaul_Reworked
-  COMPASS: https://github.com/Crimento/COMPASS
 Collaborations:
   xAGNA: https://www.moddb.com/mods/stalker-anomaly/addons/xagna
 
@@ -37,7 +39,8 @@ Thanks for the support, but I don't need donations. Reviews, ratings, and proper
 An organized group copies my work, spreads daily lies, and mass-downvotes my mods across platforms.
 My work is open source, present in most modpacks, and integrates with established projects.
 
-! After updating: MCM > Development > Reset ALL to Defaults !
+Every release is stable and whole new systems may appear. Always understand the documentation.
+After every update, use Reset ALL to Defaults in MCM under Development.
 
 Everyone wants to live.
 
@@ -48,11 +51,19 @@ Every system reads the real state of the game, then decides in the combatant's f
 It weighs combat events, NPC and player stats, the world, squad, faction, weapons, range, angle, and cover.
 Maneuvers take a stalker over for an action the vanilla engine has no mechanism for.
 Commitment holds a stalker to a decision while it still makes sense.
+Mutants run the same decision model: a mutant reads your reload, your aim, your perch, your strafe, and answers with its own body's moves.
 Threat, accuracy, and the rest read state and decide the same way.
+
+One formula runs every decision in the mod, stalker or mutant.
+A premise, the read of the fight, opens the decision. Intelligence, a base chance plus rank, passes it, and a passed decision commits to its window.
+A stalker rolls his faction first, because a bandit and an ecologist do not carry the same instincts. A mutant's species is its envelope, it has a move or it does not.
+Rank buys the correct answer more often, never new abilities, so a novice and a legend both act, and the legend is right.
 
 Effects:
 - Creatures make emergent decisions from environment, own state, enemy state, squad state, weapons, and faction doctrine.
 - Every faction fights its own way: who routs, who presses your weak moment, who plants for deliberate shots, who crouches on the line, who never backs down.
+- Mutants answer your weak moments and punish the cheese: reload and a leap comes, perch on a rock and the jumpers come up after you, hold your aim on a burer and the gravity throw answers.
+- Every mutant move value varies inside its species' own envelope, so no two spawns or charges read alike, and the variation is one dial.
 - Nothing is player-centric, and no side gets an advantage or a handicap.
 - Creatures use the items they acquired themselves: medkits, ammo, props.
 - Rank scales accuracy, weapon spread, aim speed, and how tightly a stalker tracks you, which vanilla clamps flat.
@@ -77,13 +88,15 @@ Every system below has its own MCM page in this order, where it is toggled and t
 
 Combat
 
-Faction flavor:
-Every faction fights its own way. Whether a stalker routs, pulls back, presses your empty magazine, plants for deliberate shots, backs out of close range,
-or takes a tactical crouch is a per-faction chance, rolled once per stalker per fight, so each man stays consistent while the fight lasts.
+Faction flavor and Intelligence:
+Every faction fights its own way, and every stalker decision passes two gates.
+The first is his faction: whether a stalker routs, pulls back, presses your empty magazine, plants for deliberate shots, backs out of close range, or takes a tactical crouch is a per-faction chance.
+The second is Intelligence, the chance of a good decision, a base plus a bonus per rank, two sliders on the General page.
+Both gates cap short of certain, and the combined roll holds per stalker per fight, so each man stays consistent while the fight lasts.
 Ecologists run from a losing fight and rarely press yours. Bandits and renegades press hard and rarely hold a disciplined standoff.
 The militarized factions crouch on the firing line, withdraw in order, and do not rout. Monolith never backs down. Loners sit in the middle, mercenaries beside them with the military edge.
-Zombied carry none of it.
-Every number is one line in the faction config, per faction and per behavior, yours to tune.
+Zombied participate in nothing, ever.
+Every faction number is one line in the faction config, per faction and per behavior, yours to tune.
 
 Maneuvers:
 A maneuver takes one stalker over completely to perform what the vanilla engine cannot, either a mechanic it lacks or a decision it never makes.
@@ -139,8 +152,9 @@ Effectiveness
 
 Accuracy:
 Anomaly's rank curve clamps every NPC to the same dispersion, so accuracy never scaled per rank even though the engine code exists.
-AlifeTactics restores a real per-rank curve through the engine's own dispersion callback, tunable per tier.
+AlifeTactics restores a real per-rank curve through the engine's own dispersion callback.
 A second curve covers fire on the move. Each rank keeps a share of the movement spread penalty, so rookies spray while repositioning and top ranks cut about a third of it.
+Every rank curve in the mod is two sliders, a base and a percent per rank, so retuning a whole curve is one motion instead of eight.
 The engine has several dispersion variables, including barrel and weapon, and this one is the NPC skill-based dispersion.
 
 Crossfire:
@@ -158,7 +172,7 @@ Higher ranks lead true and hit movers, lower ranks over-lead and overshoot.
 Fire Discipline scales burst size and cadence per rank.
 The shipped defaults are near-flat, so rank barely alters fire out of the box. The sliders allow the full spread.
 Defaults keep a rank's rounds per minute at or above vanilla.
-Tracking Speed, Tracking Lock, Target Lead, and Fire Discipline are per-rank MCM slider curves. Speed and Lock share one on/off, Lead and Discipline each carry their own.
+Tracking Speed, Tracking Lock, Target Lead, and Fire Discipline are each a base plus percent-per-rank slider pair. Speed and Lock share one on/off, Lead and Discipline each carry their own.
 The two rank vision curves moved to the Perception tab below. Fire Discipline is on its own Discipline tab.
 
 Range (planned):
@@ -206,7 +220,7 @@ Vision Speed sets how fast each rank turns a glimpse into a confirmed threat, fr
 No rank is slower to notice than your baseline.
 It scales the rate only. Sight range, vision cone, light and darkness response, cover and occlusion, and hearing all stay exactly as your setup has them.
 Vision Range sets how far out each rank begins to notice a threat, the same band, from your baseline at novice to about 15 percent farther at the top.
-Both are per-rank MCM slider curves under one Vision toggle, on their own Vision page.
+Both are base plus percent-per-rank slider pairs under one Vision toggle, on their own Vision page.
 
 Danger:
 A stalker hit from far off reacts even when vanilla would have him stand still, so sniped at 200m he turns and seeks cover.
@@ -249,8 +263,10 @@ Effect strengths and the artefact class tables are tunable in the gear config un
 
 Mutants
 
-Mutants get the combat treatment stalkers do, tougher as the Zone deepens and sharper against a weak target.
-The engine drives every mutant as it always has. AlifeTactics scales its stats and proposes smarter moves for the engine to run. It never takes a mutant over.
+Vanilla mutants are a straight line: they run at you, they swing, they die to anyone who stands on a rock or strafes on cooldown.
+AlifeTactics gives every mutant the decision model stalkers run. It reads your reload, your aim, your perch, your strafe, and your weapon's reach, and it answers with moves its own body already has,
+the ones vanilla fires blindly and the ones vanilla never fires at all.
+The engine drives every mutant as it always has. AlifeTactics scales its stats and commands moves the engine validates and runs itself. It never takes a mutant over.
 Rank is the map tier, from 0 on the starting maps to 5 at the endgame, so a Cordon dog barely changes while a deep-Zone chimera is far deadlier.
 The whole system needs the latest demonized build and stays inactive on older exes and on AOEngine.
 
@@ -261,7 +277,7 @@ Rank 0 stays vanilla, and every value multiplies the installed balance, so a mut
 General:
 Observing is free, deciding is hard: every mutant sees your reload from the first fight, and Intelligence is the chance it answers with the RIGHT move, a base plus a bonus per map rank.
 A missed roll picks at random from the moves its species never had, or does nothing at all, so even a dull mutant shows every move, mistimed. One decision every few seconds, and only a few driven moves run at once across the pack.
-Wild is how much every move value varies: at 0 mutants are identical and learnable, at 100 no two spawns or actions read alike.
+Wild is how much every move value varies, timings, distances, bands, geometry: at 0 mutants are identical and learnable, at 100 no two spawns or actions read alike.
 
 Species:
 Each species gets its own page carrying only the moves its body has: first the managed moves, the creature's own attacks and the values AlifeTactics varies, then the new moves the vanilla game never fires for it.
@@ -272,6 +288,8 @@ Dodge is a sideways juke when you draw a bead up close. Backstrike arms a spin s
 Flee breaks a hurt, cornered, or dying mutant out of the fight for a moment, rarely. Cloak varies the bloodsucker kind's invisibility rhythm.
 Roar is a threat display on first contact at range, the warning motion the vanilla game never plays in a fight.
 A reloading, defenseless, or fleeing enemy opens the decision early; a shotgun aimed at a charging mutant in range stops the leap and the charge, and a shotgunner turned away invites them.
+Beyond the moves, every species' own numbers breathe: movement, leap and rush ranges, the burer's gravity and telekinesis, the controller's psi tube and stamina and auras, and the poltergeist's hover
+and detection, each behind its own row, each a bounded variation over the installed balance.
 
 Fixes to Vanilla:
 AlifeTactics corrects dozens of vanilla Anomaly and xray defects, grouped below by the system each repairs.
@@ -341,7 +359,7 @@ MCM
 Compatibility:
 Depends only on xlibs. Install and uninstall mid-save work. Tested: Anomaly 1.5.3, GAMMA, EFP, Zona, Forgotten Zone.
 Drop:
-- Animated NPC Healing, and NPC-healer replacements - run in place of the Healing system.
+- NPC self-heal replacements - run in place of the Healing system.
 - G.A.M.M.A. No NPC Friendly Fire, and community friendly-fire blockers - re-filter the friendly hits Crossfire already handles and rewrite NPC relations on hit.
 - G.A.M.M.A. NPCs Faster Reactions - raises sight range and detection, so NPCs see across open ground and swamp the Vision curve. No toggle, so lower its LTX keys by hand or drop it.
 - NPC Limping and Healing (Vodoxleb) - stacks the limp and heal animation and breaks the heal cue.
@@ -350,12 +368,14 @@ Drop:
 - Worse NPC Vision and Accuracy, and any mod with its own NPC vision config - override the Vision and Accuracy systems. No toggle, so remove its accuracy LTX by hand or drop it.
 - Companion Spotters - replaces vanilla NPC movement game-wide so one bug breaks every NPC, does per-frame work plus a full world scan,
   and misroutes companions on large maps with a broken vertex check.
-- Useful Idiots - a companion overhaul whose game-wide reach replaces xr_danger, racing the Danger system on every NPC.
 Avoid:
 - G.A.M.M.A. AI Rework - runs alongside, but cripples NPC combat: it swaps the engine's targeting and firing for its own logic, revives broken combat subschemes,
   reseeds RNG at load, and is littered with dead code and hardcoded values.
 Change:
 - G.A.M.M.A. No logs and Log spam remover - leave their option off (off by default). Enabling it disables the Accuracy system.
+Coexists:
+- Useful Idiots - the combat takeover skips companions, so companions fight with its combat modes. Its own enemy evaluation decides when any NPC engages, with night, rain, and enemy-memory rules.
+  It overwrites 1 of the 3 Crossfire friendly-fire fixes with its own version.
 Everything else coexists, as long as it extends X-Ray and Anomaly and never overrides them.
 
 Not AlifeTactics (base game or your setup):
