@@ -161,7 +161,8 @@ end
 local function _on_mob_update(obj)
     if not _tick_active then return end
     if not (obj and obj:alive()) then return end
-    if not obj.get_monster_state then return end
+    local state = xmonster.get_monster_state(obj)
+    if state == nil then return end
     local ac = db.actor
     if not ac then return end
     local id = obj:id()
@@ -174,7 +175,7 @@ local function _on_mob_update(obj)
         _mob[id] = nil
         return
     end
-    local enemy = obj:get_enemy()
+    local enemy = xmonster.get_monster_enemy(obj)
     local fighting = enemy ~= nil and enemy:alive()
     if not (HUD_SHOW_IDLE or fighting) then
         _mob[id] = nil
@@ -184,10 +185,10 @@ local function _on_mob_update(obj)
     _mob[id] = {
         id = id,
         next_ms = tg, seen_ms = tg, dist_sqr = dist_sqr,
-        name = obj:name(), hp = obj.health or 0,
-        state = obj:get_monster_state(),
+        name = obj:name(), hp = xmonster.get_monster_health(obj),
+        state = state,
         morale = xmonster.get_monster_morale(obj),
-        jumping = obj:is_monster_jumping(),
+        jumping = xmonster.is_monster_jumping(obj),
         systems = rec and _format_mob_systems(rec, tg) or nil,
         enemy = fighting and string_format("%s %dm",
             _format_label(xcreature.get_name(enemy:id()), TARGET_NAME_MAX),

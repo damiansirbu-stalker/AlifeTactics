@@ -1,6 +1,6 @@
 --- at_mutants: the mutant combat driver - tier stat scaling, innate Wild, the decision model over the engine FSM
 
-local math_random, math_min, math_sqrt = math.random, math.min, math.sqrt
+local math_random, math_min, math_sqrt, math_floor = math.random, math.min, math.sqrt, math.floor
 local time_global, pairs, next, rawget, tostring, tonumber = time_global, pairs, next, rawget, tostring, tonumber
 local table_concat = table.concat
 local RegisterScriptCallback, UnregisterScriptCallback = RegisterScriptCallback, UnregisterScriptCallback
@@ -47,12 +47,6 @@ local SELECTABLE = {
 local CAPPED = {
     leap = true, jump = true, leap_adapt = true, jump_adapt = true, rush = true,
     dodge = true, gravity_attack = true, roar = true,
-}
-
-local DRIVER_LABEL = {
-    leap = "LEAP", jump = "JUMP", leap_adapt = "LEAP ADAPT", jump_adapt = "JUMP ADAPT",
-    rush = "RUSH", dodge = "DODGE", flee = "FLEE", gravity_attack = "GRAVITY ATTACK",
-    claw = "CLAW", roar = "ROAR",
 }
 
 -- The premise-to-move table: array order is priority; bipeds marks rows the body-plan law denies quadrupeds.
@@ -260,19 +254,22 @@ local function _apply_movement(mob, rec, section)
     end
 end
 
--- The leap basis stash (the premise band and the adapt restore point) plus the Leap range vary.
--- The varied band becomes the premise band too, so the commanded leaps read the same numbers the native ones run on.
+-- The leap basis stash: the premise band (shared with the commanded leaps), the adapt restore point (a missing basis reads as the engine default 0).
+-- The Leap range vary covers the band, the delay, and the native accept gates (angle, height).
 local function _apply_leap(mob, rec, section)
     local jump_max = _read_basis(section, "jump_max_distance")
     if not jump_max then return end
     rec.jump_min_m = _read_basis(section, "jump_min_distance")
     rec.jump_max_m = jump_max
-    rec.aim_basis = _read_basis(section, "jump_auto_aim_factor")
+    rec.aim_basis = _read_basis(section, "jump_auto_aim_factor") or 0
     if not _check_vary(rec, "leap_range") then return end
-    local band_min, band_max = _compute_band(rec.jump_min_m, jump_max, _tun_num.jump_band_pct)
+    local pct = _tun_num.jump_band_pct
+    local band_min, band_max = _compute_band(rec.jump_min_m, jump_max, pct)
     rec.jump_min_m = band_min or rec.jump_min_m
     rec.jump_max_m = band_max or jump_max
     xmonster.set_monster_jump_params(mob, { min_dist = band_min, max_dist = band_max,
+        max_angle = _compute_offset(_read_basis(section, "jump_max_angle"), pct),
+        max_height = _compute_offset(_read_basis(section, "jump_max_height"), pct),
         delay_ms = _compute_offset(_read_basis(section, "jump_delay"), _tun_num.window_pct) })
     if at_debug.is_on() and band_max then
         at_debug.debug("[MUT] vary id=%d leap=%.1f-%.1f", rec.id, band_min or 0, band_max)
@@ -300,9 +297,13 @@ local function _apply_pacing(mob, rec, section)
     end
     if rec.species == POLTERGEIST then
         if _check_vary(rec, "hover") then
+            local dwell_min, dwell_max = _compute_band(_read_basis(section, "Height_Change_Min_Time"),
+                _read_basis(section, "Height_Change_Max_Time"), _tun_num.ability_pct)
             xmonster.set_poltergeist_height_params(mob, {
                 height_min = _select_band(_tun_num.height_min_low, _tun_num.height_min_high),
                 height_max = _select_band(_tun_num.height_max_low, _tun_num.height_max_high),
+                change_velocity = _compute_offset(_read_basis(section, "Height_Change_Velocity"), _tun_num.ability_pct),
+                min_time_ms = dwell_min, max_time_ms = dwell_max,
             })
         end
         if _check_vary(rec, "detection") then
@@ -348,7 +349,9 @@ local function _apply_burer_params(mob, rec, section)
     if _check_vary(rec, "telekinesis") then
         local tele_min, tele_max = _compute_band(_read_basis(section, "tele_min_distance"),
             _read_basis(section, "tele_max_distance"), pct)
+        local objects = _compute_offset(_read_basis(section, "Tele_Max_Handled_Objects"), pct)
         xmonster.set_burer_telekinesis_params(mob, {
+            max_objects = objects and math_floor(objects + 0.5) or nil,
             find_radius = _compute_offset(_read_basis(section, "Tele_Find_Radius"), pct),
             min_dist = tele_min, max_dist = tele_max,
             fly_velocity = _compute_offset(_read_basis(section, "tele_fly_velocity"), pct),
@@ -605,7 +608,7 @@ local function _log_block(rec, move, cause)
 end
 
 local function _log_fire(rec, move, pick, detail)
-    rec.driver = DRIVER_LABEL[move]
+    rec.driver = move:gsub("_", " "):upper()
     rec.gate = GATE_BOTH
     rec.fired_at = rec.tick_now
     if at_debug.is_on() then
@@ -629,7 +632,7 @@ local function _resolve_leap_variant(mob, rec)
     return nil
 end
 
--- One commanded leap: the mechanical gates, the caps, the override clear, the variant's flags, the basis restore.
+-- One commanded leap: the mechanical gates, the caps, the override clear, the variant's flags, the landing-deferred gain restore.
 local function _execute_leap(mob, rec, move, pick, now)
     local memo = rec.memo
     if memo.shotgun_aimed then return _log_block(rec, move, "shotgun") end
@@ -645,8 +648,7 @@ local function _execute_leap(mob, rec, move, pick, now)
     if variant == nil then return _log_block(rec, move, "toggle") end
     local steered = variant == MOVE_LEAP_ADAPT or variant == MOVE_JUMP_ADAPT
     if steered and not rec.aim_basis then return _log_block(rec, variant, "basis") end
-    local bucket = memo.is_actor and VS_PLAYER or VS_NPC
-    if not _check_slot(bucket) then return _log_block(rec, variant, "caps") end
+    if not _check_slot(memo.bucket) then return _log_block(rec, variant, "caps") end
     _clear_claw(mob, rec, now, true)
     local aim = nil
     if steered then
@@ -655,51 +657,50 @@ local function _execute_leap(mob, rec, move, pick, now)
     end
     local sudden = variant == MOVE_JUMP or variant == MOVE_JUMP_ADAPT
     local fired = xmonster.try_monster_jump(mob, memo.enemy_pos, 1, { skip_prepare = sudden })
-    if aim then xmonster.set_monster_jump_flags(mob, { auto_aim_factor = rec.aim_basis }) end
+    if aim then
+        rec.aim_restore = fired or nil
+        xmonster.set_monster_jump_flags(mob, fired and {} or { auto_aim_factor = rec.aim_basis })
+    end
     if not fired then return _log_block(rec, variant, "refused") end
-    _add_slot(bucket)
+    _add_slot(memo.bucket)
     _log_fire(rec, variant, pick, aim and (" aim=%.2f"):format(aim) or nil)
 end
 
 local function _execute_rush(mob, rec, move, pick, _now)
     local memo = rec.memo
     if memo.shotgun_aimed then return _log_block(rec, move, "shotgun") end
-    local bucket = memo.is_actor and VS_PLAYER or VS_NPC
-    if not _check_slot(bucket) then return _log_block(rec, move, "caps") end
+    if not _check_slot(memo.bucket) then return _log_block(rec, move, "caps") end
     if not xmonster.try_monster_run_attack(mob) then return _log_block(rec, move, "refused") end
-    _add_slot(bucket)
+    _add_slot(memo.bucket)
     _log_fire(rec, move, pick)
 end
 
 local function _execute_dodge(mob, rec, move, pick, _now)
     if xmonster.is_monster_jumping(mob) then return _log_block(rec, move, "air") end
-    local bucket = rec.memo.is_actor and VS_PLAYER or VS_NPC
-    if not _check_slot(bucket) then return _log_block(rec, move, "caps") end
+    if not _check_slot(rec.memo.bucket) then return _log_block(rec, move, "caps") end
     if not xmonster.try_monster_rotation_jump(mob) then return _log_block(rec, move, "refused") end
-    _add_slot(bucket)
+    _add_slot(rec.memo.bucket)
     _log_fire(rec, move, pick)
 end
 
 local function _execute_roar(mob, rec, move, pick, _now)
     local memo = rec.memo
     if memo.dist < _tun_num.roar_min or memo.dist > _tun_num.roar_max then return _log_block(rec, move, "band") end
-    local bucket = memo.is_actor and VS_PLAYER or VS_NPC
-    if not _check_slot(bucket) then return _log_block(rec, move, "caps") end
+    if not _check_slot(memo.bucket) then return _log_block(rec, move, "caps") end
     if not xmonster.try_monster_threaten(mob) then return _log_block(rec, move, "refused") end
     rec.roar_open = nil
-    _add_slot(bucket)
+    _add_slot(memo.bucket)
     _log_fire(rec, move, pick)
 end
 
 local function _execute_gravity(mob, rec, move, pick, now)
     local memo = rec.memo
     if memo.dist_sqr > _tun_num.stare_range_sqr then return _log_block(rec, move, "band") end
-    local bucket = memo.is_actor and VS_PLAYER or VS_NPC
-    if not _check_slot(bucket) then return _log_block(rec, move, "caps") end
+    if not _check_slot(memo.bucket) then return _log_block(rec, move, "caps") end
     if not xmonster.set_burer_gravi_force(mob, true) then return _log_block(rec, move, "refused") end
     rec.gravity_release = now + _tun_num.gravity_release
     rec.aim_since = nil
-    _add_slot(bucket)
+    _add_slot(memo.bucket)
     _log_fire(rec, move, pick)
 end
 
@@ -710,7 +711,7 @@ local function _execute_flee(_mob, rec, move, pick, now, premise)
         or _select_band(_tun_num.flee_hold_min, _tun_num.flee_hold_max)
     rec.flee_until = now + hold
     rec.flee_ok_at = now + _tun_num.flee_throttle_ms
-    _add_slot(rec.memo.is_actor and VS_PLAYER or VS_NPC)
+    _add_slot(rec.memo.bucket)
     _log_fire(rec, move, pick, (" hold=%dms"):format(hold))
 end
 
@@ -719,6 +720,7 @@ local function _execute_claw(mob, rec, move, pick, now)
     local memo = rec.memo
     if not rec.claw_motion then return _log_block(rec, move, "motion") end
     if memo.dist > _tun_num.claw_range then return _log_block(rec, move, "range") end
+    if not xcombat.is_facing(mob, memo.enemy_pos, _tun_num.claw_cone) then return _log_block(rec, move, "facing") end
     if xmonster.is_monster_jumping(mob) then return _log_block(rec, move, "air") end
     if rec.claw_until > 0 then return _log_block(rec, move, "window") end
     if not xmonster.play_monster_animation(mob, rec.claw_motion) then return _log_block(rec, move, "refused") end
@@ -731,11 +733,6 @@ local MOVE_EXEC = {
     rush = _execute_rush, dodge = _execute_dodge, roar = _execute_roar,
     gravity_attack = _execute_gravity, flee = _execute_flee, claw = _execute_claw,
 }
-
-local function _execute_move(mob, rec, move, pick, now, premise)
-    local fn = MOVE_EXEC[move]
-    if fn then fn(mob, rec, move, pick, now, premise) end
-end
 
 -- FAIL path: one uniform pick across the species' toggled NEW moves plus nothing; nothing = no intervention.
 local function _execute_random(mob, rec, now)
@@ -755,7 +752,7 @@ local function _execute_random(mob, rec, now)
         return
     end
     if picks[slot] == MOVE_ROAR then rec.roar_open = nil end
-    _execute_move(mob, rec, picks[slot], PICK_RANDOM, now)
+    MOVE_EXEC[picks[slot]](mob, rec, picks[slot], PICK_RANDOM, now)
 end
 
 -- A best row is eligible when the species carries the toggled move, the body plan admits it, and the caps/clocks allow it.
@@ -797,7 +794,7 @@ local function _run_decision(mob, rec, now)
     rec.decided_at = now
     if row.move == MOVE_ROAR then rec.roar_open = nil end
     if _check_intelligence(rec) then
-        _execute_move(mob, rec, row.move, PICK_BEST, now, row.premise)
+        MOVE_EXEC[row.move](mob, rec, row.move, PICK_BEST, now, row.premise)
         return
     end
     if at_debug.is_on() then
@@ -831,6 +828,10 @@ local function _update_mutant(mob, rec, now)
         xmonster.set_burer_gravi_force(mob, false)
         rec.gravity_release = nil
     end
+    if rec.aim_restore and not xmonster.is_monster_jumping(mob) then
+        xmonster.set_monster_jump_flags(mob, { auto_aim_factor = rec.aim_basis })
+        rec.aim_restore = nil
+    end
     _clear_claw(mob, rec, now, false)
     local enemy = xmonster.get_monster_enemy(mob)
     if not enemy or not enemy:alive() then
@@ -857,7 +858,8 @@ local function _update_mutant(mob, rec, now)
     memo.dist = dist
     memo.dist_sqr = dist_sqr
     memo.is_actor = is_actor
-    memo.dry = not _check_slot(is_actor and VS_PLAYER or VS_NPC)
+    memo.bucket = is_actor and VS_PLAYER or VS_NPC
+    memo.dry = not _check_slot(memo.bucket)
     _reset_memo(rec)
     local info = xmonster.get_monster_hit_info(mob)
     rec.hit_count = info and info.count or 0
@@ -923,10 +925,6 @@ local function _apply_dealt(shit)
     end
 end
 
-local function _on_actor_before_hit(shit, _bone_id)
-    _apply_dealt(shit)
-end
-
 local function _on_npc_before_hit(_npc, shit, _bone_id)
     _apply_dealt(shit)
 end
@@ -953,13 +951,14 @@ local function _on_entity_unregister(se_obj)
     _states[se_obj.id] = nil
 end
 
--- Release what a dropped record pushed and still owns live: the animation override, a pending gravity force.
+-- Release what a dropped record pushed and still owns live: the animation override, a pending gravity force or gain restore.
 -- Pushed params revert on the next spawn (not serialized).
 local function _release_mutant(rec)
     local mob = xobject.get_go(rec.id)
     if not mob then return end
     if rec.claw_until > 0 then xmonster.stop_monster_animation(mob) end
     if rec.gravity_release then xmonster.set_burer_gravi_force(mob, false) end
+    if rec.aim_restore then xmonster.set_monster_jump_flags(mob, { auto_aim_factor = rec.aim_basis }) end
 end
 
 -- Any nonzero stat slider, any species move toggle, or any vary row keeps the module live.
@@ -980,14 +979,16 @@ _apply_enabled = function()
     _active = wanted
     if _active then
         RegisterScriptCallback("monster_on_update", _on_mob_update)
-        RegisterScriptCallback("actor_on_before_hit", _on_actor_before_hit)
+        RegisterScriptCallback("actor_on_before_hit", _apply_dealt)
         RegisterScriptCallback("npc_on_before_hit", _on_npc_before_hit)
         RegisterScriptCallback("monster_on_before_hit", _on_monster_before_hit)
+        xmonster.on_monster_combat_action(_on_combat_action)
     else
         UnregisterScriptCallback("monster_on_update", _on_mob_update)
-        UnregisterScriptCallback("actor_on_before_hit", _on_actor_before_hit)
+        UnregisterScriptCallback("actor_on_before_hit", _apply_dealt)
         UnregisterScriptCallback("npc_on_before_hit", _on_npc_before_hit)
         UnregisterScriptCallback("monster_on_before_hit", _on_monster_before_hit)
+        UnregisterScriptCallback("monster_on_combat_action", _on_combat_action)
         for _, rec in pairs(_states) do _release_mutant(rec) end
         _states = {}
     end
@@ -1116,7 +1117,7 @@ function get_mutant_record(id)
     return _states[id]
 end
 
---- The driver label for one adopted mutant ("CLAW"/"JUMP ATTACK"/"RUSH"/.../"-"), nil when not adopted.
+--- The driver label for one adopted mutant ("CLAW"/"JUMP"/"LEAP ADAPT"/"RUSH"/.../"-"), nil when not adopted.
 --- The record's .gate ("int, wild") names what influenced the fired move; the HUD appends it.
 function get_driver(id)
     local rec = _states[id]
@@ -1129,5 +1130,4 @@ function on_game_start()
     RegisterScriptCallback("on_option_change", _on_option_change)
     RegisterScriptCallback("mcm_option_restore_default", _on_option_change)
     RegisterScriptCallback("server_entity_on_unregister", _on_entity_unregister)
-    xmonster.on_monster_combat_action(_on_combat_action)
 end

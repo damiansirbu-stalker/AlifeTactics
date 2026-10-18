@@ -923,7 +923,7 @@ local function _format_mob_memory(obj, tg)
         hit.count, snd.type, snd.count, seen > 0 and (tg - seen) or -1, tostring(home.has_home))
 end
 
--- The mutant driver column with its gate suffix ("POUNCE[int, wild]"); "-" when idle.
+-- The mutant driver column with its gate suffix ("JUMP[int, wild]"); "-" when idle.
 local function _format_mob_driver(id, driver)
     if not driver or driver == "-" then return "-" end
     local rec = at_mutants.get_mutant_record(id)
