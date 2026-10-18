@@ -359,11 +359,11 @@ Depends only on xlibs. Install and uninstall mid-save work. Tested: Anomaly 1.5.
 Drop:
 - NPC self-heal replacements - run in place of the Healing system.
 - G.A.M.M.A. No NPC Friendly Fire, and community friendly-fire blockers - re-filter the friendly hits Crossfire already handles and rewrite NPC relations on hit.
-- G.A.M.M.A. NPCs Faster Reactions - raises sight range and detection, so NPCs see across open ground and swamp the Vision curve. No toggle, so lower its LTX keys by hand or drop it.
+- G.A.M.M.A. NPCs Faster Reactions - raises sight range and detection, so NPCs see across open ground and swamp the Vision curve. No toggle.
 - NPC Limping and Healing (Vodoxleb) - stacks the limp and heal animation and breaks the heal cue.
 - NPC Weapon Jamming, and any NPC-jam mod - re-adds the jams the Jamming system removes, looping reloads with no end.
 - RE:DONE Combat AI - drives combat aim itself and leaves the game's aim settings altered on removal.
-- Worse NPC Vision and Accuracy, and any mod with its own NPC vision config - override the Vision and Accuracy systems. No toggle, so remove its accuracy LTX by hand or drop it.
+- Worse NPC Vision and Accuracy, and any mod with its own NPC vision config - override the Vision and Accuracy systems. No toggle.
 - Companion Spotters - replaces vanilla NPC movement game-wide so one bug breaks every NPC, does per-frame work plus a full world scan,
   and misroutes companions on large maps with a broken vertex check.
 Avoid:
@@ -371,7 +371,7 @@ Avoid:
   reseeds RNG at load, and is littered with dead code and hardcoded values.
 Change:
 - G.A.M.M.A. No logs and Log spam remover - leave their option off (off by default). Enabling it disables the Accuracy system.
-Coexists:
+Interferes:
 - Useful Idiots - the combat takeover skips companions, so companions fight with its combat modes. Its own enemy evaluation decides when any NPC engages, with night, rain, and enemy-memory rules.
   It overwrites 1 of the 3 Crossfire friendly-fire fixes with its own version.
 Everything else coexists, as long as it extends X-Ray and Anomaly and never overrides them.
