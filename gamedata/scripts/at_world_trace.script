@@ -4,7 +4,7 @@ local RegisterScriptCallback, UnregisterScriptCallback = RegisterScriptCallback,
 local IsStalker, IsWounded, time_global, db = IsStalker, IsWounded, time_global, db
 local math_sqrt, math_floor, math_max, math_min, pairs, tostring = math.sqrt, math.floor, math.max, math.min, pairs, tostring
 local math_deg, math_acos = math.deg, math.acos
-local string_format, table_concat = string.format, table.concat
+local string_format, table_concat, table_remove = string.format, table.concat, table.remove
 local ini_sys, tonumber = ini_sys, tonumber
 local pcall, debug = pcall, debug
 
@@ -56,6 +56,16 @@ local MOB_ORBIT_MAX_M     = 6
 local MOB_ORBIT_VR        = 0.8
 local MOB_ORBIT_VT        = 2
 local MOB_ORBIT_MIN_MS    = 1200
+local MOB_STUCK_SPEED     = 0.3
+local MOB_HIST_DEPTH      = 2
+local MOB_STUCK_MS        = 1200
+local MOB_STUCK_RELOG_MS  = 5000
+
+-- The FSM states that intend ground movement; standing still in one of these past MOB_STUCK_MS is a stuck episode.
+local MOB_MOVE_STATES = {
+    Attack_Run = true, Attack_RunAttack = true, Attack_RunAway = true,
+    Attack_FindEnemy = true, Attack_On_Run = true, Panic = true, FindEnemy = true,
+}
 
 local TIERS = xcreature.RANK_TIERS
 
@@ -346,12 +356,8 @@ local function _check_gesture(nat, npc, id, tg, mt, state)
         id, npc:name() or "?", _get_mt_name(mt), anims, tg - nat.ges_since, tostring(state), _get_driver(id), tostring(cause))
 end
 
--- Sees the enemy, lane clear, fire makes sense, not reloading, yet not firing: wasting time.
-local function _check_idle(nat, npc, id, name, be, tg)
-    if not be then nat.eng_since = nil return end
-    if IsWounded(npc) or npc:critically_wounded() then nat.eng_since = nil return end
-    if xcombat.is_reloading(npc) then return end
-    nat.eng_since = nat.eng_since or tg
+-- The idle verdict: a held silent window with sight, a clear lane, and firing sense logs once per cooldown.
+local function _log_idle(nat, npc, id, name, be, tg)
     local silent = tg - math_max(_shot_at[id] or 0, nat.eng_since)
     if silent <= NAT_IDLE_MS or not xcombat.can_see(npc, be) then return end
     if xcombat.can_kill_member(npc, be:position()) or not xcombat.fire_make_sense(npc, be) then return end
@@ -360,6 +366,15 @@ local function _check_idle(nat, npc, id, name, be, tg)
     local dont = db.storage[id] and db.storage[id].rx_dont_shoot and 1 or 0
     log.info("[IDLE] id=%d %s able but silent=%dms enemy=%d dont=%d op=%s",
         id, name, silent, be:id(), dont, xcombat.get_operator(npc))
+end
+
+-- Sees the enemy, lane clear, fire makes sense, not reloading, yet not firing: wasting time.
+local function _check_idle(nat, npc, id, name, be, tg)
+    if not be then nat.eng_since = nil return end
+    if IsWounded(npc) or npc:critically_wounded() then nat.eng_since = nil return end
+    if xcombat.is_reloading(npc) then return end
+    nat.eng_since = nat.eng_since or tg
+    _log_idle(nat, npc, id, name, be, tg)
 end
 
 -- In a move state but position not changing: glued to the ground.
@@ -811,12 +826,24 @@ local function _on_impact(bullet)
     end
 end
 
+-- The mutant driver column with its gate suffix ("JUMP[int, wild]"); "-" when idle.
+local function _format_mob_driver(id, driver)
+    if not driver or driver == "-" then return "-" end
+    local rec = at_mutants.get_mutant_record(id)
+    local gate = rec and rec.gate
+    if not gate then return driver end
+    return driver .. "[" .. gate .. "]"
+end
+
 local function _on_actor_hit(obj, amount, local_direction, who, bone_index)
     if not (who and amount and amount > 0) then return end
     local mob = _mob[who:id()]
     if mob then
         mob.hits = (mob.hits or 0) + 1
         mob.hit_ms = time_global()
+        log.info("[WORLD] mob id=%d %s HIT state=%s drv=%s d=%.1f stuck=%s", who:id(), mob.name or "?",
+            at_core.get_mob_state_name(mob.state), _format_mob_driver(who:id(), at_mutants.get_driver(who:id())),
+            mob.d, mob.stuck_ms and "y" or "n")
     end
     if not IsStalker(who) then return end
     local tier = ranks.get_obj_rank_name(who)
@@ -855,8 +882,8 @@ local function _log_mob_contact(mob, id, tg, jumping)
     if mob.d <= MOB_CONTACT_EXIT_M then return end
     local hits = (mob.hits or 0) - contact.hits0
     mob.contact_hits = mob.contact_hits + hits
-    log.info("[WORLD] mob id=%d contact end dur=%.1fs hits=%d min=%.1f idle=%.1fs",
-        id, (tg - contact.t0) / 1000, hits, contact.min_d, contact.idle_ms / 1000)
+    log.info("[WORLD] mob id=%d contact end dur=%.1fs hits=%d min=%.1f idle=%.1fs stuck=%s", id,
+        (tg - contact.t0) / 1000, hits, contact.min_d, contact.idle_ms / 1000, contact.stuck and "y" or "n")
     mob.contact = nil
 end
 
@@ -898,15 +925,15 @@ end
 
 local function _read_mob_motion(mob, pos, ap, tg)
     local dist = math_sqrt(pos:distance_to_sqr(ap))
-    local vr, vt, had_prev = 0, 0, mob.sampled_ms ~= nil
+    local vr, vt, speed, had_prev = 0, 0, 0, mob.sampled_ms ~= nil
     if had_prev and tg > mob.sampled_ms then
         local dt = (tg - mob.sampled_ms) / 1000
         vr = (dist - mob.d) / dt
-        local speed = math_sqrt((pos.x - mob.px) ^ 2 + (pos.z - mob.pz) ^ 2) / dt
+        speed = math_sqrt((pos.x - mob.px) ^ 2 + (pos.z - mob.pz) ^ 2) / dt
         local tangential_sqr = speed * speed - vr * vr
         vt = tangential_sqr > 0 and math_sqrt(tangential_sqr) or 0
     end
-    mob.d, mob.px, mob.pz = dist, pos.x, pos.z
+    mob.d, mob.px, mob.pz, mob.spd = dist, pos.x, pos.z, speed
     return dist, vr, vt, had_prev
 end
 
@@ -923,13 +950,36 @@ local function _format_mob_memory(obj, tg)
         hit.count, snd.type, snd.count, seen > 0 and (tg - seen) or -1, tostring(home.has_home))
 end
 
--- The mutant driver column with its gate suffix ("JUMP[int, wild]"); "-" when idle.
-local function _format_mob_driver(id, driver)
-    if not driver or driver == "-" then return "-" end
-    local rec = at_mutants.get_mutant_record(id)
-    local gate = rec and rec.gate
-    if not gate then return driver end
-    return driver .. "[" .. gate .. "]"
+
+-- The run-in-place watchdog: ground speed under MOB_STUCK_SPEED in a movement state past MOB_STUCK_MS logs STUCK.
+-- The line repeats every MOB_STUCK_RELOG_MS with the growing duration while the stall persists, airborne included (air=y).
+local function _check_mob_stuck(mob, id, state_name, jumping, tg)
+    if mob.spd > MOB_STUCK_SPEED or not MOB_MOVE_STATES[state_name] then
+        mob.stuck_ms, mob.stuck_next, mob.stuck_logged = nil, nil, nil
+        return
+    end
+    mob.stuck_ms = mob.stuck_ms or tg
+    mob.stuck_next = mob.stuck_next or (mob.stuck_ms + MOB_STUCK_MS)
+    if tg < mob.stuck_next then return end
+    if mob.contact then mob.contact.stuck = true end
+    mob.stuck_next = tg + MOB_STUCK_RELOG_MS
+    if not mob.stuck_logged then
+        mob.stuck_logged = true
+        log.info("[WORLD] mob id=%d %s ONSET into STUCK; the %d beats before: %s", id, mob.name or "?",
+            MOB_HIST_DEPTH, table_concat(mob.hist or {}, " | "))
+    end
+    log.info("[WORLD] mob id=%d %s STUCK state=%s drv=%s dist=%.0f speed=%.2f air=%s dur=%dms",
+        id, mob.name or "?", state_name, _format_mob_driver(id, at_mutants.get_driver(id)),
+        mob.d, mob.spd, jumping and "y" or "n", tg - mob.stuck_ms)
+end
+
+-- Keep the last MOB_HIST_DEPTH beat snapshots so the stuck onset can print what led into the freeze.
+local function _push_mob_hist(mob, id, state_name, jumping)
+    local hist = mob.hist
+    if not hist then hist = {} mob.hist = hist end
+    hist[#hist + 1] = string_format("state=%s drv=%s spd=%.2f d=%.0f air=%s",
+        state_name, _format_mob_driver(id, at_mutants.get_driver(id)), mob.spd, mob.d, jumping and "y" or "n")
+    while #hist > MOB_HIST_DEPTH do table_remove(hist, 1) end
 end
 
 local function _log_mob_edge(mob, obj, id, dist, tg)
@@ -956,6 +1006,11 @@ local function _update_mob(obj, id, tg, ap)
     if tg < mob.next_ms then return end
     local dist, vr, vt, had_prev = _read_mob_motion(mob, obj:position(), ap, tg)
     local jumping = _log_mob_edge(mob, obj, id, dist, tg)
+    if had_prev then
+        local state_name = at_core.get_mob_state_name(mob.state)
+        _check_mob_stuck(mob, id, state_name, jumping, tg)
+        _push_mob_hist(mob, id, state_name, jumping)
+    end
     if mob.contact then
         _log_mob_contact(mob, id, tg, jumping)
     elseif dist <= MOB_CONTACT_ENTER_M and had_prev then
