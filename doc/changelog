@@ -20,7 +20,7 @@
       - Added Backstrike, a spin strike on an enemy circling behind, on the four species whose models carry the motions.
       - Added Claw, the point-blank strike vanilla never gave the chimera and lurker.
       - Added Roar, the snork and pseudogigant threat display vanilla never plays in a fight, once per engagement.
-      - Added Flee, a rare committed break from the fight when hurt, cornered, or near death.
+      - Added Flee, a rare committed break from the fight when near death and far enough to escape; a cornered mutant fights to the end.
       - Added Cloak, a varied invisibility rhythm for the bloodsucker kind.
       - Added Gravity attack, the burer's forced gravity throw on your held aim.
       - Added bounded variation over each species' own numbers, each behind its own row: movement, leap and rush ranges, burer gravity and telekinesis, controller tube and stamina and auras,

@@ -681,7 +681,7 @@ Mutant combat runs the shared decision model with no takeover: the engine FSM st
 THE INVARIANT: every 600ms a fighting mutant checks its flat 6s decision clock; when free, it observes the premise table - the first eligible true premise takes ONE Intelligence roll and the clock stamps either way.
 PASS fires that premise's mapped best move from the global premise-to-move table (`BEST_MOVES`, species-filtered); FAIL lets the opening go - no intervention, the vanilla FSM fights on.
 A refused invoke spends the decision - no fall-through.
-The edges (a fresh hit, the shotgun draw, the low-health crossing, first contact) compare against the last PROCESSED state, so an edge inside a throttled stretch latches until the next free beat.
+The edges (the low-health crossing, first contact) compare against the last PROCESSED state, so an edge inside a throttled stretch latches until the next free beat.
 Intelligence is base + map-rank slope, capped; rank is the map tier (`xlevel.get_danger_tier`, 0-5).
 Wild varies GAME values only - the engine's own bands multiplied inside bounded envelopes; our clocks are flat constants and no move carries a per-move cooldown.
 The flee rarity is the one extra clock: 60s between flee windows, and a flee is never denied; while its window holds, no other move fires and the proposal subscriber re-proposes `eStateAttack_RunAway`.
@@ -689,7 +689,8 @@ CAPS bound the spice: at most 3 driven moves assumed running per bucket (vs_play
 THE LEAP FAMILY is a 2x2, predator logic: watching decides the wind-up, strafing decides the steering. An enemy NOT watching gets the telegraphed Leap (the wind-up costs nothing against a turned back); a watching enemy gets the Jump with no wind-up (winding up in front of a gun hands it a free second); a strafing enemy gets the adapt variant of either - Leap adapt unwatched, Jump adapt watched - the air-steering leap via `set_monster_jump_flags` auto-aim, the gain rolled inside the vanilla envelope and the species' own basis restored at the landing (the engine reads the gain live through the flight, so an immediate restore would kill the steering).
 THE BODY-PLAN LAW: every jump carrier leaps at an enemy exploiting elevation (`xcombat.is_enemy_above`, the engine's own 0.8m dog-gate standard); quadrupeds take OUR commanded leap ONLY on elevation (flat ground stays their vanilla character), bipeds take the full jump-band premises.
 THE ANTI-EXPLOIT LAW: an exploit premise always maps to a punish move - a held aim (`is_aim_held`, 3s) draws the burer's Gravity attack, an elevated enemy draws the leap or the gravity answer, a strafing watcher draws the adapt.
-The shotgun is respected everywhere, facing-aware: in its band and AIMED it blocks the jumps and the rush; turned away it is a leap premise; the close draw is a flee premise; past its band it is a weak gun.
+The shotgun is respected everywhere, facing-aware: in its band and AIMED it blocks the jumps and the rush; turned away it is a leap premise; past its band it is a weak gun.
+The flee has ONE trigger, ability to flee: the low-health crossing while far enough to disengage (`[survival] min_dist_m`) - a cornered mutant fights, never turns its back at melee reach.
 Monster health is a normalized fraction clamped to 1.0 every condition update, so a health pool, regeneration, or lifesteal cannot raise it; toughness lives in resistance alone, stat = 1 + x% * rank.
 
 Does: adopts each online mutant on its first binder update, scales its hits by tier, and runs the decision model on one 600ms lane.
@@ -712,7 +713,7 @@ monster_on_update (binder scheduler, 100ms near to 625ms far) -> the one lane, g
          elevated vs a burer / a 3s held aim      -> Gravity attack (forced, released next beat)
          enemy fleeing / a weak gun                -> Rush
          aimed at up close                         -> Dodge
-         a fresh hit / the low-health crossing / a close shotgun draw -> Flee (the long hold when low)
+         the low-health crossing, far enough to disengage      -> Flee (the long committed window)
          first contact at range                    -> Roar (once per engagement; snork, gigant)
          contact, facing                           -> Claw (the chimera-class strike, outside the caps)
 monster_on_combat_action -> the proposal subscriber: pure Lua on the silent path, re-proposes while a flee window holds

@@ -421,7 +421,7 @@
     <text>Flee</text>
   </string>
   <string id="ui_mcm_at_mutants_flee_desc">
-    <text>[int, wild] Breaks off and runs when hurt, cornered by a close shotgun draw, or near death; a brief pull-back through its own motions, longer when low.</text>
+    <text>[int, wild] Breaks off and runs when near death and far enough to escape; a cornered mutant fights to the end instead.</text>
   </string>
   <!-- ==================== SHARED ==================== -->
   <string id="ui_mcm_at_title">

@@ -283,7 +283,7 @@ The leap family reads your attention: Leap is the telegraphed leap at a turned b
 Every jumper also leaps at an enemy exploiting elevation, and a burer answers a held aim or a perched shooter with its Gravity attack - camping stops being safe.
 Rush is the full-speed charge against a fleeing enemy or a weapon too weak for the range, never into an aimed shotgun.
 Dodge is a sideways juke when you draw a bead up close. Backstrike arms a spin strike on an enemy circling behind, once per individual, on the four species whose models carry the motions. Claw gives the chimera the point-blank strike vanilla never gave it.
-Flee breaks a hurt, cornered, or dying mutant out of the fight for a moment, rarely. Cloak varies the bloodsucker kind's invisibility rhythm.
+Flee breaks a dying mutant out of the fight, rarely, and only when it is far enough to escape; a cornered one fights to the end. Cloak varies the bloodsucker kind's invisibility rhythm.
 Roar is a threat display on first contact at range, the warning motion the vanilla game never plays in a fight.
 A reloading, defenseless, or fleeing enemy opens the decision early; a shotgun aimed at a charging mutant in range stops the leap and the charge, and a shotgunner turned away invites them.
 Beyond the moves, every species' own numbers breathe: movement, leap and rush ranges, the burer's gravity and telekinesis, the controller's psi tube and stamina and auras, and the poltergeist's hover

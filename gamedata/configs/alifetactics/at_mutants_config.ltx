@@ -60,14 +60,12 @@ strafe_lat_m = 1.0
 recede_m = 0.3
 cone_deg = 90
 
-[flee] ; the run-away window a fresh hit or close shotgun draw rolls
-hold_min = 4000
-hold_max = 7000
-
-[survival] ; crossing below this health fraction rolls one long run-away window
-health_frac = 0.30
-hold_min    = 8000
-hold_max    = 15000
+[survival] ; the one flee trigger: crossing below this health fraction while far enough to disengage
+health_frac   = 0.30
+min_dist_m    = 10
+face_cone_deg = 60 ; skip the flee while the enemy sits within this cone of the mutant's nose - no 180 turn-and-die, a tangent or already-turned mutant flees
+hold_min      = 8000
+hold_max      = 15000
 
 [threat] ; an enemy weapon aimed within this cone counts as watching the mutant (the shotgun, dodge, and watching-split gates read it)
 facing_cone_deg = 60
@@ -111,7 +109,7 @@ circle_pct      = 0.20
 rush_band_pct   = 0.20
 window_pct      = 0.20
 ability_pct     = 0.20
-turn_min        = 0.90
+turn_min        = 1.00 ; up only - variation never turns a mutant slower than its own vanilla rate
 turn_max        = 1.25
 
 [cloak] ; bloodsucker visibility-transition dwell band, ms

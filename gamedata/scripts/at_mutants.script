@@ -30,7 +30,6 @@ local MOVE_LEAP_ADAPT = "leap_adapt"
 local MOVE_JUMP_ADAPT = "jump_adapt"
 local MOVE_FLEE       = "flee"
 local MOVE_ROAR       = "roar"
-local PREMISE_LOW     = "low_health"
 
 local MOVE_KEYS = {
     "leap", "jump", "leap_adapt", "jump_adapt", "rush", "dodge", "flee",
@@ -53,9 +52,7 @@ local BEST_MOVES = {
     { premise = "weak_gun",      move = "rush" },
     { premise = "aimed_close",   move = "dodge" },
     { premise = "aim_held",      move = "gravity_attack" },
-    { premise = "hurt",          move = "flee" },
     { premise = "low_health",    move = "flee" },
-    { premise = "shotgun_drawn", move = "flee" },
     { premise = "first_contact", move = "roar" },
     { premise = "contact",       move = "claw" },
 }
@@ -225,25 +222,35 @@ local function _apply_rush_params(mob, rec, section)
         min_delay_ms = delay_min, max_delay_ms = delay_max,
     })
     if at_debug.is_on() and dist_min then
-        at_debug.debug("[MUT] vary id=%d rush=%.1f-%.1f", mob:id(), dist_min, dist_max)
+        at_debug.debug("[MUT] vary id=%d rush=%.1f-%.1f delay=%.0f-%.0f",
+            mob:id(), dist_min, dist_max, delay_min or 0, delay_max or 0)
     end
 end
 
 -- The Movement row's body values: turn speed, melee reach, circle geometry, over the install's own values.
+-- Turn and the melee reach vary UP only (window min pinned vanilla, max and turn >= 1), so variation never weakens a boar.
 local function _apply_movement(mob, rec, section)
     local turn = _select_band(_tun_num.turn_min, _tun_num.turn_max)
     xmonster.set_monster_turn_factor(mob, turn)
-    local atk_min, atk_max = _compute_band(_read_basis(section, "MinAttackDist"),
-        _read_basis(section, "MaxAttackDist"), _tun_num.attack_dist_pct)
+    local atk_min = _read_basis(section, "MinAttackDist")
+    local atk_max = _read_basis(section, "MaxAttackDist")
+    atk_max = atk_max and atk_max * _select_band(1, 1 + _tun_num.attack_dist_pct) or nil
     xmonster.set_monster_attack_dist(mob, { min_dist = atk_min, max_dist = atk_max })
-    local circle_pct = _tun_num.circle_pct
+    local circle_factor = _select_band(1 - _tun_num.circle_pct, 1 + _tun_num.circle_pct)
+    local far = _read_basis(section, "aom_far_radius")
+    local strike = _read_basis(section, "aom_attack_radius")
+    local side = _read_basis(section, "aom_update_side_period")
+    far = far and far * circle_factor or nil
+    strike = strike and strike * circle_factor or nil
+    side = side and side * circle_factor or nil
     xmonster.set_monster_circle_params(mob, {
-        far_radius = _compute_offset(_read_basis(section, "aom_far_radius"), circle_pct),
-        attack_radius = _compute_offset(_read_basis(section, "aom_attack_radius"), circle_pct),
-        update_side_period = _compute_offset(_read_basis(section, "aom_update_side_period"), circle_pct),
+        far_radius = far,
+        attack_radius = strike,
+        update_side_period = side,
     })
     if at_debug.is_on() then
-        at_debug.debug("[MUT] vary id=%d turn=%.2f atk=%.1f-%.1f", rec.id, turn, atk_min or 0, atk_max or 0)
+        at_debug.debug("[MUT] vary id=%d turn=%.2f atk=%.1f-%.1f circle=%.1f/%.2f/%.1f",
+            rec.id, turn, atk_min or 0, atk_max or 0, far or 0, strike or 0, side or 0)
     end
 end
 
@@ -260,12 +267,67 @@ local function _apply_leap(mob, rec, section)
     local band_min, band_max = _compute_band(rec.jump_min_m, jump_max, pct)
     rec.jump_min_m = band_min or rec.jump_min_m
     rec.jump_max_m = band_max or jump_max
+    local angle = _compute_offset(_read_basis(section, "jump_max_angle"), pct)
+    local height = _compute_offset(_read_basis(section, "jump_max_height"), pct)
+    local delay = _compute_offset(_read_basis(section, "jump_delay"), _tun_num.window_pct)
     xmonster.set_monster_jump_params(mob, { min_dist = band_min, max_dist = band_max,
-        max_angle = _compute_offset(_read_basis(section, "jump_max_angle"), pct),
-        max_height = _compute_offset(_read_basis(section, "jump_max_height"), pct),
-        delay_ms = _compute_offset(_read_basis(section, "jump_delay"), _tun_num.window_pct) })
+        max_angle = angle, max_height = height, delay_ms = delay })
     if at_debug.is_on() and band_max then
-        at_debug.debug("[MUT] vary id=%d leap=%.1f-%.1f", rec.id, band_min or 0, band_max)
+        at_debug.debug("[MUT] vary id=%d leap=%.1f-%.1f angle=%.2f height=%.2f delay=%.0f",
+            rec.id, band_min or 0, band_max, angle or 0, height or 0, delay or 0)
+    end
+end
+
+-- The controller pacing: the psi tube rhythm and the stamina drain, varied over the install's own values.
+local function _apply_controller_pacing(mob, rec, section)
+    local see_ms, tube_ms, stamina
+    if _check_vary(rec, "tube") then
+        see_ms = _select_band(_tun_num.see_min, _tun_num.see_max)
+        tube_ms = _select_band(_tun_num.tube_min, _tun_num.tube_max)
+        xmonster.set_controller_tube_params(mob, { see_duration_ms = see_ms, min_delay_ms = tube_ms })
+    end
+    if _check_vary(rec, "stamina") then
+        stamina = _compute_offset(_read_basis(section, "stamina_hit"), _tun_num.ability_pct)
+        xmonster.set_controller_stamina_hit(mob, stamina)
+    end
+    if at_debug.is_on() then
+        at_debug.debug("[MUT] vary id=%d tube=%.0f/%.0fms stamina=%.3f",
+            rec.id, see_ms or 0, tube_ms or 0, stamina or 0)
+    end
+end
+
+-- The poltergeist pacing: the hover band and drift, and the detection envelope.
+local function _apply_poltergeist_pacing(mob, rec, section)
+    local hmin, hmax, vel, dwell_min, dwell_max
+    if _check_vary(rec, "hover") then
+        dwell_min, dwell_max = _compute_band(_read_basis(section, "Height_Change_Min_Time"),
+            _read_basis(section, "Height_Change_Max_Time"), _tun_num.ability_pct)
+        hmin = _select_band(_tun_num.height_min_low, _tun_num.height_min_high)
+        hmax = _select_band(_tun_num.height_max_low, _tun_num.height_max_high)
+        vel = _compute_offset(_read_basis(section, "Height_Change_Velocity"), _tun_num.ability_pct)
+        xmonster.set_poltergeist_height_params(mob, {
+            height_min = hmin, height_max = hmax, change_velocity = vel,
+            min_time_ms = dwell_min, max_time_ms = dwell_max,
+        })
+    end
+    local near_f, far_f, far_r
+    if _check_vary(rec, "detection") then
+        local pct = _tun_num.ability_pct
+        near_f = _compute_offset(_read_basis(section, "detection_near_range_factor"), pct)
+        far_f = _compute_offset(_read_basis(section, "detection_far_range_factor"), pct)
+        far_r = _compute_offset(_read_basis(section, "detection_far_range"), pct)
+        xmonster.set_poltergeist_detection_params(mob, {
+            near_factor = near_f,
+            far_factor = far_f,
+            far_range = far_r,
+            speed_factor = _compute_offset(_read_basis(section, "detection_speed_factor"), pct),
+            loose_speed = _compute_offset(_read_basis(section, "detection_loose_speed"), pct),
+        })
+    end
+    if at_debug.is_on() then
+        at_debug.debug("[MUT] vary id=%d hover=%.1f-%.1f vel=%.2f dwell=%.0f-%.0f det=%.2f/%.2f/%.1f",
+            rec.id, hmin or 0, hmax or 0, vel or 0, dwell_min or 0, dwell_max or 0,
+            near_f or 0, far_f or 0, far_r or 0)
     end
 end
 
@@ -276,53 +338,24 @@ local function _apply_pacing(mob, rec, section)
         xmonster.set_bloodsucker_invisibility_delay(mob, dwell)
         if at_debug.is_on() then at_debug.debug("[MUT] vary id=%d cloak=%.0fms", rec.id, dwell) end
     end
-    if rec.species == CONTROLLER then
-        if _check_vary(rec, "tube") then
-            xmonster.set_controller_tube_params(mob, {
-                see_duration_ms = _select_band(_tun_num.see_min, _tun_num.see_max),
-                min_delay_ms = _select_band(_tun_num.tube_min, _tun_num.tube_max),
-            })
-        end
-        if _check_vary(rec, "stamina") then
-            xmonster.set_controller_stamina_hit(mob, _compute_offset(_read_basis(section, "stamina_hit"), _tun_num.ability_pct))
-        end
-        if at_debug.is_on() then at_debug.debug("[MUT] vary id=%d tube+stamina", rec.id) end
-    end
-    if rec.species == POLTERGEIST then
-        if _check_vary(rec, "hover") then
-            local dwell_min, dwell_max = _compute_band(_read_basis(section, "Height_Change_Min_Time"),
-                _read_basis(section, "Height_Change_Max_Time"), _tun_num.ability_pct)
-            xmonster.set_poltergeist_height_params(mob, {
-                height_min = _select_band(_tun_num.height_min_low, _tun_num.height_min_high),
-                height_max = _select_band(_tun_num.height_max_low, _tun_num.height_max_high),
-                change_velocity = _compute_offset(_read_basis(section, "Height_Change_Velocity"), _tun_num.ability_pct),
-                min_time_ms = dwell_min, max_time_ms = dwell_max,
-            })
-        end
-        if _check_vary(rec, "detection") then
-            local pct = _tun_num.ability_pct
-            xmonster.set_poltergeist_detection_params(mob, {
-                near_factor = _compute_offset(_read_basis(section, "detection_near_range_factor"), pct),
-                far_factor = _compute_offset(_read_basis(section, "detection_far_range_factor"), pct),
-                far_range = _compute_offset(_read_basis(section, "detection_far_range"), pct),
-                speed_factor = _compute_offset(_read_basis(section, "detection_speed_factor"), pct),
-                loose_speed = _compute_offset(_read_basis(section, "detection_loose_speed"), pct),
-            })
-        end
-        if at_debug.is_on() then at_debug.debug("[MUT] vary id=%d hover+detection", rec.id) end
-    end
+    if rec.species == CONTROLLER then _apply_controller_pacing(mob, rec, section) end
+    if rec.species == POLTERGEIST then _apply_poltergeist_pacing(mob, rec, section) end
 end
 
 -- The chimera-class private attack family, varied under the same Leap range row.
 local function _apply_chimera_params(mob, rec, section)
     if not CHIMERA_CLASS[rec.species] or not _check_vary(rec, "leap_range") then return end
     local pct = _tun_num.ability_pct
+    local radius = _compute_offset(_read_basis(section, "attack_radius"), pct)
+    local prepare = _compute_offset(_read_basis(section, "prepare_jump_timeout"), pct)
+    local attack = _compute_offset(_read_basis(section, "attack_jump_timeout"), pct)
     xmonster.set_chimera_attack_params(mob, {
-        attack_radius = _compute_offset(_read_basis(section, "attack_radius"), pct),
-        prepare_timeout_ms = _compute_offset(_read_basis(section, "prepare_jump_timeout"), pct),
-        attack_timeout_ms = _compute_offset(_read_basis(section, "attack_jump_timeout"), pct),
+        attack_radius = radius, prepare_timeout_ms = prepare, attack_timeout_ms = attack,
     })
-    if at_debug.is_on() then at_debug.debug("[MUT] vary id=%d chimera_attack", rec.id) end
+    if at_debug.is_on() then
+        at_debug.debug("[MUT] vary id=%d chimera radius=%.1f prepare=%.0f attack=%.0f",
+            rec.id, radius or 0, prepare or 0, attack or 0)
+    end
 end
 
 -- The burer gravity numbers and telekinesis families, varied over the install's own values.
@@ -332,25 +365,32 @@ local function _apply_burer_params(mob, rec, section)
     if _check_vary(rec, "gravity_numbers") then
         local gravi_min, gravi_max = _compute_band(_read_basis(section, "Gravi_MinDist"),
             _read_basis(section, "Gravi_MaxDist"), pct)
+        local cooldown = _compute_offset(_read_basis(section, "Gravi_Cooldown"), pct)
+        local speed = _compute_offset(_read_basis(section, "Gravi_Speed"), pct)
         xmonster.set_burer_gravi_params(mob, {
-            cooldown_ms = _compute_offset(_read_basis(section, "Gravi_Cooldown"), pct),
+            cooldown_ms = cooldown,
             min_dist = gravi_min, max_dist = gravi_max,
-            speed = _compute_offset(_read_basis(section, "Gravi_Speed"), pct),
+            speed = speed,
             radius = _compute_offset(_read_basis(section, "Gravi_Radius"), pct),
         })
+        if at_debug.is_on() then
+            at_debug.debug("[MUT] vary id=%d gravi=%.1f-%.1f cd=%.0f speed=%.1f",
+                rec.id, gravi_min or 0, gravi_max or 0, cooldown or 0, speed or 0)
+        end
     end
     if _check_vary(rec, "telekinesis") then
         local tele_min, tele_max = _compute_band(_read_basis(section, "tele_min_distance"),
             _read_basis(section, "tele_max_distance"), pct)
         local objects = _compute_offset(_read_basis(section, "Tele_Max_Handled_Objects"), pct)
+        local count = objects and math_floor(objects + 0.5) or nil
         xmonster.set_burer_telekinesis_params(mob, {
-            max_objects = objects and math_floor(objects + 0.5) or nil,
+            max_objects = count,
             find_radius = _compute_offset(_read_basis(section, "Tele_Find_Radius"), pct),
             min_dist = tele_min, max_dist = tele_max,
             fly_velocity = _compute_offset(_read_basis(section, "tele_fly_velocity"), pct),
         })
+        if at_debug.is_on() then at_debug.debug("[MUT] vary id=%d tele=%.1f-%.1f objects=%d", rec.id, tele_min or 0, tele_max or 0, count or 0) end
     end
-    if at_debug.is_on() then at_debug.debug("[MUT] vary id=%d gravi+tele", rec.id) end
 end
 
 -- One aura family, strength and reach varied; a species without the keys skips it.
@@ -359,11 +399,16 @@ local function _apply_aura(mob, rec, section, name)
     local power = _read_basis(section, name .. "_max_power")
     local dist = _read_basis(section, name .. "_max_distance")
     if not (power or dist) then return end
+    local varied_power = _compute_offset(power, pct)
+    local varied_dist = _compute_offset(dist, pct)
     xmonster.set_monster_aura_params(mob, name, {
-        max_power = _compute_offset(power, pct),
-        max_distance = _compute_offset(dist, pct),
+        max_power = varied_power,
+        max_distance = varied_dist,
     })
-    if at_debug.is_on() then at_debug.debug("[MUT] vary id=%d aura=%s", rec.id, name) end
+    if at_debug.is_on() then
+        at_debug.debug("[MUT] vary id=%d aura=%s power=%.3f dist=%.1f",
+            rec.id, name, varied_power or 0, varied_dist or 0)
+    end
 end
 
 -- Every aura the species carries, behind the page's Aura row.
@@ -390,8 +435,6 @@ local function _add_mutant(mob, id, now)
     local tmr = xprofiler.new_if(dbg):start()
     local tier = _get_tier()
     local species = xcreature.get_mutant_species(id)
-    local hit_info = xmonster.get_monster_hit_info(mob)
-    local hit_count = hit_info and hit_info.count or 0
     local moves = {}
     for i = 1, #MOVE_KEYS do
         local move = MOVE_KEYS[i]
@@ -414,8 +457,6 @@ local function _add_mutant(mob, id, now)
         flee_until = 0,
         claw_until = 0,
         claw_motion = species and moves.claw and _claw_motion or nil,
-        hit_count = hit_count,
-        hit_done = hit_count,
         low_now = false, low_done = false,
     }
     _states[id] = rec
@@ -507,7 +548,7 @@ end
 -- The weapon half of the per-beat fight scratch; the caller pre-writes the geometry, dry skips the reads - the 100-mutant guard.
 local function _reset_memo(rec)
     local memo = rec.memo
-    local kind = not memo.dry and xcombat.get_weapon_kind(memo.enemy) or nil
+    local kind = not memo.dry and xcombat.get_weapon_kind(memo.enemy, memo.is_actor) or nil
     local band = kind and xcombat.get_range_band(memo.dist, kind) or nil
     local aimed = kind ~= nil and xcombat.is_facing(memo.enemy, memo.mob_pos, _tun_num.threat_cone)
     local shotgun_near = kind == SHOTGUN_KIND and band == BAND_IN
@@ -558,16 +599,10 @@ local PREMISES = {
     aim_held = function(_mob, rec, now)
         return rec.aim_since ~= nil and now - rec.aim_since >= _tun_num.aim_held_ms
     end,
-    hurt = function(_mob, rec, _now)
-        return rec.hit_count > rec.hit_done
-    end,
-    low_health = function(_mob, rec, _now)
-        return rec.low_now and not rec.low_done
-    end,
-    shotgun_drawn = function(_mob, rec, _now)
-        local memo = rec.memo
-        if not memo.is_actor or not memo.shotgun_near then return false end
-        return rec.actor_kind_done ~= SHOTGUN_KIND
+    low_health = function(mob, rec, _now)
+        if not rec.low_now or rec.low_done then return false end
+        if rec.memo.dist < _tun_num.flee_min_m then return false end
+        return not xcombat.is_facing(mob, rec.memo.enemy_pos, _tun_num.flee_face_cone)
     end,
     first_contact = function(_mob, rec, _now)
         local memo = rec.memo
@@ -684,11 +719,9 @@ local function _execute_gravity(mob, rec, move, now)
     _log_fire(rec, move)
 end
 
--- The flee window: registers a slot but is NEVER denied; the hold is long on the survival crossing.
-local function _execute_flee(_mob, rec, move, now, premise)
-    local survival = premise == PREMISE_LOW
-    local hold = survival and _select_band(_tun_num.survival_hold_min, _tun_num.survival_hold_max)
-        or _select_band(_tun_num.flee_hold_min, _tun_num.flee_hold_max)
+-- The flee window: registers a slot but is NEVER denied; one trigger, the survival crossing out of melee reach.
+local function _execute_flee(_mob, rec, move, now)
+    local hold = _select_band(_tun_num.survival_hold_min, _tun_num.survival_hold_max)
     rec.flee_until = now + hold
     rec.flee_ok_at = now + _tun_num.flee_throttle_ms
     _add_slot(rec.memo.bucket)
@@ -739,10 +772,7 @@ end
 
 -- Edges compare against the last PROCESSED state; a free observe beat processes everything it saw.
 local function _update_processed(rec)
-    rec.hit_done = rec.hit_count
     rec.low_done = rec.low_now
-    local memo = rec.memo
-    if memo.is_actor and not memo.dry then rec.actor_kind_done = memo.kind end
 end
 
 -- The decision: one true premise takes ONE Intelligence roll; the 6s clock stamps either way; a miss does nothing.
@@ -819,8 +849,6 @@ local function _update_mutant(mob, rec, now)
     memo.bucket = is_actor and VS_PLAYER or VS_NPC
     memo.dry = not _check_slot(memo.bucket)
     _reset_memo(rec)
-    local info = xmonster.get_monster_hit_info(mob)
-    rec.hit_count = info and info.count or 0
     rec.low_now = xmonster.get_monster_health(mob) <= _tun_num.survival_frac
     _run_decision(mob, rec, now)
 end
@@ -989,7 +1017,8 @@ local function _load_tunables()
         strafe_lat_sqr = (_read_num("premises", "strafe_lat_m") or 1) ^ 2,
         flee_recede = _read_num("fleeing", "recede_m"),
         flee_cone = _read_num("fleeing", "cone_deg"),
-        flee_hold_min = _read_num("flee", "hold_min"), flee_hold_max = _read_num("flee", "hold_max"),
+        flee_min_m = _read_num("survival", "min_dist_m"),
+        flee_face_cone = _read_num("survival", "face_cone_deg"),
         survival_frac = _read_num("survival", "health_frac"),
         survival_hold_min = _read_num("survival", "hold_min"),
         survival_hold_max = _read_num("survival", "hold_max"),
