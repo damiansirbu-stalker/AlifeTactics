@@ -63,7 +63,7 @@ Effects:
 - Creatures make emergent decisions from environment, own state, enemy state, squad state, weapons, and faction doctrine.
 - Every faction fights its own way: who routs, who presses your weak moment, who plants for deliberate shots, who crouches on the line, who never backs down.
 - Mutants answer your weak moments and punish the cheese: reload and a leap comes, perch on a rock and the jumpers come up after you, hold your aim on a burer and the gravity throw answers.
-- Every mutant move value varies inside its species' own envelope, so no two spawns or charges read alike, and the variation is one dial.
+- Every mutant ability value varies inside its species' own envelope, so no two spawns read alike; movement stays the game's own tuning. The variation is one dial.
 - Nothing is player-centric, and no side gets an advantage or a handicap.
 - Creatures use the items they acquired themselves: medkits, ammo, props.
 - Rank scales accuracy, weapon spread, aim speed, and how tightly a stalker tracks you, which vanilla clamps flat.
@@ -286,8 +286,8 @@ Dodge is a sideways juke when you draw a bead up close. Backstrike arms a spin s
 Flee breaks a dying mutant out of the fight, rarely, and only when it is far enough to escape; a cornered one fights to the end. Cloak varies the bloodsucker kind's invisibility rhythm.
 Roar is a threat display on first contact at range, the warning motion the vanilla game never plays in a fight.
 A reloading, defenseless, or fleeing enemy opens the decision early; a shotgun aimed at a charging mutant in range stops the leap and the charge, and a shotgunner turned away invites them.
-Beyond the moves, every species' own numbers breathe: movement, leap and rush ranges, the burer's gravity and telekinesis, the controller's psi tube and stamina and auras, and the poltergeist's hover
-and detection, each behind its own row, each a bounded variation over the installed balance.
+Beyond the moves, each species' own ability numbers breathe: the burer's gravity and telekinesis, the controller's psi tube and stamina and auras, the poltergeist's detection, the bloodsucker's cloak,
+each behind its own row, each a bounded variation over the installed balance. Movement stays the game's own, since varying what the engine's path and attack timing depend on only ever made mutants worse.
 
 Fixes to Vanilla:
 AlifeTactics corrects dozens of vanilla Anomaly and xray defects, grouped below by the system each repairs.

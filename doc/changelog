@@ -23,8 +23,8 @@
       - Added Flee, a rare committed break from the fight when near death and far enough to escape; a cornered mutant fights to the end.
       - Added Cloak, a varied invisibility rhythm for the bloodsucker kind.
       - Added Gravity attack, the burer's forced gravity throw on your held aim.
-      - Added bounded variation over each species' own numbers, each behind its own row: movement, leap and rush ranges, burer gravity and telekinesis, controller tube and stamina and auras,
-          and poltergeist hover and detection all breathe over the installed balance.
+      - Added bounded variation over each species' own ability numbers, each behind its own row: burer gravity and telekinesis, controller tube and stamina and auras, poltergeist detection, bloodsucker cloak.
+          Movement stays the game's own tuning, so varied mutants move exactly as the game intended.
 
   Combat
     General

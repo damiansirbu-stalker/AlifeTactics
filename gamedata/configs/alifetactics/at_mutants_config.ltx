@@ -102,15 +102,10 @@ lurker     = jump_attack_0, jump_attack_1
 burer      = stand_attack_0, stand_attack_0
 controller = stand_attack_0, stand_attack_1
 
-[wild] ; bounded value variation as a fraction of the install's own loaded value
-attack_dist_pct = 0.15
-jump_band_pct   = 0.15
-circle_pct      = 0.20
-rush_band_pct   = 0.20
-window_pct      = 0.20
+[wild] ; bounded ability variation as a fraction of the install's own loaded value
+; Wild varies standalone ability numbers only (gravity, telekinesis, aura, detection, stamina); never a
+; locomotion or attack-solver input, which desyncs from the tuned path and animation timing.
 ability_pct     = 0.20
-turn_min        = 1.00 ; up only - variation never turns a mutant slower than its own vanilla rate
-turn_max        = 1.25
 
 [cloak] ; bloodsucker visibility-transition dwell band, ms
 delay_min_ms = 700
@@ -121,9 +116,3 @@ tube_delay_min_ms = 5000
 tube_delay_max_ms = 9000
 see_min_ms        = 800
 see_max_ms        = 2000
-
-[poltergeist] ; hover-height band rolled per spawn, metres
-height_min_low  = 0.4
-height_min_high = 1.2
-height_max_low  = 1.6
-height_max_high = 3.0

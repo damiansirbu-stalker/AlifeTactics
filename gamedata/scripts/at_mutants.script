@@ -20,7 +20,6 @@ local BAND_IN         = "in"
 local BURER           = "burer"
 local CONTROLLER      = "controller"
 local POLTERGEIST     = "poltergeist"
-local CHIMERA_CLASS   = { chimera = true, lurker = true }
 local AURA_NAMES      = { "psy", "radiation", "fire" }
 local GATE_BOTH       = "int, wild"
 local VS_PLAYER, VS_NPC = "vs_player", "vs_npc"
@@ -126,7 +125,7 @@ local function _check_toggle(rec, move)
     return key ~= nil and cfg[key] == true
 end
 
--- The page's MCM toggle for a varied-vanilla family (movement, tube, hover, ...); false where no row exists.
+-- The page's MCM toggle for an ability vary family (tube, stamina, aura, detection, gravity_numbers, telekinesis); false where no row exists.
 local function _check_vary(rec, family)
     local page = rec.page
     return page ~= nil and cfg["mut_" .. page .. "_" .. family] == true
@@ -206,76 +205,21 @@ local function _add_slot(bucket)
     _slots:add(bucket)
 end
 
--- The rush basis stash (the premise range = the species' own trigger band) plus the Rush range vary.
-local function _apply_rush_params(mob, rec, section)
+-- The rush premise band: the species' own Run_Attack max is the distance our rush triggers read.
+-- Read-only - the engine's charge band stays vanilla (varying it re-captures the charge in a stop loop).
+local function _apply_rush_params(_mob, rec, section)
     local dist = _read_pair(section, "Run_Attack_Dist")
-    local delay = _read_pair(section, "Run_Attack_Delay")
-    if not (dist or delay) then return end
     rec.rush_max_m = dist and dist[2] or nil
-    if not _check_vary(rec, "rush_range") then return end
-    local pct = _tun_num.rush_band_pct
-    local dist_min, dist_max = _compute_band(dist and dist[1], dist and dist[2], pct)
-    local delay_min, delay_max = _compute_band(delay and delay[1], delay and delay[2], pct)
-    rec.rush_max_m = dist_max or rec.rush_max_m
-    xmonster.set_monster_rush_params(mob, {
-        min_dist = dist_min, max_dist = dist_max,
-        min_delay_ms = delay_min, max_delay_ms = delay_max,
-    })
-    if at_debug.is_on() and dist_min then
-        at_debug.debug("[MUT] vary id=%d rush=%.1f-%.1f delay=%.0f-%.0f",
-            mob:id(), dist_min, dist_max, delay_min or 0, delay_max or 0)
-    end
 end
 
--- The Movement row's body values: turn speed, melee reach, circle geometry, over the install's own values.
--- Turn and the melee reach vary UP only (window min pinned vanilla, max and turn >= 1), so variation never weakens a boar.
-local function _apply_movement(mob, rec, section)
-    local turn = _select_band(_tun_num.turn_min, _tun_num.turn_max)
-    xmonster.set_monster_turn_factor(mob, turn)
-    local atk_min = _read_basis(section, "MinAttackDist")
-    local atk_max = _read_basis(section, "MaxAttackDist")
-    atk_max = atk_max and atk_max * _select_band(1, 1 + _tun_num.attack_dist_pct) or nil
-    xmonster.set_monster_attack_dist(mob, { min_dist = atk_min, max_dist = atk_max })
-    local circle_factor = _select_band(1 - _tun_num.circle_pct, 1 + _tun_num.circle_pct)
-    local far = _read_basis(section, "aom_far_radius")
-    local strike = _read_basis(section, "aom_attack_radius")
-    local side = _read_basis(section, "aom_update_side_period")
-    far = far and far * circle_factor or nil
-    strike = strike and strike * circle_factor or nil
-    side = side and side * circle_factor or nil
-    xmonster.set_monster_circle_params(mob, {
-        far_radius = far,
-        attack_radius = strike,
-        update_side_period = side,
-    })
-    if at_debug.is_on() then
-        at_debug.debug("[MUT] vary id=%d turn=%.2f atk=%.1f-%.1f circle=%.1f/%.2f/%.1f",
-            rec.id, turn, atk_min or 0, atk_max or 0, far or 0, strike or 0, side or 0)
-    end
-end
-
--- The leap basis stash: the premise band (shared with the commanded leaps), the adapt restore point (a missing basis reads as the engine default 0).
--- The Leap range vary covers the band, the delay, and the native accept gates (angle, height).
-local function _apply_leap(mob, rec, section)
+-- The leap premise band: the species' own jump distances our commanded leaps read, plus the adapt restore point.
+-- Read-only - the engine's jump solve stays vanilla; a missing jump_auto_aim_factor reads as the engine default 0.
+local function _apply_leap(_mob, rec, section)
     local jump_max = _read_basis(section, "jump_max_distance")
     if not jump_max then return end
     rec.jump_min_m = _read_basis(section, "jump_min_distance")
     rec.jump_max_m = jump_max
     rec.aim_basis = _read_basis(section, "jump_auto_aim_factor") or 0
-    if not _check_vary(rec, "leap_range") then return end
-    local pct = _tun_num.jump_band_pct
-    local band_min, band_max = _compute_band(rec.jump_min_m, jump_max, pct)
-    rec.jump_min_m = band_min or rec.jump_min_m
-    rec.jump_max_m = band_max or jump_max
-    local angle = _compute_offset(_read_basis(section, "jump_max_angle"), pct)
-    local height = _compute_offset(_read_basis(section, "jump_max_height"), pct)
-    local delay = _compute_offset(_read_basis(section, "jump_delay"), _tun_num.window_pct)
-    xmonster.set_monster_jump_params(mob, { min_dist = band_min, max_dist = band_max,
-        max_angle = angle, max_height = height, delay_ms = delay })
-    if at_debug.is_on() and band_max then
-        at_debug.debug("[MUT] vary id=%d leap=%.1f-%.1f angle=%.2f height=%.2f delay=%.0f",
-            rec.id, band_min or 0, band_max, angle or 0, height or 0, delay or 0)
-    end
 end
 
 -- The controller pacing: the psi tube rhythm and the stamina drain, varied over the install's own values.
@@ -296,42 +240,26 @@ local function _apply_controller_pacing(mob, rec, section)
     end
 end
 
--- The poltergeist pacing: the hover band and drift, and the detection envelope.
+-- The poltergeist detection envelope: perception ranges and speeds, a standalone ability, not flight movement.
 local function _apply_poltergeist_pacing(mob, rec, section)
-    local hmin, hmax, vel, dwell_min, dwell_max
-    if _check_vary(rec, "hover") then
-        dwell_min, dwell_max = _compute_band(_read_basis(section, "Height_Change_Min_Time"),
-            _read_basis(section, "Height_Change_Max_Time"), _tun_num.ability_pct)
-        hmin = _select_band(_tun_num.height_min_low, _tun_num.height_min_high)
-        hmax = _select_band(_tun_num.height_max_low, _tun_num.height_max_high)
-        vel = _compute_offset(_read_basis(section, "Height_Change_Velocity"), _tun_num.ability_pct)
-        xmonster.set_poltergeist_height_params(mob, {
-            height_min = hmin, height_max = hmax, change_velocity = vel,
-            min_time_ms = dwell_min, max_time_ms = dwell_max,
-        })
-    end
-    local near_f, far_f, far_r
-    if _check_vary(rec, "detection") then
-        local pct = _tun_num.ability_pct
-        near_f = _compute_offset(_read_basis(section, "detection_near_range_factor"), pct)
-        far_f = _compute_offset(_read_basis(section, "detection_far_range_factor"), pct)
-        far_r = _compute_offset(_read_basis(section, "detection_far_range"), pct)
-        xmonster.set_poltergeist_detection_params(mob, {
-            near_factor = near_f,
-            far_factor = far_f,
-            far_range = far_r,
-            speed_factor = _compute_offset(_read_basis(section, "detection_speed_factor"), pct),
-            loose_speed = _compute_offset(_read_basis(section, "detection_loose_speed"), pct),
-        })
-    end
+    if not _check_vary(rec, "detection") then return end
+    local pct = _tun_num.ability_pct
+    local near_f = _compute_offset(_read_basis(section, "detection_near_range_factor"), pct)
+    local far_f = _compute_offset(_read_basis(section, "detection_far_range_factor"), pct)
+    local far_r = _compute_offset(_read_basis(section, "detection_far_range"), pct)
+    xmonster.set_poltergeist_detection_params(mob, {
+        near_factor = near_f,
+        far_factor = far_f,
+        far_range = far_r,
+        speed_factor = _compute_offset(_read_basis(section, "detection_speed_factor"), pct),
+        loose_speed = _compute_offset(_read_basis(section, "detection_loose_speed"), pct),
+    })
     if at_debug.is_on() then
-        at_debug.debug("[MUT] vary id=%d hover=%.1f-%.1f vel=%.2f dwell=%.0f-%.0f det=%.2f/%.2f/%.1f",
-            rec.id, hmin or 0, hmax or 0, vel or 0, dwell_min or 0, dwell_max or 0,
-            near_f or 0, far_f or 0, far_r or 0)
+        at_debug.debug("[MUT] vary id=%d detection=%.2f/%.2f/%.1f", rec.id, near_f or 0, far_f or 0, far_r or 0)
     end
 end
 
--- The species pacing rolls: the cloak dwell, the controller tube and stamina, the poltergeist hover and detection.
+-- The species pacing rolls: the cloak dwell, the controller tube and stamina, the poltergeist detection.
 local function _apply_pacing(mob, rec, section)
     if rec.moves.cloak and _check_toggle(rec, "cloak") then
         local dwell = _select_band(_tun_num.cloak_min, _tun_num.cloak_max)
@@ -340,22 +268,6 @@ local function _apply_pacing(mob, rec, section)
     end
     if rec.species == CONTROLLER then _apply_controller_pacing(mob, rec, section) end
     if rec.species == POLTERGEIST then _apply_poltergeist_pacing(mob, rec, section) end
-end
-
--- The chimera-class private attack family, varied under the same Leap range row.
-local function _apply_chimera_params(mob, rec, section)
-    if not CHIMERA_CLASS[rec.species] or not _check_vary(rec, "leap_range") then return end
-    local pct = _tun_num.ability_pct
-    local radius = _compute_offset(_read_basis(section, "attack_radius"), pct)
-    local prepare = _compute_offset(_read_basis(section, "prepare_jump_timeout"), pct)
-    local attack = _compute_offset(_read_basis(section, "attack_jump_timeout"), pct)
-    xmonster.set_chimera_attack_params(mob, {
-        attack_radius = radius, prepare_timeout_ms = prepare, attack_timeout_ms = attack,
-    })
-    if at_debug.is_on() then
-        at_debug.debug("[MUT] vary id=%d chimera radius=%.1f prepare=%.0f attack=%.0f",
-            rec.id, radius or 0, prepare or 0, attack or 0)
-    end
 end
 
 -- The burer gravity numbers and telekinesis families, varied over the install's own values.
@@ -461,11 +373,9 @@ local function _add_mutant(mob, id, now)
     }
     _states[id] = rec
     local section = mob:section()
-    if _check_vary(rec, "movement") then _apply_movement(mob, rec, section) end
     _apply_leap(mob, rec, section)
     if rec.moves.rush then _apply_rush_params(mob, rec, section) end
     _apply_pacing(mob, rec, section)
-    _apply_chimera_params(mob, rec, section)
     _apply_burer_params(mob, rec, section)
     _apply_auras(mob, rec, section)
     _try_arm_backstrike(mob, rec)
@@ -997,10 +907,10 @@ local function _build_species_keys(species, page, seen_keys)
     return keys
 end
 
--- The fixed vary-row keys; the per-page movement/leap_range/rush_range keys are collected from [pages] at load.
+-- The ability vary-row keys; Wild varies standalone ability numbers only, never a locomotion or attack solver input.
 local VARY_KEYS = {
     "mut_controller_tube", "mut_controller_stamina", "mut_controller_aura",
-    "mut_poltergeist_hover", "mut_poltergeist_detection",
+    "mut_poltergeist_detection",
     "mut_burer_gravity_numbers", "mut_burer_telekinesis",
 }
 
@@ -1034,15 +944,10 @@ local function _load_tunables()
         claw_cone = _read_num("claw", "facing_cone_deg"),
         claw_clear = _read_num("claw", "clear_ms"),
         backstrike_arc = _read_num("backstrike", "arc_deg"),
-        attack_dist_pct = _read_num("wild", "attack_dist_pct"), jump_band_pct = _read_num("wild", "jump_band_pct"),
-        circle_pct = _read_num("wild", "circle_pct"), window_pct = _read_num("wild", "window_pct"),
-        rush_band_pct = _read_num("wild", "rush_band_pct"), ability_pct = _read_num("wild", "ability_pct"),
-        turn_min = _read_num("wild", "turn_min"), turn_max = _read_num("wild", "turn_max"),
+        ability_pct = _read_num("wild", "ability_pct"),
         cloak_min = _read_num("cloak", "delay_min_ms"), cloak_max = _read_num("cloak", "delay_max_ms"),
         tube_min = _read_num("controller", "tube_delay_min_ms"), tube_max = _read_num("controller", "tube_delay_max_ms"),
         see_min = _read_num("controller", "see_min_ms"), see_max = _read_num("controller", "see_max_ms"),
-        height_min_low = _read_num("poltergeist", "height_min_low"), height_min_high = _read_num("poltergeist", "height_min_high"),
-        height_max_low = _read_num("poltergeist", "height_max_low"), height_max_high = _read_num("poltergeist", "height_max_high"),
     }
     _slots = xttltable.create_ttl_counter({ ttl = _read_num("caps", "slot_s") or 3 })
     _move_species = {}
@@ -1060,16 +965,8 @@ local function _load_tunables()
     _all_toggle_keys = {}
     local seen_keys = {}
     _pages = xltx.read_section(_tun, "pages")
-    local vary_families = { "movement", "leap_range", "rush_range" }
     for species, page in pairs(_pages) do
         _move_cfg[species] = _build_species_keys(species, page, seen_keys)
-        for v = 1, #vary_families do
-            local vary_key = "mut_" .. page .. "_" .. vary_families[v]
-            if seen_keys[vary_key] then goto continue end
-            seen_keys[vary_key] = true
-            _all_toggle_keys[#_all_toggle_keys + 1] = vary_key
-            ::continue::
-        end
     end
     for i = 1, #VARY_KEYS do
         _all_toggle_keys[#_all_toggle_keys + 1] = VARY_KEYS[i]

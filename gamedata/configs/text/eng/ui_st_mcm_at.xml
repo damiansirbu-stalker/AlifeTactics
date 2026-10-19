@@ -315,18 +315,6 @@
   <string id="ui_mcm_at_mutants_jump_adapt_desc">
     <text>[int, wild] The no-wind-up leap with mid-air steering, fired when the enemy watches AND strafes; the steering stays inside the game's own envelope.</text>
   </string>
-  <string id="ui_mcm_at_mutants_leap_range">
-    <text>Leap range</text>
-  </string>
-  <string id="ui_mcm_at_mutants_leap_range_desc">
-    <text>[wild] Varies the leap numbers per individual over the game's own values: distance band and re-leap delay, for native and commanded leaps alike. On the chimera kind it also varies its circle radius and leap pacing.</text>
-  </string>
-  <string id="ui_mcm_at_mutants_rush_range">
-    <text>Rush range</text>
-  </string>
-  <string id="ui_mcm_at_mutants_rush_range_desc">
-    <text>[wild] Varies the charge numbers per individual over the game's own values: distance band and re-arm delay, for native and commanded charges alike.</text>
-  </string>
   <string id="ui_mcm_at_mutants_rush">
     <text>Rush</text>
   </string>
@@ -369,12 +357,6 @@
   <string id="ui_mcm_at_mutants_telekinesis_desc">
     <text>[wild] Varies the telekinesis per individual: find radius, distance band, fly speed.</text>
   </string>
-  <string id="ui_mcm_at_mutants_movement">
-    <text>Movement</text>
-  </string>
-  <string id="ui_mcm_at_mutants_movement_desc">
-    <text>[wild] Varies the body values per individual: turn speed, melee reach, circle geometry.</text>
-  </string>
   <string id="ui_mcm_at_mutants_tube">
     <text>Psi tube</text>
   </string>
@@ -392,12 +374,6 @@
   </string>
   <string id="ui_mcm_at_mutants_aura_desc">
     <text>[wild] Varies the aura strength and reach per individual.</text>
-  </string>
-  <string id="ui_mcm_at_mutants_hover">
-    <text>Hover</text>
-  </string>
-  <string id="ui_mcm_at_mutants_hover_desc">
-    <text>[wild] Varies the hover-height band per spawn.</text>
   </string>
   <string id="ui_mcm_at_mutants_detection">
     <text>Detection</text>
