@@ -699,12 +699,12 @@ Stops: inert below the monster seam set with one INACTIVE line; a move never fir
 
 ```
 monster_on_update (binder scheduler, 100ms near to 625ms far) -> the one lane, gated 600ms per mutant (at_mutants.script)
-  adopt: tier, the [moves] envelope and the NEW pool ([managed] complement), the quadruped flag,
+  adopt: tier, the [moves] envelope, the quadruped flag,
          the raw leap and rush bands (read for our premises, never written back), bounded wild
          offsets over ini_sys basis values behind the ability vary rows (the burer gravity numbers
          and telekinesis with its lifted-object count, the controller tube and stamina, the
-         poltergeist detection, the aura row), species pacing rolls, the backstrike arm roll
-         (re-decided each adoption)
+         poltergeist detection, the aura row) and behind the Cloak move row (the visibility dwell),
+         the backstrike arm roll (re-decided each adoption)
   every beat: upkeep (the claw-override clear on its window or any jump, the gravity-force release),
          the motion samples (recede, lateral strafe) and the burer aim-held timer
   free decision beat (the 6s clock): the weapon memo (skipped dry), the premise walk down BEST_MOVES -

@@ -225,16 +225,19 @@ end
 -- The controller pacing: the psi tube rhythm and the stamina drain, varied over the install's own values.
 local function _apply_controller_pacing(mob, rec, section)
     local see_ms, tube_ms, stamina
+    local pct = _tun_num.ability_pct
     if _check_vary(rec, "tube") then
-        see_ms = _select_band(_tun_num.see_min, _tun_num.see_max)
-        tube_ms = _select_band(_tun_num.tube_min, _tun_num.tube_max)
-        xmonster.set_controller_tube_params(mob, { see_duration_ms = see_ms, min_delay_ms = tube_ms })
+        see_ms = _compute_offset(_read_basis(section, "tube_condition_see_duration"), pct)
+        tube_ms = _compute_offset(_read_basis(section, "tube_condition_min_delay"), pct)
+        if see_ms or tube_ms then
+            xmonster.set_controller_tube_params(mob, { see_duration_ms = see_ms, min_delay_ms = tube_ms })
+        end
     end
     if _check_vary(rec, "stamina") then
-        stamina = _compute_offset(_read_basis(section, "stamina_hit"), _tun_num.ability_pct)
-        xmonster.set_controller_stamina_hit(mob, stamina)
+        stamina = _compute_offset(_read_basis(section, "stamina_hit"), pct)
+        if stamina then xmonster.set_controller_stamina_hit(mob, stamina) end
     end
-    if at_debug.is_on() then
+    if (see_ms or tube_ms or stamina) and at_debug.is_on() then
         at_debug.debug("[MUT] vary id=%d tube=%.0f/%.0fms stamina=%.3f",
             rec.id, see_ms or 0, tube_ms or 0, stamina or 0)
     end
@@ -262,9 +265,11 @@ end
 -- The species pacing rolls: the cloak dwell, the controller tube and stamina, the poltergeist detection.
 local function _apply_pacing(mob, rec, section)
     if rec.moves.cloak and _check_toggle(rec, "cloak") then
-        local dwell = _select_band(_tun_num.cloak_min, _tun_num.cloak_max)
-        xmonster.set_bloodsucker_invisibility_delay(mob, dwell)
-        if at_debug.is_on() then at_debug.debug("[MUT] vary id=%d cloak=%.0fms", rec.id, dwell) end
+        local dwell = _compute_offset(_read_basis(section, "visibility_state_change_min_delay"), _tun_num.ability_pct)
+        if dwell then
+            xmonster.set_bloodsucker_invisibility_delay(mob, dwell)
+            if at_debug.is_on() then at_debug.debug("[MUT] vary id=%d cloak=%.0fms", rec.id, dwell) end
+        end
     end
     if rec.species == CONTROLLER then _apply_controller_pacing(mob, rec, section) end
     if rec.species == POLTERGEIST then _apply_poltergeist_pacing(mob, rec, section) end
@@ -945,9 +950,6 @@ local function _load_tunables()
         claw_clear = _read_num("claw", "clear_ms"),
         backstrike_arc = _read_num("backstrike", "arc_deg"),
         ability_pct = _read_num("wild", "ability_pct"),
-        cloak_min = _read_num("cloak", "delay_min_ms"), cloak_max = _read_num("cloak", "delay_max_ms"),
-        tube_min = _read_num("controller", "tube_delay_min_ms"), tube_max = _read_num("controller", "tube_delay_max_ms"),
-        see_min = _read_num("controller", "see_min_ms"), see_max = _read_num("controller", "see_max_ms"),
     }
     _slots = xttltable.create_ttl_counter({ ttl = _read_num("caps", "slot_s") or 3 })
     _move_species = {}

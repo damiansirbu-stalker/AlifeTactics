@@ -361,7 +361,7 @@
     <text>Psi tube</text>
   </string>
   <string id="ui_mcm_at_mutants_tube_desc">
-    <text>[wild] Varies the psi tube pacing per individual, inside a slow envelope.</text>
+    <text>[wild] Varies the psi tube pacing per individual.</text>
   </string>
   <string id="ui_mcm_at_mutants_stamina">
     <text>Stamina</text>
@@ -385,7 +385,7 @@
     <text>Cloak</text>
   </string>
   <string id="ui_mcm_at_mutants_cloak_desc">
-    <text>[wild] Varies the flicker timing of the invisibility per individual: one flickers fast, another holds long cloaked stretches.</text>
+    <text>[wild] Varies the flicker timing of the invisibility per individual.</text>
   </string>
   <string id="ui_mcm_at_mutants_roar">
     <text>Roar</text>
