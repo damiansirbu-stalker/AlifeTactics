@@ -22,7 +22,7 @@ local TARGET_NAME_MAX  = 20
 local SCHEME_MAX       = 14
 local FACING_DEG = 60
 
-local GRID  = { 34, 28 }
+local GRID  = { 34, 64 }
 local ROW_A = { "stalker", "systems" }
 local ROW_B = { "target", "engine" }
 local MOB_SAMPLE_MS = 500
@@ -156,15 +156,7 @@ local WILD_MOVES = {
     detection = true, gravity_numbers = true, telekinesis = true,
 }
 
--- Two-char codes so the full influence set fits the fixed cell; the live fire still shows the full move name.
-local INF_CODE = {
-    leap = "Lp", jump = "Jp", leap_adapt = "La", jump_adapt = "Ja", flee = "Fl",
-    retreat = "Rt", claw = "Cw", backstrike = "Bk", gravity_attack = "Gv", charge = "Ch",
-    cloak = "Ck", tube = "Tb", stamina = "Sm", aura = "Au", detection = "Dt",
-    gravity_numbers = "Gn", telekinesis = "Tk",
-}
-
--- The influence line: every move or vary AlifeTactics touches on this species, each code colored by its gate.
+-- The influence line: every move or vary AlifeTactics touches on this species, the exact move name, colored by its gate.
 local function _format_influence(rec)
     local inf = rec.influence
     if not inf or #inf == 0 then return nil end
@@ -172,7 +164,7 @@ local function _format_influence(rec)
     for i = 1, #inf do
         local name = inf[i]
         local esc = WILD_MOVES[name] and ESC_WILD or ESC_INT
-        parts[i] = esc .. (INF_CODE[name] or name) .. ESC_END
+        parts[i] = esc .. name .. ESC_END
     end
     return table_concat(parts, " ")
 end
