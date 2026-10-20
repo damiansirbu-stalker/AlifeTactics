@@ -4,7 +4,7 @@
   Mutants
     General
       - Added the mutant decision model: every mutant reads your weak moments and answers with its own body's moves.
-          A reload, a turned back, a held aim, a perch, a strafe, or a weak weapon opens a decision, and Intelligence (a base plus a bonus per map rank) decides whether the answer is the right move.
+          A reload, a turned back, a held aim, a perch, or a strafe opens a decision, and Intelligence (a base plus a bonus per map rank) decides whether the answer is the right move.
           A missed roll lets the opening go, so a Cordon dog wastes most of its chances and a deep-Zone chimera takes them; every move that fires has a real cause behind it.
           One decision per mutant every few seconds and a hard cap on simultaneous driven moves keep a pack reading as waves. Needs the latest demonized build, inactive on older exes and AOEngine.
       - Added Wild: one dial for how much every move value varies, timings, distances, bands, geometry. At 0 mutants are identical and learnable, at 100 no two spawns or actions read alike.
@@ -13,14 +13,13 @@
     Species
       - Added a page per species, every species in the game: its own attacks under AlifeTactics timing first, then the new moves vanilla never fires for it. Every tooltip opens with the move's gates.
       - Added the leap family, predator logic: Leap keeps its wind-up at a turned back, Jump drops the wind-up when you are watching, Leap adapt and Jump adapt steer mid-air when you strafe.
-          Disabling Jump keeps every leap dodgeable. An aimed shotgun in range stops the leap and the charge, and a shotgunner turned away invites them.
+          Disabling Jump keeps every leap dodgeable. An aimed shotgun in range stops the leap, and a shotgunner turned away invites it.
       - Camping stopped being safe: every jumper leaps at an enemy perched above it, and a burer answers a held aim or an elevated shooter with its Gravity attack.
-      - Added Rush, the full-speed charge at a fleeing enemy or a weapon too weak for the range.
-      - Added Dodge, a sideways juke when you draw a bead up close.
+      - Added Rush, the charge pacing: how often a boar, bloodsucker, or pseudogigant charges scales with its Intelligence, so a deep-Zone charger presses harder than a Cordon one. The charge stays the game's own move.
       - Added Backstrike, a spin strike on an enemy circling behind, on the four species whose models carry the motions.
       - Added Claw, the point-blank strike vanilla never gave the chimera and lurker.
-      - Added Roar, the snork and pseudogigant threat display vanilla never plays in a fight, once per engagement.
       - Added Flee, a rare committed break from the fight when near death and far enough to escape; a cornered mutant fights to the end.
+      - Added Retreat, a short yield instead of pressing a losing position: a perch it cannot reach, or a bead held on it from range.
       - Added Cloak, a varied invisibility rhythm for the bloodsucker kind.
       - Added Gravity attack, the burer's forced gravity throw on your held aim.
       - Added bounded variation over each species' own ability numbers, each behind its own row: burer gravity and telekinesis, controller tube and stamina and auras, poltergeist detection, bloodsucker cloak.

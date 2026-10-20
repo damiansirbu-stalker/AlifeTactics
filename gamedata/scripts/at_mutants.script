@@ -13,9 +13,7 @@ local BEAT_MS         = 600
 local STALE_MS        = 12000
 local SWEEP_MS        = 10000
 local TIER_MIN, TIER_MAX = 0, 5
-local WEAK_KIND       = { w_pistol = true, w_smg = true }
 local SHOTGUN_KIND    = "w_shotgun"
-local BAND_OUT        = "out"
 local BAND_IN         = "in"
 local BURER           = "burer"
 local CONTROLLER      = "controller"
@@ -28,31 +26,28 @@ local MOVE_JUMP       = "jump"
 local MOVE_LEAP_ADAPT = "leap_adapt"
 local MOVE_JUMP_ADAPT = "jump_adapt"
 local MOVE_FLEE       = "flee"
-local MOVE_ROAR       = "roar"
+local MOVE_RETREAT    = "retreat"
 
 local MOVE_KEYS = {
-    "leap", "jump", "leap_adapt", "jump_adapt", "rush", "dodge", "flee",
-    "cloak", "gravity_attack", "claw", "backstrike", "roar",
+    "leap", "jump", "leap_adapt", "jump_adapt", "flee", "retreat",
+    "cloak", "gravity_attack", "claw", "backstrike",
 }
 
 -- The capped moves check a bucket slot before firing; flee adds a slot but is never denied; claw sits outside the caps.
 local CAPPED = {
-    leap = true, jump = true, leap_adapt = true, jump_adapt = true, rush = true,
-    dodge = true, gravity_attack = true, roar = true,
+    leap = true, jump = true, leap_adapt = true, jump_adapt = true,
+    gravity_attack = true, retreat = true,
 }
 
 -- The premise-to-move table: array order is priority; bipeds marks rows the body-plan law denies quadrupeds.
 local BEST_MOVES = {
+    { premise = "low_health",    move = "flee" },
     { premise = "vulnerable",    move = "leap", bipeds = true },
     { premise = "shotgun_open",  move = "leap", bipeds = true },
     { premise = "enemy_above",   move = "leap" },
     { premise = "enemy_above",   move = "gravity_attack" },
-    { premise = "fleeing",       move = "rush" },
-    { premise = "weak_gun",      move = "rush" },
-    { premise = "aimed_close",   move = "dodge" },
     { premise = "aim_held",      move = "gravity_attack" },
-    { premise = "low_health",    move = "flee" },
-    { premise = "first_contact", move = "roar" },
+    { premise = "unreachable",   move = "retreat", nojump = true },
     { premise = "contact",       move = "claw" },
 }
 
@@ -67,6 +62,8 @@ local _move_cfg = {}
 local _all_toggle_keys = {}
 local _claw_motion = nil
 local _backstrike_motions = {}
+local _page_varies = {}
+local _charge_set = {}
 local _slots = nil
 local _active = false
 local _seams = nil
@@ -205,11 +202,18 @@ local function _add_slot(bucket)
     _slots:add(bucket)
 end
 
--- The rush premise band: the species' own Run_Attack max is the distance our rush triggers read.
--- Read-only - the engine's charge band stays vanilla (varying it re-captures the charge in a stop loop).
-local function _apply_rush_params(_mob, rec, section)
-    local dist = _read_pair(section, "Run_Attack_Dist")
-    rec.rush_max_m = dist and dist[2] or nil
+-- The charge pacing: the species' own Run_Attack_Delay scaled by Intelligence, never the band geometry.
+local function _apply_charge_pacing(mob, rec, section)
+    if not _check_vary(rec, "rush") then return end
+    local delay = _read_pair(section, "Run_Attack_Delay")
+    if not delay then return end
+    local skill = _compute_intelligence(rec) / _tun_num.int_cap
+    local mult = _tun_num.charge_slow + (_tun_num.charge_fast - _tun_num.charge_slow) * skill
+    local min_ms, max_ms = delay[1] * mult, delay[2] * mult
+    xmonster.set_monster_rush_params(mob, { min_delay_ms = min_ms, max_delay_ms = max_ms })
+    if at_debug.is_on() then
+        at_debug.debug("[MUT] pace id=%d charge=%.0f-%.0fms mult=%.2f", rec.id, min_ms, max_ms, mult)
+    end
 end
 
 -- The leap premise band: the species' own jump distances our commanded leaps read, plus the adapt restore point.
@@ -347,11 +351,28 @@ local function _try_arm_backstrike(mob, rec)
     end
 end
 
+-- The influence set: every move or vary row this species carries in the MCM, ordered, for the HUD to always show.
+local function _build_influence(species, page, moves)
+    if not species then return nil end
+    local out = {}
+    for i = 1, #MOVE_KEYS do
+        local move = MOVE_KEYS[i]
+        if moves[move] then out[#out + 1] = move end
+    end
+    if _charge_set[species] then out[#out + 1] = "charge" end
+    local varies = page and _page_varies[page]
+    if varies then
+        for i = 1, #varies do out[#out + 1] = varies[i] end
+    end
+    return out
+end
+
 local function _add_mutant(mob, id, now)
     local dbg = at_debug.is_on()
     local tmr = xprofiler.new_if(dbg):start()
     local tier = _get_tier()
     local species = xcreature.get_mutant_species(id)
+    local page = species and _pages[species] or nil
     local moves = {}
     for i = 1, #MOVE_KEYS do
         local move = MOVE_KEYS[i]
@@ -360,7 +381,8 @@ local function _add_mutant(mob, id, now)
     local rec = {
         id = id,
         species = species,
-        page = species and _pages[species] or nil,
+        page = page,
+        influence = _build_influence(species, page, moves),
         tier = tier,
         quadruped = species ~= nil and _quadrupeds[species] == true,
         next_ms = 0,
@@ -372,14 +394,16 @@ local function _add_mutant(mob, id, now)
         decided_at = 0,
         flee_ok_at = 0,
         flee_until = 0,
+        retreat_ok_at = 0,
+        retreat_until = 0,
         claw_until = 0,
         claw_motion = species and moves.claw and _claw_motion or nil,
-        low_now = false, low_done = false,
+        low_now = false,
     }
     _states[id] = rec
     local section = mob:section()
     _apply_leap(mob, rec, section)
-    if rec.moves.rush then _apply_rush_params(mob, rec, section) end
+    _apply_charge_pacing(mob, rec, section)
     _apply_pacing(mob, rec, section)
     _apply_burer_params(mob, rec, section)
     _apply_auras(mob, rec, section)
@@ -433,13 +457,10 @@ local function _clear_claw(mob, rec, now, forced)
     end
 end
 
--- The per-beat motion samples: the recede read (enemy fleeing) and the lateral-displacement read (enemy strafing).
-local function _update_samples(rec, enemy_pos, mob_pos, dist)
+-- The per-beat motion sample: the lateral-displacement read (enemy strafing), the adapt-steering premise.
+local function _update_samples(rec, enemy_pos, mob_pos)
     local px, pz = rec.enemy_px, rec.enemy_pz
     rec.enemy_px, rec.enemy_pz = enemy_pos.x, enemy_pos.z
-    local last = rec.last_dist
-    rec.last_dist = dist
-    rec.recede = last ~= nil and (dist - last) or nil
     rec.strafing = false
     if not px then return end
     local dx, dz = enemy_pos.x - px, enemy_pos.z - pz
@@ -495,34 +516,19 @@ local PREMISES = {
     enemy_above = function(mob, rec, _now)
         return xcombat.is_enemy_above(rec.memo.enemy, mob, _tun_num.above_m)
     end,
-    fleeing = function(_mob, rec, _now)
-        local memo = rec.memo
-        if rec.rush_max_m == nil or memo.dist > rec.rush_max_m then return false end
-        if rec.recede == nil or rec.recede < _tun_num.flee_recede then return false end
-        return not xcombat.is_facing(memo.enemy, memo.mob_pos, _tun_num.flee_cone)
-    end,
-    weak_gun = function(_mob, rec, _now)
-        local memo = rec.memo
-        if rec.rush_max_m == nil or memo.dist > rec.rush_max_m then return false end
-        if memo.kind == nil then return false end
-        return WEAK_KIND[memo.kind] == true or memo.band == BAND_OUT
-    end,
-    aimed_close = function(_mob, rec, _now)
-        local memo = rec.memo
-        return memo.aimed == true and memo.dist <= _tun_num.dodge_range
-    end,
     aim_held = function(_mob, rec, now)
         return rec.aim_since ~= nil and now - rec.aim_since >= _tun_num.aim_held_ms
     end,
+    unreachable = function(mob, rec, _now)
+        local memo = rec.memo
+        if not memo.is_actor then return false end
+        if memo.dist > _tun_num.retreat_max_m then return false end
+        return xcombat.is_enemy_above(memo.enemy, mob, _tun_num.above_m)
+    end,
     low_health = function(mob, rec, _now)
-        if not rec.low_now or rec.low_done then return false end
+        if not rec.low_now then return false end
         if rec.memo.dist < _tun_num.flee_min_m then return false end
         return not xcombat.is_facing(mob, rec.memo.enemy_pos, _tun_num.flee_face_cone)
-    end,
-    first_contact = function(_mob, rec, _now)
-        local memo = rec.memo
-        if rec.roar_open ~= true then return false end
-        return memo.dist >= _tun_num.roar_min and memo.dist <= _tun_num.roar_max
     end,
     contact = function(mob, rec, _now)
         local memo = rec.memo
@@ -596,33 +602,6 @@ local function _execute_leap(mob, rec, move, now)
     _log_fire(rec, variant, aim and (" aim=%.2f"):format(aim) or nil)
 end
 
-local function _execute_rush(mob, rec, move, _now)
-    local memo = rec.memo
-    if memo.shotgun_aimed then return _log_block(rec, move, "shotgun") end
-    if not _check_slot(memo.bucket) then return _log_block(rec, move, "caps") end
-    if not xmonster.try_monster_run_attack(mob) then return _log_block(rec, move, "refused") end
-    _add_slot(memo.bucket)
-    _log_fire(rec, move)
-end
-
-local function _execute_dodge(mob, rec, move, _now)
-    if xmonster.is_monster_jumping(mob) then return _log_block(rec, move, "air") end
-    if not _check_slot(rec.memo.bucket) then return _log_block(rec, move, "caps") end
-    if not xmonster.try_monster_rotation_jump(mob) then return _log_block(rec, move, "refused") end
-    _add_slot(rec.memo.bucket)
-    _log_fire(rec, move)
-end
-
-local function _execute_roar(mob, rec, move, _now)
-    local memo = rec.memo
-    if memo.dist < _tun_num.roar_min or memo.dist > _tun_num.roar_max then return _log_block(rec, move, "band") end
-    if not _check_slot(memo.bucket) then return _log_block(rec, move, "caps") end
-    if not xmonster.try_monster_threaten(mob) then return _log_block(rec, move, "refused") end
-    rec.roar_open = nil
-    _add_slot(memo.bucket)
-    _log_fire(rec, move)
-end
-
 local function _execute_gravity(mob, rec, move, now)
     local memo = rec.memo
     if memo.dist_sqr > _tun_num.stare_range_sqr then return _log_block(rec, move, "band") end
@@ -643,6 +622,16 @@ local function _execute_flee(_mob, rec, move, now)
     _log_fire(rec, move, (" hold=%dms"):format(hold))
 end
 
+-- The retreat window: the flee mechanism on tactical premises - a short committed yield, capped like any offensive move.
+local function _execute_retreat(_mob, rec, move, now)
+    if not _check_slot(rec.memo.bucket) then return _log_block(rec, move, "caps") end
+    local hold = _select_band(_tun_num.retreat_hold_min, _tun_num.retreat_hold_max)
+    rec.retreat_until = now + hold
+    rec.retreat_ok_at = now + _tun_num.retreat_throttle_ms
+    _add_slot(rec.memo.bucket)
+    _log_fire(rec, move, (" hold=%dms"):format(hold))
+end
+
 -- The chimera-class contact strike; one animation owner, outside the caps, cleared by its window or any jump.
 local function _execute_claw(mob, rec, move, now)
     local memo = rec.memo
@@ -658,8 +647,7 @@ end
 
 local MOVE_EXEC = {
     leap = _execute_leap, jump = _execute_leap, leap_adapt = _execute_leap, jump_adapt = _execute_leap,
-    rush = _execute_rush, dodge = _execute_dodge, roar = _execute_roar,
-    gravity_attack = _execute_gravity, flee = _execute_flee, claw = _execute_claw,
+    gravity_attack = _execute_gravity, flee = _execute_flee, retreat = _execute_retreat, claw = _execute_claw,
 }
 
 -- A best row is eligible when the species carries the toggled move, the body plan admits it, and the caps/clocks allow it.
@@ -667,7 +655,9 @@ local function _check_row(mob, rec, row, now)
     local move = row.move
     if not rec.moves[move] then return false end
     if row.bipeds and rec.quadruped then return false end
+    if row.nojump and rec.moves.leap then return false end
     if move == MOVE_FLEE and (not _runaway_id or now < rec.flee_ok_at) then return false end
+    if move == MOVE_RETREAT and (not _runaway_id or now < rec.retreat_ok_at) then return false end
     if CAPPED[move] and rec.memo.dry then return false end
     if move == LEAP_FAMILY then
         if not _check_leap_toggled(rec) then return false end
@@ -685,24 +675,19 @@ local function _find_row(mob, rec, now)
     return nil
 end
 
--- Edges compare against the last PROCESSED state; a free observe beat processes everything it saw.
-local function _update_processed(rec)
-    rec.low_done = rec.low_now
-end
-
 -- The decision: one true premise takes ONE Intelligence roll; the 6s clock stamps either way; a miss does nothing.
 local function _run_decision(mob, rec, now)
     local row = _find_row(mob, rec, now)
-    _update_processed(rec)
     if not row then return end
     rec.decided_at = now
-    if row.move == MOVE_ROAR then rec.roar_open = nil end
     if _check_intelligence(rec) then
         MOVE_EXEC[row.move](mob, rec, row.move, now, row.premise)
         return
     end
     if at_debug.is_on() then
-        at_debug.debug("[MUT] PASS id=%d premise=%s best=%s", rec.id, row.premise, row.move)
+        local best = row.move
+        if best == LEAP_FAMILY then best = _resolve_leap_variant(mob, rec) or LEAP_FAMILY end
+        at_debug.debug("[MUT] PASS id=%d premise=%s best=%s", rec.id, row.premise, best)
     end
 end
 
@@ -715,12 +700,8 @@ local function _reset_fight(mob, rec)
     rec.driver = "-"
     rec.gate = nil
     rec.aim_since = nil
-    rec.last_dist = nil
     rec.enemy_px, rec.enemy_pz = nil, nil
-    rec.recede = nil
     rec.strafing = false
-    rec.engaged = nil
-    rec.roar_open = nil
 end
 
 -- The one 600ms lane: upkeep every beat, samples every beat, the decision behind the flat 6s clock.
@@ -741,17 +722,13 @@ local function _update_mutant(mob, rec, now)
         _reset_fight(mob, rec)
         return
     end
-    if not rec.engaged then
-        rec.engaged = true
-        rec.roar_open = true
-    end
     local enemy_pos = enemy:position()
     local mob_pos = mob:position()
     local dist_sqr = mob_pos:distance_to_sqr(enemy_pos)
     local dist = math_sqrt(dist_sqr)
-    _update_samples(rec, enemy_pos, mob_pos, dist)
+    _update_samples(rec, enemy_pos, mob_pos)
     _update_aim_sample(mob, rec, enemy, dist_sqr, now)
-    if rec.flee_until > now then return end
+    if rec.flee_until > now or rec.retreat_until > now then return end
     if now - rec.decided_at < _tun_num.throttle_ms then return end
     local is_actor = enemy:id() == AC_ID
     local memo = rec.memo
@@ -792,10 +769,10 @@ local function _on_mob_update(mob)
     if at_debug.is_on() then _log_tick(timer:get_ms(), now) end
 end
 
--- Re-propose eStateAttack_RunAway while a flee window holds; the silent path stays pure Lua.
+-- Re-propose eStateAttack_RunAway while a flee or retreat window holds; the silent path stays pure Lua.
 local function _on_combat_action(monster, _enemy, _dist, _enemy_strength, _can_jump, flags)
     local rec = _states[monster:id()]
-    if not rec or rec.flee_until <= rec.tick_now then
+    if not rec or (rec.flee_until <= rec.tick_now and rec.retreat_until <= rec.tick_now) then
         if at_debug.is_on() then _prop_silent = _prop_silent + 1 end
         return
     end
@@ -919,29 +896,35 @@ local VARY_KEYS = {
     "mut_burer_gravity_numbers", "mut_burer_telekinesis",
 }
 
+-- The charge-pacing row keys (Rush, Intelligence-driven); the Run_Attack_Delay basis gates species without the charge.
+local CHARGE_KEYS = {
+    "mut_bloodsucker_rush", "mut_boar_rush", "mut_gigant_rush",
+}
+
 local function _load_tunables()
     _tun = xltx.resolve_handle(LTX_PATH)
     _tun_num = {
         throttle_ms = (_read_num("throttle", "default") or 6) * 1000,
         flee_throttle_ms = (_read_num("throttle", "flee") or 60) * 1000,
+        retreat_throttle_ms = (_read_num("throttle", "retreat") or 20) * 1000,
         cap_player = _read_num("caps", "vs_player"),
         cap_npc = _read_num("caps", "vs_npc"),
         int_cap = _read_num("intelligence", "cap"),
         aim_held_ms = (_read_num("premises", "aim_held_s") or 3) * 1000,
         above_m = _read_num("premises", "above_m"),
         strafe_lat_sqr = (_read_num("premises", "strafe_lat_m") or 1) ^ 2,
-        flee_recede = _read_num("fleeing", "recede_m"),
-        flee_cone = _read_num("fleeing", "cone_deg"),
         flee_min_m = _read_num("survival", "min_dist_m"),
         flee_face_cone = _read_num("survival", "face_cone_deg"),
         survival_frac = _read_num("survival", "health_frac"),
         survival_hold_min = _read_num("survival", "hold_min"),
         survival_hold_max = _read_num("survival", "hold_max"),
+        retreat_hold_min = _read_num("retreat", "hold_min"),
+        retreat_hold_max = _read_num("retreat", "hold_max"),
+        retreat_max_m = _read_num("retreat", "max_dist_m"),
         threat_cone = _read_num("threat", "facing_cone_deg"),
         leap_cone = _read_num("leap", "facing_cone_deg"),
         adapt_min = _read_num("adapt", "factor_min"), adapt_max = _read_num("adapt", "factor_max"),
-        dodge_range = _read_num("dodge", "range_m"),
-        roar_min = _read_num("roar", "range_min_m"), roar_max = _read_num("roar", "range_max_m"),
+        charge_slow = _read_num("charge", "slow_mult"), charge_fast = _read_num("charge", "fast_mult"),
         stare_range_sqr = (_read_num("gravity_attack", "range_m") or 0) ^ 2,
         stare_cone = _read_num("gravity_attack", "cone_deg"),
         gravity_release = _read_num("gravity_attack", "release_ms"),
@@ -970,8 +953,21 @@ local function _load_tunables()
     for species, page in pairs(_pages) do
         _move_cfg[species] = _build_species_keys(species, page, seen_keys)
     end
+    _page_varies = {}
     for i = 1, #VARY_KEYS do
+        local page, family = VARY_KEYS[i]:match("^mut_(.-)_(.+)$")
+        if page then
+            local list = _page_varies[page] or {}
+            list[#list + 1] = family
+            _page_varies[page] = list
+        end
         _all_toggle_keys[#_all_toggle_keys + 1] = VARY_KEYS[i]
+    end
+    _charge_set = {}
+    for i = 1, #CHARGE_KEYS do
+        local species = CHARGE_KEYS[i]:match("^mut_(.-)_rush$")
+        if species then _charge_set[species] = true end
+        _all_toggle_keys[#_all_toggle_keys + 1] = CHARGE_KEYS[i]
     end
     _claw_motion = xltx.read_str(_tun, "claw", "motion")
     _backstrike_motions = {}

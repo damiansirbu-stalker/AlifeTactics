@@ -2,7 +2,7 @@
 
 local pairs, table_sort, table_concat, math_floor, tostring = pairs, table.sort, table.concat, math.floor, tostring
 local time_global = time_global
-local string_sub, string_format, string_upper, string_lower = string.sub, string.format, string.upper, string.lower
+local string_sub, string_format, string_upper, string_lower, string_find = string.sub, string.format, string.upper, string.lower, string.find
 local RegisterScriptCallback, UnregisterScriptCallback = RegisterScriptCallback, UnregisterScriptCallback
 
 local cfg = at_mcm.cfg
@@ -145,16 +145,51 @@ local function _build_row(npc, st)
     }
 end
 
--- The mutant systems cell shows only what runs NOW: the live window, or the last fired move for a short linger.
+-- Inline %c[a,r,g,b] escapes from the shared palette: Intelligence = CLR_AT green, Wild = CLR_PUSH amber.
+local ESC_INT  = "%c[240,170,220,170]"
+local ESC_WILD = "%c[240,235,190,140]"
+local ESC_END  = "%c[default]"
+
+-- The vary rows read gold; every other influenced move reads the Intelligence green.
+local WILD_MOVES = {
+    cloak = true, tube = true, stamina = true, aura = true,
+    detection = true, gravity_numbers = true, telekinesis = true,
+}
+
+-- Two-char codes so the full influence set fits the fixed cell; the live fire still shows the full move name.
+local INF_CODE = {
+    leap = "Lp", jump = "Jp", leap_adapt = "La", jump_adapt = "Ja", flee = "Fl",
+    retreat = "Rt", claw = "Cw", backstrike = "Bk", gravity_attack = "Gv", charge = "Ch",
+    cloak = "Ck", tube = "Tb", stamina = "Sm", aura = "Au", detection = "Dt",
+    gravity_numbers = "Gn", telekinesis = "Tk",
+}
+
+-- The influence line: every move or vary AlifeTactics touches on this species, each code colored by its gate.
+local function _format_influence(rec)
+    local inf = rec.influence
+    if not inf or #inf == 0 then return nil end
+    local parts = {}
+    for i = 1, #inf do
+        local name = inf[i]
+        local esc = WILD_MOVES[name] and ESC_WILD or ESC_INT
+        parts[i] = esc .. (INF_CODE[name] or name) .. ESC_END
+    end
+    return table_concat(parts, " ")
+end
+
+-- The mutant systems cell shows what runs NOW (the live window or the fired-move linger); between fires, the influence set.
 local function _format_mob_systems(rec, tg)
     if rec.flee_until > rec.tick_now then
         return string_format("fleeing %.1fs", (rec.flee_until - tg) / 1000)
+    end
+    if rec.retreat_until > rec.tick_now then
+        return string_format("retreating %.1fs", (rec.retreat_until - tg) / 1000)
     end
     if rec.claw_until > 0 then return "clawing" end
     if rec.fired_at and tg - rec.fired_at < MOB_LINGER_MS and rec.driver ~= "-" then
         return string_lower(rec.driver)
     end
-    return nil
+    return _format_influence(rec)
 end
 
 -- Mutant rows obey the stalker rules: the same gate radius, and fighting mutants only.
@@ -190,6 +225,7 @@ local function _on_mob_update(obj)
         morale = xmonster.get_monster_morale(obj),
         jumping = xmonster.is_monster_jumping(obj),
         systems = rec and _format_mob_systems(rec, tg) or nil,
+        gate = rec and rec.gate or nil,
         enemy = fighting and string_format("%s %dm",
             _format_label(xcreature.get_name(enemy:id()), TARGET_NAME_MAX),
             math_floor(obj:position():distance_to(enemy:position()))) or nil,
@@ -201,6 +237,7 @@ local function _build_mob_row(mob)
     return {
         is_mob  = true,
         driver  = mob.systems,
+        gate    = mob.gate,
         stalker = string_format("%s %d%%", _format_label(mob.name, SUBJECT_NAME_MAX),
             math_floor((mob.hp or 0) * 100)),
         target  = mob.enemy or "-",
@@ -295,9 +332,13 @@ local function _compute_widths(chars)
     return widths, total
 end
 
+-- The gate color code: Intelligence-influenced reads the AT green (int dominant over wild), wild-only reads gold.
 local function _get_row_color(row)
     if row.is_overflow then return CLR_DIM end
-    if row.is_mob and row.driver then return CLR_AT end
+    if row.is_mob and row.driver then
+        if row.gate and not string_find(row.gate, "int", 1, true) then return CLR_PUSH end
+        return CLR_AT
+    end
     if row.driver == "AT" then return CLR_AT end
     if row.driver == DRIVER_HOLD then return CLR_HOLD end
     if row.driver == DRIVER_PUSH or row.driver == DRIVER_PULL then return CLR_PUSH end

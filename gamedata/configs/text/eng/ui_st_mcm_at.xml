@@ -319,13 +319,7 @@
     <text>Rush</text>
   </string>
   <string id="ui_mcm_at_mutants_rush_desc">
-    <text>[int, wild] A full-speed run straight into the enemy: a flank and weak-gun move, from behind or the side, against a pistol or SMG, or when your weapon is past its effective range. Never into an aimed shotgun.</text>
-  </string>
-  <string id="ui_mcm_at_mutants_dodge">
-    <text>Dodge</text>
-  </string>
-  <string id="ui_mcm_at_mutants_dodge_desc">
-    <text>[int, wild] A sideways juke when you draw a bead on it up close.</text>
+    <text>[int] Paces the charge: a smarter creature waits less between charges and presses harder. The charge itself stays the game's own move.</text>
   </string>
   <string id="ui_mcm_at_mutants_backstrike">
     <text>Backstrike</text>
@@ -387,17 +381,17 @@
   <string id="ui_mcm_at_mutants_cloak_desc">
     <text>[wild] Varies the flicker timing of the invisibility per individual.</text>
   </string>
-  <string id="ui_mcm_at_mutants_roar">
-    <text>Roar</text>
-  </string>
-  <string id="ui_mcm_at_mutants_roar_desc">
-    <text>[int, wild] A threat display on first contact at range: the creature's own warning motion the vanilla game never plays in a fight, once per engagement.</text>
-  </string>
   <string id="ui_mcm_at_mutants_flee">
     <text>Flee</text>
   </string>
   <string id="ui_mcm_at_mutants_flee_desc">
     <text>[int, wild] Breaks off and runs when near death and far enough to escape; a cornered mutant fights to the end instead.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_retreat">
+    <text>Retreat</text>
+  </string>
+  <string id="ui_mcm_at_mutants_retreat_desc">
+    <text>[int, wild] Yields ground for a while when you hold a perch it cannot reach, instead of milling at the wall.</text>
   </string>
   <!-- ==================== SHARED ==================== -->
   <string id="ui_mcm_at_title">

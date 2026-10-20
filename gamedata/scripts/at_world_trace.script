@@ -60,11 +60,18 @@ local MOB_STUCK_SPEED     = 0.3
 local MOB_HIST_DEPTH      = 2
 local MOB_STUCK_MS        = 1200
 local MOB_STUCK_RELOG_MS  = 5000
+local LEAP_WINDOW_MS      = 1500
+local LEAP_MIN_DISP_M     = 2.0
 
 -- The FSM states that intend ground movement; standing still in one of these past MOB_STUCK_MS is a stuck episode.
 local MOB_MOVE_STATES = {
     Attack_Run = true, Attack_RunAttack = true, Attack_RunAway = true,
     Attack_FindEnemy = true, Attack_On_Run = true, Panic = true, FindEnemy = true,
+}
+
+-- The commanded leap-family drivers (at_mutants _log_fire upper-cases the move name); a fire that never displaces is a strand.
+local LEAP_DRIVERS = {
+    ["LEAP"] = true, ["JUMP"] = true, ["LEAP ADAPT"] = true, ["JUMP ADAPT"] = true,
 }
 
 local TIERS = xcreature.RANK_TIERS
@@ -973,6 +980,29 @@ local function _check_mob_stuck(mob, id, state_name, jumping, tg)
         mob.d, mob.spd, jumping and "y" or "n", tg - mob.stuck_ms)
 end
 
+-- The leap-strand probe: on a fresh commanded leap fire, watch the mob's displacement for LEAP_WINDOW_MS.
+-- A fire that never clears LEAP_MIN_DISP_M left the ground on paper only - the can_jump bypass firing an infeasible jump.
+local function _check_leap_strand(mob, obj, id, tg)
+    local pos = obj:position()
+    local rec = at_mutants.get_mutant_record(id)
+    if rec and rec.fired_at and rec.fired_at ~= mob.leap_seen_at and LEAP_DRIVERS[rec.driver or ""] then
+        mob.leap_seen_at = rec.fired_at
+        mob.leap_watch = { px = pos.x, pz = pos.z, deadline = tg + LEAP_WINDOW_MS, maxd = 0, variant = rec.driver, d0 = mob.d or -1 }
+    end
+    local watch = mob.leap_watch
+    if not watch then return end
+    local disp = math_sqrt((pos.x - watch.px) ^ 2 + (pos.z - watch.pz) ^ 2)
+    if disp > watch.maxd then watch.maxd = disp end
+    if tg < watch.deadline then return end
+    if watch.maxd < LEAP_MIN_DISP_M then
+        log.info("[WORLD] mob id=%d %s LEAP STRAND variant=%s disp=%.1fm d0=%.0f (fired, never left the ground)",
+            id, mob.name or "?", watch.variant, watch.maxd, watch.d0)
+    else
+        log.info("[WORLD] mob id=%d %s LEAP ok variant=%s disp=%.1fm", id, mob.name or "?", watch.variant, watch.maxd)
+    end
+    mob.leap_watch = nil
+end
+
 -- Keep the last MOB_HIST_DEPTH beat snapshots so the stuck onset can print what led into the freeze.
 local function _push_mob_hist(mob, id, state_name, jumping)
     local hist = mob.hist
@@ -1011,6 +1041,7 @@ local function _update_mob(obj, id, tg, ap)
         _check_mob_stuck(mob, id, state_name, jumping, tg)
         _push_mob_hist(mob, id, state_name, jumping)
     end
+    _check_leap_strand(mob, obj, id, tg)
     if mob.contact then
         _log_mob_contact(mob, id, tg, jumping)
     elseif dist <= MOB_CONTACT_ENTER_M and had_prev then

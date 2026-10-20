@@ -27,21 +27,20 @@ leap           = chimera, lurker, cat, bloodsucker, psysucker, dog, snork, pseud
 jump           = chimera, lurker, cat, bloodsucker, psysucker, dog, snork, pseudodog, psy_dog
 leap_adapt     = chimera, lurker, cat, bloodsucker, psysucker, dog, snork, pseudodog, psy_dog
 jump_adapt     = chimera, lurker, cat, bloodsucker, psysucker, dog, snork, pseudodog, psy_dog
-rush           = bloodsucker, psysucker, boar, gigant
-dodge          = bloodsucker, psysucker, dog, pseudodog, psy_dog, boar, gigant
 flee           = bloodsucker, psysucker, dog, boar, snork, pseudodog, psy_dog, gigant, cat, flesh, fracture, karlik, tushkano
+retreat        = bloodsucker, psysucker, dog, boar, snork, pseudodog, psy_dog, gigant, cat, flesh, fracture, karlik, tushkano
 cloak          = bloodsucker, psysucker
 gravity_attack = burer
 claw           = chimera, lurker
 backstrike     = chimera, lurker, burer, controller
-roar           = snork, gigant
 
 [quadrupeds] ; the body-plan law: these jump carriers take OUR commanded leap ONLY at an elevated enemy
 species = dog, pseudodog, psy_dog, cat, chimera, lurker
 
-[throttle] ; the decision clocks, seconds, flat (no Wild on our clocks)
+[throttle] ; the decision clocks, seconds, flat (no Wild on our clocks); the flee and retreat gaps outlast their windows
 default = 6
-flee    = 60
+flee    = 120
+retreat = 45
 
 [caps] ; max driven moves assumed running at once per bucket; a slot counts slot_s seconds
 slot_s    = 3
@@ -56,18 +55,14 @@ aim_held_s   = 3
 above_m      = 0.8
 strafe_lat_m = 1.0
 
-[fleeing] ; the enemy-fleeing read: receding per beat with the back turned
-recede_m = 0.3
-cone_deg = 90
-
-[survival] ; the one flee trigger: crossing below this health fraction while far enough to disengage
+[survival] ; the one flee trigger: health below this fraction while far enough to disengage
 health_frac   = 0.30
-min_dist_m    = 10
+min_dist_m    = 4
 face_cone_deg = 60 ; skip the flee while the enemy sits within this cone of the mutant's nose - no 180 turn-and-die, a tangent or already-turned mutant flees
-hold_min      = 8000
-hold_max      = 15000
+hold_min      = 45000
+hold_max      = 75000
 
-[threat] ; an enemy weapon aimed within this cone counts as watching the mutant (the shotgun, dodge, and watching-split gates read it)
+[threat] ; an enemy weapon aimed within this cone counts as watching the mutant (the shotgun and watching-split gates read it)
 facing_cone_deg = 60
 
 [leap] ; the commanded leap-family fire gate; the distance band is the species' own jump_min/max_distance
@@ -77,12 +72,14 @@ facing_cone_deg = 35
 factor_min = 0.3
 factor_max = 0.6
 
-[dodge] ; the stare-break juke: the enemy aiming inside this range opens a dodge roll
-range_m = 10
+[charge] ; the charge pacing (the Rush row): the species' own Run_Attack_Delay scaled by Intelligence
+slow_mult = 1.3 ; the wait multiplier at zero Intelligence - hesitant
+fast_mult = 0.6 ; the wait multiplier at the Intelligence cap - pressing
 
-[roar] ; the threat display on a fresh enemy at range, once per engagement
-range_min_m = 3
-range_max_m = 15
+[retreat] ; the tactical yield: the flee window when the enemy is unreachable - elevation a non-jumper cannot answer
+hold_min     = 12000
+hold_max     = 18000
+max_dist_m   = 20 ; no yield past this - the engine RunAway point sits ~20m off the enemy, so a farther mutant has nowhere to run (it froze standing)
 
 [gravity_attack] ; the burer is_aim_held premise: a held aim inside this range forces the gravity attack
 range_m    = 40

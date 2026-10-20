@@ -281,11 +281,11 @@ Species:
 Each species gets its own page carrying only the moves its body has: first the managed moves, the creature's own attacks and the values AlifeTactics varies, then the new moves the vanilla game never fires for it.
 The leap family reads your attention: Leap is the telegraphed leap at a turned back, Jump drops the wind-up when you are watching, and the adapt versions of each steer mid-air when you strafe.
 Every jumper also leaps at an enemy exploiting elevation, and a burer answers a held aim or a perched shooter with its Gravity attack - camping stops being safe.
-Rush is the full-speed charge against a fleeing enemy or a weapon too weak for the range, never into an aimed shotgun.
-Dodge is a sideways juke when you draw a bead up close. Backstrike arms a spin strike on an enemy circling behind, once per individual, on the four species whose models carry the motions. Claw gives the chimera the point-blank strike vanilla never gave it.
+Rush paces the charge: how often a boar, bloodsucker, or pseudogigant charges scales with its Intelligence, so a deep-Zone charger presses harder than a Cordon one; the charge itself stays the game's own move.
+Backstrike arms a spin strike on an enemy circling behind, once per individual, on the four species whose models carry the motions. Claw gives the chimera the point-blank strike vanilla never gave it.
 Flee breaks a dying mutant out of the fight, rarely, and only when it is far enough to escape; a cornered one fights to the end. Cloak varies the bloodsucker kind's invisibility rhythm.
-Roar is a threat display on first contact at range, the warning motion the vanilla game never plays in a fight.
-A reloading, defenseless, or fleeing enemy opens the decision early; a shotgun aimed at a charging mutant in range stops the leap and the charge, and a shotgunner turned away invites them.
+Retreat yields ground for a few seconds instead of pressing a losing position: a perch the creature cannot reach, or a bead held on it from range.
+A reloading or defenseless enemy opens the decision early; a shotgun aimed at a leaping mutant in range stops the leap, and a shotgunner turned away invites it.
 Beyond the moves, each species' own ability numbers breathe: the burer's gravity and telekinesis, the controller's psi tube and stamina and auras, the poltergeist's detection, the bloodsucker's cloak,
 each behind its own row, each a bounded variation over the installed balance. Movement stays the game's own, since varying what the engine's path and attack timing depend on only ever made mutants worse.
 
