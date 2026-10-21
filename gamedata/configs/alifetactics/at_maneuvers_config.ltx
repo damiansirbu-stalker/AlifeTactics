@@ -10,6 +10,7 @@ hit_fight_ms      = 5000    ; a recent hit counts as "fighting" this long (far-s
 
 ; Needs (when AT seizes - only where vanilla is weak).
 hurt_frac     = 0.40       ; flee/retreat need below this HP fraction, with a threat whose weapon reach covers the NPC (0.25 fired too late, 2026-07-11 playtest)
+flee_inside_chance = 0.3   ; the inside chance: a passed flee decision still fires only this often (flavor, does not help the NPC); 1.0 = always
 stall_ms      = 4000       ; held position with the enemy not closing this long fires the stalled need (measured SINCE the last maneuver)
 stall_move_m  = 2          ; movement under this counts as "held position"
 stall_close_m = 2          ; enemy gaining more than this much ground resets the stall timer

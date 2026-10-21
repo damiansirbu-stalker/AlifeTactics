@@ -56,6 +56,7 @@ local _tracks = { damage = {}, taken = {} }
 local _tun = nil
 local _tun_num = nil
 local _move_species = {}
+local _inside_chance = {}
 local _quadrupeds = {}
 local _pages = {}
 local _move_cfg = {}
@@ -200,6 +201,11 @@ end
 
 local function _add_slot(bucket)
     _slots:add(bucket)
+end
+
+-- The inside chance: a flavor move still rolls its own execution chance on a seized opening; absent = 1.0 = always.
+local function _check_inside_chance(move)
+    return at_core.check_chance(_inside_chance[move])
 end
 
 -- The charge pacing: the species' own Run_Attack_Delay scaled by Intelligence, never the band geometry.
@@ -613,8 +619,9 @@ local function _execute_gravity(mob, rec, move, now)
     _log_fire(rec, move)
 end
 
--- The flee window: registers a slot but is NEVER denied; one trigger, the survival crossing out of melee reach.
+-- The flee window: the inside chance can decline it (flavor), but the caps never do; one trigger, the survival crossing out of melee reach.
 local function _execute_flee(_mob, rec, move, now)
+    if not _check_inside_chance(move) then return _log_block(rec, move, "chance") end
     local hold = _select_band(_tun_num.survival_hold_min, _tun_num.survival_hold_max)
     rec.flee_until = now + hold
     rec.flee_ok_at = now + _tun_num.flee_throttle_ms
@@ -942,6 +949,10 @@ local function _load_tunables()
         local list = xltx.read_list(_tun, "moves", move)
         for k = 1, #list do set[list[k]] = true end
         _move_species[move] = set
+    end
+    _inside_chance = {}
+    for i = 1, #MOVE_KEYS do
+        _inside_chance[MOVE_KEYS[i]] = _read_num("inside_chance", MOVE_KEYS[i]) or 1
     end
     _quadrupeds = {}
     local quad_list = xltx.read_list(_tun, "quadrupeds", "species")

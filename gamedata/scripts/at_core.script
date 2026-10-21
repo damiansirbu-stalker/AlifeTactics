@@ -1,7 +1,7 @@
 --- at_core: the combat core - the per-stalker combat records, the timestamps, the best_enemy facts, the shared checks, the main loop, and the start budget
 
 local IsStalker, time_global, pairs, next, tostring = IsStalker, time_global, pairs, next, tostring
-local RegisterScriptCallback, math_floor, AC_ID = RegisterScriptCallback, math.floor, AC_ID
+local RegisterScriptCallback, math_floor, math_random, AC_ID = RegisterScriptCallback, math.floor, math.random, AC_ID
 local ini_file = ini_file
 
 local cfg = at_mcm.cfg
@@ -321,6 +321,11 @@ function get_mob_state_name(state_id)
         if state_id >= base then return MOB_STATES[base] end
     end
     return tostring(state_id)
+end
+
+--- A probability gate: true when the roll passes; nil or a value at or above 1 always passes. The inside-chance primitive.
+function check_chance(p)
+    return not p or p >= 1 or math_random() < p
 end
 
 function on_game_start()

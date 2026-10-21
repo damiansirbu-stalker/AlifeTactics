@@ -1,7 +1,7 @@
 --- at_maneuvers_config: the maneuver catalog - array order is priority; at_maneuvers binds the methods
 
---- Build the catalog rows over the method table and LTX reader at_maneuvers passes in.
-function get_catalog(fn, read_int)
+--- Build the catalog rows over the method table and LTX readers at_maneuvers passes in.
+function get_catalog(fn, read_int, read_float)
     return {
         {
             name             = "counterflank",
@@ -30,6 +30,7 @@ function get_catalog(fn, read_int)
         {
             name             = "flee",
             toggle           = "maneuver_flee",
+            inside_chance    = read_float("flee_inside_chance", 1),
             check_need       = fn.check_hurt,
             weapons          = nil,
             find_destination = fn.find_flee_base,

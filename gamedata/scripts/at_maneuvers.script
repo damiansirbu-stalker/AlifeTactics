@@ -19,7 +19,7 @@ local KITE_KINDS = { "w_melee", "w_shotgun", "w_pistol", "w_smg", "w_rifle", "w_
 local REPEAT_MOVE_M   = 2
 local REPEAT_MOVE_SQR = REPEAT_MOVE_M * REPEAT_MOVE_M
 local INVALID_LEVEL_VERTEX_ID = 4294967295
-local STAGE_PICKED, STAGE_DECLINED, STAGE_INT = "picked", "declined", "int"
+local STAGE_PICKED, STAGE_DECLINED, STAGE_INT, STAGE_CHANCE = "picked", "declined", "int", "chance"
 local MANEUVER_PICKOFF, RANGE_TOO_CLOSE, ENDS_ON_ARRIVAL = "pickoff", "too_close", "arrival"
 
 local BEGIN_PERIOD_MS, UPDATE_PERIOD_MS, END_PERIOD_MS, HIT_FIGHT_MS
@@ -396,6 +396,7 @@ local function _check_row(row, npc, enemy, state, tg, memo)
     local situation = row.check_need(npc, enemy, state, tg, memo)
     if not situation then return nil, nil, "-" end
     if not at_faction.check_intelligence(npc) then return nil, situation, STAGE_INT end
+    if not at_core.check_chance(row.inside_chance) then return nil, situation, STAGE_CHANCE end
     local dest = row.find_destination(npc, enemy, state, tg, memo)
     if dest then return dest, situation, "picked" end
     return nil, situation, "declined"
@@ -461,7 +462,7 @@ local function _resolve_maneuver(npc, enemy, state, tg)
         local row = CATALOG[idx]
         local vid, situation, stage = _check_row(row, npc, enemy, state, tg, memo)
         if tracing then rows_trace[#rows_trace + 1] = _format_row_trace(row, situation, stage) end
-        if stage == STAGE_PICKED or stage == STAGE_DECLINED or stage == STAGE_INT then
+        if stage == STAGE_PICKED or stage == STAGE_DECLINED or stage == STAGE_INT or stage == STAGE_CHANCE then
             state.row_cursor = idx % count + 1
             spent_row, spent_vid, spent_situation = row, vid, situation
             break
@@ -842,7 +843,7 @@ local function _load_config()
         check_end_reload_cover = _check_end_reload_cover,
         check_end_pickoff      = _check_end_pickoff,
         apply_state            = _apply_state,
-    }, read_int)
+    }, read_int, read_float)
     _build_checks()
 end
 
