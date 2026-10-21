@@ -301,7 +301,7 @@
     <text>Jump</text>
   </string>
   <string id="ui_mcm_at_mutants_jump_desc">
-    <text>[int, wild] The leap with no wind-up, fired when the enemy IS watching: winding up in front of a gun hands it a free second. Off: every leap keeps its telegraph, so all are dodgeable.</text>
+    <text>[int, wild] The leap with no wind-up, fired when the enemy IS watching: a telegraphed wind-up in front of a ready gun gives the enemy time to react. Off: every leap keeps its telegraph, so all are dodgeable.</text>
   </string>
   <string id="ui_mcm_at_mutants_leap_adapt">
     <text>Leap adapt</text>
@@ -331,7 +331,7 @@
     <text>Claw</text>
   </string>
   <string id="ui_mcm_at_mutants_claw_desc">
-    <text>[int, wild] A close standing strike the chimera otherwise lacks: vanilla chimeras reach you and wander off with nothing to swing.</text>
+    <text>[int, wild] A close standing strike the chimera otherwise lacks: a vanilla chimera closes to melee range with no attack to use there.</text>
   </string>
   <string id="ui_mcm_at_mutants_gravity_attack">
     <text>Gravity attack</text>
@@ -391,7 +391,7 @@
     <text>Retreat</text>
   </string>
   <string id="ui_mcm_at_mutants_retreat_desc">
-    <text>[int, wild] Yields ground for a while when you hold a perch it cannot reach, instead of milling at the wall.</text>
+    <text>[int, wild] Backs off for a few seconds when you hold high ground it cannot reach, then returns to the fight.</text>
   </string>
   <!-- ==================== SHARED ==================== -->
   <string id="ui_mcm_at_title">
@@ -542,7 +542,7 @@
     <text>Tracking lock base</text>
   </string>
   <string id="ui_mcm_at_reaction_rct_track_base_desc">
-    <text>How tightly a novice-rank barrel holds a strafing target - the width of the lock band, radians, the curve's base. 0.196 matches vanilla, where a strafer can juke the aim.</text>
+    <text>How tightly a novice-rank barrel holds a strafing target - the width of the lock band, radians, the curve's base. 0.196 matches vanilla, where a strafing target slips the aim.</text>
   </string>
   <string id="ui_mcm_at_reaction_rct_track_rank_pct">
     <text>Tracking lock per rank (%)</text>
