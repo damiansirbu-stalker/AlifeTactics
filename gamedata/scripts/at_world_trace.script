@@ -197,34 +197,6 @@ local function _log_held_danger(npc, id, tg)
         math_sqrt((dp.x - np.x) ^ 2 + (dp.z - np.z) ^ 2), tg - danger:time(), tostring(flag), pose)
 end
 
--- Combat sub-planner action id -> short name (lazy; the ids are runtime globals).
-local _COMBAT_ACTIONS
-local function _get_action_name(action_id)
-    if not _COMBAT_ACTIONS then
-        local base = xr_actions_id.combat_monolith_base
-        _COMBAT_ACTIONS = {
-            [stalker_ids.action_kill_enemy]                = "kill_enemy",
-            [stalker_ids.action_kill_enemy_if_not_visible] = "kill_if_not_visible",
-            [stalker_ids.action_take_cover]                = "take_cover",
-            [stalker_ids.action_look_out]                  = "look_out",
-            [stalker_ids.action_hold_position]             = "hold_position",
-            [stalker_ids.action_get_ready_to_kill]         = "get_ready",
-            [base + 0] = "mono_fight_close", [base + 1] = "mono_fight_far",
-            [base + 2] = "mono_look_around", [base + 3] = "mono_go_to_pos",
-        }
-    end
-    return _COMBAT_ACTIONS[action_id] or tostring(action_id)
-end
-
--- The combat sub-planner's current action name, "-" when combat is not the running plan.
-local function _get_combat_action(npc)
-    local mgr = npc:motivation_action_manager()
-    if not (mgr and mgr:initialized()) then return "-" end
-    local combat = mgr:action(stalker_ids.action_combat_planner)
-    local plan = combat and cast_planner(combat)
-    if not (plan and plan:initialized()) then return "-" end
-    return _get_action_name(plan:current_action_id())
-end
 
 -- One per-NPC combat-state record: engine state, the operator and its combat action, routing, driver, target.
 local function _read_pose(npc, id, tg)
@@ -235,7 +207,7 @@ local function _read_pose(npc, id, tg)
         state = sm and tostring(sm.target_state) or "-",
         sct   = st and tostring(st.script_combat_type) or "-",
         op    = xcombat.get_operator(npc),
-        sub   = _get_combat_action(npc),
+        sub   = xcombat.get_combat_action(npc) or "-",
         drv   = _get_driver(id),
         enemy = be and be:id() or -1,
         t     = tg,
@@ -265,6 +237,7 @@ local _COMBAT_OPS = { combat = true, danger = true }
 local _nat_ms, _nat_n = 0, 0
 local _mob_ms, _mob_n = 0, 0
 local _occ_n, _occ_danger = 0, 0
+local _mut_dmg, _mut_hits = 0, 0
 
 local function _get_nat(id)
     local nat = _nat[id]
@@ -848,6 +821,8 @@ local function _on_actor_hit(obj, amount, local_direction, who, bone_index)
     if mob then
         mob.hits = (mob.hits or 0) + 1
         mob.hit_ms = time_global()
+        _mut_dmg = _mut_dmg + amount
+        _mut_hits = _mut_hits + 1
         log.info("[WORLD] mob id=%d %s HIT state=%s drv=%s d=%.1f stuck=%s", who:id(), mob.name or "?",
             at_core.get_mob_state_name(mob.state), _format_mob_driver(who:id(), at_mutants.get_driver(who:id())),
             mob.d, mob.stuck_ms and "y" or "n")
@@ -1019,8 +994,9 @@ local function _log_mob_edge(mob, obj, id, dist, tg)
     if not mob.name then mob.name = obj:name() or "?" end
     local driver = at_mutants.get_driver(id)
     if state ~= mob.state or strength ~= mob.strength or jumping ~= mob.jumping or driver ~= mob.driver then
-        log.info("[WORLD] mob id=%d %s state=%s str=%d jmp=%s drv=%s dist=%.0f %s",
-            id, mob.name, at_core.get_mob_state_name(state), strength, jumping and "y" or "n",
+        log.info("[WORLD] mob id=%d %s scheme=%s state=%s str=%d jmp=%s drv=%s dist=%.0f %s",
+            id, mob.name, db.storage[id] and db.storage[id].active_scheme or "-",
+            at_core.get_mob_state_name(state), strength, jumping and "y" or "n",
             _format_mob_driver(id, driver), dist, _format_mob_memory(obj, tg))
         mob.state, mob.strength, mob.jumping, mob.driver = state, strength, jumping, driver
     end
@@ -1171,6 +1147,10 @@ function write_report()
     if _occ_n > 0 then
         log.info("[OCC] out_of_combat_samples=%d danger_scheme=%.1f%%", _occ_n, 100 * _occ_danger / _occ_n)
         _occ_n, _occ_danger = 0, 0
+    end
+    if _mut_hits > 0 then
+        log.info("[MUT] incoming damage=%.1f hits=%d", _mut_dmg, _mut_hits)
+        _mut_dmg, _mut_hits = 0, 0
     end
 end
 

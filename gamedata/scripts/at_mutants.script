@@ -63,8 +63,6 @@ local _move_cfg = {}
 local _all_toggle_keys = {}
 local _claw_motion = nil
 local _backstrike_motions = {}
-local _page_varies = {}
-local _charge_set = {}
 local _slots = nil
 local _active = false
 local _seams = nil
@@ -357,22 +355,6 @@ local function _try_arm_backstrike(mob, rec)
     end
 end
 
--- The influence set: every move or vary row this species carries in the MCM, ordered, for the HUD to always show.
-local function _build_influence(species, page, moves)
-    if not species then return nil end
-    local out = {}
-    for i = 1, #MOVE_KEYS do
-        local move = MOVE_KEYS[i]
-        if moves[move] then out[#out + 1] = move end
-    end
-    if _charge_set[species] then out[#out + 1] = "charge" end
-    local varies = page and _page_varies[page]
-    if varies then
-        for i = 1, #varies do out[#out + 1] = varies[i] end
-    end
-    return out
-end
-
 local function _add_mutant(mob, id, now)
     local dbg = at_debug.is_on()
     local tmr = xprofiler.new_if(dbg):start()
@@ -388,7 +370,6 @@ local function _add_mutant(mob, id, now)
         id = id,
         species = species,
         page = page,
-        influence = _build_influence(species, page, moves),
         tier = tier,
         quadruped = species ~= nil and _quadrupeds[species] == true,
         next_ms = 0,
@@ -964,22 +945,8 @@ local function _load_tunables()
     for species, page in pairs(_pages) do
         _move_cfg[species] = _build_species_keys(species, page, seen_keys)
     end
-    _page_varies = {}
-    for i = 1, #VARY_KEYS do
-        local page, family = VARY_KEYS[i]:match("^mut_(.-)_(.+)$")
-        if page then
-            local list = _page_varies[page] or {}
-            list[#list + 1] = family
-            _page_varies[page] = list
-        end
-        _all_toggle_keys[#_all_toggle_keys + 1] = VARY_KEYS[i]
-    end
-    _charge_set = {}
-    for i = 1, #CHARGE_KEYS do
-        local species = CHARGE_KEYS[i]:match("^mut_(.-)_rush$")
-        if species then _charge_set[species] = true end
-        _all_toggle_keys[#_all_toggle_keys + 1] = CHARGE_KEYS[i]
-    end
+    for i = 1, #VARY_KEYS do _all_toggle_keys[#_all_toggle_keys + 1] = VARY_KEYS[i] end
+    for i = 1, #CHARGE_KEYS do _all_toggle_keys[#_all_toggle_keys + 1] = CHARGE_KEYS[i] end
     _claw_motion = xltx.read_str(_tun, "claw", "motion")
     _backstrike_motions = {}
     local backstrike_list = xltx.read_list(_tun, "moves", "backstrike")

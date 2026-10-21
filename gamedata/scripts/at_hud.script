@@ -22,13 +22,14 @@ local TARGET_NAME_MAX  = 20
 local SCHEME_MAX       = 14
 local FACING_DEG = 60
 
-local GRID  = { 34, 64 }
+local GRID  = { 24, 40 }
 local ROW_A = { "stalker", "systems" }
 local ROW_B = { "target", "engine" }
 local MOB_SAMPLE_MS = 500
 local MOB_LINGER_MS = 3000
 local MOB_STALE_MS  = 2000
 local DRIVER_HOLD, DRIVER_PUSH, DRIVER_PULL, DRIVER_CONDUCT = "HOLD", "PUSH", "PULL", "CONDUCT"
+local OP_COMBAT = "combat"
 
 local CLR_AT, CLR_HOLD, CLR_PUSH, CLR_CONDUCT, CLR_NORMAL, CLR_DIM = nil, nil, nil, nil, nil, nil
 local _MENTAL
@@ -130,13 +131,15 @@ local function _build_row(npc, st)
     local maneuver = at_maneuvers.get_maneuver(id)
     local enemy = npc:best_enemy()
     local systems, driver = _format_systems(id, maneuver)
+    local op = xcombat.get_operator(npc)
+    if op == OP_COMBAT then op = xcombat.get_combat_action(npc) or op end
     return {
         driver  = driver,
         stalker = string_format("%s %d%%",
             _format_label(npc:character_name() or npc:name(), SUBJECT_NAME_MAX),
             math_floor((npc.health or 0) * 100)),
         target  = _get_target_cell(npc, enemy),
-        engine  = _format_label(xcombat.get_operator(npc), SCHEME_MAX) .. " "
+        engine  = _format_label(op, SCHEME_MAX) .. " "
             .. ((st and st.active_scheme) and (_format_label(st.active_scheme, SCHEME_MAX) .. " ") or "")
             .. ((st and st.script_combat_type) and (tostring(st.script_combat_type) .. " ") or "")
             .. _get_mental_name(npc),
@@ -145,31 +148,7 @@ local function _build_row(npc, st)
     }
 end
 
--- Inline %c[a,r,g,b] escapes from the shared palette: Intelligence = CLR_AT green, Wild = CLR_PUSH amber.
-local ESC_INT  = "%c[240,170,220,170]"
-local ESC_WILD = "%c[240,235,190,140]"
-local ESC_END  = "%c[default]"
-
--- The vary rows read gold; every other influenced move reads the Intelligence green.
-local WILD_MOVES = {
-    cloak = true, tube = true, stamina = true, aura = true,
-    detection = true, gravity_numbers = true, telekinesis = true,
-}
-
--- The influence line: every move or vary AlifeTactics touches on this species, the exact move name, colored by its gate.
-local function _format_influence(rec)
-    local inf = rec.influence
-    if not inf or #inf == 0 then return nil end
-    local parts = {}
-    for i = 1, #inf do
-        local name = inf[i]
-        local esc = WILD_MOVES[name] and ESC_WILD or ESC_INT
-        parts[i] = esc .. name .. ESC_END
-    end
-    return table_concat(parts, " ")
-end
-
--- The mutant systems cell shows what runs NOW (the live window or the fired-move linger); between fires, the influence set.
+-- The mutant systems cell shows what runs NOW only - the live window or the fired-move linger; blank between fires, so a row colours only while a move is live.
 local function _format_mob_systems(rec, tg)
     if rec.flee_until > rec.tick_now then
         return string_format("fleeing %.1fs", (rec.flee_until - tg) / 1000)
@@ -181,7 +160,7 @@ local function _format_mob_systems(rec, tg)
     if rec.fired_at and tg - rec.fired_at < MOB_LINGER_MS and rec.driver ~= "-" then
         return string_lower(rec.driver)
     end
-    return _format_influence(rec)
+    return nil
 end
 
 -- Mutant rows obey the stalker rules: the same gate radius, and fighting mutants only.
@@ -214,6 +193,7 @@ local function _on_mob_update(obj)
         next_ms = tg, seen_ms = tg, dist_sqr = dist_sqr,
         name = obj:name(), hp = xmonster.get_monster_health(obj),
         state = state,
+        scheme = db.storage[id] and db.storage[id].active_scheme or nil,
         morale = xmonster.get_monster_morale(obj),
         jumping = xmonster.is_monster_jumping(obj),
         systems = rec and _format_mob_systems(rec, tg) or nil,
@@ -233,8 +213,8 @@ local function _build_mob_row(mob)
         stalker = string_format("%s %d%%", _format_label(mob.name, SUBJECT_NAME_MAX),
             math_floor((mob.hp or 0) * 100)),
         target  = mob.enemy or "-",
-        engine  = string_format("%s morale %.1f%s", at_core.get_mob_state_name(mob.state),
-            mob.morale or 0, mob.jumping and " air" or ""),
+        engine  = string_format("%s%s morale %.1f%s", mob.scheme and (mob.scheme .. " ") or "",
+            at_core.get_mob_state_name(mob.state), mob.morale or 0, mob.jumping and " air" or ""),
         systems = mob.systems or "-",
         is_combat = mob.enemy ~= nil,
     }
