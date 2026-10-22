@@ -292,22 +292,32 @@ local function _build_rows()
     table_sort(idle_list, is_closer)
 
     local mob_list = _collect_mob_rows()
+    local mob_at, mob_grey = {}, {}
+    for i = 1, #mob_list do
+        local mob = mob_list[i]
+        if mob.gate then mob_at[#mob_at + 1] = mob else mob_grey[#mob_grey + 1] = mob end
+    end
+
     local rows, shown, total = {}, 0, #at_list + #fight_list + #idle_list + #mob_list
-    local function add_rows(list)
+    local function add_npcs(list)
         for i = 1, #list do
             if #rows >= MAX_ROWS then return end
             rows[#rows + 1] = _build_row(list[i].npc, list[i].st)
             shown = shown + 1
         end
     end
-    add_rows(at_list)
-    add_rows(fight_list)
-    add_rows(idle_list)
-    for i = 1, #mob_list do
-        if #rows >= MAX_ROWS then break end
-        rows[#rows + 1] = _build_mob_row(mob_list[i])
-        shown = shown + 1
+    local function add_mobs(list)
+        for i = 1, #list do
+            if #rows >= MAX_ROWS then return end
+            rows[#rows + 1] = _build_mob_row(list[i])
+            shown = shown + 1
+        end
     end
+    add_npcs(at_list)
+    add_mobs(mob_at)
+    add_npcs(fight_list)
+    add_mobs(mob_grey)
+    add_npcs(idle_list)
 
     if shown < total then
         rows[#rows + 1] = { stalker = string_format("+%d more", total - shown), is_overflow = true }
