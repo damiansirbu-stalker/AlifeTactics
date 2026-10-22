@@ -141,7 +141,7 @@
     <text>A stalker's cover choices respect what his weapon is good at: submachine gunners accept closer cover so their fire stays effective, and skilled snipers hold extra distance.</text>
   </string>
   <string id="ui_mcm_at_reaction_desc">
-    <text>Stalker rank decides how tightly a stalker's gun tracks a moving target and how far ahead of a running one it aims. Tracking changes gun handling on a moving target; it does not make the first shot come sooner. Target lead sets how far ahead of a runner the shots fall, tightening with rank. Requires a recent engine build with the per-stalker aim binds; on older builds the page has no effect and vanilla behavior applies.</text>
+    <text>Stalker rank decides how tightly a stalker's gun tracks a moving target and how far ahead of a running one it aims. Tracking changes how the gun follows a moving target; it does not change how quickly a stalker reacts before he engages. Target lead sets how far ahead of a runner the shots fall, tightening with rank. Requires a recent engine build with the per-stalker aim binds; on older builds the page has no effect and vanilla behavior applies.</text>
   </string>
   <string id="ui_mcm_at_discipline_desc">
     <text>Stalker rank decides how a stalker works the trigger: how long each burst runs and how often it fires. Higher ranks fire crisper short bursts more often; low ranks stay vanilla. The defaults keep hits per minute at or above vanilla at every rank. Requires a recent engine build with the per-stalker fire-queue bind; on older builds the page has no effect and vanilla behavior applies.</text>
@@ -533,7 +533,7 @@
     <text>Tracking speed per rank (%)</text>
   </string>
   <string id="ui_mcm_at_reaction_rct_aim_rank_pct_desc">
-    <text>Percent the tracking speed grows with every rank above novice. Higher ranks swing the barrel onto a mover faster; the top of the range stays below the game's hardcore aim.</text>
+    <text>Percent the tracking speed grows with every rank above novice. Higher ranks swing the barrel onto a mover faster; even the top rank stays below the fastest aim the engine allows.</text>
   </string>
   <string id="ui_mcm_at_hdr_reaction_track">
     <text>Tracking Lock</text>
@@ -578,7 +578,7 @@
     <text>Enable Vision Speed</text>
   </string>
   <string id="ui_mcm_at_reaction_vision_enabled_desc">
-    <text>How fast a stalker turns a glimpse into a confirmed threat, per rank - reaction, not eyesight. Higher ranks notice sooner; most ranks sit just under your setup's baseline, so an average squad notices a hair slower. Point-blank detection is unaffected. Off leaves the flat detection speed.</text>
+    <text>How fast a stalker turns a glimpse into a confirmed threat, per rank - reaction, not eyesight. Novice matches your setup's baseline and higher ranks notice sooner, so no rank is slower than the base game. Point-blank detection is unaffected. Off leaves the flat detection speed.</text>
   </string>
   <string id="ui_mcm_at_hdr_reaction_trigger">
     <text>Burst Size</text>
@@ -804,7 +804,7 @@
     <text>Noise carry distance</text>
   </string>
   <string id="ui_mcm_at_danger_danger_noise_mult_desc">
-    <text>Scales how far your movement and handling noise carries. Below 1 makes stealth more forgiving, above 1 makes stalkers sharper-eared.</text>
+    <text>Scales how far your movement and handling noise carries. Below 1 makes stealth more forgiving, above 1 lets stalkers hear you from farther off.</text>
   </string>
   <string id="ui_mcm_at_fixes_danger_danger_actor_tables">
     <text>Player ranges</text>

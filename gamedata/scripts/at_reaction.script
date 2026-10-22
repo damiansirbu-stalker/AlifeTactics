@@ -21,11 +21,11 @@ local TIERS = xcreature.RANK_TIERS
 
 -- The curve pairs (base + percent per rank), fitted to the retired 8-value tables; LTX then MCM override them.
 local _curve_pairs = {
-    aim       = { base = 0.24,  pct = 64 },
-    track     = { base = 0.196, pct = 12.5 },
+    aim       = { base = 0.24,  pct = 63 },
+    track     = { base = 0.196, pct = 12 },
     lead      = { base = 2.00,  pct = -7.4 },
-    vision    = { base = 1.00,  pct = 3.0 },
-    vrange    = { base = 1.00,  pct = 2.2 },
+    vision    = { base = 1.00,  pct = 2.9 },
+    vrange    = { base = 1.00,  pct = 2.1 },
     qsize     = { base = 1.00,  pct = -0.6 },
     qinterval = { base = 1.00,  pct = -0.7 },
 }

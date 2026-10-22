@@ -23,13 +23,13 @@ turn_max       = 900
 turn_falloff_m = 60
 
 aim_base     = 0.24
-aim_rank_pct = 64
+aim_rank_pct = 63
 
 ; track is rad/s, the min_angle band (ai_aim_min_angle, sight_manager.cpp:76): the gap below which the barrel tracks at min_speed with no deceleration. Vanilla 0.196 is half the fire cone,
 ; so the barrel eases off at the cone edge and a strafer can juke it; raising it toward the fire cone (0.3927) and past keeps the barrel locked across the whole firing window, the real
 ; hard-to-dodge dial (Tracking Lock). Base = vanilla 0.196; the climb stays under max_angle 0.785 so the natural fast swing-in survives (VERIFY(max>min)).
 track_base     = 0.196
-track_rank_pct = 12.5
+track_rank_pct = 12
 
 ; lead_* is the per-rank lead error (t156): the rank's multiplier on the physically-correct lead. The engine leads a moving target by aim_point += target_velocity * predict_time
 ; (sight_action.cpp:383-384); the correct predict_time is the bullet's flight time = range / bullet_speed (the weapon's bullet_speed times the round's k_bullet_speed, ShootingObject.cpp:168
@@ -42,16 +42,16 @@ lead_rank_pct = -7.4
 ; vision_* is the per-rank reaction/detection-speed factor: it multiplies get_visible_value accumulation (visual_memory_manager.cpp:365-379) after whichever detection stack the install runs
 ; (engine formula or a Lua get_visible_value functor), so it is a relative rank spread over the installed baseline. It is reaction, how fast a stalker turns a glimpse into a confirmed threat,
 ; not eyesight: detection timing only, never aim or accuracy. Every install is rank-blind at detection (vanilla: one [stalker_vision_*] set for all stalkers, m_stalker.ltx:76-99); this adds
-; the rank axis over that baseline, novice 1.00 = vanilla (retuned 2026-08-05 so no rank detects slower than the base game) to legend 1.21 (+21%), the prior spread shifted up to sit at or above vanilla.
+; the rank axis over that baseline, novice 1.00 = vanilla (retuned 2026-08-05 so no rank detects slower than the base game) to legend 1.20 (+20%), the prior spread shifted up to sit at or above vanilla.
 vision_base     = 1.00
-vision_rank_pct = 3.0
+vision_rank_pct = 2.9
 
 ; vrange_* is the per-rank detection-distance factor, the twin of vision_* on the other vision axis: it multiplies object_visible_distance (visual_memory_manager.cpp:303-318), setting how
 ; far out a stalker begins to notice a target where vision_ sets how fast once in sight. at_reaction registers it as the rank slice of at_effects_resolver's VISION_RANGE effect, combined
 ; highest-wins with a carried optic's factor; the resolver writes it at net_spawn via set_view_distance_factor. A tight band centred on vanilla, novice 1.00 to legend 1.15, the same shape as
 ; vision speed. Dormant until the n038 view-distance bind exists on the exe; the setter no-ops below it, so the curve is inert but live the moment the bind arrives.
 vrange_base     = 1.00
-vrange_rank_pct = 2.2
+vrange_rank_pct = 2.1
 
 ; qsize_* / qinterval_* are the two fire-queue scales (t154), fed to npc:set_fire_queue_scale (#603) at spawn: qsize_ multiplies the combat planner's burst size, qinterval_ the inter-burst
 ; pause (select_queue_params, stalker_combat_action_base.cpp:246-254). Higher rank = crisper short bursts (qsize < 1) at a tighter cadence (qinterval < 1). Non-degradation invariant:
