@@ -933,10 +933,14 @@ local function _format_mob_memory(obj, tg)
 end
 
 
+-- Drivers where stillness IS the move (the cast, the strike), not a stall; the watchdog skips them so a casting burer never reads STUCK.
+local MOB_HOLD_STILL_DRIVERS = { ["GRAVITY ATTACK"] = true, CLAW = true }
+
 -- The run-in-place watchdog: ground speed under MOB_STUCK_SPEED in a movement state past MOB_STUCK_MS logs STUCK.
 -- The line repeats every MOB_STUCK_RELOG_MS with the growing duration while the stall persists, airborne included (air=y).
 local function _check_mob_stuck(mob, id, state_name, jumping, tg)
-    if mob.spd > MOB_STUCK_SPEED or not MOB_MOVE_STATES[state_name] then
+    if mob.spd > MOB_STUCK_SPEED or not MOB_MOVE_STATES[state_name]
+       or MOB_HOLD_STILL_DRIVERS[at_mutants.get_driver(id) or ""] then
         mob.stuck_ms, mob.stuck_next, mob.stuck_logged = nil, nil, nil
         return
     end

@@ -55,7 +55,9 @@ flee = 0.3
 
 [premises] ; the anti-exploit reads
 aim_held_s   = 3
-above_m      = 0.8
+above_m      = 0.8      ; object-position height delta that counts as the enemy being above (the leap/gravity enemy_above premise)
+climb_near_m = 6        ; the enemy_above near gate: an elevated enemy within this range is a reachable ledge to leap at, farther is valley terrain
+offmesh_gap_sqr = 6.2   ; retreat: the actor stands this far (squared metres, ~2.5m) off its own nav vertex = on a rock/ledge a non-jumper cannot path to
 strafe_lat_m = 1.0
 
 [survival] ; the one flee trigger: health below this fraction while far enough to disengage
@@ -70,6 +72,7 @@ facing_cone_deg = 60
 
 [leap] ; the commanded leap-family fire gate; the distance band is the species' own jump_min/max_distance
 facing_cone_deg = 35
+fallback_max_m  = 10      ; leap reach for a species with no jump_max_distance (bloodsucker/psysucker use aom_only_jump); the engine refuses a too-far jump anyway
 
 [adapt] ; the air-steering gain band for both adapt leaps = the vanilla envelope (borya 0.3, pseudodog 0.5, cat 0.6)
 factor_min = 0.3

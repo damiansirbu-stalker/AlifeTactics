@@ -215,6 +215,7 @@ local function _apply_charge_pacing(mob, rec, section)
     local mult = _tun_num.charge_slow + (_tun_num.charge_fast - _tun_num.charge_slow) * skill
     local min_ms, max_ms = delay[1] * mult, delay[2] * mult
     xmonster.set_monster_rush_params(mob, { min_delay_ms = min_ms, max_delay_ms = max_ms })
+    rec.paces_charge = true
     if at_debug.is_on() then
         at_debug.debug("[MUT] pace id=%d charge=%.0f-%.0fms mult=%.2f", rec.id, min_ms, max_ms, mult)
     end
@@ -223,10 +224,8 @@ end
 -- The leap premise band: the species' own jump distances our commanded leaps read, plus the adapt restore point.
 -- Read-only - the engine's jump solve stays vanilla; a missing jump_auto_aim_factor reads as the engine default 0.
 local function _apply_leap(_mob, rec, section)
-    local jump_max = _read_basis(section, "jump_max_distance")
-    if not jump_max then return end
     rec.jump_min_m = _read_basis(section, "jump_min_distance")
-    rec.jump_max_m = jump_max
+    rec.jump_max_m = _read_basis(section, "jump_max_distance") or _tun_num.leap_fallback_max
     rec.aim_basis = _read_basis(section, "jump_auto_aim_factor") or 0
 end
 
@@ -501,16 +500,18 @@ local PREMISES = {
         return rec.memo.shotgun_open == true
     end,
     enemy_above = function(mob, rec, _now)
-        return xcombat.is_enemy_above(rec.memo.enemy, mob, _tun_num.above_m)
+        local memo = rec.memo
+        if memo.dist > _tun_num.climb_near_m then return false end
+        return xcombat.is_enemy_above(memo.enemy, mob, _tun_num.above_m)
     end,
     aim_held = function(_mob, rec, now)
         return rec.aim_since ~= nil and now - rec.aim_since >= _tun_num.aim_held_ms
     end,
-    unreachable = function(mob, rec, _now)
+    unreachable = function(_mob, rec, _now)
         local memo = rec.memo
         if not memo.is_actor then return false end
         if memo.dist > _tun_num.retreat_max_m then return false end
-        return xcombat.is_enemy_above(memo.enemy, mob, _tun_num.above_m)
+        return xcombat.is_off_navmesh(memo.enemy, _tun_num.offmesh_gap_sqr)
     end,
     low_health = function(mob, rec, _now)
         if not rec.low_now then return false end
@@ -530,8 +531,17 @@ local function _log_block(rec, move, cause)
     end
 end
 
+-- Diagnostic: the distance and the species jump band at a band-block (max=-1 means the species has no jump_max_distance).
+local function _log_band(rec, memo)
+    if at_debug.is_on() then
+        at_debug.debug("[MUT] band id=%d d=%.1f min=%.1f max=%.1f", rec.id,
+            memo.dist, rec.jump_min_m or 0, rec.jump_max_m or -1)
+    end
+end
+
 local function _log_fire(rec, move, detail)
     rec.driver = move:gsub("_", " "):upper()
+    rec.fired_move = move
     rec.gate = GATE_BOTH
     rec.fired_at = rec.tick_now
     if at_debug.is_on() then
@@ -563,6 +573,7 @@ local function _execute_leap(mob, rec, move, now)
         return _log_block(rec, move, "flat")
     end
     if not rec.jump_max_m or memo.dist > rec.jump_max_m or memo.dist < (rec.jump_min_m or 0) then
+        _log_band(rec, memo)
         return _log_block(rec, move, "band")
     end
     if not xcombat.is_facing(mob, memo.enemy_pos, _tun_num.leap_cone) then return _log_block(rec, move, "facing") end
@@ -639,6 +650,12 @@ local MOVE_EXEC = {
 }
 
 -- A best row is eligible when the species carries the toggled move, the body plan admits it, and the caps/clocks allow it.
+-- The enemy sits inside this species' commanded-leap range; keeps a leap from being decided (and wasting a beat) out of range.
+local function _is_in_jump_band(rec)
+    local dist = rec.memo.dist
+    return rec.jump_max_m ~= nil and dist <= rec.jump_max_m and dist >= (rec.jump_min_m or 0)
+end
+
 local function _check_row(mob, rec, row, now)
     local move = row.move
     if not rec.moves[move] then return false end
@@ -648,7 +665,7 @@ local function _check_row(mob, rec, row, now)
     if move == MOVE_RETREAT and (not _runaway_id or now < rec.retreat_ok_at) then return false end
     if CAPPED[move] and rec.memo.dry then return false end
     if move == LEAP_FAMILY then
-        if not _check_leap_toggled(rec) then return false end
+        if not _check_leap_toggled(rec) or not _is_in_jump_band(rec) then return false end
     elseif not _check_toggle(rec, move) then
         return false
     end
@@ -900,6 +917,8 @@ local function _load_tunables()
         int_cap = _read_num("intelligence", "cap"),
         aim_held_ms = (_read_num("premises", "aim_held_s") or 3) * 1000,
         above_m = _read_num("premises", "above_m"),
+        climb_near_m = _read_num("premises", "climb_near_m"),
+        offmesh_gap_sqr = _read_num("premises", "offmesh_gap_sqr"),
         strafe_lat_sqr = (_read_num("premises", "strafe_lat_m") or 1) ^ 2,
         flee_min_m = _read_num("survival", "min_dist_m"),
         flee_face_cone = _read_num("survival", "face_cone_deg"),
@@ -911,6 +930,7 @@ local function _load_tunables()
         retreat_max_m = _read_num("retreat", "max_dist_m"),
         threat_cone = _read_num("threat", "facing_cone_deg"),
         leap_cone = _read_num("leap", "facing_cone_deg"),
+        leap_fallback_max = _read_num("leap", "fallback_max_m"),
         adapt_min = _read_num("adapt", "factor_min"), adapt_max = _read_num("adapt", "factor_max"),
         charge_slow = _read_num("charge", "slow_mult"), charge_fast = _read_num("charge", "fast_mult"),
         stare_range_sqr = (_read_num("gravity_attack", "range_m") or 0) ^ 2,
@@ -978,6 +998,18 @@ end
 function get_driver(id)
     local rec = _states[id]
     return rec and rec.driver or nil
+end
+
+--- True when AT governs this mutant's leaps - any of its four leap variants managed and toggled on; the HUD colours an engine-timed leap we govern.
+function is_leap_governed(rec)
+    return rec ~= nil and _check_leap_toggled(rec)
+end
+
+--- True when AT governs this mutant's melee - a managed claw or backstrike toggled on; the HUD colours Attack_Melee until the backstrike getter PR lands.
+function is_melee_governed(rec)
+    if not rec then return false end
+    return (rec.moves.claw and _check_toggle(rec, "claw"))
+        or (rec.moves.backstrike and _check_toggle(rec, "backstrike")) or false
 end
 
 function on_game_start()
