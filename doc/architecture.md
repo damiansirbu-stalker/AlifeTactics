@@ -357,7 +357,7 @@ The catalog rows come from `at_maneuvers_config.script`, array order is priority
 ```
 maneuver      fires on                                   applies to               destination                      fire; move        ends on
 counterflank  actor within 5m while the committed        any NPC fighting         holds its spot, aims at actor    FIRE; STILL       3s
-              target is farther (check_actor_close)      someone else (vs_actor)
+              target is farther (check_actor_close)      someone else, never the actor (vs_actor)
 reload_cover  reloading, a watcher has him in sight      universal                nearest cover hiding him         READY; RUN        arrival, reload done, or 8s
 flee          hurt, threat in reach, last man,           the [flee] factions      a friendly base 100m+ away,      STOW; RUN         arrival or 20s
               once the shooting pauses (check_hurt)                               rear-biased
