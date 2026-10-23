@@ -81,7 +81,7 @@
   </string>
   <!-- ==================== PLANNED PAGE DESCRIPTIONS ==================== -->
   <string id="ui_mcm_at_combat_general_desc">
-    <text>The stalker decision gate. Every AlifeTactics decision a stalker makes - a maneuver, a push, a pull, a crouch - takes one Intelligence roll, the chance of a good decision. It is capped, so nothing is ever certain.</text>
+    <text>The stalker decision gate. Every AlifeTactics decision a stalker makes (a maneuver, a push, a pull, a crouch) takes one Intelligence roll, the chance of a good decision. It is capped, so nothing is ever certain.</text>
   </string>
   <string id="ui_mcm_at_general_int_base">
     <text>Intelligence</text>
@@ -126,7 +126,7 @@
     <text>Vanilla stalkers re-plan their fight every moment. Any small change makes a stalker abandon what he was doing and choose again: a cover spot that scores a little better, sight dropping for an instant, a teammate crossing the firing line. That constant re-deciding is the twitchy strafing and cover-hopping you see in a firefight. Commitment stops it without taking the stalker over. While what he is doing still makes sense he keeps at it instead of trading it for a marginally better move, and he switches the instant it stops making sense, when he loses sight or the shot is blocked or the enemy is gone. He keeps up his fire and finishes what he started instead of second-guessing every frame. Requires a recent engine build. On older builds the toggle has no effect and vanilla behavior applies.</text>
   </string>
   <string id="ui_mcm_at_conduct_desc">
-    <text>Small combat habits applied to stalkers the vanilla engine drives - no takeover, just better choices at moments the engine already decides. Requires a recent engine build; on older builds the page has no effect and vanilla behavior applies.</text>
+    <text>Small combat habits applied to stalkers the vanilla engine drives, with no takeover, just better choices at moments the engine already decides. Requires a recent engine build. On older builds the page has no effect and vanilla behavior applies.</text>
   </string>
   <string id="ui_mcm_at_conduct_conduct_posture">
     <text>Cover posture</text>
@@ -141,10 +141,10 @@
     <text>A stalker's cover choices respect what his weapon is good at: submachine gunners accept closer cover so their fire stays effective, and skilled snipers hold extra distance.</text>
   </string>
   <string id="ui_mcm_at_reaction_desc">
-    <text>Stalker rank decides how tightly a stalker's gun tracks a moving target and how far ahead of a running one it aims. Tracking changes how the gun follows a moving target; it does not change how quickly a stalker reacts before he engages. Target lead sets how far ahead of a runner the shots fall, tightening with rank. Requires a recent engine build with the per-stalker aim binds; on older builds the page has no effect and vanilla behavior applies.</text>
+    <text>Stalker rank decides how tightly a stalker's gun tracks a moving target and how far ahead of a running one it aims. Tracking changes how the gun follows a moving target. It does not change how quickly a stalker reacts before he engages. Target lead sets how far ahead of a runner the shots fall, tightening with rank. Requires a recent engine build with the per-stalker aim binds. On older builds the page has no effect and vanilla behavior applies.</text>
   </string>
   <string id="ui_mcm_at_discipline_desc">
-    <text>Stalker rank decides how a stalker works the trigger: how long each burst runs and how often it fires. Higher ranks fire crisper short bursts more often; low ranks stay vanilla. The defaults keep hits per minute at or above vanilla at every rank. Requires a recent engine build with the per-stalker fire-queue bind; on older builds the page has no effect and vanilla behavior applies.</text>
+    <text>Stalker rank decides how a stalker works the trigger: how long each burst runs and how often it fires. Higher ranks fire crisper short bursts more often, and low ranks stay vanilla. The defaults keep hits per minute at or above vanilla at every rank. Requires a recent engine build with the per-stalker fire-queue bind. On older builds the page has no effect and vanilla behavior applies.</text>
   </string>
   <string id="ui_mcm_at_range_desc">
     <text>Planned: engagement distance. The game stops NPC fights at a hard range cap regardless of weapon, so a sniper never fires at the distances his rifle exists for, and a stalker sniped from beyond the cap can duck (the Danger hit response) but never answer. This page will let long-range NPCs answer and initiate at their weapon's real reach. Nothing to configure yet.</text>
@@ -505,7 +505,7 @@
     <text>Moving fire base</text>
   </string>
   <string id="ui_mcm_at_accuracy_acc_move_base_desc">
-    <text>How much of the movement spread penalty a novice-rank stalker keeps while shooting on the move, the curve's base. 1.00 is the full vanilla penalty; lower is steadier fire on the move.</text>
+    <text>How much of the movement spread penalty a novice-rank stalker keeps while shooting on the move, the curve's base. 1.00 is the full vanilla penalty, and lower is steadier fire on the move.</text>
   </string>
   <string id="ui_mcm_at_accuracy_acc_move_rank_pct">
     <text>Moving fire per rank (%)</text>
@@ -518,7 +518,7 @@
     <text>Enable Tracking Speed</text>
   </string>
   <string id="ui_mcm_at_reaction_aim_enabled_desc">
-    <text>How fast a stalker's barrel moves while tracking, per rank. This is speed only; how tightly it holds a strafing target is Tracking Lock below, which this toggle also gates. Off leaves the engine's flat aim.</text>
+    <text>How fast a stalker's barrel moves while tracking, per rank. This is speed only. How tightly it holds a strafing target is Tracking Lock below, which this toggle also gates. Off leaves the engine's flat aim.</text>
   </string>
   <string id="ui_mcm_at_hdr_reaction_aim">
     <text>Tracking Speed</text>
@@ -527,13 +527,13 @@
     <text>Tracking speed base</text>
   </string>
   <string id="ui_mcm_at_reaction_rct_aim_base_desc">
-    <text>How tightly a novice-rank barrel follows a moving target, radians per second - the curve's base. 0.24 matches the vanilla engine.</text>
+    <text>How tightly a novice-rank barrel follows a moving target, radians per second, the curve's base. 0.24 matches the vanilla engine.</text>
   </string>
   <string id="ui_mcm_at_reaction_rct_aim_rank_pct">
     <text>Tracking speed per rank (%)</text>
   </string>
   <string id="ui_mcm_at_reaction_rct_aim_rank_pct_desc">
-    <text>Percent the tracking speed grows with every rank above novice. Higher ranks swing the barrel onto a mover faster; even the top rank stays below the fastest aim the engine allows.</text>
+    <text>Percent the tracking speed grows with every rank above novice. Higher ranks swing the barrel onto a mover faster, and even the top rank stays below the fastest aim the engine allows.</text>
   </string>
   <string id="ui_mcm_at_hdr_reaction_track">
     <text>Tracking Lock</text>
@@ -542,7 +542,7 @@
     <text>Tracking lock base</text>
   </string>
   <string id="ui_mcm_at_reaction_rct_track_base_desc">
-    <text>How tightly a novice-rank barrel holds a strafing target - the width of the lock band, radians, the curve's base. 0.196 matches vanilla, where a strafing target slips the aim.</text>
+    <text>How tightly a novice-rank barrel holds a strafing target, the width of the lock band, radians, the curve's base. 0.196 matches vanilla, where a strafing target slips the aim.</text>
   </string>
   <string id="ui_mcm_at_reaction_rct_track_rank_pct">
     <text>Tracking lock per rank (%)</text>
@@ -563,7 +563,7 @@
     <text>Target lead base</text>
   </string>
   <string id="ui_mcm_at_reaction_rct_lead_base_desc">
-    <text>Lead error for novice rank, multiplied onto the physically-correct lead - the curve's base. 2.00 over-leads a mover, 1.00 leads true.</text>
+    <text>Lead error for novice rank, multiplied onto the physically-correct lead, the curve's base. 2.00 over-leads a mover, 1.00 leads true.</text>
   </string>
   <string id="ui_mcm_at_reaction_rct_lead_rank_pct">
     <text>Target lead per rank (%)</text>
@@ -578,7 +578,7 @@
     <text>Enable Vision Speed</text>
   </string>
   <string id="ui_mcm_at_reaction_vision_enabled_desc">
-    <text>How fast a stalker turns a glimpse into a confirmed threat, per rank - reaction, not eyesight. Novice matches your setup's baseline and higher ranks notice sooner, so no rank is slower than the base game. Point-blank detection is unaffected. Off leaves the flat detection speed.</text>
+    <text>How fast a stalker turns a glimpse into a confirmed threat, per rank. This is reaction, not eyesight. Novice matches your setup's baseline and higher ranks notice sooner, so no rank is slower than the base game. Point-blank detection is unaffected. Off leaves the flat detection speed.</text>
   </string>
   <string id="ui_mcm_at_hdr_reaction_trigger">
     <text>Burst Size</text>
@@ -587,13 +587,13 @@
     <text>Enable Fire Discipline</text>
   </string>
   <string id="ui_mcm_at_reaction_discipline_enabled_desc">
-    <text>Scales each rank's burst length and cadence. High ranks fire crisper short bursts more often; low ranks stay vanilla. Defaults keep the burst-size scale at or above the interval scale, so hits per minute never drops below vanilla. Off = vanilla queues.</text>
+    <text>Scales each rank's burst length and cadence. High ranks fire crisper short bursts more often, and low ranks stay vanilla. Defaults keep the burst-size scale at or above the interval scale, so hits per minute never drops below vanilla. Off = vanilla queues.</text>
   </string>
   <string id="ui_mcm_at_reaction_rct_qsize_base">
     <text>Burst size base</text>
   </string>
   <string id="ui_mcm_at_reaction_rct_qsize_base_desc">
-    <text>Multiplier on the novice-rank burst length, the curve's base. 1.00 = vanilla; below 1 trims the burst toward its accurate opening rounds.</text>
+    <text>Multiplier on the novice-rank burst length, the curve's base. 1.00 = vanilla, and below 1 trims the burst toward its accurate opening rounds.</text>
   </string>
   <string id="ui_mcm_at_reaction_rct_qsize_rank_pct">
     <text>Burst size per rank (%)</text>
@@ -608,7 +608,7 @@
     <text>Fire cadence base</text>
   </string>
   <string id="ui_mcm_at_reaction_rct_qinterval_base_desc">
-    <text>Multiplier on the novice-rank pause between bursts, the curve's base. 1.00 = vanilla; below 1 fires more often.</text>
+    <text>Multiplier on the novice-rank pause between bursts, the curve's base. 1.00 = vanilla, and below 1 fires more often.</text>
   </string>
   <string id="ui_mcm_at_reaction_rct_qinterval_rank_pct">
     <text>Fire cadence per rank (%)</text>
@@ -620,7 +620,7 @@
     <text>Vision speed base</text>
   </string>
   <string id="ui_mcm_at_reaction_rct_vision_base_desc">
-    <text>How fast a novice-rank stalker notices a threat, the curve's base. 1.00 is your setup's baseline; below it is slower. Point-blank detection is unaffected.</text>
+    <text>How fast a novice-rank stalker notices a threat, the curve's base. 1.00 is your setup's baseline, and below it is slower. Point-blank detection is unaffected.</text>
   </string>
   <string id="ui_mcm_at_reaction_rct_vision_rank_pct">
     <text>Vision speed per rank (%)</text>
@@ -635,7 +635,7 @@
     <text>Vision range base</text>
   </string>
   <string id="ui_mcm_at_reaction_rct_vrange_base_desc">
-    <text>How far out a novice-rank stalker begins to notice a threat, the curve's base. 1.00 is your setup's baseline. Needs a recent engine build with the per-stalker view-distance bind; inactive on older ones.</text>
+    <text>How far out a novice-rank stalker begins to notice a threat, the curve's base. 1.00 is your setup's baseline. Needs a recent engine build with the per-stalker view-distance bind, and is inactive on older ones.</text>
   </string>
   <string id="ui_mcm_at_reaction_rct_vrange_rank_pct">
     <text>Vision range per rank (%)</text>
@@ -679,7 +679,7 @@
     <text>Enable combat takeover</text>
   </string>
   <string id="ui_mcm_at_combat_combat_enabled_desc">
-    <text>When off, AlifeTactics never touches combat and every fight runs on your existing AI. When on, it may briefly borrow a stalker from any fight near you - his enemy can be you or another combatant - for one committed maneuver, then hand him back. Covers fights within 150 m of you by default.</text>
+    <text>When off, AlifeTactics never touches combat and every fight runs on your existing AI. When on, it may briefly borrow a stalker from any fight near you (his enemy can be you or another combatant) for one committed maneuver, then hand him back. Covers fights within 150 m of you by default.</text>
   </string>
   <string id="ui_mcm_at_combat_combat_ignore_companions">
     <text>Ignore companions</text>
@@ -706,7 +706,7 @@
     <text>Reload Cover</text>
   </string>
   <string id="ui_mcm_at_combat_maneuver_reload_cover_desc">
-    <text>A stalker caught reloading in a watching enemy's line of fire - yours or another combatant's - runs to the nearest cover that hides him from that watcher, and his weapon finishes reloading on the way. Reloading unobserved, he stays where he is. Needs a recent engine build.</text>
+    <text>A stalker caught reloading in a watching enemy's line of fire, yours or another combatant's, runs to the nearest cover that hides him from that watcher, and his weapon finishes reloading on the way. Reloading unobserved, he stays where he is. Needs a recent engine build.</text>
   </string>
   <string id="ui_mcm_at_combat_maneuver_kite">
     <text>Kite</text>
@@ -750,13 +750,13 @@
   </string>
   <!-- ==================== PERCEPTION FOLDER (SOUND / VISION / DANGER) ==================== -->
   <string id="ui_mcm_at_vision_desc">
-    <text>How a stalker's eyes scale with rank: how fast he turns a glimpse into a confirmed threat (speed), and how far out he begins to notice one (range). Both are reaction and experience, not raw eyesight, and sit in a tight band around your setup's baseline. Range needs a recent engine build with the per-stalker view-distance bind; on older builds only the speed curve applies.</text>
+    <text>How a stalker's eyes scale with rank: how fast he turns a glimpse into a confirmed threat (speed), and how far out he begins to notice one (range). Both are reaction and experience, not raw eyesight, and sit in a tight band around your setup's baseline. Range needs a recent engine build with the per-stalker view-distance bind. On older builds only the speed curve applies.</text>
   </string>
   <string id="ui_mcm_at_perception_danger_desc">
     <text>How stalkers react to being hit. The distant-hit response and the player-range tuning toggle below. The vanilla danger-check and corpse fixes moved to the Fixes tab. AlifeTactics installs as a runtime patch onto whichever danger script your modpack ships.</text>
   </string>
   <string id="ui_mcm_at_danger_sound_desc">
-    <text>How stalkers react to what they hear. Gunfire reactions use your setup's danger config distances; your own noise (movement, handling) uses short built-in radii. Runtime patch onto whichever danger script your modpack ships - works with other combat AI, replaces nothing. Compatible with stealth mods: stealth is about being SEEN (light, cover, stance), and the sound system never touches vision or detection - hearing only adds the short-range sense vanilla lacks, and crouched movement is silent, so a stealth approach plays exactly as your stealth setup intends.</text>
+    <text>How stalkers react to what they hear. Gunfire reactions use your setup's danger config distances, and your own noise (movement, handling) uses short built-in radii. It patches at runtime onto whichever danger script your modpack ships, works with other combat AI, and replaces nothing. It is compatible with stealth mods: stealth is about being seen (light, cover, stance), and the sound system never touches vision or detection. Hearing only adds the short-range sense vanilla lacks, and crouched movement is silent, so a stealth approach plays exactly as your stealth setup intends.</text>
   </string>
   <string id="ui_mcm_at_danger_hdr_gunfire">
     <text>Gunfire</text>
@@ -774,31 +774,31 @@
     <text>Enemy gunfire</text>
   </string>
   <string id="ui_mcm_at_fixes_danger_danger_attack_sound_desc">
-    <text>Vanilla NPCs ignore gunfire they hear but cannot see. This makes a stalker react to an ENEMY's shots without line of sight: he turns to face the gun and takes a threat stance, and moves to cover once he can see the shooter. He is responding to the sound, not to sight of you. Gunfire from neutral or friendly stalkers, including yours, does not alarm them - that is the engine's relation rule, same as vanilla. Reaction distance follows your setup's danger config.</text>
+    <text>Vanilla NPCs ignore gunfire they hear but cannot see. This makes a stalker react to an enemy's shots without line of sight: he turns to face the gun and takes a threat stance, and moves to cover once he can see the shooter. He is responding to the sound, not to sight of you. Gunfire from neutral or friendly stalkers, including yours, does not alarm them, which is the engine's relation rule, same as vanilla. Reaction distance follows your setup's danger config.</text>
   </string>
   <string id="ui_mcm_at_danger_danger_neutral_gunfire">
     <text>Neutral gunfire alert</text>
   </string>
   <string id="ui_mcm_at_danger_danger_neutral_gunfire_desc">
-    <text>Neutral and friendly stalkers go on alert when you fire close to them - weapon-ready stance, facing your shots - instead of ignoring gunfire next to their heads. Alert is all it is: they do not turn hostile, do not reposition, and settle down when the shooting stops. Short reach, nowhere near combat detection ranges.</text>
+    <text>Neutral and friendly stalkers go on alert when you fire close to them, taking a weapon-ready stance and facing your shots, instead of ignoring gunfire next to their heads. Alert is all it is: they do not turn hostile, do not reposition, and settle down when the shooting stops. Short reach, nowhere near combat detection ranges.</text>
   </string>
   <string id="ui_mcm_at_danger_danger_move_noise">
     <text>Movement noise</text>
   </string>
   <string id="ui_mcm_at_danger_danger_move_noise_desc">
-    <text>Hostile stalkers hear you move. Each footstep carries a noise radius built from your stance, the surface, and the weather: a 5m walking base, x1.6 sprinting, a 10m jump landing, and crouched movement is fully silent, so sneaking stays a matter of light and cover. Surfaces: metal x1.25, wood x1.15, water x1.35, grass x0.7, dirt and sand x0.8, and rain cuts carry by up to 40 percent. Reaction follows the evidence: a heard walk turns him weapon-ready toward the sound, a sprint or a landing sends him walking over to check the spot. A sound is never treated as a confirmed enemy - he investigates at a walk, never charges, and does not magically know where you are. Only stalkers already hostile to you react, and only outside combat, so stealth stays a game of distance and stance instead of NPCs being deaf.</text>
+    <text>Hostile stalkers hear you move. Each footstep carries a noise radius built from your stance, the surface, and the weather: a 5m walking base, x1.6 sprinting, a 10m jump landing, and crouched movement is fully silent, so sneaking stays a matter of light and cover. Surfaces: metal x1.25, wood x1.15, water x1.35, grass x0.7, dirt and sand x0.8, and rain cuts carry by up to 40 percent. Reaction follows the evidence: a heard walk turns him weapon-ready toward the sound, a sprint or a landing sends him walking over to check the spot. A sound is never treated as a confirmed enemy. He investigates at a walk, never charges, and does not magically know where you are. Only stalkers already hostile to you react, and only outside combat, so stealth stays a game of distance and stance instead of NPCs being deaf.</text>
   </string>
   <string id="ui_mcm_at_danger_danger_heard_actions">
     <text>Handling noise</text>
   </string>
   <string id="ui_mcm_at_danger_danger_heard_actions_desc">
-    <text>Hostile stalkers react to hearing you rack a reload, click empty, or use an item nearby. Shorter reach than movement noise: a racked reload carries 8m, an empty click 6m, an item used 5m - and only for sounds their ears actually caught, so a setup that deafens NPC hearing quiets these too. A racked reload or an empty click sends him walking over to check the spot, an item used turns him weapon-ready toward the sound.</text>
+    <text>Hostile stalkers react to hearing you rack a reload, click empty, or use an item nearby. Shorter reach than movement noise: a racked reload carries 8m, an empty click 6m, an item used 5m, and only for sounds their ears actually caught, so a setup that deafens NPC hearing quiets these too. A racked reload or an empty click sends him walking over to check the spot, an item used turns him weapon-ready toward the sound.</text>
   </string>
   <string id="ui_mcm_at_danger_danger_creature_awareness">
     <text>Creature awareness</text>
   </string>
   <string id="ui_mcm_at_danger_danger_creature_awareness_desc">
-    <text>A standing stalker glances toward creatures he hears within 5 to 10 meters - mutant footsteps, voices, and death cries always, another stalker's sounds only when that stalker is his enemy. A glance only: no repositioning, no walk-over, never during his own combat, and never on the move, so patrols keep their stride. Companions are excluded. It never makes anyone hostile; active fights are covered by the gunfire reaction instead.</text>
+    <text>A standing stalker glances toward creatures he hears within 5 to 10 meters: mutant footsteps, voices, and death cries always, another stalker's sounds only when that stalker is his enemy. A glance only: no repositioning, no walk-over, never during his own combat, and never on the move, so patrols keep their stride. Companions are excluded. It never makes anyone hostile, and active fights are covered by the gunfire reaction instead.</text>
   </string>
   <string id="ui_mcm_at_danger_danger_noise_mult">
     <text>Noise carry distance</text>
@@ -810,7 +810,7 @@
     <text>Player ranges</text>
   </string>
   <string id="ui_mcm_at_fixes_danger_danger_actor_tables_desc">
-    <text>Danger caused by you reads the separate actor tables where your setup's danger config differentiates them (some combat AI mods do). Applies only when your installed danger script itself uses those tables - a config that ships the section unused, or with identical tables, keeps its own tuning.</text>
+    <text>Danger caused by you reads the separate actor tables where your setup's danger config differentiates them (some combat AI mods do). Applies only when your installed danger script itself uses those tables. A config that ships the section unused, or with identical tables, keeps its own tuning.</text>
   </string>
   <string id="ui_mcm_at_danger_hdr_targeting">
     <text>Target priority</text>
@@ -819,7 +819,7 @@
     <text>Player target pull</text>
   </string>
   <string id="ui_mcm_at_danger_selection_actor_bias_desc">
-    <text>How strongly an NPC prioritizes you as a target once you can see him, against the weaker pull other NPCs get. Lower values treat you like any other combatant; 0 removes the pull entirely. Needs a recent engine build; inactive on older ones.</text>
+    <text>How strongly an NPC prioritizes you as a target once you can see him, against the weaker pull other NPCs get. Lower values treat you like any other combatant, and 0 removes the pull entirely. Needs a recent engine build, and is inactive on older ones.</text>
   </string>
   <string id="ui_mcm_at_danger_fix_config_isolation">
     <text>Danger config isolation</text>
@@ -916,7 +916,7 @@
     <text>Friendly-fire hold release</text>
   </string>
   <string id="ui_mcm_at_danger_fix_ff_release_desc">
-    <text>A stalker who held fire because a friend crossed his line no longer stays frozen in a combat stance after the fight ends. The base game drops him without restoring a calm state; he now returns to normal the moment his enemy is gone.</text>
+    <text>A stalker who held fire because a friend crossed his line no longer stays frozen in a combat stance after the fight ends. The base game drops him without restoring a calm state, so he now returns to normal the moment his enemy is gone.</text>
   </string>
   <string id="ui_mcm_at_danger_fix_ff_lane">
     <text>Friendly-fire blocked-shot test</text>
@@ -928,7 +928,7 @@
     <text>Stale danger memory</text>
   </string>
   <string id="ui_mcm_at_danger_fix_stale_memory_desc">
-    <text>The base game never cleared a stalker's danger episode memory. Attacked again later, he turned to his FIRST attacker's old position instead of the new threat, and the corpse search animation played only for the first corpse he ever searched. The memory now clears when each danger episode ends.</text>
+    <text>The base game never cleared a stalker's danger episode memory. Attacked again later, he turned to his first attacker's old position instead of the new threat, and the corpse search animation played only for the first corpse he ever searched. The memory now clears when each danger episode ends.</text>
   </string>
   <string id="ui_mcm_at_danger_fix_grenade_far">
     <text>Grenade dodge radius</text>
@@ -946,7 +946,7 @@
     <text>Sticky targeting</text>
   </string>
   <string id="ui_mcm_at_vf_sticky_targeting_desc">
-    <text>A shot-at stalker turns on the man who hit him, not a distant target he can see. Always on; needs a recent engine build.</text>
+    <text>A shot-at stalker turns on the man who hit him, not a distant target he can see. Always on, and needs a recent engine build.</text>
   </string>
   <string id="ui_mcm_at_vf_player_bias">
     <text>Player bias</text>
@@ -1096,13 +1096,13 @@
     <text>Binocular spotters</text>
   </string>
   <string id="ui_mcm_at_gear_gear_binoc_enabled_desc">
-    <text>On: a stalker carrying binoculars sees farther in daylight. Needs an engine build with the per-stalker view-distance bind; inactive on older exes. Off: binoculars stay inert.</text>
+    <text>On: a stalker carrying binoculars sees farther in daylight. Needs an engine build with the per-stalker view-distance bind, and is inactive on older exes. Off: binoculars stay inert.</text>
   </string>
   <string id="ui_mcm_at_gear_gear_nvg_enabled">
     <text>Night-vision at night</text>
   </string>
   <string id="ui_mcm_at_gear_gear_nvg_enabled_desc">
-    <text>On: a stalker carrying a night-vision lamp sees farther during night hours. Needs an engine build with the per-stalker view-distance bind; inactive on older exes. Off: night-vision lamps stay inert.</text>
+    <text>On: a stalker carrying a night-vision lamp sees farther during night hours. Needs an engine build with the per-stalker view-distance bind, and is inactive on older exes. Off: night-vision lamps stay inert.</text>
   </string>
   <!-- ==================== DEVELOPMENT PAGE ==================== -->
   <string id="ui_mcm_at_development_desc">
@@ -1122,7 +1122,7 @@
     <text>Flush log every line</text>
   </string>
   <string id="ui_mcm_at_development_log_flush_desc">
-    <text>Write each log line to disk at once instead of buffering. Turn on when diagnosing a crash so the final lines survive a hard freeze that never reaches the periodic flush. Slower; leave off for normal play.</text>
+    <text>Write each log line to disk at once instead of buffering. Turn on when diagnosing a crash so the final lines survive a hard freeze that never reaches the periodic flush. Slower, so leave off for normal play.</text>
   </string>
   <string id="at_development_log_level_lst_error">
     <text>Error</text>
