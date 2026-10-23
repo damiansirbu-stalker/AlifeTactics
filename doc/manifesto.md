@@ -44,12 +44,6 @@ Where the engine had no seam to decide at, the seam went in upstream, as per-NPC
 It never replaces a vanilla script file.
 A takeover borrows one NPC for a few seconds of one committed move, then hands him back to the engine's combat brain with cover, flanking, and retreat intact.
 
-### Performance is the first invariant
-
-The whole mod costs a handful of timer compares each frame, whatever the number of NPCs, and does its real work only on engine callbacks and scheduled passes.
-A flow that cannot hold its budget gets rewritten or dropped.
-Performance outranks every feature, and the build measures it on unoptimized single-threaded exes.
-
 ### Broken engine mechanics
 
 The engine shipped behaviour that never ran.
@@ -59,14 +53,21 @@ AlifeTactics turns the clamp back into a real curve and strips the fake behaviou
 
 ### GSC's unbuilt design
 
-GSC rated every creature for how it fights and never wired the ratings into play.
-The design gave each species an attack and defence profile, a courage score, and a hunger that drives it to hunt or flee.
-The engine gave them all one charge and one death.
-AlifeTactics gives each creature the decision its design always described, so a mutant fights with the body and the temperament GSC wrote for it.
+GSC wrote the combat mind out as a list of improvements and never built most of it.
+The list names an accuracy parameter, an intelligence parameter, realistic vision, a rear turn, and combat tuned against every monster type.
+It rated every creature for how it fights, an attack and defence profile and a courage score, and left the ratings out of play.
+AlifeTactics builds each item on the list.
+A stalker's accuracy follows his rank, and a mutant fights with the body GSC wrote for it.
 
-> "A complex AI system with a life simulation system that enables any monster and NPC to act independently on any game level,"
-> "with creatures having a full life cycle where they hunt, feed, take rest, and sleep."
-> Oles Shishkovtsov, ModDB interview [3]
+> "Improvements to character combat behaviour: introduce an accuracy parameter.
+> Introduce an intelligence parameter.
+> Make vision more realistic.
+> Adjust combat tactics.
+> Adjust turning around to the rear.
+> Tune combat functions against every monster type.
+> Fix the bugs: the grenade's fall point.
+> Fix pistol bursts."
+> GSC AI design documents [8]
 
 ### Faction and species flavour
 
@@ -97,23 +98,32 @@ Pickoff plants a stalker who outranges his enemy and takes him with single shots
 Retreat pulls a hurt stalker back to cover under pressure.
 Flee routs a skittish faction to a distant friendly base.
 The decisions read as human. Nobody turns his back on a shooter, and no one crowds onto cover another man holds.
+GSC named this work in one line of the design, adjust combat tactics.
+It never built the tactics themselves.
+AlifeTactics runs them on the engine's own GOAP planner, borrowing one NPC through hooks added to the modded exes.
+The named moves are our design, the fight-read behind them is GSC's.
 
 #### Commitment
 
 Vanilla stalkers re-plan every moment, so a flicker of lost sight makes one drop a good decision and pick again.
 Commitment holds a stalker to a decision while it still works and lets him switch the moment it stops.
 When his enemy is caught reloading or hurt, he keeps firing through the window and holds his spot.
+The engine re-plans the fight every moment, and Commitment damps the wasted re-planning.
+It holds through the combat-action-switch and the cover-repick, decision points opened in the modded exes so a working plan survives.
 
 #### Conduct
 
 Conduct sharpens the choices the engine already makes, with no takeover.
 A rifleman crouches to steady a clear shot and stands to fire over cover a crouch would hide behind.
 A submachine gunner takes closer cover to keep his fire in range, and a sniper holds extra distance.
+The cover map and the posture states are the engine's own, and Conduct only chooses better among them.
 
 #### Push and Pull
 
 Push presses a stalker whose enemy cannot answer, thickening his fire and moving him to closer cover.
 Pull sends a stalker back when he is the one caught reloading or hurt, his next cover farther out until he recovers.
+Both read an advantage the engine tracks and never acts on.
+One presses a beaten enemy, the other yields when beaten.
 
 ### Effectiveness
 
@@ -121,21 +131,27 @@ Pull sends a stalker back when he is the one caught reloading or hurt, his next 
 
 Accuracy gives each rank a real dispersion curve, because the engine clamps every NPC to one setting on Anomaly's rank values.
 A second curve covers fire on the move, and rank buys down the movement penalty.
+GSC's design opens with introduce an accuracy parameter, and the engine clamped the rank value until the curve it built collapsed to one setting.
 
 #### Crossfire
 
 Crossfire stops allies cutting each other down in a shared line of fire, keyed on their real relation.
 A soured pair still trades fire, and your own shots never count against you.
+Crossfire has no design-doc line behind it.
+It repairs the engine's friendly-fire handling, keyed on the real relation so hostile pairs still trade fire.
 
 #### Reaction
 
 Reaction sets how fast a stalker swings onto a target and how tightly he holds a strafing one.
 It leads a moving target by the round's real flight time, true at high rank and over-led at low.
 A player-bias dial tunes how hard NPCs favour you over other combatants, down to treating you like anyone else.
+GSC's design calls for an intelligence parameter and realistic vision.
+Reaction sets the aim swing and the target lead through per-NPC aim controls added to the modded exes.
 
 #### Discipline
 
 Discipline scales burst length and cadence by rank, inside the engine's own per-weapon bands.
+GSC's design lists fix pistol bursts among the combat bugs, and Discipline scales the burst through the engine's own fire-queue control.
 
 ### Perception
 
@@ -145,36 +161,50 @@ A hostile stalker reacts to gunfire he hears but cannot see, facing the shots an
 He hears you move, each footstep carrying by stance, surface, and weather, and a crouch stays silent.
 A sound is never a confirmed enemy, so he investigates at a walk.
 Stealth is untouched, because Sound never reads vision.
+GSC's monster design gives the dogs sharp hearing, and Sound answers the engine hear callback the vanilla AI ignores.
+The carry model is ours, each footstep scaled by how a stalker moves and what he crosses.
 
 #### Vision
 
 Vision gives each rank an acquisition speed and a view range, every tier at or above the engine baseline.
+GSC's design asks to make vision more realistic.
+Vision scales the acquisition rate and the view range per rank on the engine's own visual memory, never below the baseline.
 
 #### Danger
 
 A stalker sniped from across the map now ducks and seeks cover where vanilla left him standing.
 A hit victim turns on the man who shot him, over any distant enemy he can see.
+GSC's design lists the grenade fall point among the combat bugs to fix.
+Danger repairs that read and the rest of the xr_danger scheme, and routes a hit back to its shooter through the engine's danger-in-direction evaluator.
 
 ### Mechanics
 
 #### Healing
 
 A wounded NPC heals with the medkits and bandages he carries, pausing under fire, with limp and heal animations.
+GSC's offline loop has the hurt stalker use a medkit when his health runs low.
+The eat-medkit state is the engine's own, driven off the items the NPC actually carries.
 
 #### Jamming
 
 A weapon in full condition no longer chokes on a fake misfire.
+This fix has no design-doc line behind it.
+It strips a script-injected misfire the modded exes roll onto full-condition weapons, which passed for a feature.
 
 #### Ammo
 
 A veteran fires armour-piercing rounds from his own inventory and spends them.
 A stalker is as dangerous as the ammunition he scavenged.
+GSC's trader design has stalkers buy ammo and equipment and carry it.
+Ammo spends what a stalker holds, and the armour-piercing decay is our extension of that supply.
 
 #### Gear
 
 An artefact grants one combat edge by its class, capped so it tilts a fight and never decides it.
 The carrier warps the air around him, a real and huntable drop.
 Binoculars and night vision widen what he sees.
+GSC's combat tables rate equipment for effectiveness, and the monster design gives artefacts their field effects.
+Gear reads each item's own data for one capped edge, and the advantages are our design on that base.
 
 ### Mutants
 
@@ -184,6 +214,8 @@ Hold your aim on a burer and its gravity throw answers.
 A shotgun aimed in range stops a leap, and a shotgunner turned away invites one.
 The engine still drives every mutant.
 AlifeTactics scales its stats and commands the moves. The engine runs them itself.
+This is the strongest-grounded system in the mod.
+Every move traces to a line of GSC's monster design, the burer's gravity field, the fracture's strike at a turned back, the bloodsucker's night hunt, the chimera's flank.
 
 #### Power
 
@@ -206,10 +238,9 @@ Charge, Backstrike, Claw, Cloak, and Retreat round out the set, each the creatur
 
 ## Sources
 
-- [3] Oles Shishkovtsov (engine programmer), ModDB
-  https://www.moddb.com/features/stalker-interview
 - [8] GSC Game World internal AI design documents, pre-release, circa 2002-2006.
-  The combat tables rate every creature for attack and defence, a courage score, and a hunger that drives hunting and flight.
-  Leaked in the "Koan's Gift" package and catalogued on the STALKER wiki.
+  Ai.doc has the combat-improvements list, monstry.doc the creatures and their moves, Killing_NPC.doc the offline heal loop, traders.doc the trade economy.
+  The EFC tables hold the combat ratings and probability data: creature_courage and WeaponSuccessProbability.
+  Leaked in the "Koan's Gift" package, published on the Gameru.net forum, and catalogued on the STALKER wiki.
 - [9] Andrii Verpakhovskyi (original S.T.A.L.K.E.R. game designer), Eurogamer, reported by VideoGamer
   https://www.videogamer.com/news/original-stalker-a-life-so-advanced-that-players-were-constantly-outsmarted-by-ai/
