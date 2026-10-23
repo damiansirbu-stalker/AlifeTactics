@@ -1,41 +1,62 @@
 1.2.2-snapshot
-  Summary: Mutant combat, the decision model, the leap family, anti-camping answers, per-species move pages, Wild variation, the stalker Intelligence gate, rank curves as pairs
-  Note: A batch of xray-monolith engine PRs stands behind this release, giving AlifeTactics partial control of mutant combat. Full control and feature-completeness grow version by version - each one advances both AlifeTactics and the xray-monolith engine until the mutant AI is complete.
+  Summary: Mutant combat, the decision model, the leap family, anti-camping leaps, per-species move pages, Wild variation, the stalker Intelligence gate, rank curves as pairs
 
   Mutants
+    Mutants now fight you. A mutant reads your weak moments and answers with a move its own body carries. A per-rank Intelligence sets how often it reads right, and Wild how far its moves vary.
+    Each mutant has its own MCM page listing what the mod drives on it. Control is partial this release and grows version by version.
+    It runs on a batch of xray-monolith engine changes and is inactive on older exes and AOEngine. More engine work is in progress, and tracing for some moves is still pending.
+
     General
-      - Added the mutant decision model: every mutant reads your weak moments and answers with its own body's moves.
-          A reload, a turned back, a held aim, a perch, or a strafe opens a decision, and Intelligence (a base plus a bonus per map rank) decides whether the answer is the right move.
-          A missed roll lets the opening go, so a Cordon dog wastes most of its chances and a deep-Zone chimera takes them; every move that fires has a real cause behind it.
-          One decision per mutant every few seconds and a hard cap on simultaneous driven moves keep a pack reading as waves. Needs the latest demonized build, inactive on older exes and AOEngine.
-      - Added Wild: one dial for how much every move value varies, timings, distances, bands, geometry. At 0 mutants are identical and learnable, at 100 no two spawns or actions read alike.
+      Intelligence
+        - A mutant takes one decision every few seconds. A reload, a turned back, a held aim, a perch, or a strafe opens a chance, and Intelligence, a base plus a bonus per map rank, decides it.
+        - A missed roll lets the opening pass, so a Cordon dog wastes most of its chances and a deep-Zone chimera takes them. A cap on how many driven moves run at once holds a pack to waves.
+      Wild
+        - One dial for how far every move value varies: timing, distance, band, geometry. At 0 mutants are identical and learnable, at 100 no two spawns or two actions read alike.
+      Threat read
+        - A mutant reads the weapon in your hands. A gun stowed in your pack no longer counts, so holstering stops a mutant treating you as armed.
+
     Power
-      - Added per-rank damage and resistance: a mutant hits harder and takes less as the Zone deepens, each a percent-per-rank slider multiplying your install's own balance.
-    Species
-      - Added a page per species, every species in the game: its own attacks under AlifeTactics timing first, then the new moves vanilla never fires for it. Every tooltip opens with the move's gates.
-      - Added the leap family, predator logic: Leap keeps its wind-up at a turned back, Jump drops the wind-up when you are watching, Leap adapt and Jump adapt steer mid-air when you strafe.
-          Disabling Jump keeps every leap dodgeable. An aimed shotgun in range stops the leap, and a shotgunner turned away invites it.
-      - Camping stopped being safe: every jumper leaps at an enemy perched above it.
-      - Added Rush, the charge pacing: how often a boar, bloodsucker, or pseudogigant charges scales with its Intelligence, so a deep-Zone charger presses harder than a Cordon one. The charge stays the game's own move.
-      - Added Backstrike, a spin strike on an enemy circling behind, on the four species whose models carry the motions.
-      - Added Claw, the point-blank strike vanilla never gave the chimera and lurker.
-      - Added Flee, a rare committed break from the fight when near death and far enough to escape; a cornered mutant fights to the end.
-      - Added Retreat, a short yield instead of pressing a losing position: a perch it cannot reach, or a bead held on it from range.
-      - Added Cloak, a varied invisibility rhythm for the bloodsucker kind.
-      - Added bounded variation over each species' own ability numbers, each behind its own row: burer gravity and telekinesis, controller tube and stamina and auras, poltergeist detection, bloodsucker cloak.
-          Movement stays the game's own tuning, so varied mutants move exactly as the game intended.
+      Damage
+        - A mutant hits harder as the Zone deepens, a percent per rank over your install's own balance.
+      Resistance
+        - A mutant takes less damage as the Zone deepens, a percent per rank over your install's own balance.
+
+    Moves
+      Leap family
+        - Leap keeps its wind-up against a turned back. Jump drops the wind-up when you are watching. Leap adapt and Jump adapt steer in the air when you strafe.
+        - An aimed shotgun in range stops a leap. A shotgunner turned away invites one. Disabling Jump keeps every leap dodgeable.
+        - A jumper leaps at you when you stand on a rock or ledge its pathing cannot climb, so camping a height is no longer safe.
+      Rush
+        - How often a boar, bloodsucker, or pseudogigant charges scales with its Intelligence. The charge stays the game's own move.
+      Backstrike
+        - A strike on an enemy that circles behind, on the chimera, lurker, burer, and controller, whose models carry the motion.
+      Claw
+        - A point-blank strike for the chimera and lurker, which vanilla otherwise walks into melee with no attack to use.
+      Flee
+        - A mutant near death and far enough to escape takes one long run from the fight. A cornered one fights to the end.
+      Retreat
+        - A mutant that has not closed on you or struck you for 2 seconds gives ground for about 5 seconds, then the game walks it back in.
+            A jumper tries a leap at you first and falls to this when it cannot reach.
+      Breakoff
+        - A melee mutant occasionally breaks contact for about 2 seconds, then closes again, so it comes at you from a fresh angle each time.
+      Cloak
+        - The bloodsucker kind varies when it drops and holds its invisibility.
+      Ability variation
+        - Each species varies its own ability numbers: burer gravity and telekinesis, controller tube, stamina, and auras, poltergeist detection, bloodsucker cloak. Movement stays vanilla.
 
   Combat
+    The stalker side is harmonized to the mutant decision model. It shares one per-rank Intelligence gate, and the effectiveness curves are rebuilt as the same base-plus-per-rank pair.
     General
       - Added Intelligence for stalkers: the same decision formula mutants run, a base plus a bonus per rank, capped short of certain.
-          One roll now decides every stalker decision; rank buys the good decision more often.
-      - Changed faction character from per-behavior chances to membership: who flees and who retreats when hurt is a faction list,
-          every other maneuver belongs to every faction, and Push and Pull no longer vary by faction.
+          One roll now decides every stalker decision, and rank buys the good decision more often.
+      - Changed faction character from per-behavior chances to membership: who flees and who retreats when hurt is a faction list, every other maneuver belongs to every faction,
+          and Push and Pull no longer vary by faction.
     Commitment
       - Liquidate now draws from the same per-window budget as every other action AlifeTactics starts, so a crowd cannot all extend fire through your one reload at once.
 
   Effectiveness
-    - Changed every rank curve to a base slider plus a percent-per-rank slider: accuracy, moving fire, tracking speed, tracking lock, target lead, burst size, fire cadence, and the two vision curves.
+    - Changed every rank curve to a base slider plus a percent-per-rank slider, the same pair the Intelligence gate uses:
+        accuracy, moving fire, tracking speed, tracking lock, target lead, burst size, fire cadence, and the two vision curves.
         2 sliders per curve replace 8, fitted to the old tables. Moved sliders on these pages reset to defaults once.
 
   Development
