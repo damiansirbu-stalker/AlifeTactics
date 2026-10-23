@@ -45,9 +45,10 @@ local BEST_MOVES = {
     { premise = "vulnerable",    move = "leap", bipeds = true },
     { premise = "shotgun_open",  move = "leap", bipeds = true },
     { premise = "enemy_above",   move = "leap" },
+    { premise = "enemy_perched", move = "leap" },
     { premise = "enemy_above",   move = "gravity_attack" },
     { premise = "aim_held",      move = "gravity_attack" },
-    { premise = "unreachable",   move = "retreat", nojump = true },
+    { premise = "stalled",       move = "retreat", nojump = true },
     { premise = "contact",       move = "claw" },
 }
 
@@ -457,6 +458,22 @@ local function _update_samples(rec, enemy_pos, mob_pos)
     rec.strafing = dx * dx + dz * dz - along * along > _tun_num.strafe_lat_sqr
 end
 
+-- The no-progress tracker: the baseline enemy distance and when it was taken; closing by stall_progress_m re-arms it, a new enemy resets it.
+-- The stalled premise reads the age - no closing and no damage dealt for stall_ms = a mutant that cannot reach the actor, the common-sense retreat.
+local function _update_stall(rec, enemy, dist, now)
+    local enemy_id = enemy:id()
+    if rec.stall_enemy_id ~= enemy_id then
+        rec.stall_enemy_id = enemy_id
+        rec.stall_base = dist
+        rec.stall_base_ms = now
+        return
+    end
+    if dist <= rec.stall_base - _tun_num.stall_progress_m then
+        rec.stall_base = dist
+        rec.stall_base_ms = now
+    end
+end
+
 -- The held-aim timer over per-beat xcombat.is_aim_held samples; gravity carriers only (the one raycast payer).
 local function _update_aim_sample(mob, rec, enemy, dist_sqr, now)
     if not rec.moves.gravity_attack then return end
@@ -507,11 +524,17 @@ local PREMISES = {
     aim_held = function(_mob, rec, now)
         return rec.aim_since ~= nil and now - rec.aim_since >= _tun_num.aim_held_ms
     end,
-    unreachable = function(_mob, rec, _now)
+    enemy_perched = function(_mob, rec, _now)
+        local memo = rec.memo
+        if not memo.is_actor then return false end
+        return xcombat.is_off_navmesh(memo.enemy, _tun_num.offmesh_gap_sqr)
+    end,
+    stalled = function(_mob, rec, now)
         local memo = rec.memo
         if not memo.is_actor then return false end
         if memo.dist > _tun_num.retreat_max_m then return false end
-        return xcombat.is_off_navmesh(memo.enemy, _tun_num.offmesh_gap_sqr)
+        if not rec.stall_base_ms or now - rec.stall_base_ms < _tun_num.stall_ms then return false end
+        return rec.dealt_ms == nil or now - rec.dealt_ms >= _tun_num.stall_ms
     end,
     low_health = function(mob, rec, _now)
         if not rec.low_now then return false end
@@ -732,6 +755,7 @@ local function _update_mutant(mob, rec, now)
     local dist_sqr = mob_pos:distance_to_sqr(enemy_pos)
     local dist = math_sqrt(dist_sqr)
     _update_samples(rec, enemy_pos, mob_pos)
+    _update_stall(rec, enemy, dist, now)
     _update_aim_sample(mob, rec, enemy, dist_sqr, now)
     if rec.flee_until > now or rec.retreat_until > now then return end
     if now - rec.decided_at < _tun_num.throttle_ms then return end
@@ -798,6 +822,7 @@ local function _apply_dealt(shit)
     if not attacker then return end
     local rec = _states[attacker:id()]
     if not rec then return end
+    rec.dealt_ms = time_global()
     local dbg = at_debug.is_on()
     local tmr = xprofiler.new_if(dbg):start()
     local dealt = _tracks.damage[rec.tier]
@@ -919,6 +944,8 @@ local function _load_tunables()
         above_m = _read_num("premises", "above_m"),
         climb_near_m = _read_num("premises", "climb_near_m"),
         offmesh_gap_sqr = _read_num("premises", "offmesh_gap_sqr"),
+        stall_ms = _read_num("premises", "stall_ms"),
+        stall_progress_m = _read_num("premises", "stall_progress_m"),
         strafe_lat_sqr = (_read_num("premises", "strafe_lat_m") or 1) ^ 2,
         flee_min_m = _read_num("survival", "min_dist_m"),
         flee_face_cone = _read_num("survival", "face_cone_deg"),

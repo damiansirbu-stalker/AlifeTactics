@@ -690,11 +690,11 @@ The flee rarity has a gap and a chance: 120s between flee windows, and an inside
 CAPS bound the spice: at most 3 driven moves assumed running per bucket (vs_player, vs_npc) on 3s slots - an offensive fire checks then adds, flee adds unchecked, claw and the armed backstrike sit outside; a dry bucket skips the weapon reads entirely, the 100-mutant guard.
 THE LEAP FAMILY is a 2x2, predator logic: watching decides the wind-up, strafing decides the steering. An enemy NOT watching gets the telegraphed Leap (the wind-up costs nothing against a turned back); a watching enemy gets the Jump with no wind-up (winding up in front of a gun hands it a free second); a strafing enemy gets the adapt variant of either - Leap adapt unwatched, Jump adapt watched - the air-steering leap via `set_monster_jump_flags` auto-aim, the gain rolled inside the vanilla envelope and the species' own basis restored at the landing (the engine reads the gain live through the flight, so an immediate restore would kill the steering).
 THE BODY-PLAN LAW: every jump carrier leaps at an enemy exploiting elevation (`xcombat.is_enemy_above`, the engine's own 0.8m dog-gate standard); quadrupeds take OUR commanded leap ONLY on elevation (flat ground stays their vanilla character), bipeds take the full jump-band premises.
-THE ANTI-EXPLOIT LAW: an exploit premise always maps to a punish move - a held aim (`is_aim_held`, 3s) draws the burer's Gravity attack, an elevated enemy draws the leap or the gravity answer, a strafing watcher draws the adapt.
+THE ANTI-EXPLOIT LAW: an exploit premise always maps to a punish move - a held aim (`is_aim_held`, 3s) draws the burer's Gravity attack, an elevated enemy draws the leap or the gravity answer, a strafing watcher draws the adapt. A jumper whose target stands off its own navmesh vertex - perched on a rock or ledge (`enemy_perched`, `is_off_navmesh` at `offmesh_gap_sqr` ~1m) - leaps at it at once, the geometric shortcut the behavioral stall below need not wait out.
 The shotgun is respected everywhere, facing-aware: in its band and AIMED it blocks the jumps; turned away it is a leap premise.
 The charge is engine-owned end to end - the autonomous trigger re-checks it every scheduler tick through the same gates a command would pass, so a commanded charge can never add a fire; what the module owns is the PACING: the species' own wait between charges, scaled by Intelligence at adoption (a smart one waits less and presses), never the band geometry.
 The flee has ONE trigger, ability to flee: health below the survival fraction while far enough to disengage (`[survival] min_dist_m`, just past melee reach) - survival sits first in the premise walk, and a cornered mutant fights, never turns its back at melee reach.
-RETREAT is the same proposal window on tactical premises, short and capped where the flee is long and denied only by its inside chance: an enemy exploiting elevation a non-jumper cannot answer, or a bead held on it from range - the mutant yields ground for a few seconds instead of pressing a losing position, then the vanilla FSM re-engages. The retreat rows walk after every offensive row, so an opening always outranks a yield.
+RETREAT fires on the stalled premise: a melee non-jumper that has neither closed on the actor (by `stall_progress_m`, 1m) nor dealt it damage within `stall_ms` (2s) cannot reach it - whatever the reason, a perch, a wall, a gap, the actor crouched behind a rock - and yields. It reads THAT it cannot reach, never WHY: a geometric off-navmesh test misses the actor tucked under a table, the progress-and-damage read does not. The yield is a short RunAway (`[retreat]` hold 2-3s, where flee holds 45-75s) - the mutant backpedals a dozen metres, then the vanilla FSM pulls it back in, a measured give-ground rather than flee's panic bolt. The retreat row walks after every offensive row, so an opening always outranks a yield.
 Monster health is a normalized fraction clamped to 1.0 every condition update, so a health pool, regeneration, or lifesteal cannot raise it; toughness lives in resistance alone, stat = 1 + x% * rank.
 
 Does: adopts each online mutant on its first binder update, scales its hits by tier, and runs the decision model on one 600ms lane.
@@ -711,12 +711,13 @@ monster_on_update (binder scheduler, 100ms near to 625ms far) -> the one lane, g
          poltergeist detection, the aura row) and behind the Cloak move row (the visibility dwell),
          the backstrike arm roll (re-decided each adoption)
   every beat: upkeep (the claw-override clear on its window or any jump, the gravity-force release),
-         the motion samples (recede, lateral strafe) and the burer aim-held timer
+         the motion samples (recede, lateral strafe, the stall baseline) and the burer aim-held timer
   free decision beat (the 6s clock): the weapon memo (skipped dry), the premise walk down BEST_MOVES -
          low health, far enough to disengage       -> Flee (survival first, the long committed window)
          vulnerable / shotgun-turned-away / elevated -> the leap family (the 2x2 picks the variant)
+         actor perched off the navmesh (a jumper)  -> Leap at the perch (the geometric shortcut)
          elevated vs a burer / a 3s held aim      -> Gravity attack (forced, released next beat)
-         elevated vs a non-jumper / a bead held from range -> Retreat (the short yield window)
+         stalled: no closing, no damage in 2s (a non-jumper) -> Retreat (the short yield window)
          contact, facing                           -> Claw (the chimera-class strike, outside the caps)
 monster_on_combat_action -> the proposal subscriber: pure Lua on the silent path, re-proposes while a flee or retreat window holds
 before-hit seams: damage dealt (victim-side, keyed on shit.draftsman) and damage taken

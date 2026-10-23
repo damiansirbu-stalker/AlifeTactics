@@ -57,7 +57,9 @@ flee = 0.3
 aim_held_s   = 3
 above_m      = 0.8      ; object-position height delta that counts as the enemy being above (the leap/gravity enemy_above premise)
 climb_near_m = 6        ; the enemy_above near gate: an elevated enemy within this range is a reachable ledge to leap at, farther is valley terrain
-offmesh_gap_sqr = 6.2   ; retreat: the actor stands this far (squared metres, ~2.5m) off its own nav vertex = on a rock/ledge a non-jumper cannot path to
+offmesh_gap_sqr = 1.0   ; enemy_perched (leap): the actor stands this far (squared metres, ~1m) off its own nav vertex = on a rock/ledge; a jumper leaps at it. Measured 2026-10-23: walkable terrain tops at 0.22, a real perch reads 8.9+
+stall_ms        = 2000  ; stalled (retreat): a melee mutant that has not closed stall_progress_m nor dealt damage in this long cannot reach the actor and yields
+stall_progress_m = 1.0  ; the closing distance that re-arms the stall window; under this for stall_ms with no damage dealt = stalled
 strafe_lat_m = 1.0
 
 [survival] ; the one flee trigger: health below this fraction while far enough to disengage
@@ -82,9 +84,9 @@ factor_max = 0.6
 slow_mult = 1.3 ; the wait multiplier at zero Intelligence - hesitant
 fast_mult = 0.6 ; the wait multiplier at the Intelligence cap - pressing
 
-[retreat] ; the tactical yield: the flee window when the enemy is unreachable - elevation a non-jumper cannot answer
-hold_min     = 12000
-hold_max     = 18000
+[retreat] ; the tactical yield: a short RunAway when a melee mutant is stalled (cannot close or damage the actor); the vanilla FSM re-engages when the window closes
+hold_min     = 2000 ; short by design - the mutant backpedals a dozen metres, then the FSM pulls it back in; a measured give-ground, not the panic bolt of flee (45-75s)
+hold_max     = 3000
 max_dist_m   = 20 ; no yield past this - the engine RunAway point sits ~20m off the enemy, so a farther mutant has nowhere to run (it froze standing)
 
 [gravity_attack] ; the burer is_aim_held premise: a held aim inside this range forces the gravity attack
