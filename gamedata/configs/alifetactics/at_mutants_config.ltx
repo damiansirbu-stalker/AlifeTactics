@@ -29,6 +29,7 @@ leap_adapt     = chimera, lurker, cat, bloodsucker, psysucker, dog, snork, pseud
 jump_adapt     = chimera, lurker, cat, bloodsucker, psysucker, dog, snork, pseudodog, psy_dog
 flee           = bloodsucker, psysucker, dog, boar, snork, pseudodog, psy_dog, gigant, cat, flesh, fracture, karlik, tushkano
 retreat        = bloodsucker, psysucker, dog, boar, snork, pseudodog, psy_dog, gigant, cat, flesh, fracture, karlik, tushkano
+breakoff       = bloodsucker, psysucker, dog, boar, snork, pseudodog, psy_dog, gigant, cat, flesh, fracture, karlik, tushkano
 cloak          = bloodsucker, psysucker
 gravity_attack = burer
 claw           = chimera, lurker
@@ -50,8 +51,9 @@ vs_npc    = 3
 [intelligence]
 cap = 0.75
 
-[inside_chance] ; a flavor move still rolls its own execution chance on a seized opening; absent key = 1.0 = always. Flavor only (does not help the NPC); flee is the sole member.
+[inside_chance] ; a flavor move still rolls its own execution chance on a seized opening; absent key = 1.0 = always. Flavor only (does not help the NPC); flee and breakoff are the members.
 flee = 0.3
+breakoff = 0.2
 
 [premises] ; the anti-exploit reads
 aim_held_s   = 3
@@ -84,10 +86,14 @@ factor_max = 0.6
 slow_mult = 1.3 ; the wait multiplier at zero Intelligence - hesitant
 fast_mult = 0.6 ; the wait multiplier at the Intelligence cap - pressing
 
-[retreat] ; the tactical yield: a short RunAway when a melee mutant is stalled (cannot close or damage the actor); the vanilla FSM re-engages when the window closes
-hold_min     = 2000 ; short by design - the mutant backpedals a dozen metres, then the FSM pulls it back in; a measured give-ground, not the panic bolt of flee (45-75s)
-hold_max     = 3000
+[retreat] ; the tactical yield: a RunAway when a melee mutant is stalled (cannot close or damage the actor); the vanilla FSM re-engages when the window closes
+hold_min     = 4500 ; ~5s - reaches the RunAway point and holds a beat before returning; a real give-ground, still far short of flee's 45-75s bolt
+hold_max     = 5500
 max_dist_m   = 20 ; no yield past this - the engine RunAway point sits ~20m off the enemy, so a farther mutant has nowhere to run (it froze standing)
+
+[breakoff] ; the hit-and-run dart: a short RunAway on the inside chance alone (no trigger), the restless-predator hop; shares the engine RunAway with retreat but briefer
+hold_min     = 1500 ; ~2s - a quick dart out and back, distinctly shorter than the retreat yield
+hold_max     = 2500
 
 [gravity_attack] ; the burer is_aim_held premise: a held aim inside this range forces the gravity attack
 range_m    = 40

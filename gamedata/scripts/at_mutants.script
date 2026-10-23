@@ -27,16 +27,17 @@ local MOVE_LEAP_ADAPT = "leap_adapt"
 local MOVE_JUMP_ADAPT = "jump_adapt"
 local MOVE_FLEE       = "flee"
 local MOVE_RETREAT    = "retreat"
+local MOVE_BREAKOFF   = "breakoff"
 
 local MOVE_KEYS = {
-    "leap", "jump", "leap_adapt", "jump_adapt", "flee", "retreat",
+    "leap", "jump", "leap_adapt", "jump_adapt", "flee", "retreat", "breakoff",
     "cloak", "gravity_attack", "claw", "backstrike",
 }
 
 -- The capped moves check a bucket slot before firing; flee adds a slot but is never denied; claw sits outside the caps.
 local CAPPED = {
     leap = true, jump = true, leap_adapt = true, jump_adapt = true,
-    gravity_attack = true, retreat = true,
+    gravity_attack = true, retreat = true, breakoff = true,
 }
 
 -- The premise-to-move table: array order is priority; bipeds marks rows the body-plan law denies quadrupeds.
@@ -48,8 +49,9 @@ local BEST_MOVES = {
     { premise = "enemy_perched", move = "leap" },
     { premise = "enemy_above",   move = "gravity_attack" },
     { premise = "aim_held",      move = "gravity_attack" },
-    { premise = "stalled",       move = "retreat", nojump = true },
+    { premise = "stalled",       move = "retreat" },
     { premise = "contact",       move = "claw" },
+    { premise = "engaged",       move = "breakoff" },
 }
 
 local _states = {}
@@ -383,6 +385,7 @@ local function _add_mutant(mob, id, now)
         flee_until = 0,
         retreat_ok_at = 0,
         retreat_until = 0,
+        breakoff_until = 0,
         claw_until = 0,
         claw_motion = species and moves.claw and _claw_motion or nil,
         low_now = false,
@@ -507,6 +510,12 @@ local function _reset_memo(rec)
     memo.shotgun_open = shotgun_near and not aimed
 end
 
+-- True when the mutant has not closed nor dealt damage for stall_ms - the no-progress read the retreat fires on and the perched-leap yields to.
+local function _is_stalled(rec, now)
+    if not rec.stall_base_ms or now - rec.stall_base_ms < _tun_num.stall_ms then return false end
+    return rec.dealt_ms == nil or now - rec.dealt_ms >= _tun_num.stall_ms
+end
+
 -- The premise vocabulary: each a named boolean read over the memo, the samples, and the processed snapshots.
 local PREMISES = {
     vulnerable = function(_mob, rec, now)
@@ -524,17 +533,22 @@ local PREMISES = {
     aim_held = function(_mob, rec, now)
         return rec.aim_since ~= nil and now - rec.aim_since >= _tun_num.aim_held_ms
     end,
-    enemy_perched = function(_mob, rec, _now)
+    enemy_perched = function(_mob, rec, now)
         local memo = rec.memo
         if not memo.is_actor then return false end
+        if _is_stalled(rec, now) then return false end
         return xcombat.is_off_navmesh(memo.enemy, _tun_num.offmesh_gap_sqr)
     end,
     stalled = function(_mob, rec, now)
         local memo = rec.memo
         if not memo.is_actor then return false end
         if memo.dist > _tun_num.retreat_max_m then return false end
-        if not rec.stall_base_ms or now - rec.stall_base_ms < _tun_num.stall_ms then return false end
-        return rec.dealt_ms == nil or now - rec.dealt_ms >= _tun_num.stall_ms
+        return _is_stalled(rec, now)
+    end,
+    engaged = function(_mob, rec, _now)
+        local memo = rec.memo
+        if not memo.is_actor then return false end
+        return memo.dist <= _tun_num.retreat_max_m
     end,
     low_health = function(mob, rec, _now)
         if not rec.low_now then return false end
@@ -654,6 +668,16 @@ local function _execute_retreat(_mob, rec, move, now)
     _log_fire(rec, move, (" hold=%dms"):format(hold))
 end
 
+-- The breakoff window: a short RunAway dart on the inside chance (flavor, no trigger); the FSM re-approaches after, an unpredictable give-ground.
+local function _execute_breakoff(_mob, rec, move, now)
+    if not _check_inside_chance(move) then return _log_block(rec, move, "chance") end
+    if not _check_slot(rec.memo.bucket) then return _log_block(rec, move, "caps") end
+    local hold = _select_band(_tun_num.breakoff_hold_min, _tun_num.breakoff_hold_max)
+    rec.breakoff_until = now + hold
+    _add_slot(rec.memo.bucket)
+    _log_fire(rec, move, (" hold=%dms"):format(hold))
+end
+
 -- The chimera-class contact strike; one animation owner, outside the caps, cleared by its window or any jump.
 local function _execute_claw(mob, rec, move, now)
     local memo = rec.memo
@@ -670,6 +694,7 @@ end
 local MOVE_EXEC = {
     leap = _execute_leap, jump = _execute_leap, leap_adapt = _execute_leap, jump_adapt = _execute_leap,
     gravity_attack = _execute_gravity, flee = _execute_flee, retreat = _execute_retreat, claw = _execute_claw,
+    breakoff = _execute_breakoff,
 }
 
 -- A best row is eligible when the species carries the toggled move, the body plan admits it, and the caps/clocks allow it.
@@ -683,9 +708,9 @@ local function _check_row(mob, rec, row, now)
     local move = row.move
     if not rec.moves[move] then return false end
     if row.bipeds and rec.quadruped then return false end
-    if row.nojump and rec.moves.leap then return false end
     if move == MOVE_FLEE and (not _runaway_id or now < rec.flee_ok_at) then return false end
     if move == MOVE_RETREAT and (not _runaway_id or now < rec.retreat_ok_at) then return false end
+    if move == MOVE_BREAKOFF and not _runaway_id then return false end
     if CAPPED[move] and rec.memo.dry then return false end
     if move == LEAP_FAMILY then
         if not _check_leap_toggled(rec) or not _is_in_jump_band(rec) then return false end
@@ -757,7 +782,7 @@ local function _update_mutant(mob, rec, now)
     _update_samples(rec, enemy_pos, mob_pos)
     _update_stall(rec, enemy, dist, now)
     _update_aim_sample(mob, rec, enemy, dist_sqr, now)
-    if rec.flee_until > now or rec.retreat_until > now then return end
+    if rec.flee_until > now or rec.retreat_until > now or rec.breakoff_until > now then return end
     if now - rec.decided_at < _tun_num.throttle_ms then return end
     local is_actor = enemy:id() == AC_ID
     local memo = rec.memo
@@ -798,10 +823,10 @@ local function _on_mob_update(mob)
     if at_debug.is_on() then _log_tick(timer:get_ms(), now) end
 end
 
--- Re-propose eStateAttack_RunAway while a flee or retreat window holds; the silent path stays pure Lua.
+-- Re-propose eStateAttack_RunAway while a flee, retreat or breakoff window holds; the silent path stays pure Lua.
 local function _on_combat_action(monster, _enemy, _dist, _enemy_strength, _can_jump, flags)
     local rec = _states[monster:id()]
-    if not rec or (rec.flee_until <= rec.tick_now and rec.retreat_until <= rec.tick_now) then
+    if not rec or (rec.flee_until <= rec.tick_now and rec.retreat_until <= rec.tick_now and rec.breakoff_until <= rec.tick_now) then
         if at_debug.is_on() then _prop_silent = _prop_silent + 1 end
         return
     end
@@ -955,6 +980,8 @@ local function _load_tunables()
         retreat_hold_min = _read_num("retreat", "hold_min"),
         retreat_hold_max = _read_num("retreat", "hold_max"),
         retreat_max_m = _read_num("retreat", "max_dist_m"),
+        breakoff_hold_min = _read_num("breakoff", "hold_min"),
+        breakoff_hold_max = _read_num("breakoff", "hold_max"),
         threat_cone = _read_num("threat", "facing_cone_deg"),
         leap_cone = _read_num("leap", "facing_cone_deg"),
         leap_fallback_max = _read_num("leap", "fallback_max_m"),

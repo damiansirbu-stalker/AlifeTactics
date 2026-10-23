@@ -391,7 +391,13 @@
     <text>Retreat</text>
   </string>
   <string id="ui_mcm_at_mutants_retreat_desc">
-    <text>[int, wild] Backs off for a few seconds when you hold high ground it cannot reach, then returns to the fight.</text>
+    <text>[int, wild] Backs off for a few seconds when it cannot close on you or land a hit, then returns to the fight.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_breakoff">
+    <text>Breakoff</text>
+  </string>
+  <string id="ui_mcm_at_mutants_breakoff_desc">
+    <text>[int, wild] Occasionally breaks contact and darts back for a moment before closing again, rather than pressing you head-on the whole fight.</text>
   </string>
   <!-- ==================== SHARED ==================== -->
   <string id="ui_mcm_at_title">
