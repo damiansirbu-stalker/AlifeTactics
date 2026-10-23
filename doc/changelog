@@ -1,5 +1,6 @@
 1.2.2-snapshot
   Summary: Mutant combat, the decision model, the leap family, anti-camping answers, per-species move pages, Wild variation, the stalker Intelligence gate, rank curves as pairs
+  Note: A batch of xray-monolith engine PRs stands behind this release, giving AlifeTactics partial control of mutant combat. Full control and feature-completeness grow version by version - each one advances both AlifeTactics and the xray-monolith engine until the mutant AI is complete.
 
   Mutants
     General
