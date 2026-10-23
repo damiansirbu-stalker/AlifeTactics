@@ -265,7 +265,7 @@
     <text>Intelligence (%)</text>
   </string>
   <string id="ui_mcm_at_mutants_mut_int_base_desc">
-    <text>The chance a mutant answers an opening with the right move, before the rank bonus. Observing is free, deciding is hard: every mutant sees the reload; a passed roll fires the best answer, a missed roll lets the opening go. One decision per few seconds.</text>
+    <text>The chance a mutant answers an opening with the right move, before the rank bonus. Observing is free, deciding is hard. Every mutant sees your reload, but only a passed roll turns it into the right answer, and a missed roll lets the opening go. One decision every few seconds.</text>
   </string>
   <string id="ui_mcm_at_mutants_mut_int_rank_pct">
     <text>Per rank (%)</text>
@@ -277,7 +277,7 @@
     <text>Wild</text>
   </string>
   <string id="ui_mcm_at_mutants_mut_wild_desc">
-    <text>How much every move value varies: timings, distances, bands, geometry. 0 keeps every value at the middle of its band, so mutants are identical and learnable; 100 rolls any point across the band, so each spawn and each action differ.</text>
+    <text>How much a mutant's own numbers vary between individuals: the timings of its moves and the ranges, bands, and reach of its abilities. At 0 every value sits at its band middle, so a kind is identical and learnable. At 100 each spawn and each use rolls any point across its band, so no two read alike.</text>
   </string>
   <string id="ui_mcm_at_mutants_mut_damage_pct">
     <text>Damage per rank (%)</text>
@@ -289,31 +289,31 @@
     <text>Resistance per rank (%)</text>
   </string>
   <string id="ui_mcm_at_mutants_mut_resist_pct_desc">
-    <text>Damage a mutant receives shrinks by this percent for each map rank.</text>
+    <text>Damage a mutant receives shrinks by this percent for each map rank, so a deep-Zone mutant shrugs off fire a Cordon one would feel.</text>
   </string>
   <string id="ui_mcm_at_mutants_leap">
     <text>Leap</text>
   </string>
   <string id="ui_mcm_at_mutants_leap_desc">
-    <text>[int, wild] The telegraphed leap, fired when the enemy is NOT watching: the wind-up costs nothing against a turned back. Every leaper leaps at an enemy exploiting elevation; never into an aimed shotgun.</text>
+    <text>[int, wild] The telegraphed leap, fired when the enemy is not watching, where the wind-up costs nothing against a turned back. Every leaper also leaps at an enemy who exploits elevation, and never into an aimed shotgun in range.</text>
   </string>
   <string id="ui_mcm_at_mutants_jump">
     <text>Jump</text>
   </string>
   <string id="ui_mcm_at_mutants_jump_desc">
-    <text>[int, wild] The leap with no wind-up, fired when the enemy IS watching: a telegraphed wind-up in front of a ready gun gives the enemy time to react. Off: every leap keeps its telegraph, so all are dodgeable.</text>
+    <text>[int, wild] The leap with no wind-up, fired when the enemy is watching, where a telegraphed wind-up in front of a ready gun would hand it time to react. Turn this off and every leap keeps its telegraph, so all stay dodgeable.</text>
   </string>
   <string id="ui_mcm_at_mutants_leap_adapt">
     <text>Leap adapt</text>
   </string>
   <string id="ui_mcm_at_mutants_leap_adapt_desc">
-    <text>[int, wild] The telegraphed leap with mid-air steering, fired at a strafing enemy that is not watching; the steering stays inside the game's own envelope.</text>
+    <text>[int, wild] The telegraphed leap with mid-air steering, fired at a strafing enemy that is not watching. The steering stays inside the game's own envelope.</text>
   </string>
   <string id="ui_mcm_at_mutants_jump_adapt">
     <text>Jump adapt</text>
   </string>
   <string id="ui_mcm_at_mutants_jump_adapt_desc">
-    <text>[int, wild] The no-wind-up leap with mid-air steering, fired when the enemy watches AND strafes; the steering stays inside the game's own envelope.</text>
+    <text>[int, wild] The no-wind-up leap with mid-air steering, fired when the enemy both watches and strafes. The steering stays inside the game's own envelope.</text>
   </string>
   <string id="ui_mcm_at_mutants_rush">
     <text>Rush</text>
@@ -325,7 +325,7 @@
     <text>Backstrike</text>
   </string>
   <string id="ui_mcm_at_mutants_backstrike_desc">
-    <text>[int, wild] A spin-strike when the enemy orbits to its back; whether an individual carries the reflex is decided when it appears.</text>
+    <text>[int, wild] A spin-strike when the enemy works around to its back. Whether an individual carries the reflex is settled the moment it appears.</text>
   </string>
   <string id="ui_mcm_at_mutants_claw">
     <text>Claw</text>
@@ -379,19 +379,19 @@
     <text>Flee</text>
   </string>
   <string id="ui_mcm_at_mutants_flee_desc">
-    <text>[int, wild] Breaks off and runs when near death and far enough to escape; a cornered mutant fights to the end instead.</text>
+    <text>[int, wild] Breaks off and runs when near death and far enough to reach safety. A cornered mutant has no room to run and fights to the end.</text>
   </string>
   <string id="ui_mcm_at_mutants_retreat">
     <text>Retreat</text>
   </string>
   <string id="ui_mcm_at_mutants_retreat_desc">
-    <text>[int, wild] Backs off for a few seconds when it cannot close on you or land a hit, then returns to the fight.</text>
+    <text>[int, wild] Backs off for a few seconds when it cannot close on you or strike you, then closes back in to try again.</text>
   </string>
   <string id="ui_mcm_at_mutants_breakoff">
     <text>Breakoff</text>
   </string>
   <string id="ui_mcm_at_mutants_breakoff_desc">
-    <text>[int, wild] Occasionally breaks contact and darts back for a moment before closing again, rather than pressing you head-on the whole fight.</text>
+    <text>[int, wild] Occasionally breaks contact for a moment and closes again, so its circling and pressing never settle into a steady pattern you can read.</text>
   </string>
   <!-- ==================== SHARED ==================== -->
   <string id="ui_mcm_at_title">

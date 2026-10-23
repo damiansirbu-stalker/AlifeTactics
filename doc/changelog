@@ -11,7 +11,8 @@
         - A mutant takes one decision every few seconds. A reload, a turned back, a perch, or a strafe opens a chance, and Intelligence, a base plus a bonus per map rank, decides it.
         - A missed roll lets the opening pass, so a Cordon dog wastes most of its chances and a deep-Zone chimera takes them. A cap on how many driven moves run at once holds a pack to waves.
       Wild
-        - One dial for how far every move value varies: timing, distance, band, geometry. At 0 mutants are identical and learnable, at 100 no two spawns or two actions read alike.
+        - One dial for how much a mutant's own numbers vary between individuals: the move timings and the ranges, bands, and reach of its abilities.
+            At 0 a kind is identical and learnable, at 100 no two spawns read alike.
       Threat read
         - A mutant reads the weapon in your hands. A gun stowed in your pack no longer counts, so holstering stops a mutant treating you as armed.
 
@@ -29,7 +30,7 @@
       Rush
         - How often a boar, bloodsucker, or pseudogigant charges scales with its Intelligence. The charge stays the game's own move.
       Backstrike
-        - A strike on an enemy that circles behind, on the chimera, lurker, burer, and controller, whose models carry the motion.
+        - A spin-strike when the enemy works around to a mutant's back, on the chimera, lurker, burer, and controller whose models carry the motion.
       Claw
         - A point-blank strike for the chimera and lurker, which vanilla otherwise walks into melee with no attack to use.
       Flee
@@ -38,7 +39,7 @@
         - A mutant that has not closed on you or struck you for 2 seconds gives ground for about 5 seconds, then the game walks it back in.
             A jumper tries a leap at you first and falls to this when it cannot reach.
       Breakoff
-        - A melee mutant occasionally breaks contact for about 2 seconds, then closes again, so its approach keeps shifting through the fight.
+        - A melee mutant occasionally breaks contact for about 2 seconds and closes again, so its circling and pressing never settle into a steady pattern you can read.
       Ability variation
         - Each species varies its own ability numbers: burer gravity and telekinesis, controller tube, stamina, and auras, poltergeist detection, bloodsucker cloak. Movement stays vanilla.
 
