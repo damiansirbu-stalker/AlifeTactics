@@ -159,6 +159,7 @@ local WILD_MOVES = {
     detection = true, gravity_numbers = true, telekinesis = true,
 }
 local RUN_ATTACK_STATE = "Attack_On_Run"
+local RUN_AWAY_STATE = "Attack_RunAway"
 local MELEE_STATE = "Attack_Melee"
 
 -- Mutant systems cell: the live action now, in our move vocabulary - gate-coloured when AT drives it, grey for his own engine action; FSM state the fallback.
@@ -179,6 +180,7 @@ local function _format_mob_systems(rec, tg, state, jumping)
     if sname == MELEE_STATE then
         return (at_mutants.is_melee_governed(rec) and ESC_INT or ESC_DIM) .. "melee" .. ESC_END
     end
+    if sname == RUN_AWAY_STATE then return ESC_DIM .. "retreat" .. ESC_END end
     if sname == RUN_ATTACK_STATE then return ESC_DIM .. "charge" .. ESC_END end
     return ESC_DIM .. sname .. ESC_END
 end
@@ -297,6 +299,8 @@ local function _build_rows()
         local mob = mob_list[i]
         if mob.gate then mob_at[#mob_at + 1] = mob else mob_grey[#mob_grey + 1] = mob end
     end
+    table_sort(mob_at, is_closer)
+    table_sort(mob_grey, is_closer)
 
     local rows, shown, total = {}, 0, #at_list + #fight_list + #idle_list + #mob_list
     local function add_npcs(list)
