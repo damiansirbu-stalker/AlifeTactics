@@ -700,7 +700,7 @@ Monster health is a normalized fraction clamped to 1.0 every condition update, s
 
 Does: adopts each online mutant on its first binder update, scales its hits by tier, and runs the decision model on one 600ms lane.
 Changes: per-object ability params once at adoption, as MULTIPLIERS over the install's own LTX values (the gravity, telekinesis, aura, detection, tube, stamina, cloak families), so modpack mutant balance survives; the charge pacing, the species' own charge cooldown scaled by Intelligence; the damage dealt and taken multipliers per hit; one-shot invokes and proposal windows in the fight. It reads the leap band raw for its own premises but never writes it back to the engine.
-Stops: inert below the monster seam set with one INACTIVE line; a move never fires outside its species envelope; on toggle-off the module releases what it still owns live (the animation override, a pending gravi force) - pushed params revert on the next spawn.
+Stops: inert below the monster seam set with one INACTIVE line; a move never fires outside its species envelope; on toggle-off the module releases what it still owns live (the animation override or a pending gain restore) - pushed params revert on the next spawn.
 
 ```
 monster_on_update (binder scheduler, 100ms near to 625ms far) -> the one lane, gated 600ms per mutant (at_mutants.script)
@@ -711,13 +711,12 @@ monster_on_update (binder scheduler, 100ms near to 625ms far) -> the one lane, g
          and telekinesis with its lifted-object count, the controller tube and stamina, the
          poltergeist detection, the aura row) and behind the Cloak move row (the visibility dwell),
          the backstrike arm roll (re-decided each adoption)
-  every beat: upkeep (the claw-override clear on its window or any jump, the gravity-force release),
-         the motion samples (recede, lateral strafe, the stall baseline) and the burer aim-held timer
+  every beat: upkeep (the claw-override clear on its window or any jump, the jump-gain restore on landing),
+         the motion samples (recede, lateral strafe, the stall baseline)
   free decision beat (the 6s clock): the weapon memo (skipped dry), the premise walk down BEST_MOVES -
          low health, far enough to disengage       -> Flee (survival first, the long committed window)
          vulnerable / shotgun-turned-away / elevated -> the leap family (the 2x2 picks the variant)
          actor perched off the navmesh, leap not yet stalled (a jumper) -> Leap at the perch
-         elevated vs a burer / a 3s held aim      -> Gravity attack (forced, released next beat)
          stalled: no closing, no damage in 2s      -> Retreat (a jumper falls here when its perched-leap stalls)
          contact, facing                           -> Claw (the chimera-class strike, outside the caps)
          engaged, nothing better (20% inside chance) -> Breakoff (the restless hit-and-run hop)
@@ -726,7 +725,7 @@ before-hit seams: damage dealt (victim-side, keyed on shit.draftsman) and damage
                   (monster_on_before_hit); a 1.0 track skips the engine write, so rank-0 maps pay a table lookup
 ```
 
-- Every engine verb crosses xmonster, the xlibs monster surface; every premise is a named boolean method composing xcombat primitives (`is_enemy_watching`, `is_aim_held`, `is_enemy_above`), no raw engine read and no if/else decision tree - predicates and data tables.
+- Every engine verb crosses xmonster, the xlibs monster surface; every premise is a named boolean method composing xcombat primitives (`is_enemy_watching`, `is_enemy_above`), no raw engine read and no if/else decision tree - predicates and data tables.
 - The MCM is a General page (Intelligence base, per rank, Wild), Power (damage, resistance), then one page per species - chimera, bloodsucker, burer, controller, poltergeist, dog, boar, snork, pseudodog, pseudogigant, cat, flesh, fracture, karlik, tushkano, a subclass folding into its base page via `[pages]` - each with a MANAGED MOVES section (the creature's own attacks, plus the ability vary rows where it has one) then NEW MOVES (attacks vanilla never fires for that species); every row's tooltip opens with its gates as the first bracketed token ([int, wild] or [wild]). Any nonzero stat slider, move toggle, or ability vary row keeps the module live. Every band is bounded in `at_mutants_config.ltx`; the classification lives in its `[moves]` and `[managed]` sections.
 - The Backstrike arms chimera, lurker, burer, and controller with their own models' strike motions; every armed motion carries its own `attack_params` row (the damage law) - the chimera-class DLTX rows, the burer's `stand_attack_0`, the controller's `stand_attack_0`/`stand_attack_1`.
 - The claw's damage is author-owned: the DLTX rows give `jump_attack_0` its own `attack_params` numbers (chimera and lurker), instead of the release fallback to the leap row.

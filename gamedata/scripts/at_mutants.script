@@ -31,13 +31,13 @@ local MOVE_BREAKOFF   = "breakoff"
 
 local MOVE_KEYS = {
     "leap", "jump", "leap_adapt", "jump_adapt", "flee", "retreat", "breakoff",
-    "cloak", "gravity_attack", "claw", "backstrike",
+    "cloak", "claw", "backstrike",
 }
 
 -- The capped moves check a bucket slot before firing; flee adds a slot but is never denied; claw sits outside the caps.
 local CAPPED = {
     leap = true, jump = true, leap_adapt = true, jump_adapt = true,
-    gravity_attack = true, retreat = true, breakoff = true,
+    retreat = true, breakoff = true,
 }
 
 -- The premise-to-move table: array order is priority; bipeds marks rows the body-plan law denies quadrupeds.
@@ -47,8 +47,6 @@ local BEST_MOVES = {
     { premise = "shotgun_open",  move = "leap", bipeds = true },
     { premise = "enemy_above",   move = "leap" },
     { premise = "enemy_perched", move = "leap" },
-    { premise = "enemy_above",   move = "gravity_attack" },
-    { premise = "aim_held",      move = "gravity_attack" },
     { premise = "stalled",       move = "retreat" },
     { premise = "contact",       move = "claw" },
     { premise = "engaged",       move = "breakoff" },
@@ -477,16 +475,6 @@ local function _update_stall(rec, enemy, dist, now)
     end
 end
 
--- The held-aim timer over per-beat xcombat.is_aim_held samples; gravity carriers only (the one raycast payer).
-local function _update_aim_sample(mob, rec, enemy, dist_sqr, now)
-    if not rec.moves.gravity_attack then return end
-    if dist_sqr > _tun_num.stare_range_sqr or not xcombat.is_aim_held(enemy, mob, _tun_num.stare_cone) then
-        rec.aim_since = nil
-        return
-    end
-    rec.aim_since = rec.aim_since or now
-end
-
 -- The weapon half of the per-beat fight scratch; the caller pre-writes the geometry, dry skips the reads - the 100-mutant guard.
 local function _reset_memo(rec)
     local memo = rec.memo
@@ -529,9 +517,6 @@ local PREMISES = {
         local memo = rec.memo
         if memo.dist > _tun_num.climb_near_m then return false end
         return xcombat.is_enemy_above(memo.enemy, mob, _tun_num.above_m)
-    end,
-    aim_held = function(_mob, rec, now)
-        return rec.aim_since ~= nil and now - rec.aim_since >= _tun_num.aim_held_ms
     end,
     enemy_perched = function(_mob, rec, now)
         local memo = rec.memo
@@ -637,17 +622,6 @@ local function _execute_leap(mob, rec, move, now)
     _log_fire(rec, variant, aim and (" aim=%.2f"):format(aim) or nil)
 end
 
-local function _execute_gravity(mob, rec, move, now)
-    local memo = rec.memo
-    if memo.dist_sqr > _tun_num.stare_range_sqr then return _log_block(rec, move, "band") end
-    if not _check_slot(memo.bucket) then return _log_block(rec, move, "caps") end
-    if not xmonster.set_burer_gravi_force(mob, true) then return _log_block(rec, move, "refused") end
-    rec.gravity_release = now + _tun_num.gravity_release
-    rec.aim_since = nil
-    _add_slot(memo.bucket)
-    _log_fire(rec, move)
-end
-
 -- The flee window: the inside chance can decline it (flavor), but the caps never do; one trigger, the survival crossing out of melee reach.
 local function _execute_flee(_mob, rec, move, now)
     if not _check_inside_chance(move) then return _log_block(rec, move, "chance") end
@@ -693,7 +667,7 @@ end
 
 local MOVE_EXEC = {
     leap = _execute_leap, jump = _execute_leap, leap_adapt = _execute_leap, jump_adapt = _execute_leap,
-    gravity_attack = _execute_gravity, flee = _execute_flee, retreat = _execute_retreat, claw = _execute_claw,
+    flee = _execute_flee, retreat = _execute_retreat, claw = _execute_claw,
     breakoff = _execute_breakoff,
 }
 
@@ -752,7 +726,6 @@ local function _reset_fight(mob, rec)
     end
     rec.driver = "-"
     rec.gate = nil
-    rec.aim_since = nil
     rec.enemy_px, rec.enemy_pz = nil, nil
     rec.strafing = false
 end
@@ -761,10 +734,6 @@ end
 local function _update_mutant(mob, rec, now)
     rec.tick_now = now
     rec.seen_ms = now
-    if rec.gravity_release and now >= rec.gravity_release then
-        xmonster.set_burer_gravi_force(mob, false)
-        rec.gravity_release = nil
-    end
     if rec.aim_restore and not xmonster.is_monster_jumping(mob) then
         xmonster.set_monster_jump_flags(mob, { auto_aim_factor = rec.aim_basis })
         rec.aim_restore = nil
@@ -781,7 +750,6 @@ local function _update_mutant(mob, rec, now)
     local dist = math_sqrt(dist_sqr)
     _update_samples(rec, enemy_pos, mob_pos)
     _update_stall(rec, enemy, dist, now)
-    _update_aim_sample(mob, rec, enemy, dist_sqr, now)
     if rec.flee_until > now or rec.retreat_until > now or rec.breakoff_until > now then return end
     if now - rec.decided_at < _tun_num.throttle_ms then return end
     local is_actor = enemy:id() == AC_ID
@@ -884,13 +852,12 @@ local function _on_entity_unregister(se_obj)
     _states[se_obj.id] = nil
 end
 
--- Release what a dropped record pushed and still owns live: the animation override, a pending gravity force or gain restore.
+-- Release what a dropped record pushed and still owns live: the animation override or a pending gain restore.
 -- Pushed params revert on the next spawn (not serialized).
 local function _release_mutant(rec)
     local mob = xobject.get_go(rec.id)
     if not mob then return end
     if rec.claw_until > 0 then xmonster.stop_monster_animation(mob) end
-    if rec.gravity_release then xmonster.set_burer_gravi_force(mob, false) end
     if rec.aim_restore then xmonster.set_monster_jump_flags(mob, { auto_aim_factor = rec.aim_basis }) end
 end
 
@@ -965,7 +932,6 @@ local function _load_tunables()
         cap_player = _read_num("caps", "vs_player"),
         cap_npc = _read_num("caps", "vs_npc"),
         int_cap = _read_num("intelligence", "cap"),
-        aim_held_ms = (_read_num("premises", "aim_held_s") or 3) * 1000,
         above_m = _read_num("premises", "above_m"),
         climb_near_m = _read_num("premises", "climb_near_m"),
         offmesh_gap_sqr = _read_num("premises", "offmesh_gap_sqr"),
@@ -987,9 +953,6 @@ local function _load_tunables()
         leap_fallback_max = _read_num("leap", "fallback_max_m"),
         adapt_min = _read_num("adapt", "factor_min"), adapt_max = _read_num("adapt", "factor_max"),
         charge_slow = _read_num("charge", "slow_mult"), charge_fast = _read_num("charge", "fast_mult"),
-        stare_range_sqr = (_read_num("gravity_attack", "range_m") or 0) ^ 2,
-        stare_cone = _read_num("gravity_attack", "cone_deg"),
-        gravity_release = _read_num("gravity_attack", "release_ms"),
         claw_range = _read_num("claw", "range_m"),
         claw_cone = _read_num("claw", "facing_cone_deg"),
         claw_clear = _read_num("claw", "clear_ms"),
