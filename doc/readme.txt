@@ -4,6 +4,7 @@ Health: https://damiansirbu-stalker.github.io/AlifeTactics/health/
 JitProfiler: https://damiansirbu-stalker.github.io/AlifeTactics/jitprofiler/
 Bugs: https://github.com/damiansirbu-stalker/AlifeTactics/issues
 Russian / На русском: https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/readme_ru.txt
+Manifesto: https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/manifesto.md
 
 ---
 Alife mods:
@@ -284,7 +285,7 @@ Every jumper also leaps at an enemy exploiting elevation, and a burer answers a 
 Rush paces the charge: how often a boar, bloodsucker, or pseudogigant charges scales with its Intelligence, so a deep-Zone charger presses harder than a Cordon one; the charge itself stays the game's own move.
 Backstrike arms a spin strike on an enemy circling behind, once per individual, on the four species whose models carry the motions. Claw gives the chimera the point-blank strike vanilla never gave it.
 Flee breaks a dying mutant out of the fight, rarely, and only when it is far enough to escape; a cornered one fights to the end. Cloak varies the bloodsucker kind's invisibility rhythm.
-Retreat yields ground for a few seconds instead of pressing a losing position: a perch the creature cannot reach, or a bead held on it from range.
+Retreat yields ground for a few seconds when a mutant cannot close or land a hit, whatever is blocking it, then it returns to the fight. Breakoff is the restless cousin: now and then a melee mutant breaks contact for a moment and closes again, so it does not just stand in your fire.
 A reloading or defenseless enemy opens the decision early; a shotgun aimed at a leaping mutant in range stops the leap, and a shotgunner turned away invites it.
 Beyond the moves, each species' own ability numbers breathe: the burer's gravity and telekinesis, the controller's psi tube and stamina and auras, the poltergeist's detection, the bloodsucker's cloak,
 each behind its own row, each a bounded variation over the installed balance. Movement stays the game's own, since varying what the engine's path and attack timing depend on only ever made mutants worse.

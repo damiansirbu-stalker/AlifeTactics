@@ -4,6 +4,7 @@ Health: https://damiansirbu-stalker.github.io/AlifeTactics/health/
 JitProfiler: https://damiansirbu-stalker.github.io/AlifeTactics/jitprofiler/
 Bugs: https://github.com/damiansirbu-stalker/AlifeTactics/issues
 English / По-английски: https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/readme.txt
+Манифест: https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/manifesto.md
 
 ---
 Моды Alife:
