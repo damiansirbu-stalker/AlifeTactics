@@ -3,12 +3,12 @@
 
   Mutants
     Mutants now fight you. A mutant reads your weak moments and answers with a move its own body carries. A per-rank Intelligence sets how often it reads right, and Wild how far its moves vary.
-    Each mutant has its own MCM page listing what the mod drives on it. Control is partial this release and grows version by version.
+    Each mutant kind has an MCM page listing what the mod drives on it. Control is partial this release and grows version by version.
     It runs on a batch of xray-monolith engine changes and is inactive on older exes and AOEngine. More engine work is in progress, and tracing for some moves is still pending.
 
     General
       Intelligence
-        - A mutant takes one decision every few seconds. A reload, a turned back, a held aim, a perch, or a strafe opens a chance, and Intelligence, a base plus a bonus per map rank, decides it.
+        - A mutant takes one decision every few seconds. A reload, a turned back, a perch, or a strafe opens a chance, and Intelligence, a base plus a bonus per map rank, decides it.
         - A missed roll lets the opening pass, so a Cordon dog wastes most of its chances and a deep-Zone chimera takes them. A cap on how many driven moves run at once holds a pack to waves.
       Wild
         - One dial for how far every move value varies: timing, distance, band, geometry. At 0 mutants are identical and learnable, at 100 no two spawns or two actions read alike.
@@ -38,9 +38,7 @@
         - A mutant that has not closed on you or struck you for 2 seconds gives ground for about 5 seconds, then the game walks it back in.
             A jumper tries a leap at you first and falls to this when it cannot reach.
       Breakoff
-        - A melee mutant occasionally breaks contact for about 2 seconds, then closes again, so it comes at you from a fresh angle each time.
-      Cloak
-        - The bloodsucker kind varies when it drops and holds its invisibility.
+        - A melee mutant occasionally breaks contact for about 2 seconds, then closes again, so its approach keeps shifting through the fight.
       Ability variation
         - Each species varies its own ability numbers: burer gravity and telekinesis, controller tube, stamina, and auras, poltergeist detection, bloodsucker cloak. Movement stays vanilla.
 
