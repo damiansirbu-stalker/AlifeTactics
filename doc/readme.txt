@@ -72,6 +72,9 @@ Effects:
 - Bugs disguised as features are gone, like fake weapon jamming and random tactical reloading.
 
 
+Every system in this mod is a behaviour GSC designed, or one the engine left unfinished in code. The manifesto documents the source behind each.
+
+
 Everything is canon, engine-native, safe, and fast:
 - Every behavior is built from pure X-Ray and Anomaly primitives:
   the GOAP action planner (the planner family F.E.A.R. made famous), the xr_logic scheme system, state_mgr, smart terrains and the gulag job system, condlists, and DLTX/DXML for data.
