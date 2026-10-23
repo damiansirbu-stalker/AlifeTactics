@@ -50,9 +50,9 @@ vs_npc    = 3
 [intelligence]
 cap = 0.75
 
-[inside_chance] ; a flavor move still rolls its own execution chance on a seized opening; absent key = 1.0 = always. Flavor only (does not help the NPC); flee and breakoff are the members.
-flee = 0.3
-breakoff = 0.2
+[inside_chance] ; a hidden second roll AFTER the Intelligence roll passes (NOT advertised in MCM), so a flavor move does not fire on every opening Intelligence seizes - the rarity knob that keeps flee and breakoff occasional while Intelligence still governs them. A miss spends the opening (the 6s clock is stamped). Absent key = 1.0 = no second roll. Members: flee, breakoff (retreat is Intelligence-only).
+flee = 0.5
+breakoff = 0.5
 
 [premises] ; the anti-exploit reads
 above_m      = 0.8      ; object-position height delta that counts as the enemy being above (the leap enemy_above premise)
