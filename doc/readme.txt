@@ -52,7 +52,7 @@ Every system reads the real state of the game, then decides in the combatant's f
 It weighs combat events, NPC and player stats, the world, squad, faction, weapons, range, angle, and cover.
 Maneuvers take a stalker over for an action the vanilla engine has no mechanism for.
 Commitment holds a stalker to a decision while it still makes sense.
-Mutants run the same decision model: a mutant reads your reload, your aim, your perch, your strafe, and answers with its own body's moves.
+Mutants run the same decision model, reading your weak moments and answering with their own body's moves.
 Threat, accuracy, and the rest read state and decide the same way.
 
 One formula runs every decision in the mod, stalker or mutant.
@@ -63,7 +63,7 @@ Rank buys the correct answer more often, never new abilities, so a novice and a 
 Effects:
 - Creatures make emergent decisions from environment, own state, enemy state, squad state, weapons, and faction doctrine.
 - Every faction fights its own way: who routs, who presses your weak moment, who plants for deliberate shots, who crouches on the line, who never backs down.
-- Mutants answer your weak moments and punish the cheese: reload and a leap comes, perch on a rock and the jumpers come up after you, hold your aim on a burer and the gravity throw answers.
+- Mutants answer your weak moments and punish the cheese: reload and a leap comes, perch on a rock and the jumpers come up after you, strafe and they steer in the air to follow.
 - Every mutant ability value varies inside its species' own envelope, so no two spawns read alike; movement stays the game's own tuning. The variation is one dial.
 - Nothing is player-centric, and no side gets an advantage or a handicap.
 - Creatures use the items they acquired themselves: medkits, ammo, props.
@@ -188,33 +188,18 @@ The Sound and Danger reactions are a runtime patch laid onto whichever danger sc
 Detection distances stay owned by your setup's danger config, and AlifeTactics adds only the reactions.
 
 Sound:
-Vanilla NPCs ignore gunfire they hear but cannot see.
-A hostile stalker now reacts to an enemy's shots without line of sight. He turns to face the gun and takes a threat stance, and moves to cover once he can see the shooter.
-He is responding to the sound rather than to sight of you.
-Gunfire from neutral or friendly stalkers, including your own, does not alarm them, because reactions follow the engine's relation rule, same as vanilla.
-Hostile stalkers also hear you move.
-Each footstep carries by your stance, the surface, and the weather.
-Crouched movement is silent and sprinting on metal carries far. Rain muffles everything, and a jump landing is loudest of all.
-Walking carries 5m as the base, sprinting multiplies it by 1.6, a jump landing carries 10m, and crouched movement is silent, always.
-Surfaces scale it, metal x1.25, wood x1.15, water x1.35, grass x0.7, dirt and sand x0.8. Rain cuts carry by up to 40 percent.
-They react to handling noise too, at shorter reach. A racked reload carries 8m, an empty click 6m, an item used 5m.
-Handling noise goes through each stalker's own ears, so a setup that deafens NPC hearing quiets these sounds with it.
-Reaction follows the evidence. A heard walk or an item used turns him weapon-ready toward the sound.
-A sprint, a landing, a racked reload, or an empty click sends him walking over to check the spot.
-A sound is never treated as a confirmed enemy. He investigates at a walk and does not know where you are.
-The active reaction lasts around 10 seconds, then he settles into a standing watch until the memory fades.
-Stalkers whose squadmates are actually fighting skip the investigation entirely and hold a watch stance. The fight is the information.
-Every sound reaction in the mod obeys the same rule, including the sounds other mods and quests feed in, and it caps at a walk-over check.
-Your companions are the one exception and still run when called to help.
-Standing stalkers also notice nearby creatures by sound, within 5 to 10 meters. Mutant footsteps, voices, and death cries always draw a glance toward the sound,
-and another stalker's sounds draw it only when that stalker is an enemy of the hearer, so a camp never startles at its own chatter.
-The reaction stops at a glance. A stalker in his own fight ignores it, and so does one on the move, so patrols and traveling squads keep their stride. Companions are excluded.
-A stalker starting a walk-over check calls it out, so you hear the reaction as well as see it.
-Nothing changes in combat, and a carry-distance slider scales it, so stealth stays a game of distance and stance.
-Compatible with stealth mods: stealth in Anomaly is about being seen, through light, cover, and stance, and the sound system never touches vision or detection.
-Hearing only adds the short-range sense vanilla lacks, and crouched movement is silent, so the crouched approach your stealth setup allows is never given away by sound.
-Neutral and friendly stalkers get one reaction of their own. Gunfire close to them turns them weapon-ready facing the shots.
-They go alert but stay friendly. They settle down when the shooting stops. Every reaction has its own toggle.
+In vanilla, sound barely works as a combat signal. The engine raises an attack-sound danger when a stalker hears a shot he cannot see, yet ships no handler for it.
+A stalker never hears the player move or handle gear, so AlifeTactics turns that movement and handling noise into graded danger the engine's own scheme already runs.
+Each footstep and handling sound stamps the scheme at the source, and the scheme owns the reaction and its cleanup for whatever evidence grade the stamp carries.
+A faint stamp turns a standing stalker weapon-ready toward its source, and solid evidence sends him over to check the spot himself.
+A moving stalker ignores a faint stamp, and no sound alone ever drives a run.
+Nearby creature cries draw a lighter response, a head-turn a standing stalker gives out of combat that leaves him in place and outside the danger scheme.
+Mutant cries always earn that glance, another stalker's only when the two are hostile.
+AlifeTactics also supplies the gunfire handler vanilla lacks. A stalker who hears an enemy shot without sight faces it in a threat stance until the shooter shows.
+Neutral or friendly shots within 30m put him on alert without turning him hostile.
+A step's noise scales with stance, surface, and weather, and a crouch makes none at all.
+Footsteps never enter the engine's own sound space, so they cannot flood its bounded sound memory, and the whole channel stays inside the scripts.
+Sound never touches vision, seen-memory, or the sight test, and it reads the config's own hearing sensitivity, so a setup that deafens the AI quiets this too.
 
 Vision:
 Stalker rank shapes the eyes as well as the trigger, applied per stalker.
@@ -266,7 +251,7 @@ Effect strengths and the artefact class tables are tunable in the gear config un
 Mutants
 
 Vanilla mutants are a straight line: they run at you, they swing, they die to anyone who stands on a rock or strafes on cooldown.
-AlifeTactics gives every mutant the decision model stalkers run. It reads your reload, your aim, your perch, your strafe, and your weapon's reach, and it answers with moves its own body already has,
+AlifeTactics gives every mutant the decision model stalkers run. It reads your reload, your high ground, your strafe, and your weapon's reach, and it answers with moves its own body already has,
 the ones vanilla fires blindly and the ones vanilla never fires at all.
 The engine drives every mutant as it always has. AlifeTactics scales its stats and commands moves the engine validates and runs itself. It never takes a mutant over.
 Rank is the map tier, from 0 on the starting maps to 5 at the endgame, so a Cordon dog barely changes while a deep-Zone chimera is far deadlier.
@@ -284,11 +269,11 @@ Wild is how much every move value varies, timings, distances, bands, geometry: a
 Species:
 Each species gets its own page carrying only the moves its body has: first the managed moves, the creature's own attacks and the values AlifeTactics varies, then the new moves the vanilla game never fires for it.
 The leap family reads your attention: Leap is the telegraphed leap at a turned back, Jump drops the wind-up when you are watching, and the adapt versions of each steer mid-air when you strafe.
-Every jumper also leaps at an enemy exploiting elevation, and a burer answers a held aim or a perched shooter with its Gravity attack - camping stops being safe.
+Every jumper leaps up at a shooter above it, so climbing a rock or a ledge stops being safe.
 Rush paces the charge: how often a boar, bloodsucker, or pseudogigant charges scales with its Intelligence, so a deep-Zone charger presses harder than a Cordon one; the charge itself stays the game's own move.
 Backstrike arms a spin strike on an enemy circling behind, once per individual, on the four species whose models carry the motions. Claw gives the chimera the point-blank strike vanilla never gave it.
 Flee breaks a dying mutant out of the fight, rarely, and only when it is far enough to escape; a cornered one fights to the end. Cloak varies the bloodsucker kind's invisibility rhythm.
-Retreat yields ground for a few seconds when a mutant cannot close or land a hit, whatever is blocking it, then it returns to the fight. Breakoff is the restless cousin: now and then a melee mutant breaks contact for a moment and closes again, so it does not just stand in your fire.
+Retreat yields ground for a few seconds when a mutant cannot close on you or strike you, whatever is blocking it, then it returns to the fight. Breakoff is a shorter form fired on no trigger: now and then a melee mutant breaks contact for a moment and closes again, so its circling and pressing never settle into a steady pattern.
 A reloading or defenseless enemy opens the decision early; a shotgun aimed at a leaping mutant in range stops the leap, and a shotgunner turned away invites it.
 Beyond the moves, each species' own ability numbers breathe: the burer's gravity and telekinesis, the controller's psi tube and stamina and auras, the poltergeist's detection, the bloodsucker's cloak,
 each behind its own row, each a bounded variation over the installed balance. Movement stays the game's own, since varying what the engine's path and attack timing depend on only ever made mutants worse.
