@@ -81,7 +81,7 @@ The premise is a read of the fight.
 The chance is Intelligence on both sides, a base plus a per-rank term, capped, rolled at every opening; there is no other roll.
 Character is membership, never chance: a species either has a move or it does not (the `[moves]` envelope in `at_mutants_config.ltx`), and a faction either carries a forked maneuver or it does not (the `[flee]` and `[retreat]` lists in `at_faction_config.ltx`); every other maneuver is universal.
 The two Intelligence pairs are separate controls, the stalker's on the Combat General page and the mutant's on the Mutants General page.
-Push, Pull, and the maneuver catalog run this on the stalker side, where the premise is each `check_need` or the press cause, a missed roll spends the opening, and a passed roll commits to a window; the LIQUIDATE deferral carries no roll and spends a start from the same window budget every other decision draws on.
+Push, Pull, the maneuver catalog, and the LIQUIDATE deferral run this on the stalker side, where the premise is each `check_need`, the press cause, or a helpless target, a missed roll lets the opening go, and a passed roll commits to a window; each spends a start from the same window budget.
 The mutant moves run it in `at_mutants` as one decision clock: every 600ms beat a fighting mutant observes the premise table (`BEST_MOVES`), the first eligible true premise takes ONE Intelligence roll (`_check_intelligence`), and the flat 6s clock stamps either way.
 A passed roll fires that premise's mapped best move; a failed roll lets the opening go and the vanilla FSM fights on.
 Flee is the one exception to the single roll, on both the stalker maneuver and the mutant move: a passed decision still rolls an inside chance (`[inside_chance]` in each config, `at_core.check_chance`) before flee fires, because breaking off is flavor and not a tactical gain, so a hurt fighter sometimes stands instead of always routing.
@@ -116,9 +116,9 @@ The loop is the only writer of both directions.
 Callers read candidates from `get_threats`.
 The reader verifies every predicate live at its decision, so a stale entry costs one failed compare.
 
-The start budget is one sliding-window counter (`_starts`, an xttltable) split into `vs_player` and `vs_npc` buckets so neither class starves the other.
+The start budget is one sliding-window counter (`_starts`, an xttltable) split by tier (`impose` for a maneuver takeover, `compose` for a Push, Pull, or LIQUIDATE) crossed with target (`player`, `npc`), four buckets, so a nudge never starves a takeover and neither target class starves the other.
 The default is 6 per 10s each (`at_maneuvers_config.ltx [at_core]`).
-Only a start spends: a maneuver grant, a first press, a pull open.
+Only a start spends: a maneuver grant, a first press, a pull open, a LIQUIDATE deferral.
 Re-applies and engine re-grants never count.
 
 ### The API
@@ -376,7 +376,7 @@ npc_on_best_cover_repick (PR #607, via xcombat.on_cover_repick) -> _on_cover_rep
 - every gate falsifies itself, so release needs no machinery
 - `kill_enemy` (`stalker_combat_planner.cpp`) requires `InCover`, and a best-cover re-pick clears it before the exit is proposed, so holding the cover keeps the exit unselectable
 - the cap (`commitment_hold_s`) is a time-to-live on one continuous refusal, and an allowed switch resets it
-- at the relent moment the veto consults `at_core.is_enemy_vulnerable` and defers up to VULNERABLE_EXTEND_MS (4000ms) while the enemy cannot answer, the LIQUIDATE deferral (`_try_extend_hold`); the first deferral of a hold spends a start from the vs_player/vs_npc window budget (`at_core.check_start`), and a dry bucket relents exactly as without the feature - the one decision that previously ran outside the budget
+- at the relent moment the veto consults `at_core.is_enemy_vulnerable` and defers up to VULNERABLE_EXTEND_MS (4000ms) while the enemy cannot answer, the LIQUIDATE deferral (`_try_extend_hold`); the first deferral takes the Intelligence roll and spends a start from the compose window budget (`at_core.check_start`), and a failed roll or a dry bucket relents exactly as without the feature
 - a seized NPC never reaches this seam, because his blocked planner runs no combat action
 
 ### Conduct

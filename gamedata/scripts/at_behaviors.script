@@ -60,7 +60,7 @@ local function _get_target(state)
 end
 
 local function _get_bucket(state)
-    return state.best_enemy_id == AC_ID and "vs_player" or "vs_npc"
+    return at_core.get_bucket("compose", state.best_enemy_id == AC_ID)
 end
 
 -- True when the record's bucket admits a start; the refusal traces under the caller's tag.

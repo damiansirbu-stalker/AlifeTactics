@@ -617,7 +617,7 @@ end
 local function _try_seize(npc, state, maneuver, dest, tg)
     local staged = state.memo and state.memo.staged
     local target_id = (maneuver.vs_actor and AC_ID) or (staged and staged:id()) or state.enemy_id
-    local bucket = target_id == AC_ID and "vs_player" or "vs_npc"
+    local bucket = at_core.get_bucket("impose", target_id == AC_ID)
     if not at_core.check_start(bucket) then
         _release_cover(state)
         at_debug.debug("[CMB] limited id=%s maneuver=%s bucket=%s",

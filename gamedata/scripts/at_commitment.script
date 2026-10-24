@@ -80,13 +80,17 @@ local function _log_refused(hold, to_op)
     hold.refused[to_op] = (hold.refused[to_op] or 0) + 1
 end
 
-local function _try_extend_hold(hold, enemy, tg, id, label)
+local function _try_extend_hold(hold, npc, enemy, tg, id, label)
     if not cfg.commitment_liquidate then return false end
     if tg - hold.since > _hold_cap_ms + VULNERABLE_EXTEND_MS then return false end
     local vuln, why = at_core.is_enemy_vulnerable(enemy)
     if not vuln then return false end
     if not hold.vuln then
-        local bucket = enemy:id() == AC_ID and "vs_player" or "vs_npc"
+        if not at_faction.check_intelligence(npc) then
+            if at_debug.is_on() then at_debug.debug("[CMT] %s id=%d declined cause=int", label, id) end
+            return false
+        end
+        local bucket = at_core.get_bucket("compose", enemy:id() == AC_ID)
         if not at_core.check_start(bucket) then
             if at_debug.is_on() then at_debug.debug("[CMT] %s id=%d denied cause=caps", label, id) end
             return false
@@ -186,7 +190,7 @@ local function _on_action_switch(npc, from_op, to_op, flags)
                 xcombat.can_kill_enemy(npc, enemy) and "yes" or "no")
         end
     end
-    if tg - hold.since > _hold_cap_ms and not _try_extend_hold(hold, enemy, tg, id, "vuln-defer") then
+    if tg - hold.since > _hold_cap_ms and not _try_extend_hold(hold, npc, enemy, tg, id, "vuln-defer") then
         if at_debug.is_on() then
             at_debug.debug("[CMT] cap id=%d op=%s after=%dms denies=%d refused=%s",
                 id, _get_op_name(hold.op), tg - hold.since, hold.denies, _format_refused(hold.refused))
@@ -265,7 +269,7 @@ local function _on_cover_repick(npc, flags)
                 id, npc:name(), _get_op_name(_cur_op[id]), enemy:id())
         end
     end
-    if tg - hold.since > _hold_cap_ms and not _try_extend_hold(hold, enemy, tg, id, "cover-vuln-defer") then
+    if tg - hold.since > _hold_cap_ms and not _try_extend_hold(hold, npc, enemy, tg, id, "cover-vuln-defer") then
         if at_debug.is_on() then
             at_debug.debug("[CMT] cover-cap id=%d after=%dms denies=%d", id, tg - hold.since, hold.denies)
         end

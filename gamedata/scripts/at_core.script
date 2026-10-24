@@ -35,15 +35,17 @@ local _starts
 local _monitor_active = false
 local _mon = { ms = 0, max = 0, ticks = 0, last = 0 }
 
--- The shared start budget: one sliding-window pool, vs_player | vs_npc buckets; starts only spend.
+-- The shared start budget: one sliding-window pool, impose/compose tier x player/npc target buckets; starts only spend.
 local function _load_config()
     local ini = ini_file(LTX_PATH)
     local function read_int(k, d) local v = ini:r_float_ex(LTX_SECTION, k) return v and math_floor(v) or d end
     local gate_m = ini:r_float_ex(LTX_SECTION, "gate_radius_m") or 150
     GATE_RADIUS_SQR = gate_m * gate_m
     STARTS_CAP = {
-        vs_player = read_int("starts_per_window_vs_player", 6),
-        vs_npc    = read_int("starts_per_window_vs_npc",    6),
+        impose_player  = read_int("starts_per_window_impose_player",  6),
+        impose_npc     = read_int("starts_per_window_impose_npc",     6),
+        compose_player = read_int("starts_per_window_compose_player", 6),
+        compose_npc    = read_int("starts_per_window_compose_npc",    6),
     }
     STARTS_WINDOW_SEC = read_int("starts_window_sec", 10)
     _starts = xttltable.create_ttl_counter({ ttl = STARTS_WINDOW_SEC })
@@ -250,9 +252,14 @@ function add_start(bucket)
     _starts:add(bucket)
 end
 
---- True while at least one bucket still admits a start - the cheap pre-walk bail.
+--- The bucket key for a tier (impose = maneuvers, compose = Push, Pull, LIQUIDATE) against a target.
+function get_bucket(tier, is_actor)
+    return tier .. (is_actor and "_player" or "_npc")
+end
+
+--- True while the impose tier still admits a start against either target - the maneuver pre-walk bail.
 function can_start()
-    return check_start("vs_player") or check_start("vs_npc")
+    return check_start("impose_player") or check_start("impose_npc")
 end
 
 --- The combat record for stalker id, or nil when the core does not track it.
