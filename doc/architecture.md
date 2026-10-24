@@ -81,30 +81,18 @@ The premise is a read of the fight.
 The chance is Intelligence on both sides, a base plus a per-rank term, capped, rolled at every opening; there is no other roll.
 Character is membership, never chance: a species either has a move or it does not (the `[moves]` envelope in `at_mutants_config.ltx`), and a faction either carries a forked maneuver or it does not (the `[flee]` and `[retreat]` lists in `at_faction_config.ltx`); every other maneuver is universal.
 The two Intelligence pairs are separate controls, the stalker's on the Combat General page and the mutant's on the Mutants General page.
-Push, Pull, and the maneuver catalog run this on the stalker side, where the premise is each `check_need` or the press cause, a missed roll spends the opening, and a passed roll commits to a window; the LIQUIDATE deferral carries no roll - finishing a helpless target is basic predation, not learned skill - and spends a start from the same window budget every other decision draws on.
+Push, Pull, and the maneuver catalog run this on the stalker side, where the premise is each `check_need` or the press cause, a missed roll spends the opening, and a passed roll commits to a window; the LIQUIDATE deferral carries no roll and spends a start from the same window budget every other decision draws on.
 The mutant moves run it in `at_mutants` as one decision clock: every 600ms beat a fighting mutant observes the premise table (`BEST_MOVES`), the first eligible true premise takes ONE Intelligence roll (`_check_intelligence`), and the flat 6s clock stamps either way.
 A passed roll fires that premise's mapped best move; a failed roll lets the opening go and the vanilla FSM fights on.
 Flee is the one exception to the single roll, on both the stalker maneuver and the mutant move: a passed decision still rolls an inside chance (`[inside_chance]` in each config, `at_core.check_chance`) before flee fires, because breaking off is flavor and not a tactical gain, so a hurt fighter sometimes stands instead of always routing.
-Every other decision fires reliably on a passed roll, because an exploit punish or a seized advantage gains nothing from rarity, which would only let the opening slip.
-Observing is free, deciding is hard: every mutant sees the reload from the first fight, and rank buys seizing the opening more often - every fired move has a true cause behind it, so the tells stay learnable.
+Every other decision fires reliably on a passed roll.
+Observing is free, deciding is hard: every mutant sees the reload from the first fight, and rank buys seizing the opening more often.
 
 Correctness fixes and skill scaling sit outside the pattern.
 A correctness fix, a veto or a vanilla-bug repair, carries no premise and no roll and always applies.
 Commitment's switch denial, the danger-scheme repairs, and the targeting fixes are correctness.
 Skill scaling is a per-rank curve gated only by `is_participant`, with no situational premise.
 The accuracy, aim, vision, and discipline curves and the mutant damage and resistance tracks are skill scaling.
-
-The premise reads on two independent axes.
-Advantage against disadvantage is the power balance.
-When the enemy cannot answer or stands mispositioned and I am able, I press.
-When the enemy is strong and I cannot answer, I protect.
-Efficacy against inefficacy is whether my current action lands.
-An action that reaches and hits means continue.
-An action that cannot reach its target means reposition.
-Advantage and efficacy are orthogonal.
-Advantage decides press against protect, and efficacy decides continue against reposition.
-The exploit a mutant falls to is both at once, advantaged and inefficacious.
-It should win and achieves nothing.
 
 ## Data and ownership
 
@@ -179,7 +167,6 @@ strong   forced action     Maneuvers                               grafts an eva
          callback adjust   Accuracy, Crossfire, Conduct, Push band, Pull,   scales or answers one per-event value inside an engine callback
                            the effects resolver
          function patch    Danger, Healing, Jamming                 replaces one anomaly-layer module function in place
-weak     squad simulate    the flee holster re-assert              lays a state overlay on a driven NPC, no planner touched
 ```
 
 A demonized seam probes at load with `type(fn) == "function"`.
@@ -352,7 +339,7 @@ From staging on, the maneuver is committed to that target:
 The burst shape patches `state_mgr_weapon.get_queue_params` (`_compute_queue_params`).
 A maneuver rolls size and pause fresh per query inside the engine's own per-weapon medium band, then multiplies by the Discipline rank factors.
 A non-maneuver NPC passes through byte-identical.
-The catalog rows come from `at_maneuvers_config.script`, array order is priority:
+The catalog rows come from `at_maneuvers_config.script`, walked from a rotating per-NPC cursor (`row_cursor`) so no row holds a fixed priority:
 
 ```
 maneuver      fires on                                   applies to               destination                      fire; move        ends on
@@ -840,7 +827,7 @@ Each system pairs its files.
 `at_<system>.script` holds the logic and `at_<system>_config.ltx` holds the numbers.
 A `_config.script` exists only where LTX cannot hold the shape, as the maneuver catalog references methods.
 The MCM defaults in `at_mcm.script` are the one source for the per-tier tables, so no LTX or script copy of those tables exists to drift.
-The compatibility floor (`_at_init.script`) requires xlibs >= 1.8.5 and modded exes (demonized >= 20250908, or AOEngine), asserted at boot.
+The compatibility floor (`_at_init.script`) requires xlibs >= 1.9.0 and modded exes (demonized >= 20250908, or AOEngine), asserted at boot.
 A feature that needs a post-baseline symbol probes for it and goes inert with an INACTIVE line when absent.
 
 ## See also
