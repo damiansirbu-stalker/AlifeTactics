@@ -9,7 +9,7 @@ local cfg = at_mcm.cfg
 
 local _ini = xltx.resolve_handle(LTX_PATH)
 local _intelligence_cap = xltx.read_num(_ini, "caps", "intelligence") or 0.75
-local _lists = {}
+local _chances = {}
 local _tier_index = nil
 
 -- The Intelligence probability: base + per-rank slope over the stalker's own rank tier, capped - the act chance of the decision model.
@@ -23,33 +23,26 @@ local function _compute_intelligence(npc)
     return math_min((cfg.int_base + cfg.int_rank_pct * index) / 100, _intelligence_cap)
 end
 
--- The faction set for one maneuver, cached; false when the config carries no [<name>] list (the maneuver is universal).
-local function _get_factions(name)
-    local cached = _lists[name]
-    if cached ~= nil then return cached end
-    local rows = xltx.read_list(_ini, name, "factions")
-    local set = false
-    if #rows > 0 then
-        set = {}
-        for i = 1, #rows do set[rows[i]] = true end
-    end
-    _lists[name] = set
-    return set
-end
-
 --- Zombied never participate in any system - the one universal filter; skill and correctness systems read this alone.
 function is_participant(npc)
     return xcreature.get_community(npc) ~= ZOMBIED
 end
 
---- Does this stalker's faction carry the maneuver: listed in the maneuver's section, or no section = every faction.
-function has_maneuver(npc, name)
-    local set = _get_factions(name)
-    if not set then return true end
-    return set[xcreature.get_community(npc)] == true
-end
-
 --- The one Intelligence roll of a decision - the chance of the good answer at this opening; the caller spends the opening either way.
 function check_intelligence(npc)
     return math_random() < _compute_intelligence(npc)
+end
+
+--- The per-action Personality chance for this faction - proclivity 0..1, rolled per opening; a missing action or faction = 1.0 (universal).
+function check_personality(npc, action)
+    local faction = xcreature.get_community(npc)
+    local ck = action .. "/" .. faction
+    local chance = _chances[ck]
+    if chance == nil then
+        chance = xltx.read_num(_ini, action, faction) or xltx.read_num(_ini, action, "default") or 1
+        _chances[ck] = chance
+    end
+    if chance >= 1 then return true end
+    if chance <= 0 then return false end
+    return math_random() < chance
 end

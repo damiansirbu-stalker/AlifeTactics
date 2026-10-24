@@ -79,12 +79,12 @@ Every behaviour decides the same way.
 An objective premise gates a chance, and only a passed roll acts.
 The premise is a read of the fight.
 The chance is Intelligence on both sides, a base plus a per-rank term, capped, rolled at every opening; there is no other roll.
-Character is membership, never chance: a species either has a move or it does not (the `[moves]` envelope in `at_mutants_config.ltx`), and a faction either carries a forked maneuver or it does not (the `[flee]` and `[retreat]` lists in `at_faction_config.ltx`); every other maneuver is universal.
+Character is a species' move envelope and a faction's Personality: a species either has a move or it does not (the `[moves]` envelope in `at_mutants_config.ltx`), and a faction takes each action at a per-action chance (the Personality sections in `at_faction_config.ltx`, 0 = never, 1 = always); an action with no faction entry is universal.
 The two Intelligence pairs are separate controls, the stalker's on the Combat General page and the mutant's on the Mutants General page.
 Push, Pull, the maneuver catalog, and the LIQUIDATE deferral run this on the stalker side, where the premise is each `check_need`, the press cause, or a helpless target, a missed roll lets the opening go, and a passed roll commits to a window; each spends a start from the same window budget.
 The mutant moves run it in `at_mutants` as one decision clock: every 600ms beat a fighting mutant observes the premise table (`BEST_MOVES`), the first eligible true premise takes ONE Intelligence roll (`_check_intelligence`), and the flat 6s clock stamps either way.
 A passed roll fires that premise's mapped best move; a failed roll lets the opening go and the vanilla FSM fights on.
-Flee is the one exception to the single roll, on both the stalker maneuver and the mutant move: a passed decision still rolls an inside chance (`[inside_chance]` in each config, `at_core.check_chance`) before flee fires, because breaking off is flavor and not a tactical gain, so a hurt fighter sometimes stands instead of always routing.
+The stalker side takes no extra roll: a passed Intelligence roll then rolls the move's Personality, so a hurt stalker routs only as often as his faction's flee chance. The mutant side still carries a separate inside chance (`[inside_chance]` in `at_mutants_config.ltx`, `at_core.check_chance`) on flee and breakoff until Personality reaches it, because breaking off is flavor, not a tactical gain, so a hurt fighter sometimes stands instead of always routing.
 Every other decision fires reliably on a passed roll.
 Observing is free, deciding is hard: every mutant sees the reload from the first fight, and rank buys seizing the opening more often.
 
@@ -198,19 +198,19 @@ Faction character, the effects resolver, the xcombat boundary, and the GOAP graf
 
 ### Faction character
 
-Does: answers whether a faction carries a forked maneuver - membership, never chance - and owns the stalker Intelligence roll.
+Does: answers a faction's per-action Personality chance - the proclivity it takes an action - and owns the stalker Intelligence roll.
 Changes: nothing in the world; a lookup and a roll the decision systems consume.
 Stops: a zombied NPC never participates in anything - `is_participant` is the one universal filter, and the skill and correctness systems read it alone, no rolls.
 
 ```
 at_faction.script:
   is_participant(npc)       community ~= zombied, the universal filter
-  has_maneuver(npc, name)   the maneuver's [<name>] factions list carries the NPC's faction; no list = universal
+  check_personality(npc, action)  the [<action>] chance for the NPC's faction, else default, else 1.0; rolled per opening
   check_intelligence(npc)   one roll against min((int_base + int_rank_pct * rank index) / 100, intelligence cap)
 ```
 
-The one fork is the hurt answer: flee (stow and run to base) against retreat (fighting walk to cover); a faction in neither list holds and keeps fighting.
-The lists live in `at_faction_config.ltx`, all user-set; the Intelligence pair lives on the Combat General page, capped at 0.75 (`[caps]`), so nothing is ever certain.
+The hurt answer is where character shows most: flee (stow and run to base) against retreat (fighting walk to cover); a faction at 0 for both holds and keeps fighting.
+The per-action chances live in `at_faction_config.ltx`, all user-set; the Intelligence pair lives on the Combat General page, capped at 0.75 (`[caps]`), so nothing is ever certain.
 
 ### Effects resolver
 
@@ -792,7 +792,7 @@ AlifeTactics/gamedata/
     at_mcm.script                the MCM tree and the one config-defaults source
     at_debug.script              the code-trace primitives (one logger, the on() gate)
     at_core.script               the store, the 200ms monitor, the start budget
-    at_faction.script            faction character + the stalker gates (is_participant, has_maneuver, check_intelligence)
+    at_faction.script            faction Character + the stalker gates (is_participant, check_intelligence, check_personality)
     at_maneuvers.script          the takeover lifecycle and the row methods
     at_maneuvers_config.script   the catalog rows (structure LTX cannot hold)
     at_commitment.script         the anti-shuffle veto

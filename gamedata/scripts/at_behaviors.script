@@ -170,7 +170,7 @@ end
 
 -- The open roll: a miss spends the opening for the press cooldown.
 local function _check_push_roll(npc, state, tg, cause)
-    if at_faction.check_intelligence(npc) then return true end
+    if at_faction.check_intelligence(npc) and at_faction.check_personality(npc, "push") then return true end
     state.push_until = tg + PUSH_PRESS_COOLDOWN_MS
     if at_debug.is_on() then
         at_debug.debug("[PUSH] PASS id=%s cause=%s", show(state.id), cause)
@@ -238,7 +238,7 @@ local function _try_open_pull(npc, state, tg)
     local cause = _get_pull_cause(npc, state, tg, false)
     if not cause then return end
     if not _check_start(state, "[PULL]") then return end
-    if not at_faction.check_intelligence(npc) then
+    if not (at_faction.check_intelligence(npc) and at_faction.check_personality(npc, "pull")) then
         state.pull_until = tg + PULL_COOLDOWN_MS
         if at_debug.is_on() then
             at_debug.debug("[PULL] PASS id=%s cause=%s", show(state.id), cause)

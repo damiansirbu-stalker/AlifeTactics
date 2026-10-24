@@ -86,8 +86,8 @@ local function _try_extend_hold(hold, npc, enemy, tg, id, label)
     local vuln, why = at_core.is_enemy_vulnerable(enemy)
     if not vuln then return false end
     if not hold.vuln then
-        if not at_faction.check_intelligence(npc) then
-            if at_debug.is_on() then at_debug.debug("[CMT] %s id=%d declined cause=int", label, id) end
+        if not (at_faction.check_intelligence(npc) and at_faction.check_personality(npc, "liquidate")) then
+            if at_debug.is_on() then at_debug.debug("[CMT] %s id=%d declined cause=roll", label, id) end
             return false
         end
         local bucket = at_core.get_bucket("compose", enemy:id() == AC_ID)

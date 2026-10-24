@@ -1,14 +1,32 @@
-; AlifeTactics faction character - which factions carry a forked maneuver. Paired with
-; gamedata/scripts/at_faction.script. Section = maneuver, factions = the comma list carrying it; a
-; maneuver with no section here is universal. The one fork is the hurt answer: flee (stow and run to
-; base) against retreat (fighting walk to cover); a faction in neither list holds and keeps fighting.
+; AlifeTactics faction Character - the per-action Personality, the chance a faction takes an action (0..1). Paired with
+; gamedata/scripts/at_faction.script (check_personality). Section = action, key = faction, value = its chance; a
+; default key sets the chance for factions the section does not list, and an action with no section here is universal (1.0).
+; The hurt answer is the fork: flee (stow and run to base) against retreat (fighting walk to cover); a faction at 0 for both holds and keeps fighting.
 ; Zombied never participate in anything, a universal rule in at_faction.script.
 
 [caps] ; nothing is ever certain: Intelligence caps here
 intelligence = 0.75
 
-[flee]
-factions = stalker, freedom, killer, bandit, renegade, csky, ecolog
+[flee] ; the chance a faction routs when hurt and able to disengage; default 0 = a faction not listed holds
+default  = 0
+stalker  = 1.0
+freedom  = 1.0
+killer   = 1.0
+bandit   = 1.0
+renegade = 1.0
+csky     = 1.0
+ecolog   = 1.0
 
-[retreat]
-factions = army, dolg, freedom, isg, killer, stalker, bandit, greh, renegade, csky, ecolog
+[retreat] ; the chance a faction gives ground to cover when hurt; default 0 = a faction not listed holds
+default  = 0
+army     = 1.0
+dolg     = 1.0
+freedom  = 1.0
+isg      = 1.0
+killer   = 1.0
+stalker  = 1.0
+bandit   = 1.0
+greh     = 1.0
+renegade = 1.0
+csky     = 1.0
+ecolog   = 1.0
