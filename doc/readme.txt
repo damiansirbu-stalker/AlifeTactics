@@ -64,7 +64,7 @@ Effects:
 - Creatures make emergent decisions from environment, own state, enemy state, squad state, weapons, and faction doctrine.
 - Every faction fights its own way: who routs, who presses your weak moment, who plants for deliberate shots, who crouches on the line, who never backs down.
 - Mutants answer your weak moments and punish the cheese: reload and a leap comes, perch on a rock and the jumpers come up after you, strafe and they steer in the air to follow.
-- Every mutant ability value varies inside its species' own envelope, so no two spawns read alike; movement stays the game's own tuning. The variation is one dial.
+- Every mutant ability value varies inside its species' own envelope, so no two spawns read alike. Movement stays the game's own tuning. The variation is one dial.
 - Nothing is player-centric, and no side gets an advantage or a handicap.
 - Creatures use the items they acquired themselves: medkits, ammo, props.
 - Rank scales accuracy, weapon spread, aim speed, and how tightly a stalker tracks you, which vanilla clamps flat.
@@ -204,7 +204,7 @@ Sound never touches vision, seen-memory, or the sight test, and it reads the con
 Vision:
 Stalker rank shapes the eyes as well as the trigger, applied per stalker.
 Vision Speed sets how fast each rank turns a glimpse into a confirmed threat, from your setup's detection speed at the bottom rank (a novice matches it) to about 21 percent faster at the top.
-No rank is slower to notice than your baseline.
+Every rank notices at least as fast as your baseline.
 It scales the rate only. Sight range, vision cone, light and darkness response, cover and occlusion, and hearing all stay exactly as your setup has them.
 Vision Range sets how far out each rank begins to notice a threat, the same band, from your baseline at novice to about 15 percent farther at the top.
 Both are base plus percent-per-rank slider pairs under one Vision toggle, on their own Vision page.
@@ -263,20 +263,25 @@ Rank 0 stays vanilla, and every value multiplies the installed balance, so a mut
 
 General:
 Observing is free, deciding is hard: every mutant sees your reload from the first fight, and Intelligence is the chance it answers with the RIGHT move, a base plus a bonus per map rank.
-A missed roll lets the opening go, so a dull mutant wastes chance after chance while a sharp one punishes each - every move you see has a real cause behind it. One decision every few seconds, and only a few driven moves run at once across the pack.
+A missed roll lets the opening go, so a dull mutant wastes chance after chance while a sharp one punishes each - every move you see has a real cause behind it.
+One decision every few seconds, and only a few driven moves run at once across the pack.
 Wild is how much every move value varies, timings, distances, bands, geometry: at 0 mutants are identical and learnable, at 100 no two spawns or actions read alike.
 
 Species:
-Each species gets its own page carrying only the moves its body has: first the managed moves, the creature's own attacks and the values AlifeTactics varies, then the new moves the vanilla game never fires for it.
+Each species gets its own page carrying only the moves its body has: first the managed moves, the creature's own attacks and the values AlifeTactics varies.
+Then come the new moves the vanilla game never fires for it.
 The leap family reads your attention: Leap is the telegraphed leap at a turned back, Jump drops the wind-up when you are watching, and the adapt versions of each steer mid-air when you strafe.
 Every jumper leaps up at a shooter above it, so climbing a rock or a ledge stops being safe.
-Rush paces the charge: how often a boar, bloodsucker, or pseudogigant charges scales with its Intelligence, so a deep-Zone charger presses harder than a Cordon one; the charge itself stays the game's own move.
+Rush paces the charge: how often a boar, bloodsucker, or pseudogigant charges scales with its Intelligence, so a deep-Zone charger presses harder than a Cordon one.
+The charge itself stays the game's own move.
 Backstrike arms a spin strike on an enemy circling behind, once per individual, on the four species whose models carry the motions. Claw gives the chimera the point-blank strike vanilla never gave it.
-Flee breaks a dying mutant out of the fight, rarely, and only when it is far enough to escape; a cornered one fights to the end. Cloak varies the bloodsucker kind's invisibility rhythm.
-Retreat yields ground for a few seconds when a mutant cannot close on you or strike you, whatever is blocking it, then it returns to the fight. Breakoff is a shorter form fired on no trigger: now and then a melee mutant breaks contact for a moment and closes again, so its circling and pressing never settle into a steady pattern.
-A reloading or defenseless enemy opens the decision early; a shotgun aimed at a leaping mutant in range stops the leap, and a shotgunner turned away invites it.
+Flee breaks a dying mutant out of the fight, rarely, and only when it is far enough to escape. A cornered one fights to the end. Cloak varies the bloodsucker kind's invisibility rhythm.
+Retreat yields ground for a few seconds when a mutant cannot close on you or strike you, whatever is blocking it, then it returns to the fight.
+Breakoff is a shorter form fired on no trigger: now and then a melee mutant breaks contact for a moment and closes again, so its circling and pressing never settle into a steady pattern.
+A reloading or defenseless enemy opens the decision early. A shotgun aimed at a leaping mutant in range stops the leap, and a shotgunner turned away invites it.
 Beyond the moves, each species' own ability numbers breathe: the burer's gravity and telekinesis, the controller's psi tube and stamina and auras, the poltergeist's detection, the bloodsucker's cloak,
-each behind its own row, each a bounded variation over the installed balance. Movement stays the game's own, since varying what the engine's path and attack timing depend on only ever made mutants worse.
+each behind its own row, each a bounded variation over the installed balance.
+Movement stays the game's own, since varying what the engine's path and attack timing depend on only ever made mutants worse.
 
 Fixes to Vanilla:
 AlifeTactics corrects dozens of vanilla Anomaly and xray defects, grouped below by the system each repairs.
