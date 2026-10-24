@@ -391,6 +391,7 @@ local function _check_row(row, npc, enemy, state, tg, memo)
         return nil, nil, "scope"
     end
     if cfg[row.toggle] == false then return nil, nil, "off" end
+    if not at_faction.has_action(npc, row.name) then return nil, nil, "faction" end
     if not _check_palette(row, npc, memo) then return nil, nil, "palette" end
     local situation = row.check_need(npc, enemy, state, tg, memo)
     if not situation then return nil, nil, "-" end

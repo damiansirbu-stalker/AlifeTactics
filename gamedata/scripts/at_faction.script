@@ -23,6 +23,18 @@ local function _compute_intelligence(npc)
     return math_min((cfg.int_base + cfg.int_rank_pct * index) / 100, _intelligence_cap)
 end
 
+-- The per-action Personality chance for this faction, cached; a missing action or faction = 1.0 (universal).
+local function _get_personality(npc, action)
+    local faction = xcreature.get_community(npc)
+    local ck = action .. "/" .. faction
+    local chance = _chances[ck]
+    if chance == nil then
+        chance = xltx.read_num(_ini, action, faction) or xltx.read_num(_ini, action, "default") or 1
+        _chances[ck] = chance
+    end
+    return chance
+end
+
 --- Zombied never participate in any system - the one universal filter; skill and correctness systems read this alone.
 function is_participant(npc)
     return xcreature.get_community(npc) ~= ZOMBIED
@@ -33,15 +45,14 @@ function check_intelligence(npc)
     return math_random() < _compute_intelligence(npc)
 end
 
---- The per-action Personality chance for this faction - proclivity 0..1, rolled per opening; a missing action or faction = 1.0 (universal).
+--- Does this faction ever take the action - Personality above zero, the cheap early membership gate.
+function has_action(npc, action)
+    return _get_personality(npc, action) > 0
+end
+
+--- Roll the action's Personality for this faction, per opening; >= 1 always, 0 never, between rolls.
 function check_personality(npc, action)
-    local faction = xcreature.get_community(npc)
-    local ck = action .. "/" .. faction
-    local chance = _chances[ck]
-    if chance == nil then
-        chance = xltx.read_num(_ini, action, faction) or xltx.read_num(_ini, action, "default") or 1
-        _chances[ck] = chance
-    end
+    local chance = _get_personality(npc, action)
     if chance >= 1 then return true end
     if chance <= 0 then return false end
     return math_random() < chance
