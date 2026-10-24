@@ -48,6 +48,10 @@ Everyone wants to live.
 AlifeTactics rebuilds how creatures behave and fight in STALKER Anomaly.
 Sections marked (planned) are not built yet.
 
+It rebuilds the combat mind GSC designed and shelved, the intelligence their own AI documents lay out.
+GSC built it first and cut it: the AI grew so sharp that stalkers won the firefights before the player could, so the studio reined it in. Much of it only ever lived as stubs and commented-out code in the engine source, revived here on the current engine.
+AlifeTactics is engine-first. Where the engine could not decide, dozens of changes went into X-Ray itself and shipped in the official modded exes, so every behaviour runs on the engine's own machinery.
+
 Every system reads the real state of the game, then decides in the combatant's favor rather than by script or die roll.
 It weighs combat events, NPC and player stats, the world, squad, faction, weapons, range, angle, and cover.
 Maneuvers take a stalker over for an action the vanilla engine has no mechanism for.
