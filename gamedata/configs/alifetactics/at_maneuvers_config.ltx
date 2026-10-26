@@ -31,7 +31,12 @@ pickoff_interval_max_ms = 2000
 ; Maneuver tunables.
 kite_arc_deg    = 45       ; back-lane fan step: try straight-back, then +-45, then +-90 for a clear lane
 kite_spread_deg = 90       ; max fan to either side when the straight-back lane is blocked
-retreat_rear_m  = 8        ; retreat centers its cover search this far behind the NPC; MUST exceed the 7m search radius (2026-07-11 playtest)
+retreat_cover_near_m = 10  ; retreat cover search: near radius first (xray engine default g_ai_cover_search_near_radius)
+retreat_cover_far_m  = 30  ; ... then far on a miss (xray g_ai_cover_search_far_radius); growing the radius defeats the 1s best_cover inertia cache
+retreat_cover_max_m  = 200 ; disengage band max_enemy_distance - a retreat breaks contact, so far cover is allowed (Rulix wounded uses 200)
+retreat_lane_m       = 8   ; give-ground fallback lane length when no concealed cover exists (reuses the kite fan geometry)
+reload_cover_near_m  = 5   ; get_quick_cover near radius: a near concealed node that breaks the watcher's line
+reload_cover_far_m   = 10  ; get_quick_cover far radius on a near miss (quick cover escalates 5 -> 10)
 under_fire_ms   = 2000     ; flee and pickoff decline while a hit landed or a shot was perceived within this window
 reload_cover_cone_deg = 60 ; reload_cover fires when a watching threat faces the reloader within this cone with a clear shot line
 reload_stale_ms = 6000     ; a reload start-edge older than this is stale (the stop edge is best-effort)

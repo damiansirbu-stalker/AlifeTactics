@@ -25,7 +25,8 @@ local MANEUVER_PICKOFF, RANGE_TOO_CLOSE, ENDS_ON_ARRIVAL = "pickoff", "too_close
 local BEGIN_PERIOD_MS, UPDATE_PERIOD_MS, END_PERIOD_MS, HIT_FIGHT_MS
 local HURT_FRAC, STALL_MS, STALL_MOVE_SQR, STALL_CLOSE_M
 local KITE_ARC_DEG, KITE_SPREAD_DEG, KITE_DISTANCE_M
-local FLEE_MIN_DIST_M, FLEE_BASE_MIN_DIST_M, RETREAT_REAR_M, UNDER_FIRE_MS
+local FLEE_MIN_DIST_M, FLEE_BASE_MIN_DIST_M, UNDER_FIRE_MS
+local RETREAT_COVER_NEAR_M, RETREAT_COVER_FAR_M, RETREAT_COVER_MAX_M, RETREAT_LANE_M, RELOAD_COVER_NEAR_M, RELOAD_COVER_FAR_M
 local COUNTERFLANK_ACTOR_DIST_SQR, PICKOFF_TARGETED_DEG, PICKOFF_ENTER_FACTOR
 local REPEAT_LIMIT, RELOAD_STALE_MS, RELOAD_COVER_CONE_DEG
 
@@ -109,7 +110,7 @@ local function _find_kite_lane(npc, _enemy, state, _tg, memo)
         dir = vector():set(-fwd.x, 0, -fwd.z)
     end
     local back_m = KITE_DISTANCE_M[memo.kind] or KITE_DISTANCE_M.w_rifle
-    local vid = xcombat.find_flee_lane(npc, dir, back_m, KITE_ARC_DEG, KITE_SPREAD_DEG)
+    local vid = xcombat.find_free_lane(npc, dir, back_m, KITE_ARC_DEG, KITE_SPREAD_DEG)
     local min_m        = xcombat.get_weapon_range(memo.kind).min
     local vp           = vid and level.vertex_position(vid)
     local dest_enemy_m = vp and math_sqrt(xmath.get_flat_dist(vp, ep)) or -1
@@ -219,7 +220,7 @@ local function _find_reload_cover(npc, _enemy, state, _tg, memo)
         return nil
     end
     _set_staged_threat(memo, watcher, watcher_dist)
-    local vid = xcombat.find_cover(npc, memo.staged_pos, { selection = "nearest", firing = false, radius = 5, search_pos = npc:position() })
+    local vid = xcombat.get_quick_cover(npc, memo.staged_pos, { radius = RELOAD_COVER_NEAR_M, radius_far = RELOAD_COVER_FAR_M, owner_id = state.id })
     if not vid then
         at_debug.debug("[CMB] can_reload_cover id=%s name=%s path=no_cover cover=-", show(state.id), show(state.name))
         return nil
@@ -239,28 +240,20 @@ local function _check_end_reload_cover(_npc, _enemy, state, _tg)
 end
 
 local function _find_retreat_cover(npc, _enemy, state, _tg, memo)
-    local np = memo.npc_pos
     local ep = memo.staged_pos or memo.enemy_pos
     local away_dist = memo.staged_dist or state.dist
-    local dx, dz = np.x - ep.x, np.z - ep.z
-    local dist_sqr = dx * dx + dz * dz
-    local center = np
-    if dist_sqr > 0 then
-        local inv = RETREAT_REAR_M / away_dist
-        center = vector():set(np.x + dx * inv, np.y, np.z + dz * inv)
+    local vid = xcombat.get_best_cover(npc, ep, {
+        radius = RETREAT_COVER_NEAR_M, radius_far = RETREAT_COVER_FAR_M,
+        max_dist = RETREAT_COVER_MAX_M, give_ground = away_dist, owner_id = state.id,
+    })
+    if not vid and away_dist > 0 then
+        local np = memo.npc_pos
+        local away_dir = vector():set((np.x - ep.x) / away_dist, 0, (np.z - ep.z) / away_dist)
+        vid = xcombat.find_free_lane(npc, away_dir, RETREAT_LANE_M, KITE_ARC_DEG, KITE_SPREAD_DEG)
     end
-    local vid = xcombat.find_cover(npc, ep, { selection = "best", firing = true, radius = 7, search_pos = center })
     if not vid then
-        at_debug.debug("[CMB] can_retreat id=%s name=%s path=no_cover cover=- cover_dist=-1.0 npc_dist=-1.0",
-            show(state.id), show(state.name))
-        return nil
-    end
-    local vp = level.vertex_position(vid)
-    local vdx, vdz = vp.x - ep.x, vp.z - ep.z
-    local cover_dist_sqr = vdx * vdx + vdz * vdz
-    if cover_dist_sqr <= dist_sqr then
-        at_debug.debug("[CMB] can_retreat id=%s name=%s path=toward_enemy cover=%s cover_dist=%.1f npc_dist=%.1f",
-            show(state.id), show(state.name), show(vid), math_sqrt(cover_dist_sqr), away_dist or -1)
+        at_debug.debug("[CMB] can_retreat id=%s name=%s path=no_cover cover=- cover_dist=-1.0 npc_dist=%.1f",
+            show(state.id), show(state.name), away_dist or -1)
         return nil
     end
     if not xcombat.register_cover(vid, state.id) then
@@ -268,8 +261,10 @@ local function _find_retreat_cover(npc, _enemy, state, _tg, memo)
             show(state.id), show(state.name), show(vid))
         return nil
     end
+    local vp = level.vertex_position(vid)
+    local cover_dist = math_sqrt(xmath.get_flat_dist(vp, ep))
     at_debug.debug("[CMB] can_retreat id=%s name=%s path=taken cover=%s cover_dist=%.1f npc_dist=%.1f",
-        show(state.id), show(state.name), show(vid), math_sqrt(cover_dist_sqr), away_dist or -1)
+        show(state.id), show(state.name), show(vid), cover_dist, away_dist or -1)
     state.cover_lvid = vid
     return vid
 end
@@ -797,7 +792,12 @@ local function _load_config()
     STALL_CLOSE_M  = read_float("stall_close_m", 2)
     KITE_ARC_DEG    = read_int("kite_arc_deg",    45)
     KITE_SPREAD_DEG = read_int("kite_spread_deg", 90)
-    RETREAT_REAR_M  = read_float("retreat_rear_m", 8)
+    RETREAT_COVER_NEAR_M = read_float("retreat_cover_near_m", 10)
+    RETREAT_COVER_FAR_M  = read_float("retreat_cover_far_m",  30)
+    RETREAT_COVER_MAX_M  = read_float("retreat_cover_max_m",  200)
+    RETREAT_LANE_M       = read_float("retreat_lane_m",       8)
+    RELOAD_COVER_NEAR_M  = read_float("reload_cover_near_m",  5)
+    RELOAD_COVER_FAR_M   = read_float("reload_cover_far_m",   10)
     UNDER_FIRE_MS   = read_int("under_fire_ms",   2000)
     FLEE_MIN_DIST_M      = read_int("flee_min_dist_m",      5)
     FLEE_BASE_MIN_DIST_M = read_int("flee_base_min_dist_m", 100)
