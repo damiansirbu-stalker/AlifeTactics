@@ -61,8 +61,8 @@ Mutants run the same decision model, reading your weak moments and answering wit
 Threat, accuracy, and the rest read state and decide the same way.
 
 One formula runs every decision in the mod, stalker or mutant.
-A premise, the read of the fight, opens the decision. Intelligence, a base chance plus rank, passes it, and a passed decision commits to its window.
-A stalker rolls his faction first, because a bandit and an ecologist do not carry the same instincts. A mutant's species is its envelope, it has a move or it does not.
+A premise, the read of the fight, opens the decision. Intelligence, rising with rank, is how sharply he reads it; Personality, his faction's own disposition, is whether his kind takes that action at all. Both must pass, and a passed decision commits to its window.
+A bandit and an ecologist do not carry the same instincts, so each faction carries its own chance on every action. A mutant's species is its envelope, it has a move or it does not.
 Rank buys the correct answer more often, never new abilities, so a novice and a legend both act, and the legend is right.
 
 Effects:
@@ -98,12 +98,11 @@ Every system below has its own MCM page in this order, where it is toggled and t
 Combat
 
 Faction character and Intelligence:
-Every stalker decision takes one Intelligence roll, the chance of a good decision, a base plus a bonus per rank, two sliders on the General page.
-The roll caps short of certain, so a veteran reads the fight sharp and a novice fumbles his openings, and nothing is ever guaranteed.
-Faction character is what a faction does when hurt: some flee the fight, some pull back to cover still firing, and Monolith does neither - it holds and keeps shooting.
-Every other maneuver belongs to every faction.
-Zombied participate in nothing, ever.
-The flee and retreat lists are two lines in the faction config, yours to tune.
+Intelligence is how sharply a stalker reads a fight, and it scales with his rank, a base plus a bonus per rank, two sliders on the General page.
+A novice fumbles the openings a veteran takes, so his judgment emerges from his rank where vanilla clamps every NPC to one flat setting. It caps short of certain, so even a legend is never guaranteed the right call.
+Then the faction's Personality decides whether his kind takes that action at all, every action carrying a per-faction chance from 0 (never) to 1 (always).
+Monolith presses and never yields, Duty holds the line and gives ground in order, bandits finish a downed man and rout when the fight turns, ecologists pull back early, so one opening draws a different answer by faction.
+The per-action faction table is the faction config, yours to tune. Zombied participate in nothing, ever.
 
 Maneuvers:
 A maneuver takes one stalker over completely to perform what the vanilla engine cannot, either a mechanic it lacks or a decision it never makes.

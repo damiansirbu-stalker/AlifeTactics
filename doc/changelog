@@ -1,5 +1,5 @@
 1.2.2-snapshot
-  Summary: Mutant combat, the decision model, the leap family, anti-camping leaps, per-species move pages, Wild variation, the stalker Intelligence gate, rank curves as pairs, the cover rebuild for retreat and reload
+  Summary: Mutant combat, the decision model, the leap family, anti-camping leaps, per-species move pages, Wild variation, the stalker Intelligence gate and per-faction Personality, rank curves as pairs, the cover rebuild for retreat and reload
 
   Mutants
     Mutants now fight you. A mutant reads your weak moments and answers with a move its own body carries. A per-rank Intelligence sets how often it reads right, and Wild how far its moves vary.
@@ -49,7 +49,8 @@
       - Added Intelligence for stalkers: the same per-rank decision formula mutants run, a base plus a bonus per rank, capped short of certain. Every stalker action now gates on it.
           Rank buys the good decision more often; a rookie misreads the opening a veteran takes.
       - Added Personality: every action a stalker starts - each maneuver, Push, Pull, and Liquidate - rolls Intelligence, then a per-faction Personality chance (0 never, 1 always).
-          Flee and retreat carry real per-faction values today (who routs when hurt, who holds); every other action is universal for now. A zero-Personality action is skipped cleanly without spending the decision.
+          All 9 actions now carry per-faction values, each faction its own doctrine: who routs when hurt, who gives ground in order, who presses a beaten enemy, who finishes a downed one, who holds and never backs off. A zero-Personality action is skipped cleanly without spending the decision.
+          The values are grounded in GSC's own character-type and creature-rating design, the attack, defence, and courage profiles their AI documents lay out.
     Maneuvers
       - Retreat and reload now take real cover. Retreat moves to the best hide behind the stalker and gives ground; reload ducks to the nearest decent cover that breaks a watcher's line.
           Rebuilt on new engine-grade cover primitives - escalating search, a concealment floor, give-ground, no cover-stacking - load-tested cheap in a 200-NPC battle.

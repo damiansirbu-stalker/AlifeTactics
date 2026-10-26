@@ -31,9 +31,9 @@ The Zone is dangerous because the things in it are trying to survive.
 
 One formula runs every decision, stalker or mutant.
 A premise opens it, the read of the actual fight.
-Intelligence decides it, a base chance plus a bonus per rank.
-A passed decision commits to its window, and a missed one lets the opening go.
-Rank only improves the odds of a good decision.
+Two things then gate it. Intelligence is competence, rising with rank: how sharply he reads the fight. Personality is character: whether his kind takes this action at all.
+It fires only when both pass, a sharp read and a willing character. A passed decision commits to its window, and a missed one lets the opening go.
+Rank only improves the odds of a good decision, never grants a new one.
 A novice and a legend both act, and the legend is right more of the time.
 
 ### Engine first
@@ -71,10 +71,10 @@ A stalker's accuracy follows his rank, and a mutant fights with the body GSC wro
 
 ### Faction and species flavour
 
-Every faction fights its own way.
-Some factions rout when they are hurt.
-Others pull back to cover and keep firing.
-Monolith does neither and holds its ground.
+Every faction fights its own way, across every choice it makes, not only when it is hurt.
+Monolith presses and never yields. Duty holds the line and gives ground in order. Bandits finish a downed man and rout when the fight turns. Ecologists fight poorly and pull back early.
+Each faction carries its own chance on every action, rout, give ground, press, finish, hold, so one opening draws a different answer from a merc than from a renegade.
+This is GSC's own design, its documents rate every character by type and every creature for courage, the attack-and-defence profile left out of the shipped game.
 Every mutant fights to its body.
 A chimera circles to the flank, and a burer hurls debris with its mind.
 A bloodsucker turns invisible and strikes from cover.

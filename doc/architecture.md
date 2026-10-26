@@ -345,13 +345,13 @@ The catalog rows come from `at_maneuvers_config.script`, walked from a rotating 
 maneuver      fires on                                   applies to               destination                      fire; move        ends on
 counterflank  actor within 5m while the committed        any NPC fighting         holds its spot, aims at actor    FIRE; STILL       3s
               target is farther (check_actor_close)      someone else, never the actor (vs_actor)
-reload_cover  reloading, a watcher has him in sight      universal                nearest cover hiding him         READY; RUN        arrival, reload done, or 8s
+reload_cover  reloading, a watcher has him in sight      per-faction              nearest cover hiding him         READY; RUN        arrival, reload done, or 8s
 flee          hurt, threat in reach, last man,           the [flee] factions      a friendly base 100m+ away,      STOW; RUN         arrival or 20s
               once the shooting pauses (check_hurt)                               rear-biased
 retreat       hurt, threat in reach (check_hurt)         the [retreat] factions   cover behind, farther from enemy FIRE; WALK        arrival or 8s
-kite          nearest threat inside MY weapon minimum    universal                a clear back-lane, weapon-set    FIRE; WALK        arrival or 8s
+kite          nearest threat inside MY weapon minimum    per-faction              a clear back-lane, weapon-set    FIRE; WALK        arrival or 8s
               (check_too_close)                                                   distance to the rear
-pickoff       stalled ~4s, past the enemy's effective    universal                holds its spot                   single shots; STILL  8s or premise broken
+pickoff       stalled ~4s, past the enemy's effective    per-faction              holds its spot                   single shots; STILL  8s or premise broken
               range, unbothered (check_stalled)
 ```
 

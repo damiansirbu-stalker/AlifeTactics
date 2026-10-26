@@ -1,32 +1,144 @@
-; AlifeTactics faction Character - the per-action Personality, the chance a faction takes an action (0..1). Paired with
-; gamedata/scripts/at_faction.script (check_personality). Section = action, key = faction, value = its chance; a
-; default key sets the chance for factions the section does not list, and an action with no section here is universal (1.0).
-; The hurt answer is the fork: flee (stow and run to base) against retreat (fighting walk to cover); a faction at 0 for both holds and keeps fighting.
-; Zombied never participate in anything, a universal rule in at_faction.script.
+; AlifeTactics faction Personality - the per-action chance a faction takes an action (0..1), rolled AFTER the Intelligence
+; gate passes. Paired with gamedata/scripts/at_faction.script (check_personality). Section = action, key = faction, value =
+; the chance; a default key covers factions the section does not list, and an action with no section here is universal (1.0).
+; Final rate = Intelligence (0.40-0.70 by rank) x Personality, so a 1.0 action fires on 40-70% of its openings, a 0.15 on 6-10%, a 0 never.
+; The values ARE each faction's combat doctrine - who routs, who holds, who presses, who finishes a downed enemy - grounded in
+; GSC's character-type (характер) and creature rating design [8]. Zombied never participate, a universal rule in at_faction.script.
 
 [caps] ; nothing is ever certain: Intelligence caps here
 intelligence = 0.75
 
-[flee] ; the chance a faction routs when hurt and able to disengage; default 0 = a faction not listed holds
+[counterflank] ; turn onto a player who reached contact range while the NPC fought someone far off - awareness and holding ground
+default  = 0.5
+monolith = 0.9
+greh     = 0.8
+dolg     = 0.9
+army     = 0.7
+killer   = 0.9
+isg      = 0.9
+freedom  = 0.6
+csky     = 0.7
+stalker  = 0.5
+bandit   = 0.35
+renegade = 0.15
+ecolog   = 0.3
+
+[reload_cover] ; duck to cover while reloading under a watcher's line - tactical discipline
+default  = 0.5
+monolith = 0.4
+greh     = 0.4
+dolg     = 1.0
+army     = 0.9
+killer   = 0.9
+isg      = 1.0
+freedom  = 0.7
+csky     = 0.9
+stalker  = 0.5
+bandit   = 0.35
+renegade = 0.15
+ecolog   = 0.7
+
+[flee] ; rout to a friendly base when hurt and able to disengage - self-preservation over the fight; default 0 = a faction not listed holds
 default  = 0
-stalker  = 1.0
-freedom  = 1.0
-killer   = 1.0
-bandit   = 1.0
+monolith = 0.0
+greh     = 0.1
+dolg     = 0.1
+army     = 0.3
+killer   = 0.15
+isg      = 0.15
+freedom  = 0.3
+csky     = 0.3
+stalker  = 0.5
+bandit   = 0.9
 renegade = 1.0
-csky     = 1.0
 ecolog   = 1.0
 
-[retreat] ; the chance a faction gives ground to cover when hurt; default 0 = a faction not listed holds
+[retreat] ; give ground to cover when hurt or stalled, still firing - a disciplined withdrawal, not a rout; default 0 = not listed holds
 default  = 0
-army     = 1.0
-dolg     = 1.0
+monolith = 0.1
+greh     = 0.2
+dolg     = 0.9
+army     = 0.9
+killer   = 0.7
+isg      = 0.7
+freedom  = 0.5
+csky     = 0.7
+stalker  = 0.7
+bandit   = 0.5
+renegade = 0.35
+ecolog   = 0.9
+
+[kite] ; back off to keep weapon range when an enemy closes inside it - mobile skirmishing
+default  = 0.5
+monolith = 0.15
+greh     = 0.2
+dolg     = 0.5
+army     = 0.5
+killer   = 0.7
+isg      = 0.7
 freedom  = 1.0
-isg      = 1.0
+csky     = 0.7
+stalker  = 0.5
+bandit   = 0.35
+renegade = 0.15
+ecolog   = 0.7
+
+[pickoff] ; plant and take an outranged enemy with single shots when stalled - patience and marksmanship
+default  = 0.5
+monolith = 0.5
+greh     = 0.5
+dolg     = 0.9
+army     = 0.7
 killer   = 1.0
-stalker  = 1.0
-bandit   = 1.0
-greh     = 1.0
-renegade = 1.0
-csky     = 1.0
-ecolog   = 1.0
+isg      = 0.9
+freedom  = 0.5
+csky     = 0.7
+stalker  = 0.5
+bandit   = 0.15
+renegade = 0.0
+ecolog   = 0.15
+
+[push] ; press an enemy who cannot answer, thicken fire and close - aggression
+default  = 0.5
+monolith = 1.0
+greh     = 0.9
+dolg     = 0.5
+army     = 0.5
+killer   = 0.5
+isg      = 0.7
+freedom  = 0.9
+csky     = 0.5
+stalker  = 0.5
+bandit   = 0.7
+renegade = 0.7
+ecolog   = 0.0
+
+[pull] ; open the gap when hurt or reloading against a still-strong enemy - measured caution; fanatics never yield
+default  = 0.5
+monolith = 0.0
+greh     = 0.15
+dolg     = 0.7
+army     = 0.7
+killer   = 0.9
+isg      = 0.9
+freedom  = 0.7
+csky     = 0.7
+stalker  = 0.5
+bandit   = 0.35
+renegade = 0.15
+ecolog   = 0.9
+
+[liquidate] ; commit to finish a vulnerable enemy - ruthlessness
+default  = 0.5
+monolith = 1.0
+greh     = 0.9
+dolg     = 0.6
+army     = 0.5
+killer   = 1.0
+isg      = 1.0
+freedom  = 0.5
+csky     = 0.5
+stalker  = 0.5
+bandit   = 0.9
+renegade = 0.9
+ecolog   = 0.15
