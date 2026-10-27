@@ -61,8 +61,8 @@ Mutants run the same decision model, reading your weak moments and answering wit
 Threat, accuracy, and the rest read state and decide the same way.
 
 One formula runs every decision in the mod, stalker or mutant.
-A premise, the read of the fight, opens the decision. Intelligence, rising with rank, is how sharply he reads it; Personality, his faction's own disposition, is whether his kind takes that action at all. Both must pass, and a passed decision commits to its window.
-A bandit and an ecologist do not carry the same instincts, so each faction carries its own chance on every action. A mutant's species is its envelope, it has a move or it does not.
+A premise, the read of the fight, opens the decision. Intelligence, rising with rank, is how sharply he reads it; Personality is whether his kind takes that action at all. Both must pass, and a passed decision commits to its window.
+A bandit and an ecologist do not carry the same instincts, so each faction carries its own chance on every action, and each mutant species its own chance on every move it has, from 0 (never) to 1 (always).
 Rank buys the correct answer more often, never new abilities, so a novice and a legend both act, and the legend is right.
 
 Effects:
@@ -255,7 +255,7 @@ Effect strengths and the artefact class tables are tunable in the gear config un
 Mutants
 
 Vanilla mutants are a straight line: they run at you, they swing, they die to anyone who stands on a rock or strafes on cooldown.
-AlifeTactics gives every mutant the decision model stalkers run. It reads your reload, your high ground, your strafe, and your weapon's reach, and it answers with moves its own body already has,
+AlifeTactics gives every mutant the decision model stalkers run. It reads your reload, your aim, your high ground, and your strafe, and it answers with moves its own body already has,
 the ones vanilla fires blindly and the ones vanilla never fires at all.
 The engine drives every mutant as it always has. AlifeTactics scales its stats and commands moves the engine validates and runs itself. It never takes a mutant over.
 Rank is the map tier, from 0 on the starting maps to 5 at the endgame, so a Cordon dog barely changes while a deep-Zone chimera is far deadlier.
@@ -267,14 +267,14 @@ Rank 0 stays vanilla, and every value multiplies the installed balance, so a mut
 
 General:
 Observing is free, deciding is hard: every mutant sees your reload from the first fight, and Intelligence is the chance it answers with the RIGHT move, a base plus a bonus per map rank.
-A missed roll lets the opening go, so a dull mutant wastes chance after chance while a sharp one punishes each - every move you see has a real cause behind it.
-One decision every few seconds, and only a few driven moves run at once across the pack.
-Wild is how much every move value varies, timings, distances, bands, geometry: at 0 mutants are identical and learnable, at 100 no two spawns or actions read alike.
+Personality then sets which moves its species favours, a chimera leaping and clawing without pause where a flesh bolts early, so the final chance is Intelligence times Personality.
+A missed roll lets the opening go, so a dull mutant wastes chance after chance while a sharp one punishes each - every move you see has a real cause behind it, and a cap holds a pack to waves.
+Wild is how much a mutant's own ability numbers vary between spawns, the gravity, telekinesis, aura, tube, detection, and cloak values: at 0 a kind is identical and learnable, at 100 no two spawns read alike.
 
 Species:
 Each species gets its own page carrying only the moves its body has: first the managed moves, the creature's own attacks and the values AlifeTactics varies.
 Then come the new moves the vanilla game never fires for it.
-The leap family reads your attention: Leap is the telegraphed leap at a turned back, Jump drops the wind-up when you are watching, and the adapt versions of each steer mid-air when you strafe.
+The leap family reads your aim: Leap is the telegraphed leap for anything short of a dead aim, Jump drops the wind-up when you aim right at it, and the adapt versions steer mid-air when you strafe.
 Every jumper leaps up at a shooter above it, so climbing a rock or a ledge stops being safe.
 Rush paces the charge: how often a boar, bloodsucker, or pseudogigant charges scales with its Intelligence, so a deep-Zone charger presses harder than a Cordon one.
 The charge itself stays the game's own move.
@@ -282,7 +282,7 @@ Backstrike arms a spin strike on an enemy circling behind, once per individual, 
 Flee breaks a dying mutant out of the fight, rarely, and only when it is far enough to escape. A cornered one fights to the end. Cloak varies the bloodsucker kind's invisibility rhythm.
 Retreat yields ground for a few seconds when a mutant cannot close on you or strike you, whatever is blocking it, then it returns to the fight.
 Breakoff is a shorter form fired on no trigger: now and then a melee mutant breaks contact for a moment and closes again, so its circling and pressing never settle into a steady pattern.
-A reloading or defenseless enemy opens the decision early. A shotgun aimed at a leaping mutant in range stops the leap, and a shotgunner turned away invites it.
+A reloading or defenseless enemy draws the instant Jump over the telegraphed Leap, since a helpless target cannot punish the wind-up.
 Beyond the moves, each species' own ability numbers breathe: the burer's gravity and telekinesis, the controller's psi tube and stamina and auras, the poltergeist's detection, the bloodsucker's cloak,
 each behind its own row, each a bounded variation over the installed balance.
 Movement stays the game's own, since varying what the engine's path and attack timing depend on only ever made mutants worse.

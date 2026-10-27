@@ -339,7 +339,7 @@ From staging on, the maneuver is committed to that target:
 The burst shape patches `state_mgr_weapon.get_queue_params` (`_compute_queue_params`).
 A maneuver rolls size and pause fresh per query inside the engine's own per-weapon medium band, then multiplies by the Discipline rank factors.
 A non-maneuver NPC passes through byte-identical.
-The catalog rows come from `at_maneuvers_config.script`, walked from a rotating per-NPC cursor (`row_cursor`) so no row holds a fixed priority:
+The catalog rows come from `at_maneuvers_config.script`, Fisher-Yates-shuffled per resolve so no row holds a fixed priority:
 
 ```
 maneuver      fires on                                   applies to               destination                      fire; move        ends on

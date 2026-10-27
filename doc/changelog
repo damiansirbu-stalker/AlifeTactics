@@ -2,7 +2,7 @@
   Summary: Mutant combat, the decision model and per-species Personality, the leap family and the burer gravity throw, anti-camping leaps, per-species move pages, Wild variation, the stalker Intelligence gate and per-faction Personality, rank curves as pairs, the cover rebuild for retreat and reload
 
   Mutants
-    Mutants now fight you. A mutant reads your weak moments and answers with a move its own body carries. A per-rank Intelligence sets how often it reads right, and Wild how far its moves vary.
+    Mutants now fight you. A mutant reads your weak moments and answers with a move its own body carries. A per-rank Intelligence sets how often it reads the moment right, a per-species Personality which moves its kind favours, and Wild how far the numbers vary.
     Each mutant kind has an MCM page listing what the mod drives on it. Control is partial this release and grows version by version.
     It runs on a batch of xray-monolith engine changes and is inactive on older exes and AOEngine. More engine work is in progress, and tracing for some moves is still pending.
 
@@ -30,6 +30,7 @@
         - Leap keeps its wind-up whenever you are not dead-aiming at the mutant. Jump drops the wind-up when you aim right at it or are caught reloading. Leap adapt and Jump adapt steer in the air when you strafe.
         - Disabling Jump keeps every leap telegraphed and dodgeable.
         - A quadruped leaps at you when you take high ground it would never jump at on the flat, so camping a height is no longer safe.
+        - A leap it cannot actually make - out of range, bad angle, or a ledge too high - no longer fires as a dud; it closes in or gives ground instead.
       Gravity
         - A burer forces its gravity throw when you cannot answer it, caught reloading or with your back turned, the moment its own shield is not needed. It never throws into your fire, so it keeps its defense.
       Rush
