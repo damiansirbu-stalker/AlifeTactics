@@ -208,7 +208,7 @@ Gear reads each item's own data for one capped edge, and the advantages are our 
 
 ### Mutants
 
-AlifeTactics gives every mutant the decision model the stalkers run, reading your reload, your attention, your perch, and your strafe, then answering the opening each one invites.
+AlifeTactics gives every mutant the decision model the stalkers run, reading your reload, your aim, your perch, and your strafe, then answering the opening each one invites.
 Perch on high ground and the jumpers come up after you.
 Catch yourself reloading or turn your back near a burer and its gravity throw answers.
 The engine still drives every mutant.
@@ -226,10 +226,10 @@ Wild varies each ability value inside the species' own envelope, so no two spawn
 
 #### Moves
 
-The leap family reads your attention.
-A turned back gets the telegraphed Leap.
-A watching enemy gets the Jump with no wind-up.
-A strafing one gets the version that steers in the air.
+The leap family reads your aim.
+Anything short of a dead aim gets the telegraphed Leap you can dodge.
+Aim right at it and it drops the wind-up and lunges.
+Strafe and it steers in the air to track you.
 A burer answers a reloading or turned-away player with its Gravity throw.
 Charge, Backstrike, Claw, Cloak, Retreat, and the hit-and-run Breakoff round out the set, each the creature's own.
 

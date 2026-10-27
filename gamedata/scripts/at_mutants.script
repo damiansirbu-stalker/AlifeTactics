@@ -487,21 +487,19 @@ local function _log_fire(rec, move, detail)
     end
 end
 
--- The pounce family; the variant's own premise picks the moment (not-watching, watching, vulnerable, strafing).
--- Distance/angle/height feasibility is the engine can_jump mirrored in xmonster.try_monster_jump; a quadruped leaps only at an elevated enemy.
+-- The 2x2 the pounce variant reads: aiming splits telegraph (Leap) from instant (Jump), strafing splits straight from steered (adapt).
+local function _check_leap_premise(move, memo, strafing)
+    if move == LEAP_FAMILY then return not memo.aiming end
+    if move == MOVE_JUMP then return memo.vulnerable or memo.aiming end
+    if move == MOVE_LEAP_ADAPT then return strafing and not memo.aiming end
+    return (memo.aiming or memo.vulnerable) and strafing
+end
+
+-- The pounce family; the premise picks the variant, then Personality, then feasibility (the engine can_jump mirrored in xmonster.try_monster_jump).
+-- A quadruped leaps only at an elevated enemy (the body-plan law).
 local function _try_leap(mob, rec, move, now)
     local memo = rec.memo
-    local ok
-    if move == LEAP_FAMILY then
-        ok = not memo.watching
-    elseif move == MOVE_JUMP then
-        ok = memo.vulnerable or memo.watching
-    elseif move == MOVE_LEAP_ADAPT then
-        ok = rec.strafing
-    elseif move == MOVE_JUMP_ADAPT then
-        ok = (memo.watching or memo.vulnerable) and rec.strafing
-    end
-    if not ok then return false end
+    if not _check_leap_premise(move, memo, rec.strafing) then return false end
     if not _check_personality(rec, LEAP_FAMILY) then return false end
     if rec.quadruped and not xcombat.is_enemy_above(memo.enemy, mob, _tun_num.above_m) then return false end
     if not _check_slot(memo.bucket) then return false end
@@ -585,7 +583,7 @@ end
 -- force_gravi bypasses the gravi gate (burer_state_attack_gravi_inline.h:81), so the range band, LOS and facing are hoisted here; the cooldown bypass stays.
 local function _try_gravity(mob, rec, _move, now)
     local memo = rec.memo
-    if not memo.vulnerable and memo.watching then return false end
+    if not memo.vulnerable and xcombat.is_enemy_watching(memo.enemy, mob, _tun_num.threat_cone) then return false end
     if not _check_personality(rec, "gravity_attack") then return false end
     if rec.gravi_max and (memo.dist > rec.gravi_max or memo.dist < (rec.gravi_min or 0)) then return false end
     if not xcombat.can_see(mob, memo.enemy) then return false end
@@ -684,7 +682,7 @@ local function _update_mutant(mob, rec, now)
     memo.dist_sqr = dist_sqr
     memo.is_actor = is_actor
     memo.bucket = is_actor and VS_PLAYER or VS_NPC
-    memo.watching = xcombat.is_enemy_watching(enemy, mob, _tun_num.threat_cone)
+    memo.aiming = xcombat.is_aim_held(enemy, mob, _tun_num.aim_cone)
     memo.vulnerable = _check_enemy_vulnerable(enemy, is_actor, now)
     rec.low_now = xmonster.get_monster_health(mob) <= _tun_num.survival_frac
     _run_atom(mob, rec, now)
@@ -873,6 +871,7 @@ local function _load_tunables()
         breakoff_hold_min = _read_num("breakoff", "hold_min"),
         breakoff_hold_max = _read_num("breakoff", "hold_max"),
         threat_cone = _read_num("threat", "facing_cone_deg"),
+        aim_cone = _read_num("threat", "aim_cone_deg"),
         adapt_min = _read_num("adapt", "factor_min"), adapt_max = _read_num("adapt", "factor_max"),
         charge_slow = _read_num("charge", "slow_mult"), charge_fast = _read_num("charge", "fast_mult"),
         claw_range = _read_num("claw", "range_m"),

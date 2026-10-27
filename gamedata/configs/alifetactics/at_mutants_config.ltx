@@ -67,8 +67,9 @@ face_cone_deg = 60 ; skip the flee while the enemy sits within this cone of the 
 hold_min      = 45000
 hold_max      = 75000
 
-[threat] ; an enemy weapon aimed within this cone counts as watching the mutant (the shotgun and watching-split gates read it)
-facing_cone_deg = 60
+[threat] ; the two facing reads: the wide watch (gravity's "not shooting me" gate) and the tight aim (the leap wind-up split)
+facing_cone_deg = 60 ; watching: the enemy roughly faces the mutant - gravity skips a facing player so it never steals the burer's shield
+aim_cone_deg    = 15 ; aiming: the enemy holds the crosshair ON the mutant - only a dead-aim draws the instant Jump, everything looser gets the dodgeable telegraphed Leap (field-tune)
 
 ; The leap fire gate (distance band, angle, height) is the engine can_jump, mirrored in xmonster.try_monster_jump until the jump PR (n070) ships; the handler believes the return.
 

@@ -27,7 +27,7 @@
 
     Moves
       Leap family
-        - Leap keeps its wind-up against a turned back. Jump drops the wind-up when you are watching or caught reloading. Leap adapt and Jump adapt steer in the air when you strafe.
+        - Leap keeps its wind-up whenever you are not dead-aiming at the mutant. Jump drops the wind-up when you aim right at it or are caught reloading. Leap adapt and Jump adapt steer in the air when you strafe.
         - Disabling Jump keeps every leap telegraphed and dodgeable.
         - A quadruped leaps at you when you take high ground it would never jump at on the flat, so camping a height is no longer safe.
       Gravity
