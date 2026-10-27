@@ -19,7 +19,7 @@ local KITE_KINDS = { "w_melee", "w_shotgun", "w_pistol", "w_smg", "w_rifle", "w_
 local REPEAT_MOVE_M   = 2
 local REPEAT_MOVE_SQR = REPEAT_MOVE_M * REPEAT_MOVE_M
 local INVALID_LEVEL_VERTEX_ID = 4294967295
-local STAGE_PICKED, STAGE_DECLINED, STAGE_INT, STAGE_CHANCE = "picked", "declined", "int", "chance"
+local STAGE_PICKED, STAGE_CHANCE = "picked", "chance"
 local MANEUVER_PICKOFF, RANGE_TOO_CLOSE, ENDS_ON_ARRIVAL = "pickoff", "too_close", "arrival"
 
 local BEGIN_PERIOD_MS, UPDATE_PERIOD_MS, END_PERIOD_MS, HIT_FIGHT_MS
@@ -390,7 +390,6 @@ local function _check_row(row, npc, enemy, state, tg, memo)
     if not _check_palette(row, npc, memo) then return nil, nil, "palette" end
     local situation = row.check_need(npc, enemy, state, tg, memo)
     if not situation then return nil, nil, "-" end
-    if not at_faction.check_intelligence(npc) then return nil, situation, STAGE_INT end
     if not at_faction.check_personality(npc, row.name) then return nil, situation, STAGE_CHANCE end
     local dest = row.find_destination(npc, enemy, state, tg, memo)
     if dest then return dest, situation, "picked" end
@@ -440,25 +439,35 @@ local function _check_repeat_limit(state, situation, npc_pos)
     return true
 end
 
+-- The shared catalog-order scratch, shuffled per resolve (the walk is synchronous, one NPC at a time).
+local _order = {}
+
+-- The atom, identical to the mutant side: Intelligence rolls ONCE at the top and a miss lets the opening go.
+-- Then Fisher-Yates-shuffle the catalog and walk it, each row self-gating premise then Personality, the first that picks winning.
 local function _resolve_maneuver(npc, enemy, state, tg)
     if not at_faction.is_participant(npc) then return nil end
     local count = #CATALOG
     if count == 0 then return nil end
-    local start = state.row_cursor or 1
-    if start > count then start = 1 end
     local memo = _reset_memo(state, npc, enemy)
     local tracing = at_debug.is_on()
+    if not at_faction.check_intelligence(npc) then
+        if tracing then state.rows = "int" state.walk_us = 0 end
+        return nil
+    end
     local walk_timer = xprofiler.new_if(tracing)
     walk_timer:start()
+    for i = 1, count do _order[i] = i end
+    for i = count, 2, -1 do
+        local j = math_random(i)
+        if j ~= i then _order[i], _order[j] = _order[j], _order[i] end
+    end
     local rows_trace = tracing and {} or nil
     local spent_row, spent_vid, spent_situation
-    for i = 0, count - 1 do
-        local idx = (start + i - 1) % count + 1
-        local row = CATALOG[idx]
+    for i = 1, count do
+        local row = CATALOG[_order[i]]
         local vid, situation, stage = _check_row(row, npc, enemy, state, tg, memo)
         if tracing then rows_trace[#rows_trace + 1] = _format_row_trace(row, situation, stage) end
-        if stage == STAGE_PICKED or stage == STAGE_DECLINED or stage == STAGE_INT or stage == STAGE_CHANCE then
-            state.row_cursor = idx % count + 1
+        if stage == STAGE_PICKED then
             spent_row, spent_vid, spent_situation = row, vid, situation
             break
         end
@@ -635,7 +644,7 @@ local function _try_begin_maneuver(npc, state, tg)
 
     local enemy = state.best_enemy_id and xcombat.resolve_enemy(state.best_enemy_id) or nil
     state.fighting = _is_fighting(enemy, state, tg)
-    if not state.fighting then state.stall_set = false state.row_cursor = 1 state.repeat_situation = nil return end
+    if not state.fighting then state.stall_set = false state.repeat_situation = nil return end
     if at_debug.is_on() then state.name = npc:name() end
 
     if not enemy then

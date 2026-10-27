@@ -85,7 +85,7 @@ Push, Pull, the maneuver catalog, and the LIQUIDATE deferral run it on the stalk
 The mutant side runs the atom in `at_mutants`: every 600ms beat a held window (flee, retreat, breakoff, gravity) skips the beat, otherwise Intelligence rolls ONCE at the top (`_check_intelligence`) and a miss does zero premise or feasibility work.
 On a pass the species' toggled moves are shuffled in place (Fisher-Yates) and walked up to `[select] candidates`; each move is a Chain-of-Responsibility handler that tests its own premise then its Personality (`_check_personality`), both falling through free on a miss, and the FIRST that fires consumes the beat.
 There is no premise table and no shared gate; the rate slot is stamped only on an executed fire, and the `[select]` cap is the budget.
-The stalker resolver still rolls Intelligence per eligible move on a rotating cursor (the retrofit to this one-roll-first shuffle is pending); both sides share the Intelligence x Personality chance and the `inside_chance` second roll is retired.
+The stalker resolver runs the same atom: `_resolve_maneuver` rolls Intelligence once at the top, then shuffles the maneuver catalog and walks it, each row self-gating premise then Personality, the first that picks winning; both sides share the Intelligence x Personality chance and the `inside_chance` second roll is retired.
 Observing is free, deciding is hard: every mutant sees the reload from the first fight, and rank buys seizing the opening more often.
 
 Correctness fixes and skill scaling sit outside the pattern.
@@ -320,10 +320,10 @@ Stops: at most one open maneuver per NPC, bounded by the start budget, ended on 
 begin check (600ms, _try_begin_maneuver at_maneuvers.script):
   fighting? (live best_enemy or a hit within hit_fight_ms), enemy is actor or stalker
   _check_seize_block: armed, outside smart cover, no playing animation, budget left
-  _resolve_maneuver: walk the catalog from a per-NPC cursor
-    per row: scope -> toggle -> faction -> palette -> check_need -> the Intelligence roll -> find_destination
-    first row whose need holds takes the one roll; a pass runs its find_destination (the one geometry
-    probe), a miss spends the opening; either way the walk ends
+  _resolve_maneuver: roll Intelligence ONCE (a miss ends the beat, zero walk), then Fisher-Yates-shuffle the catalog and walk it
+    per row: scope -> toggle -> faction -> palette -> check_need -> Personality -> find_destination
+    a premise or Personality miss falls through to the next shuffled row; the first that finds a destination
+    (the one geometry probe) wins and ends the walk
   _try_seize: spend a start, apply_takeover_block, raise the gate, stamp row + dest + committed target
 update check (200ms, _update_maneuver): re-apply the row's state, skip while reloading or a hit reaction plays
 end check   (200ms, _try_end_maneuver): wounded, the row's check_end, arrival, or the cap, target_lost ends at once
