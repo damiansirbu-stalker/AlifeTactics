@@ -1,5 +1,5 @@
 1.2.2-snapshot
-  Summary: Mutant combat, the decision model, the leap family, anti-camping leaps, per-species move pages, Wild variation, the stalker Intelligence gate and per-faction Personality, rank curves as pairs, the cover rebuild for retreat and reload
+  Summary: Mutant combat, the decision model and per-species Personality, the leap family and the burer gravity throw, anti-camping leaps, per-species move pages, Wild variation, the stalker Intelligence gate and per-faction Personality, rank curves as pairs, the cover rebuild for retreat and reload
 
   Mutants
     Mutants now fight you. A mutant reads your weak moments and answers with a move its own body carries. A per-rank Intelligence sets how often it reads right, and Wild how far its moves vary.
@@ -8,8 +8,11 @@
 
     General
       Intelligence
-        - A mutant takes one decision every few seconds. A reload, a turned back, a perch, or a strafe opens a chance, and Intelligence, a base plus a bonus per map rank, decides it.
+        - A mutant constantly weighs the fight. A reload, a turned back, a perch, or a strafe opens a chance, and Intelligence, a base plus a bonus per map rank, decides whether it reads the moment right.
         - A missed roll lets the opening pass, so a Cordon dog wastes most of its chances and a deep-Zone chimera takes them. A cap on how many driven moves run at once holds a pack to waves.
+      Personality
+        - Each mutant kind takes each of its moves at its own chance, the way a faction has its doctrine. A chimera leaps and claws without pause and never routs, a flesh bolts early, a cat darts and circles.
+        - The final chance is Intelligence times Personality, so a sharp read still acts only when the creature's character would. The values are grounded in GSC's own per-creature design.
       Wild
         - One dial for how much a mutant's own numbers vary between individuals: the move timings and the ranges, bands, and reach of its abilities.
             At 0 a kind is identical and learnable, at 100 no two spawns read alike.
@@ -24,9 +27,11 @@
 
     Moves
       Leap family
-        - Leap keeps its wind-up against a turned back. Jump drops the wind-up when you are watching. Leap adapt and Jump adapt steer in the air when you strafe.
-        - An aimed shotgun in range stops a leap. A shotgunner turned away invites one. Disabling Jump keeps every leap dodgeable.
-        - A jumper leaps at you when you stand on a rock or ledge its pathing cannot climb, so camping a height is no longer safe.
+        - Leap keeps its wind-up against a turned back. Jump drops the wind-up when you are watching or caught reloading. Leap adapt and Jump adapt steer in the air when you strafe.
+        - Disabling Jump keeps every leap telegraphed and dodgeable.
+        - A quadruped leaps at you when you take high ground it would never jump at on the flat, so camping a height is no longer safe.
+      Gravity
+        - A burer forces its gravity throw when you cannot answer it, caught reloading or with your back turned, the moment its own shield is not needed. It never throws into your fire, so it keeps its defense.
       Rush
         - How often a boar, bloodsucker, or pseudogigant charges scales with its Intelligence. The charge stays the game's own move.
       Backstrike

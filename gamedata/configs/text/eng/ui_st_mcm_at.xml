@@ -333,6 +333,12 @@
   <string id="ui_mcm_at_mutants_claw_desc">
     <text>[int, wild] A close standing strike the chimera otherwise lacks: a vanilla chimera closes to melee range with no attack to use there.</text>
   </string>
+  <string id="ui_mcm_at_mutants_gravity_attack">
+    <text>Gravity attack</text>
+  </string>
+  <string id="ui_mcm_at_mutants_gravity_attack_desc">
+    <text>[int, wild] A burer throws its gravity attack when you cannot answer it - reloading, unarmed, or with your back turned - the moment its shield is not needed anyway.</text>
+  </string>
   <string id="ui_mcm_at_mutants_gravity_numbers">
     <text>Gravity numbers</text>
   </string>

@@ -75,10 +75,10 @@ Every faction fights its own way, across every choice it makes, not only when it
 Monolith presses and never yields. Duty holds the line and gives ground in order. Bandits finish a downed man and rout when the fight turns. Ecologists fight poorly and pull back early.
 Each faction carries its own chance on every action, rout, give ground, press, finish, hold, so one opening draws a different answer from a merc than from a renegade.
 This is GSC's own design, its documents rate every character by type and every creature for courage, the attack-and-defence profile left out of the shipped game.
-Every mutant fights to its body.
-A chimera circles to the flank, and a burer hurls debris with its mind.
-A bloodsucker turns invisible and strikes from cover.
-Each fights to the moves its own frame carries.
+Every mutant fights to its body, and takes each of its moves at its own chance.
+A chimera circles to the flank, leaps and claws without pause, and never routs.
+A burer hurls debris with its mind, a bloodsucker turns invisible and strikes from cover, a flesh bolts the moment it is hurt.
+Each carries the moves its frame allows and the character to spend them, the mutant twin of a faction's doctrine.
 
 ---
 
@@ -208,10 +208,9 @@ Gear reads each item's own data for one capped edge, and the advantages are our 
 
 ### Mutants
 
-AlifeTactics gives every mutant the decision model the stalkers run, reading your reload, your aim, your perch, and your strafe, then answering the cheese each one invites.
-Perch on a rock and the jumpers climb after you.
-Hold your aim on a burer and its gravity throw answers.
-A shotgun aimed in range stops a leap, and a shotgunner turned away invites one.
+AlifeTactics gives every mutant the decision model the stalkers run, reading your reload, your attention, your perch, and your strafe, then answering the opening each one invites.
+Perch on high ground and the jumpers come up after you.
+Catch yourself reloading or turn your back near a burer and its gravity throw answers.
 The engine still drives every mutant.
 AlifeTactics scales its stats and commands the moves. The engine runs them itself.
 This is the strongest-grounded system in the mod.
@@ -231,8 +230,8 @@ The leap family reads your attention.
 A turned back gets the telegraphed Leap.
 A watching enemy gets the Jump with no wind-up.
 A strafing one gets the version that steers in the air.
-A burer answers a held aim or a perched shooter with its Gravity throw.
-Charge, Backstrike, Claw, Cloak, and Retreat round out the set, each the creature's own.
+A burer answers a reloading or turned-away player with its Gravity throw.
+Charge, Backstrike, Claw, Cloak, Retreat, and the hit-and-run Breakoff round out the set, each the creature's own.
 
 ---
 

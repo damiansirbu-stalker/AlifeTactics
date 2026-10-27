@@ -31,14 +31,17 @@ flee           = bloodsucker, psysucker, dog, boar, snork, pseudodog, psy_dog, g
 retreat        = bloodsucker, psysucker, dog, boar, snork, pseudodog, psy_dog, gigant, cat, flesh, fracture, karlik, tushkano
 breakoff       = bloodsucker, psysucker, dog, boar, snork, pseudodog, psy_dog, gigant, cat, flesh, fracture, karlik, tushkano
 cloak          = bloodsucker, psysucker
+gravity_attack = burer
 claw           = chimera, lurker
 backstrike     = chimera, lurker, burer, controller
 
 [quadrupeds] ; the body-plan law: these jump carriers take OUR commanded leap ONLY at an elevated enemy
 species = dog, pseudodog, psy_dog, cat, chimera, lurker
 
-[throttle] ; the decision clocks, seconds, flat (no Wild on our clocks); the flee and retreat gaps outlast their windows
-default = 6
+[select] ; the atom walks up to this many shuffled candidates per beat; the first that fires wins and breaks (the budget - "max 3 checks", user 2026-10-27)
+candidates = 3
+
+[throttle] ; per-move re-fire gaps, seconds; a routed mutant does not instantly re-rout once its committed window closes
 flee    = 120
 retreat = 45
 
@@ -50,21 +53,16 @@ vs_npc    = 3
 [intelligence]
 cap = 0.75
 
-[inside_chance] ; a hidden second roll AFTER the Intelligence roll passes (NOT advertised in MCM), so a flavor move does not fire on every opening Intelligence seizes - the rarity knob that keeps flee and breakoff occasional while Intelligence still governs them. A miss spends the opening (the 6s clock is stamped). Absent key = 1.0 = no second roll. Members: flee, breakoff (retreat is Intelligence-only).
-flee = 0.5
-breakoff = 0.5
-
-[premises] ; the anti-exploit reads
-above_m      = 0.8      ; object-position height delta that counts as the enemy being above (the leap enemy_above premise)
+[premises] ; the reads the move handlers share through the pass memo
+above_m      = 0.8      ; object-position height delta that counts as the enemy being above (the body-plan law: a quadruped leaps only at an elevated enemy)
 climb_near_m = 6        ; the enemy_above near gate: an elevated enemy within this range is a reachable ledge to leap at, farther is valley terrain
-offmesh_gap_sqr = 1.0   ; enemy_perched (leap): the actor stands this far (squared metres, ~1m) off its own nav vertex = on a rock/ledge; a jumper leaps at it. Measured 2026-10-23: walkable terrain tops at 0.22, a real perch reads 8.9+
 stall_ms        = 2000  ; stalled (retreat): a melee mutant that has not closed stall_progress_m nor dealt damage in this long cannot reach the actor and yields
 stall_progress_m = 1.0  ; the closing distance that re-arms the stall window; under this for stall_ms with no damage dealt = stalled
-strafe_lat_m = 1.0
+strafe_lat_m = 1.0      ; the enemy lateral displacement per beat that counts as strafing (the steered-leap premise)
 
-[survival] ; the one flee trigger: health below this fraction while far enough to disengage
+[survival] ; the flee trigger: health below this fraction while far enough to disengage and not nose-on to the enemy
 health_frac   = 0.30
-min_dist_m    = 4
+min_dist_m    = 20 ; the actor must be at least this far to flee - a close mutant cannot outrun melee, it gives ground (retreat/breakoff) instead
 face_cone_deg = 60 ; skip the flee while the enemy sits within this cone of the mutant's nose - no 180 turn-and-die, a tangent or already-turned mutant flees
 hold_min      = 45000
 hold_max      = 75000
@@ -72,9 +70,7 @@ hold_max      = 75000
 [threat] ; an enemy weapon aimed within this cone counts as watching the mutant (the shotgun and watching-split gates read it)
 facing_cone_deg = 60
 
-[leap] ; the commanded leap-family fire gate; the distance band is the species' own jump_min/max_distance
-facing_cone_deg = 35
-fallback_max_m  = 10      ; leap reach for a species with no jump_max_distance (bloodsucker/psysucker use aom_only_jump); the engine refuses a too-far jump anyway
+; The leap fire gate (distance band, angle, height) is the engine can_jump, mirrored in xmonster.try_monster_jump until the jump PR (n070) ships; the handler believes the return.
 
 [adapt] ; the air-steering gain band for both adapt leaps = the vanilla envelope (borya 0.3, pseudodog 0.5, cat 0.6)
 factor_min = 0.3
@@ -87,17 +83,23 @@ fast_mult = 0.6 ; the wait multiplier at the Intelligence cap - pressing
 [retreat] ; the tactical yield: a RunAway when a melee mutant is stalled (cannot close or damage the actor); the vanilla FSM re-engages when the window closes
 hold_min     = 4500 ; ~5s - reaches the RunAway point and holds a beat before returning; a real give-ground, still far short of flee's 45-75s bolt
 hold_max     = 5500
-max_dist_m   = 20 ; no yield past this - the engine RunAway point sits ~20m off the enemy, so a farther mutant has nowhere to run (it froze standing)
+; no distance cap: the engine RunAway point sits ~30m from the MONSTER away from the enemy with a 5x anti-freeze retry (control_path_builder_base_path.cpp:61,99-131), so a far mutant never runs out of room
 
-[breakoff] ; the hit-and-run dart: a short RunAway on the inside chance alone (no trigger), the restless-predator hop; shares the engine RunAway with retreat but briefer
+[breakoff] ; the hit-and-run dart: a short RunAway when close and not nose-on, the restless-predator circling hop; shares the engine RunAway with retreat but briefer
+close_m       = 10 ; the actor must be within this for a breakoff (the short-range circling/flanking hop; past it the mutant closes or leaps instead)
+face_cone_deg = 60 ; skip the breakoff while nose-on to the actor (reuse the flee cone) - a dart sideways out of a flank, not a retreat from the front
 hold_min     = 1500 ; ~2s - a quick dart out and back, distinctly shorter than the retreat yield
 hold_max     = 2500
+
+[gravity_attack] ; the burer forced gravi throw, shield-safe: the trigger (vulnerable or back-turned) only fires when the player is not shooting, so no shield is wanted
+face_cone_deg = 45 ; the engine gravi facing gate (is_face_target deg(45), burer_state_attack_gravi_inline.h:87); the range band is the burer's own Gravi_MinDist/MaxDist, the LOS its own see
+release_ms    = 2500 ; hold the forced-gravi flag and skip re-deciding this long (one gravi cycle), then clear the flag; the engine consumes it on entry, this bounds a missed consume
 
 [claw] ; the chimera-class contact strike (covers the lurker: same engine class and anim table)
 motion          = jump_attack_0
 range_m         = 2.2
 facing_cone_deg = 35
-clear_ms        = 1100
+clear_ms        = 1000 ; the one-animation-owner throttle, a round 1s (not a precise anim-length match - the override self-ends, this just spaces re-strikes)
 
 [backstrike] ; per-species motion pair for the rear spin-strike; motions must carry attack_params rows
 arc_deg    = 120
@@ -110,3 +112,97 @@ controller = stand_attack_0, stand_attack_1
 ; Wild varies standalone ability numbers only (gravity, telekinesis, aura, detection, tube, stamina, cloak);
 ; never a locomotion or attack-solver input, which desyncs from the tuned path and animation timing.
 ability_pct     = 0.20
+
+; --- Personality: the per-species chance (0..1) a mutant takes a move when its premise fires, rolled AFTER the Intelligence
+; gate passes (the at_faction Personality twin, section = personality_<move>, key = species, default covers any unlisted). The four
+; leap variants (leap/jump/leap_adapt/jump_adapt) share the one personality_leap value - the variant is picked by watching/strafing, not character.
+; Final rate = Intelligence (0.40-0.70 by map tier) x Personality, so a 1.0 move fires on 40-70% of its openings, a 0.1 on 4-7%, a 0.0 never.
+; The values ARE each creature's temperament - who pounces, who routs, who holds - grounded in GSC's per-species bestiary (характер) and
+; the creature_courage ratings [8] (doc/gsc/gsc-design-documents.md), the engine panic_threshold (flee propensity), and the species ecology.
+
+[personality_leap] ; the pounce family (leap/jump/leap_adapt/jump_adapt)
+default     = 0.5
+chimera     = 0.9
+lurker      = 0.9
+snork       = 1.0
+dog         = 0.9
+pseudodog   = 0.8
+bloodsucker = 0.7
+psysucker   = 0.7
+cat         = 0.7
+psy_dog     = 0.6
+
+[personality_claw] ; the chimera-class contact strike
+default = 1.0
+chimera = 1.0
+lurker  = 1.0
+
+[personality_flee] ; rout out when hurt and far; apex and brute never flee, prey bolt
+default     = 0.5
+flesh       = 0.8
+fracture    = 0.6
+cat         = 0.5
+tushkano    = 0.5
+boar        = 0.5
+karlik      = 0.4
+bloodsucker = 0.1
+psysucker   = 0.1
+dog         = 0.1
+snork       = 0.1
+psy_dog     = 0.1
+pseudodog   = 0.05
+gigant      = 0.0
+
+[personality_retreat] ; give ground when stalled; the ambush predator and prey yield, the pack and brute press
+default     = 0.5
+flesh       = 0.7
+bloodsucker = 0.6
+psysucker   = 0.6
+karlik      = 0.6
+fracture    = 0.5
+cat         = 0.4
+boar        = 0.4
+tushkano    = 0.4
+psy_dog     = 0.3
+dog         = 0.2
+snork       = 0.2
+pseudodog   = 0.2
+gigant      = 0.1
+
+[personality_breakoff] ; the circling/flanking hit-and-run dart; the skittish and swarm species circle, the brute does not
+default     = 0.5
+cat         = 0.8
+tushkano    = 0.8
+flesh       = 0.6
+bloodsucker = 0.5
+psysucker   = 0.5
+karlik      = 0.5
+psy_dog     = 0.5
+dog         = 0.4
+pseudodog   = 0.4
+fracture    = 0.4
+snork       = 0.3
+boar        = 0.3
+gigant      = 0.1
+
+[personality_cloak] ; the bloodsucker visibility pacing
+default     = 1.0
+bloodsucker = 1.0
+psysucker   = 1.0
+
+[personality_backstrike] ; the rear spin-strike; the apex punishes the flank hard, the casters less
+default    = 1.0
+chimera    = 0.7
+lurker     = 0.7
+burer      = 0.5
+controller = 0.5
+
+[personality_gravity_attack] ; the burer forced gravi throw (the vulnerable/back-turn punish)
+default = 1.0
+burer   = 1.0
+
+[personality_charge] ; the run-attack lead (spawn-paced); the brute charges, the ambusher rarely
+default     = 1.0
+gigant      = 1.0
+boar        = 0.9
+bloodsucker = 0.3

@@ -13,43 +13,26 @@ local BEAT_MS         = 600
 local STALE_MS        = 12000
 local SWEEP_MS        = 10000
 local TIER_MIN, TIER_MAX = 0, 5
-local SHOTGUN_KIND    = "w_shotgun"
-local BAND_IN         = "in"
 local BURER           = "burer"
 local CONTROLLER      = "controller"
 local POLTERGEIST     = "poltergeist"
 local AURA_NAMES      = { "psy", "radiation", "fire" }
-local GATE_BOTH       = "int, wild"
+local GATE            = "int, pers"
 local VS_PLAYER, VS_NPC = "vs_player", "vs_npc"
 local LEAP_FAMILY     = "leap"
 local MOVE_JUMP       = "jump"
 local MOVE_LEAP_ADAPT = "leap_adapt"
 local MOVE_JUMP_ADAPT = "jump_adapt"
-local MOVE_FLEE       = "flee"
-local MOVE_RETREAT    = "retreat"
-local MOVE_BREAKOFF   = "breakoff"
 
+-- Every move the adopt line and the MCM tree key on; cloak and backstrike arm at adoption, the rest decide per beat.
 local MOVE_KEYS = {
     "leap", "jump", "leap_adapt", "jump_adapt", "flee", "retreat", "breakoff",
-    "cloak", "claw", "backstrike",
+    "cloak", "gravity_attack", "claw", "backstrike",
 }
 
--- The capped moves check a bucket slot before firing; flee adds a slot but is never denied; claw sits outside the caps.
-local CAPPED = {
-    leap = true, jump = true, leap_adapt = true, jump_adapt = true,
-    retreat = true, breakoff = true,
-}
-
--- The premise-to-move table: array order is priority; bipeds marks rows the body-plan law denies quadrupeds.
-local BEST_MOVES = {
-    { premise = "low_health",    move = "flee" },
-    { premise = "vulnerable",    move = "leap", bipeds = true },
-    { premise = "shotgun_open",  move = "leap", bipeds = true },
-    { premise = "enemy_above",   move = "leap" },
-    { premise = "enemy_perched", move = "leap" },
-    { premise = "stalled",       move = "retreat" },
-    { premise = "contact",       move = "claw" },
-    { premise = "engaged",       move = "breakoff" },
+-- The per-beat decision chain the atom shuffles and walks; cloak/backstrike/charge/auras arm at adoption, not here.
+local DECISION_MOVES = {
+    "leap", "jump", "leap_adapt", "jump_adapt", "flee", "retreat", "breakoff", "claw", "gravity_attack",
 }
 
 local _states = {}
@@ -57,7 +40,7 @@ local _tracks = { damage = {}, taken = {} }
 local _tun = nil
 local _tun_num = nil
 local _move_species = {}
-local _inside_chance = {}
+local _personality_cache = {}
 local _quadrupeds = {}
 local _pages = {}
 local _move_cfg = {}
@@ -202,9 +185,19 @@ local function _add_slot(bucket)
     _slots:add(bucket)
 end
 
--- The inside chance: a flavor move still rolls its own execution chance on a seized opening; absent = 1.0 = always.
-local function _check_inside_chance(move)
-    return at_core.check_chance(_inside_chance[move])
+-- The per-species Personality roll for a move, rolled after the beat's Intelligence pass (the at_faction twin); cached per (move, species), absent = 1.0.
+-- The four leap variants share the one personality_leap value - the variant is a situational pick (watching/strafing), not a character trait.
+local function _check_personality(rec, move)
+    local species = rec.species
+    if not species then return true end
+    local ck = move .. "/" .. species
+    local chance = _personality_cache[ck]
+    if chance == nil then
+        local section = "personality_" .. move
+        chance = _read_num(section, species) or _read_num(section, "default") or 1
+        _personality_cache[ck] = chance
+    end
+    return at_core.check_chance(chance)
 end
 
 -- The charge pacing: the species' own Run_Attack_Delay scaled by Intelligence, never the band geometry.
@@ -222,11 +215,9 @@ local function _apply_charge_pacing(mob, rec, section)
     end
 end
 
--- The leap premise band: the species' own jump distances our commanded leaps read, plus the adapt restore point.
--- Read-only - the engine's jump solve stays vanilla; a missing jump_auto_aim_factor reads as the engine default 0.
+-- The adapt-steering restore point: the species' own jump_auto_aim_factor (0 when absent, the engine default).
+-- The leap distance/angle/height feasibility lives in xmonster.try_monster_jump (the interim can_jump mirror), not here.
 local function _apply_leap(_mob, rec, section)
-    rec.jump_min_m = _read_basis(section, "jump_min_distance")
-    rec.jump_max_m = _read_basis(section, "jump_max_distance") or _tun_num.leap_fallback_max
     rec.aim_basis = _read_basis(section, "jump_auto_aim_factor") or 0
 end
 
@@ -286,6 +277,8 @@ end
 -- The burer gravity numbers and telekinesis families, varied over the install's own values.
 local function _apply_burer_params(mob, rec, section)
     if rec.species ~= BURER then return end
+    rec.gravi_min = _read_basis(section, "Gravi_MinDist")
+    rec.gravi_max = _read_basis(section, "Gravi_MaxDist")
     local pct = _tun_num.ability_pct
     if _check_vary(rec, "gravity_numbers") then
         local gravi_min, gravi_max = _compute_band(_read_basis(section, "Gravi_MinDist"),
@@ -344,14 +337,14 @@ local function _apply_auras(mob, rec, section)
     end
 end
 
--- The rear spin-strike arms once at adoption on an Intelligence roll; the engine self-fires it after.
+-- The rear spin-strike arms once at adoption on an Intelligence x Personality roll; the engine self-fires it after.
 local function _try_arm_backstrike(mob, rec)
     local motions = rec.moves.backstrike and _check_toggle(rec, "backstrike")
         and _backstrike_motions[rec.species] or nil
-    if not motions or not _check_intelligence(rec) then return end
+    if not motions or not _check_intelligence(rec) or not _check_personality(rec, "backstrike") then return end
     xmonster.set_monster_melee_strike(mob, motions[1], motions[2], _tun_num.backstrike_arc)
     if at_debug.is_on() then
-        at_debug.debug("[MUT] arm id=%d backstrike arc=%.0f gate=int,wild", rec.id, _tun_num.backstrike_arc)
+        at_debug.debug("[MUT] arm id=%d backstrike arc=%.0f gate=%s", rec.id, _tun_num.backstrike_arc, GATE)
     end
 end
 
@@ -378,12 +371,13 @@ local function _add_mutant(mob, id, now)
         driver = "-",
         moves = moves,
         memo = {},
-        decided_at = 0,
+        move_buf = {},
         flee_ok_at = 0,
         flee_until = 0,
         retreat_ok_at = 0,
         retreat_until = 0,
         breakoff_until = 0,
+        gravity_release = 0,
         claw_until = 0,
         claw_motion = species and moves.claw and _claw_motion or nil,
         low_now = false,
@@ -475,246 +469,163 @@ local function _update_stall(rec, enemy, dist, now)
     end
 end
 
--- The weapon half of the per-beat fight scratch; the caller pre-writes the geometry, dry skips the reads - the 100-mutant guard.
-local function _reset_memo(rec)
-    local memo = rec.memo
-    local kind = not memo.dry and xcombat.get_weapon_kind(memo.enemy, memo.is_actor) or nil
-    local band = kind and xcombat.get_range_band(memo.dist, kind) or nil
-    local aimed = kind ~= nil and xcombat.is_facing(memo.enemy, memo.mob_pos, _tun_num.threat_cone)
-    local shotgun_near = kind == SHOTGUN_KIND and band == BAND_IN
-    local shotgun_aimed = shotgun_near and aimed
-    if at_debug.is_on() then
-        if shotgun_aimed and not memo.shotgun_aimed then
-            at_debug.debug("[MUT] THREAT id=%d shotgun aimed d=%.1f", rec.id, memo.dist)
-        elseif memo.shotgun_aimed and not shotgun_aimed then
-            at_debug.debug("[MUT] THREAT id=%d shotgun clear", rec.id)
-        end
-    end
-    memo.kind = kind
-    memo.band = band
-    memo.aimed = aimed
-    memo.shotgun_near = shotgun_near
-    memo.shotgun_aimed = shotgun_aimed
-    memo.shotgun_open = shotgun_near and not aimed
-end
-
--- True when the mutant has not closed nor dealt damage for stall_ms - the no-progress read the retreat fires on and the perched-leap yields to.
+-- True when the mutant has not closed nor dealt damage for stall_ms - the no-progress read the retreat fires on.
 local function _is_stalled(rec, now)
     if not rec.stall_base_ms or now - rec.stall_base_ms < _tun_num.stall_ms then return false end
     return rec.dealt_ms == nil or now - rec.dealt_ms >= _tun_num.stall_ms
 end
 
--- The premise vocabulary: each a named boolean read over the memo, the samples, and the processed snapshots.
-local PREMISES = {
-    vulnerable = function(_mob, rec, now)
-        local memo = rec.memo
-        return _check_enemy_vulnerable(memo.enemy, memo.is_actor, now)
-    end,
-    shotgun_open = function(_mob, rec, _now)
-        return rec.memo.shotgun_open == true
-    end,
-    enemy_above = function(mob, rec, _now)
-        local memo = rec.memo
-        if memo.dist > _tun_num.climb_near_m then return false end
-        return xcombat.is_enemy_above(memo.enemy, mob, _tun_num.above_m)
-    end,
-    enemy_perched = function(_mob, rec, now)
-        local memo = rec.memo
-        if not memo.is_actor then return false end
-        if _is_stalled(rec, now) then return false end
-        return xcombat.is_off_navmesh(memo.enemy, _tun_num.offmesh_gap_sqr)
-    end,
-    stalled = function(_mob, rec, now)
-        local memo = rec.memo
-        if not memo.is_actor then return false end
-        if memo.dist > _tun_num.retreat_max_m then return false end
-        return _is_stalled(rec, now)
-    end,
-    engaged = function(_mob, rec, _now)
-        local memo = rec.memo
-        if not memo.is_actor then return false end
-        return memo.dist <= _tun_num.retreat_max_m
-    end,
-    low_health = function(mob, rec, _now)
-        if not rec.low_now then return false end
-        if rec.memo.dist < _tun_num.flee_min_m then return false end
-        return not xcombat.is_facing(mob, rec.memo.enemy_pos, _tun_num.flee_face_cone)
-    end,
-    contact = function(mob, rec, _now)
-        local memo = rec.memo
-        if memo.dist > _tun_num.claw_range then return false end
-        return xcombat.is_facing(mob, memo.enemy_pos, _tun_num.claw_cone)
-    end,
-}
-
-local function _log_block(rec, move, cause)
-    if at_debug.is_on() then
-        at_debug.debug("[MUT] BLOCK id=%d move=%s cause=%s gate=int,wild", rec.id, move, cause)
-    end
-end
-
--- Diagnostic: the distance and the species jump band at a band-block (max=-1 means the species has no jump_max_distance).
-local function _log_band(rec, memo)
-    if at_debug.is_on() then
-        at_debug.debug("[MUT] band id=%d d=%.1f min=%.1f max=%.1f", rec.id,
-            memo.dist, rec.jump_min_m or 0, rec.jump_max_m or -1)
-    end
-end
-
+-- Stamp the driver label, the gate, and the fire time; the HUD reads them.
 local function _log_fire(rec, move, detail)
     rec.driver = move:gsub("_", " "):upper()
     rec.fired_move = move
-    rec.gate = GATE_BOTH
+    rec.gate = GATE
     rec.fired_at = rec.tick_now
     if at_debug.is_on() then
-        at_debug.debug("[MUT] FIRE id=%d move=%s d=%.1f%s gate=int,wild",
-            rec.id, move, rec.memo.dist, detail or "")
+        at_debug.debug("[MUT] FIRE id=%d move=%s d=%.1f%s gate=%s",
+            rec.id, move, rec.memo.dist, detail or "", GATE)
     end
 end
 
--- The 2x2 split: watching decides the wind-up (Leap keeps it, Jump drops it), strafing decides the steering (adapt).
-local function _resolve_leap_variant(mob, rec)
+-- The pounce family; the variant's own premise picks the moment (not-watching, watching, vulnerable, strafing).
+-- Distance/angle/height feasibility is the engine can_jump mirrored in xmonster.try_monster_jump; a quadruped leaps only at an elevated enemy.
+local function _try_leap(mob, rec, move, now)
     local memo = rec.memo
-    local watching = xcombat.is_enemy_watching(memo.enemy, mob, _tun_num.threat_cone)
-    local steered = rec.strafing and rec.aim_basis ~= nil
-    if watching and steered and _check_toggle(rec, MOVE_JUMP_ADAPT) then return MOVE_JUMP_ADAPT end
-    if watching and _check_toggle(rec, MOVE_JUMP) then return MOVE_JUMP end
-    if steered and _check_toggle(rec, MOVE_LEAP_ADAPT) then return MOVE_LEAP_ADAPT end
-    if _check_toggle(rec, LEAP_FAMILY) then return LEAP_FAMILY end
-    if _check_toggle(rec, MOVE_JUMP) then return MOVE_JUMP end
-    if rec.aim_basis and _check_toggle(rec, MOVE_JUMP_ADAPT) then return MOVE_JUMP_ADAPT end
-    if rec.aim_basis and _check_toggle(rec, MOVE_LEAP_ADAPT) then return MOVE_LEAP_ADAPT end
-    return nil
-end
-
--- One commanded leap: the mechanical gates, the caps, the override clear, the variant's flags, the landing-deferred gain restore.
-local function _execute_leap(mob, rec, move, now)
-    local memo = rec.memo
-    if memo.shotgun_aimed then return _log_block(rec, move, "shotgun") end
-    if rec.quadruped and not xcombat.is_enemy_above(memo.enemy, mob, _tun_num.above_m) then
-        return _log_block(rec, move, "flat")
+    local ok
+    if move == LEAP_FAMILY then
+        ok = not memo.watching
+    elseif move == MOVE_JUMP then
+        ok = memo.vulnerable or memo.watching
+    elseif move == MOVE_LEAP_ADAPT then
+        ok = rec.strafing
+    elseif move == MOVE_JUMP_ADAPT then
+        ok = (memo.watching or memo.vulnerable) and rec.strafing
     end
-    if not rec.jump_max_m or memo.dist > rec.jump_max_m or memo.dist < (rec.jump_min_m or 0) then
-        _log_band(rec, memo)
-        return _log_block(rec, move, "band")
-    end
-    if not xcombat.is_facing(mob, memo.enemy_pos, _tun_num.leap_cone) then return _log_block(rec, move, "facing") end
-    if xmonster.is_monster_jumping(mob) then return _log_block(rec, move, "air") end
-    local variant = _resolve_leap_variant(mob, rec)
-    if variant == nil then return _log_block(rec, move, "toggle") end
-    local steered = variant == MOVE_LEAP_ADAPT or variant == MOVE_JUMP_ADAPT
-    if steered and not rec.aim_basis then return _log_block(rec, variant, "basis") end
-    if not _check_slot(memo.bucket) then return _log_block(rec, variant, "caps") end
+    if not ok then return false end
+    if not _check_personality(rec, LEAP_FAMILY) then return false end
+    if rec.quadruped and not xcombat.is_enemy_above(memo.enemy, mob, _tun_num.above_m) then return false end
+    if not _check_slot(memo.bucket) then return false end
+    local steered = move == MOVE_LEAP_ADAPT or move == MOVE_JUMP_ADAPT
+    local sudden = move == MOVE_JUMP or move == MOVE_JUMP_ADAPT
     _clear_claw(mob, rec, now, true)
-    local aim = nil
+    local aim
     if steered then
         aim = _select_band(_tun_num.adapt_min, _tun_num.adapt_max)
         xmonster.set_monster_jump_flags(mob, { auto_aim = true, auto_aim_factor = aim })
     end
-    local sudden = variant == MOVE_JUMP or variant == MOVE_JUMP_ADAPT
     local fired = xmonster.try_monster_jump(mob, memo.enemy_pos, 1, { skip_prepare = sudden })
     if aim then
         rec.aim_restore = fired or nil
         xmonster.set_monster_jump_flags(mob, fired and {} or { auto_aim_factor = rec.aim_basis })
     end
-    if not fired then return _log_block(rec, variant, "refused") end
+    if not fired then return false end
     _add_slot(memo.bucket)
-    _log_fire(rec, variant, aim and (" aim=%.2f"):format(aim) or nil)
+    _log_fire(rec, move, aim and (" aim=%.2f"):format(aim) or nil)
+    return true
 end
 
--- The flee window: the inside chance can decline it (flavor), but the caps never do; one trigger, the survival crossing out of melee reach.
-local function _execute_flee(_mob, rec, move, now)
-    if not _check_inside_chance(move) then return _log_block(rec, move, "chance") end
+-- Rout out of melee reach: hurt, far enough to disengage, not nose-on to the enemy; a committed fixed-timer window, the caps never deny it.
+local function _try_flee(mob, rec, _move, now)
+    if not rec.low_now then return false end
+    local memo = rec.memo
+    if memo.dist < _tun_num.flee_min_m or now < rec.flee_ok_at or not _runaway_id then return false end
+    if xcombat.is_facing(mob, memo.enemy_pos, _tun_num.flee_face_cone) then return false end
+    if not _check_personality(rec, "flee") then return false end
     local hold = _select_band(_tun_num.survival_hold_min, _tun_num.survival_hold_max)
     rec.flee_until = now + hold
     rec.flee_ok_at = now + _tun_num.flee_throttle_ms
-    _add_slot(rec.memo.bucket)
-    _log_fire(rec, move, (" hold=%dms"):format(hold))
+    _add_slot(memo.bucket)
+    _log_fire(rec, "flee", (" hold=%dms"):format(hold))
+    return true
 end
 
--- The retreat window: the flee mechanism on tactical premises - a short committed yield, capped like any offensive move.
-local function _execute_retreat(_mob, rec, move, now)
-    if not _check_slot(rec.memo.bucket) then return _log_block(rec, move, "caps") end
+-- Give ground when stalled (cannot close nor damage the actor): a short committed RunAway, no distance cap; the FSM re-engages after.
+local function _try_retreat(_mob, rec, _move, now)
+    local memo = rec.memo
+    if not memo.is_actor or now < rec.retreat_ok_at or not _runaway_id then return false end
+    if not _is_stalled(rec, now) then return false end
+    if not _check_personality(rec, "retreat") then return false end
+    if not _check_slot(memo.bucket) then return false end
     local hold = _select_band(_tun_num.retreat_hold_min, _tun_num.retreat_hold_max)
     rec.retreat_until = now + hold
     rec.retreat_ok_at = now + _tun_num.retreat_throttle_ms
-    _add_slot(rec.memo.bucket)
-    _log_fire(rec, move, (" hold=%dms"):format(hold))
+    _add_slot(memo.bucket)
+    _log_fire(rec, "retreat", (" hold=%dms"):format(hold))
+    return true
 end
 
--- The breakoff window: a short RunAway dart on the inside chance (flavor, no trigger); the FSM re-approaches after, an unpredictable give-ground.
-local function _execute_breakoff(_mob, rec, move, now)
-    if not _check_inside_chance(move) then return _log_block(rec, move, "chance") end
-    if not _check_slot(rec.memo.bucket) then return _log_block(rec, move, "caps") end
+-- The circling hit-and-run dart: the actor close and the mutant not nose-on (a flank), a brief RunAway then re-approach.
+local function _try_breakoff(mob, rec, _move, now)
+    local memo = rec.memo
+    if not memo.is_actor or not _runaway_id or memo.dist > _tun_num.breakoff_close_m then return false end
+    if xcombat.is_facing(mob, memo.enemy_pos, _tun_num.breakoff_face_cone) then return false end
+    if not _check_personality(rec, "breakoff") then return false end
+    if not _check_slot(memo.bucket) then return false end
     local hold = _select_band(_tun_num.breakoff_hold_min, _tun_num.breakoff_hold_max)
     rec.breakoff_until = now + hold
-    _add_slot(rec.memo.bucket)
-    _log_fire(rec, move, (" hold=%dms"):format(hold))
+    _add_slot(memo.bucket)
+    _log_fire(rec, "breakoff", (" hold=%dms"):format(hold))
+    return true
 end
 
--- The chimera-class contact strike; one animation owner, outside the caps, cleared by its window or any jump.
-local function _execute_claw(mob, rec, move, now)
+-- The chimera-class contact strike; one animation owner, outside the caps, cleared by its 1s throttle window or any jump.
+local function _try_claw(mob, rec, _move, now)
     local memo = rec.memo
-    if not rec.claw_motion then return _log_block(rec, move, "motion") end
-    if memo.dist > _tun_num.claw_range then return _log_block(rec, move, "range") end
-    if not xcombat.is_facing(mob, memo.enemy_pos, _tun_num.claw_cone) then return _log_block(rec, move, "facing") end
-    if xmonster.is_monster_jumping(mob) then return _log_block(rec, move, "air") end
-    if rec.claw_until > 0 then return _log_block(rec, move, "window") end
-    if not xmonster.play_monster_animation(mob, rec.claw_motion) then return _log_block(rec, move, "refused") end
+    if not rec.claw_motion or memo.dist > _tun_num.claw_range then return false end
+    if xmonster.is_monster_jumping(mob) or rec.claw_until > 0 then return false end
+    if not xcombat.is_facing(mob, memo.enemy_pos, _tun_num.claw_cone) then return false end
+    if not _check_personality(rec, "claw") then return false end
+    if not xmonster.play_monster_animation(mob, rec.claw_motion) then return false end
     rec.claw_until = now + _tun_num.claw_clear
-    _log_fire(rec, move)
+    _log_fire(rec, "claw")
+    return true
 end
 
-local MOVE_EXEC = {
-    leap = _execute_leap, jump = _execute_leap, leap_adapt = _execute_leap, jump_adapt = _execute_leap,
-    flee = _execute_flee, retreat = _execute_retreat, claw = _execute_claw,
-    breakoff = _execute_breakoff,
+-- The burer forced gravi throw, shield-safe by the trigger: a vulnerable or back-turned player is not shooting, so the burer's shield is never wanted.
+-- force_gravi bypasses the gravi gate (burer_state_attack_gravi_inline.h:81), so the range band, LOS and facing are hoisted here; the cooldown bypass stays.
+local function _try_gravity(mob, rec, _move, now)
+    local memo = rec.memo
+    if not memo.vulnerable and memo.watching then return false end
+    if not _check_personality(rec, "gravity_attack") then return false end
+    if rec.gravi_max and (memo.dist > rec.gravi_max or memo.dist < (rec.gravi_min or 0)) then return false end
+    if not xcombat.can_see(mob, memo.enemy) then return false end
+    if not xcombat.is_facing(mob, memo.enemy_pos, _tun_num.gravity_cone) then return false end
+    if not _check_slot(memo.bucket) then return false end
+    if not xmonster.set_burer_gravi_force(mob, true) then return false end
+    rec.gravity_release = now + _tun_num.gravity_release
+    _add_slot(memo.bucket)
+    _log_fire(rec, "gravity_attack")
+    return true
+end
+
+-- The move -> handler dispatch; the four leap variants share _try_leap (it branches on the move key inside).
+local TRY = {
+    leap = _try_leap, jump = _try_leap, leap_adapt = _try_leap, jump_adapt = _try_leap,
+    flee = _try_flee, retreat = _try_retreat, breakoff = _try_breakoff, claw = _try_claw,
+    gravity_attack = _try_gravity,
 }
 
--- A best row is eligible when the species carries the toggled move, the body plan admits it, and the caps/clocks allow it.
--- The enemy sits inside this species' commanded-leap range; keeps a leap from being decided (and wasting a beat) out of range.
-local function _is_in_jump_band(rec)
-    local dist = rec.memo.dist
-    return rec.jump_max_m ~= nil and dist <= rec.jump_max_m and dist >= (rec.jump_min_m or 0)
-end
-
-local function _check_row(mob, rec, row, now)
-    local move = row.move
-    if not rec.moves[move] then return false end
-    if row.bipeds and rec.quadruped then return false end
-    if move == MOVE_FLEE and (not _runaway_id or now < rec.flee_ok_at) then return false end
-    if move == MOVE_RETREAT and (not _runaway_id or now < rec.retreat_ok_at) then return false end
-    if move == MOVE_BREAKOFF and not _runaway_id then return false end
-    if CAPPED[move] and rec.memo.dry then return false end
-    if move == LEAP_FAMILY then
-        if not _check_leap_toggled(rec) or not _is_in_jump_band(rec) then return false end
-    elseif not _check_toggle(rec, move) then
-        return false
+-- The atom shuffles this species' toggled decision moves in place (Fisher-Yates, ap_core_producer.script:186-189).
+-- It walks up to [select] candidates and the FIRST that fires consumes the beat and breaks; no premise table, no shared gate.
+local function _run_atom(mob, rec, now)
+    local buf = rec.move_buf
+    local count = 0
+    for i = 1, #DECISION_MOVES do
+        local move = DECISION_MOVES[i]
+        if rec.moves[move] and _check_toggle(rec, move) then
+            count = count + 1
+            buf[count] = move
+        end
     end
-    return PREMISES[row.premise](mob, rec, now) == true
-end
-
-local function _find_row(mob, rec, now)
-    for i = 1, #BEST_MOVES do
-        local row = BEST_MOVES[i]
-        if _check_row(mob, rec, row, now) then return row end
+    if count == 0 then return end
+    for i = count, 2, -1 do
+        local j = math_random(i)
+        if j ~= i then buf[i], buf[j] = buf[j], buf[i] end
     end
-    return nil
-end
-
--- The decision: one true premise takes ONE Intelligence roll; the 6s clock stamps either way; a miss does nothing.
-local function _run_decision(mob, rec, now)
-    local row = _find_row(mob, rec, now)
-    if not row then return end
-    rec.decided_at = now
-    if _check_intelligence(rec) then
-        MOVE_EXEC[row.move](mob, rec, row.move, now, row.premise)
-        return
-    end
-    if at_debug.is_on() then
-        local best = row.move
-        if best == LEAP_FAMILY then best = _resolve_leap_variant(mob, rec) or LEAP_FAMILY end
-        at_debug.debug("[MUT] PASS id=%d premise=%s best=%s", rec.id, row.premise, best)
+    local limit = _tun_num.candidates
+    if limit > count then limit = count end
+    for i = 1, limit do
+        if TRY[buf[i]](mob, rec, buf[i], now) then return end
     end
 end
 
@@ -724,16 +635,25 @@ local function _reset_fight(mob, rec)
         xmonster.stop_monster_animation(mob)
         rec.claw_until = 0
     end
+    if rec.gravity_release > 0 then
+        xmonster.set_burer_gravi_force(mob, false)
+        rec.gravity_release = 0
+    end
     rec.driver = "-"
     rec.gate = nil
     rec.enemy_px, rec.enemy_pz = nil, nil
     rec.strafing = false
 end
 
--- The one 600ms lane: upkeep every beat, samples every beat, the decision behind the flat 6s clock.
+-- The one 600ms lane runs upkeep and samples every beat, then (if no committed window holds) rolls Intelligence once.
+-- Only on a pass does it build the decision memo and run the atom; a miss does zero premise or feasibility work.
 local function _update_mutant(mob, rec, now)
     rec.tick_now = now
     rec.seen_ms = now
+    if rec.gravity_release > 0 and now >= rec.gravity_release then
+        xmonster.set_burer_gravi_force(mob, false)
+        rec.gravity_release = 0
+    end
     if rec.aim_restore and not xmonster.is_monster_jumping(mob) then
         xmonster.set_monster_jump_flags(mob, { auto_aim_factor = rec.aim_basis })
         rec.aim_restore = nil
@@ -750,8 +670,11 @@ local function _update_mutant(mob, rec, now)
     local dist = math_sqrt(dist_sqr)
     _update_samples(rec, enemy_pos, mob_pos)
     _update_stall(rec, enemy, dist, now)
-    if rec.flee_until > now or rec.retreat_until > now or rec.breakoff_until > now then return end
-    if now - rec.decided_at < _tun_num.throttle_ms then return end
+    if rec.flee_until > now or rec.retreat_until > now or rec.breakoff_until > now or rec.gravity_release > now then return end
+    if not _check_intelligence(rec) then
+        if at_debug.is_on() then at_debug.debug("[MUT] PASS id=%d int", rec.id) end
+        return
+    end
     local is_actor = enemy:id() == AC_ID
     local memo = rec.memo
     memo.enemy = enemy
@@ -761,10 +684,10 @@ local function _update_mutant(mob, rec, now)
     memo.dist_sqr = dist_sqr
     memo.is_actor = is_actor
     memo.bucket = is_actor and VS_PLAYER or VS_NPC
-    memo.dry = not _check_slot(memo.bucket)
-    _reset_memo(rec)
+    memo.watching = xcombat.is_enemy_watching(enemy, mob, _tun_num.threat_cone)
+    memo.vulnerable = _check_enemy_vulnerable(enemy, is_actor, now)
     rec.low_now = xmonster.get_monster_health(mob) <= _tun_num.survival_frac
-    _run_decision(mob, rec, now)
+    _run_atom(mob, rec, now)
 end
 
 local function _on_mob_update(mob)
@@ -852,12 +775,13 @@ local function _on_entity_unregister(se_obj)
     _states[se_obj.id] = nil
 end
 
--- Release what a dropped record pushed and still owns live: the animation override or a pending gain restore.
+-- Release what a dropped record pushed and still owns live: the animation override, a pending gravi force, or a gain restore.
 -- Pushed params revert on the next spawn (not serialized).
 local function _release_mutant(rec)
     local mob = xobject.get_go(rec.id)
     if not mob then return end
     if rec.claw_until > 0 then xmonster.stop_monster_animation(mob) end
+    if rec.gravity_release > 0 then xmonster.set_burer_gravi_force(mob, false) end
     if rec.aim_restore then xmonster.set_monster_jump_flags(mob, { auto_aim_factor = rec.aim_basis }) end
 end
 
@@ -926,7 +850,7 @@ local CHARGE_KEYS = {
 local function _load_tunables()
     _tun = xltx.resolve_handle(LTX_PATH)
     _tun_num = {
-        throttle_ms = (_read_num("throttle", "default") or 6) * 1000,
+        candidates = _read_num("select", "candidates") or 3,
         flee_throttle_ms = (_read_num("throttle", "flee") or 60) * 1000,
         retreat_throttle_ms = (_read_num("throttle", "retreat") or 20) * 1000,
         cap_player = _read_num("caps", "vs_player"),
@@ -934,7 +858,6 @@ local function _load_tunables()
         int_cap = _read_num("intelligence", "cap"),
         above_m = _read_num("premises", "above_m"),
         climb_near_m = _read_num("premises", "climb_near_m"),
-        offmesh_gap_sqr = _read_num("premises", "offmesh_gap_sqr"),
         stall_ms = _read_num("premises", "stall_ms"),
         stall_progress_m = _read_num("premises", "stall_progress_m"),
         strafe_lat_sqr = (_read_num("premises", "strafe_lat_m") or 1) ^ 2,
@@ -945,17 +868,18 @@ local function _load_tunables()
         survival_hold_max = _read_num("survival", "hold_max"),
         retreat_hold_min = _read_num("retreat", "hold_min"),
         retreat_hold_max = _read_num("retreat", "hold_max"),
-        retreat_max_m = _read_num("retreat", "max_dist_m"),
+        breakoff_close_m = _read_num("breakoff", "close_m"),
+        breakoff_face_cone = _read_num("breakoff", "face_cone_deg"),
         breakoff_hold_min = _read_num("breakoff", "hold_min"),
         breakoff_hold_max = _read_num("breakoff", "hold_max"),
         threat_cone = _read_num("threat", "facing_cone_deg"),
-        leap_cone = _read_num("leap", "facing_cone_deg"),
-        leap_fallback_max = _read_num("leap", "fallback_max_m"),
         adapt_min = _read_num("adapt", "factor_min"), adapt_max = _read_num("adapt", "factor_max"),
         charge_slow = _read_num("charge", "slow_mult"), charge_fast = _read_num("charge", "fast_mult"),
         claw_range = _read_num("claw", "range_m"),
         claw_cone = _read_num("claw", "facing_cone_deg"),
         claw_clear = _read_num("claw", "clear_ms"),
+        gravity_cone = _read_num("gravity_attack", "face_cone_deg"),
+        gravity_release = _read_num("gravity_attack", "release_ms"),
         backstrike_arc = _read_num("backstrike", "arc_deg"),
         ability_pct = _read_num("wild", "ability_pct"),
     }
@@ -968,10 +892,7 @@ local function _load_tunables()
         for k = 1, #list do set[list[k]] = true end
         _move_species[move] = set
     end
-    _inside_chance = {}
-    for i = 1, #MOVE_KEYS do
-        _inside_chance[MOVE_KEYS[i]] = _read_num("inside_chance", MOVE_KEYS[i]) or 1
-    end
+    _personality_cache = {}
     _quadrupeds = {}
     local quad_list = xltx.read_list(_tun, "quadrupeds", "species")
     for k = 1, #quad_list do _quadrupeds[quad_list[k]] = true end
@@ -1011,7 +932,7 @@ function get_mutant_record(id)
 end
 
 --- The driver label for one adopted mutant ("CLAW"/"JUMP"/"LEAP ADAPT"/"RUSH"/.../"-"), nil when not adopted.
---- The record's .gate ("int, wild") names what influenced the fired move; the HUD appends it.
+--- The record's .gate ("int, pers") names what influenced the fired move; the HUD appends it.
 function get_driver(id)
     local rec = _states[id]
     return rec and rec.driver or nil
