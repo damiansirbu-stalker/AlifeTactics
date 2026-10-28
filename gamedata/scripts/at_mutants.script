@@ -26,13 +26,13 @@ local MOVE_JUMP_ADAPT = "jump_adapt"
 
 -- Every move the adopt line and the MCM tree key on; cloak and backstrike arm at adoption, the rest decide per beat.
 local MOVE_KEYS = {
-    "leap", "jump", "leap_adapt", "jump_adapt", "flee", "retreat", "breakoff",
+    "leap", "jump", "leap_adapt", "jump_adapt", "flee", "breakoff",
     "cloak", "gravity_attack", "claw", "backstrike",
 }
 
 -- The per-beat decision chain the atom shuffles and walks; cloak/backstrike/charge/auras arm at adoption, not here.
 local DECISION_MOVES = {
-    "leap", "jump", "leap_adapt", "jump_adapt", "flee", "retreat", "breakoff", "claw", "gravity_attack",
+    "leap", "jump", "leap_adapt", "jump_adapt", "flee", "breakoff", "claw", "gravity_attack",
 }
 
 local _states = {}
@@ -374,8 +374,7 @@ local function _add_mutant(mob, id, now)
         move_buf = {},
         flee_ok_at = 0,
         flee_until = 0,
-        retreat_ok_at = 0,
-        retreat_until = 0,
+        breakoff_ok_at = 0,
         breakoff_until = 0,
         gravity_release = 0,
         claw_until = 0,
@@ -453,28 +452,6 @@ local function _update_samples(rec, enemy_pos, mob_pos)
     rec.strafing = dx * dx + dz * dz - along * along > _tun_num.strafe_lat_sqr
 end
 
--- The no-progress tracker: the baseline enemy distance and when it was taken; closing by stall_progress_m re-arms it, a new enemy resets it.
--- The stalled premise reads the age - no closing and no damage dealt for stall_ms = a mutant that cannot reach the actor, the common-sense retreat.
-local function _update_stall(rec, enemy, dist, now)
-    local enemy_id = enemy:id()
-    if rec.stall_enemy_id ~= enemy_id then
-        rec.stall_enemy_id = enemy_id
-        rec.stall_base = dist
-        rec.stall_base_ms = now
-        return
-    end
-    if dist <= rec.stall_base - _tun_num.stall_progress_m then
-        rec.stall_base = dist
-        rec.stall_base_ms = now
-    end
-end
-
--- True when the mutant has not closed nor dealt damage for stall_ms - the no-progress read the retreat fires on.
-local function _is_stalled(rec, now)
-    if not rec.stall_base_ms or now - rec.stall_base_ms < _tun_num.stall_ms then return false end
-    return rec.dealt_ms == nil or now - rec.dealt_ms >= _tun_num.stall_ms
-end
-
 -- Stamp the driver label, the gate, and the fire time; the HUD reads them.
 local function _log_fire(rec, move, detail)
     rec.driver = move:gsub("_", " "):upper()
@@ -537,30 +514,16 @@ local function _try_flee(mob, rec, _move, now)
     return true
 end
 
--- Give ground when stalled (cannot close nor damage the actor): a short committed RunAway, no distance cap; the FSM re-engages after.
-local function _try_retreat(_mob, rec, _move, now)
-    local memo = rec.memo
-    if not memo.is_actor or now < rec.retreat_ok_at or not _runaway_id then return false end
-    if not _is_stalled(rec, now) then return false end
-    if not _check_personality(rec, "retreat") then return false end
-    if not _check_slot(memo.bucket) then return false end
-    local hold = _select_band(_tun_num.retreat_hold_min, _tun_num.retreat_hold_max)
-    rec.retreat_until = now + hold
-    rec.retreat_ok_at = now + _tun_num.retreat_throttle_ms
-    _add_slot(memo.bucket)
-    _log_fire(rec, "retreat", (" hold=%dms"):format(hold))
-    return true
-end
-
 -- The circling hit-and-run dart: the actor close and the mutant not nose-on (a flank), a brief RunAway then re-approach.
 local function _try_breakoff(mob, rec, _move, now)
     local memo = rec.memo
-    if not memo.is_actor or not _runaway_id or memo.dist > _tun_num.breakoff_close_m then return false end
+    if not memo.is_actor or now < rec.breakoff_ok_at or not _runaway_id or memo.dist > _tun_num.breakoff_close_m then return false end
     if xcombat.is_facing(mob, memo.enemy_pos, _tun_num.breakoff_face_cone) then return false end
     if not _check_personality(rec, "breakoff") then return false end
     if not _check_slot(memo.bucket) then return false end
     local hold = _select_band(_tun_num.breakoff_hold_min, _tun_num.breakoff_hold_max)
     rec.breakoff_until = now + hold
+    rec.breakoff_ok_at = now + _tun_num.breakoff_throttle_ms
     _add_slot(memo.bucket)
     _log_fire(rec, "breakoff", (" hold=%dms"):format(hold))
     return true
@@ -599,7 +562,7 @@ end
 -- The move -> handler dispatch; the four leap variants share _try_leap (it branches on the move key inside).
 local TRY = {
     leap = _try_leap, jump = _try_leap, leap_adapt = _try_leap, jump_adapt = _try_leap,
-    flee = _try_flee, retreat = _try_retreat, breakoff = _try_breakoff, claw = _try_claw,
+    flee = _try_flee, breakoff = _try_breakoff, claw = _try_claw,
     gravity_attack = _try_gravity,
 }
 
@@ -643,6 +606,8 @@ local function _reset_fight(mob, rec)
     rec.strafing = false
 end
 
+local _gate_probe = {}
+
 -- The one 600ms lane runs upkeep and samples every beat, then (if no committed window holds) rolls Intelligence once.
 -- Only on a pass does it build the decision memo and run the atom; a miss does zero premise or feasibility work.
 local function _update_mutant(mob, rec, now)
@@ -667,8 +632,11 @@ local function _update_mutant(mob, rec, now)
     local dist_sqr = mob_pos:distance_to_sqr(enemy_pos)
     local dist = math_sqrt(dist_sqr)
     _update_samples(rec, enemy_pos, mob_pos)
-    _update_stall(rec, enemy, dist, now)
-    if rec.flee_until > now or rec.retreat_until > now or rec.breakoff_until > now or rec.gravity_release > now then return end
+    if rec.flee_until > now or rec.breakoff_until > now or rec.gravity_release > now then return end
+    local ac = db.actor
+    if not ac then return end
+    _gate_probe.actor_dist_sqr = mob_pos:distance_to_sqr(ac:position())
+    if not at_core.is_in_gate(_gate_probe) then return end
     if not _check_intelligence(rec) then
         if at_debug.is_on() then at_debug.debug("[MUT] PASS id=%d int", rec.id) end
         return
@@ -712,10 +680,10 @@ local function _on_mob_update(mob)
     if at_debug.is_on() then _log_tick(timer:get_ms(), now) end
 end
 
--- Re-propose eStateAttack_RunAway while a flee, retreat or breakoff window holds; the silent path stays pure Lua.
+-- Re-propose eStateAttack_RunAway while a flee or breakoff window holds; the silent path stays pure Lua.
 local function _on_combat_action(monster, _enemy, _dist, _enemy_strength, _can_jump, flags)
     local rec = _states[monster:id()]
-    if not rec or (rec.flee_until <= rec.tick_now and rec.retreat_until <= rec.tick_now and rec.breakoff_until <= rec.tick_now) then
+    if not rec or (rec.flee_until <= rec.tick_now and rec.breakoff_until <= rec.tick_now) then
         if at_debug.is_on() then _prop_silent = _prop_silent + 1 end
         return
     end
@@ -736,7 +704,6 @@ local function _apply_dealt(shit)
     if not attacker then return end
     local rec = _states[attacker:id()]
     if not rec then return end
-    rec.dealt_ms = time_global()
     local dbg = at_debug.is_on()
     local tmr = xprofiler.new_if(dbg):start()
     local dealt = _tracks.damage[rec.tier]
@@ -850,22 +817,18 @@ local function _load_tunables()
     _tun_num = {
         candidates = _read_num("select", "candidates") or 3,
         flee_throttle_ms = (_read_num("throttle", "flee") or 60) * 1000,
-        retreat_throttle_ms = (_read_num("throttle", "retreat") or 20) * 1000,
+        breakoff_throttle_ms = (_read_num("throttle", "breakoff") or 6) * 1000,
         cap_player = _read_num("caps", "vs_player"),
         cap_npc = _read_num("caps", "vs_npc"),
         int_cap = _read_num("intelligence", "cap"),
         above_m = _read_num("premises", "above_m"),
         climb_near_m = _read_num("premises", "climb_near_m"),
-        stall_ms = _read_num("premises", "stall_ms"),
-        stall_progress_m = _read_num("premises", "stall_progress_m"),
         strafe_lat_sqr = (_read_num("premises", "strafe_lat_m") or 1) ^ 2,
         flee_min_m = _read_num("survival", "min_dist_m"),
         flee_face_cone = _read_num("survival", "face_cone_deg"),
         survival_frac = _read_num("survival", "health_frac"),
         survival_hold_min = _read_num("survival", "hold_min"),
         survival_hold_max = _read_num("survival", "hold_max"),
-        retreat_hold_min = _read_num("retreat", "hold_min"),
-        retreat_hold_max = _read_num("retreat", "hold_max"),
         breakoff_close_m = _read_num("breakoff", "close_m"),
         breakoff_face_cone = _read_num("breakoff", "face_cone_deg"),
         breakoff_hold_min = _read_num("breakoff", "hold_min"),

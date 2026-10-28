@@ -41,9 +41,6 @@
         - A point-blank strike for the chimera and lurker, which vanilla otherwise walks into melee with no attack to use.
       Flee
         - A mutant near death and far enough to escape takes one long run from the fight. A cornered one fights to the end.
-      Retreat
-        - A mutant that has not closed on you or struck you for 2 seconds gives ground for about 5 seconds, then the game walks it back in.
-            A jumper tries a leap at you first and falls to this when it cannot reach.
       Breakoff
         - A melee mutant occasionally breaks contact for about 2 seconds and closes again, so its circling and pressing never settle into a steady pattern you can read.
       Ability variation

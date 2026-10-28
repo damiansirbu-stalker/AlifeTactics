@@ -387,12 +387,6 @@
   <string id="ui_mcm_at_mutants_flee_desc">
     <text>[int, wild] Breaks off and runs when near death and far enough to reach safety. A cornered mutant has no room to run and fights to the end.</text>
   </string>
-  <string id="ui_mcm_at_mutants_retreat">
-    <text>Retreat</text>
-  </string>
-  <string id="ui_mcm_at_mutants_retreat_desc">
-    <text>[int, wild] Backs off for a few seconds when it cannot close on you or strike you, then closes back in to try again.</text>
-  </string>
   <string id="ui_mcm_at_mutants_breakoff">
     <text>Breakoff</text>
   </string>

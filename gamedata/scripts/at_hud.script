@@ -167,7 +167,6 @@ local function _format_mob_systems(rec, tg, state, jumping)
     local sname = at_core.get_mob_state_name(state)
     local ours
     if rec.flee_until > rec.tick_now then ours = "flee"
-    elseif rec.retreat_until > rec.tick_now then ours = "retreat"
     elseif rec.claw_until > 0 then ours = "claw"
     elseif rec.paces_charge and sname == RUN_ATTACK_STATE then ours = "charge"
     elseif rec.fired_at and tg - rec.fired_at < MOB_LINGER_MS then ours = rec.fired_move end
