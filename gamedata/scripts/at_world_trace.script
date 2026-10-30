@@ -584,6 +584,11 @@ local function _on_unregister(se_obj)
         log.info("[WORLD] mob id=%d %s summary contacts=%d hits_in=%d hits_total=%d overshoots=%d orbit=%.1fs",
             id, mob.name or "?", mob.contacts, mob.contact_hits, mob.hits or 0, mob.overshoots, mob.orbit_s)
     end
+    if mob and (mob.vn or 0) > 0 then
+        log.info("[WORLD] mob id=%d %s velsummary samples=%d frozen=%d(%.0f%%) mean_cur=%.2f mean_tgt=%.2f mean_real=%.2f",
+            id, mob.name or "?", mob.vn, mob.frozen or 0, 100 * (mob.frozen or 0) / mob.vn,
+            mob.vcur_sum / mob.vn, mob.vtgt_sum / mob.vn, mob.vreal_sum / mob.vn)
+    end
     _mob[id] = nil
     _hit_at[id] = nil
     _hit_by[id] = nil
@@ -1009,6 +1014,25 @@ local function _log_mob_edge(mob, obj, id, dist, tg)
     return jumping
 end
 
+-- Sample the engine movement record (get_monster_movement_info, modded exes only); trace-only, nil below the bind.
+-- Accumulate cur/target/real for the velsummary, and log the sample when the mob is trying to move or is moving.
+local function _log_mob_velocity(mob, obj, id)
+    local mi = xmonster.get_monster_movement_info(obj)
+    if not mi then return end
+    mob.vn = (mob.vn or 0) + 1
+    mob.vcur_sum = (mob.vcur_sum or 0) + mi.velocity_current
+    mob.vtgt_sum = (mob.vtgt_sum or 0) + mi.velocity_target
+    mob.vreal_sum = (mob.vreal_sum or 0) + mi.real_velocity
+    if mi.velocity_target > mi.velocity_current + 0.3 and mi.velocity_current < 0.3 then
+        mob.frozen = (mob.frozen or 0) + 1
+    end
+    if mi.velocity_target > 0.1 or mi.velocity_current > 0.1 then
+        log.debug("[WORLD] mob id=%d vel cur=%.2f tgt=%.2f real=%.2f pc=%s pa=%s pact=%s",
+            id, mi.velocity_current, mi.velocity_target, mi.real_velocity,
+            mi.path_completed and "y" or "n", mi.path_actual and "y" or "n", mi.path_active and "y" or "n")
+    end
+end
+
 local function _update_mob(obj, id, tg, ap)
     local mob = _mob[id]
     if not mob then
@@ -1018,6 +1042,7 @@ local function _update_mob(obj, id, tg, ap)
     if tg < mob.next_ms then return end
     local dist, vr, vt, had_prev = _read_mob_motion(mob, obj:position(), ap, tg)
     local jumping = _log_mob_edge(mob, obj, id, dist, tg)
+    _log_mob_velocity(mob, obj, id)
     if had_prev then
         local state_name = at_core.get_mob_state_name(mob.state)
         _check_mob_stuck(mob, id, state_name, jumping, tg)
