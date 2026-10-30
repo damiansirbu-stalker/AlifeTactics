@@ -26,13 +26,13 @@ local MOVE_JUMP_ADAPT = "jump_adapt"
 
 -- Every move the adopt line and the MCM tree key on; cloak and backstrike arm at adoption, the rest decide per beat.
 local MOVE_KEYS = {
-    "leap", "jump", "leap_adapt", "jump_adapt", "flee", "breakoff",
+    "leap", "jump", "leap_adapt", "jump_adapt", "flee",
     "cloak", "gravity_attack", "claw", "backstrike",
 }
 
 -- The per-beat decision chain the atom shuffles and walks; cloak/backstrike/charge/auras arm at adoption, not here.
 local DECISION_MOVES = {
-    "leap", "jump", "leap_adapt", "jump_adapt", "flee", "breakoff", "claw", "gravity_attack",
+    "leap", "jump", "leap_adapt", "jump_adapt", "flee", "claw", "gravity_attack",
 }
 
 local _states = {}
@@ -374,8 +374,6 @@ local function _add_mutant(mob, id, now)
         move_buf = {},
         flee_ok_at = 0,
         flee_until = 0,
-        breakoff_ok_at = 0,
-        breakoff_until = 0,
         gravity_release = 0,
         claw_until = 0,
         claw_motion = species and moves.claw and _claw_motion or nil,
@@ -514,21 +512,6 @@ local function _try_flee(mob, rec, _move, now)
     return true
 end
 
--- The circling hit-and-run dart: the actor close and the mutant not nose-on (a flank), a brief RunAway then re-approach.
-local function _try_breakoff(mob, rec, _move, now)
-    local memo = rec.memo
-    if not memo.is_actor or now < rec.breakoff_ok_at or not _runaway_id or memo.dist > _tun_num.breakoff_close_m then return false end
-    if xcombat.is_facing(mob, memo.enemy_pos, _tun_num.breakoff_face_cone) then return false end
-    if not _check_personality(rec, "breakoff") then return false end
-    if not _check_slot(memo.bucket) then return false end
-    local hold = _select_band(_tun_num.breakoff_hold_min, _tun_num.breakoff_hold_max)
-    rec.breakoff_until = now + hold
-    rec.breakoff_ok_at = now + _tun_num.breakoff_throttle_ms
-    _add_slot(memo.bucket)
-    _log_fire(rec, "breakoff", (" hold=%dms"):format(hold))
-    return true
-end
-
 -- The chimera-class contact strike; one animation owner, outside the caps, cleared by its 1s throttle window or any jump.
 local function _try_claw(mob, rec, _move, now)
     local memo = rec.memo
@@ -562,7 +545,7 @@ end
 -- The move -> handler dispatch; the four leap variants share _try_leap (it branches on the move key inside).
 local TRY = {
     leap = _try_leap, jump = _try_leap, leap_adapt = _try_leap, jump_adapt = _try_leap,
-    flee = _try_flee, breakoff = _try_breakoff, claw = _try_claw,
+    flee = _try_flee, claw = _try_claw,
     gravity_attack = _try_gravity,
 }
 
@@ -632,7 +615,7 @@ local function _update_mutant(mob, rec, now)
     local dist_sqr = mob_pos:distance_to_sqr(enemy_pos)
     local dist = math_sqrt(dist_sqr)
     _update_samples(rec, enemy_pos, mob_pos)
-    if rec.flee_until > now or rec.breakoff_until > now or rec.gravity_release > now then return end
+    if rec.flee_until > now or rec.gravity_release > now then return end
     local ac = db.actor
     if not ac then return end
     _gate_probe.actor_dist_sqr = mob_pos:distance_to_sqr(ac:position())
@@ -680,10 +663,10 @@ local function _on_mob_update(mob)
     if at_debug.is_on() then _log_tick(timer:get_ms(), now) end
 end
 
--- Re-propose eStateAttack_RunAway while a flee or breakoff window holds; the silent path stays pure Lua.
+-- Re-propose eStateAttack_RunAway while a flee window holds; the silent path stays pure Lua.
 local function _on_combat_action(monster, _enemy, _dist, _enemy_strength, _can_jump, flags)
     local rec = _states[monster:id()]
-    if not rec or (rec.flee_until <= rec.tick_now and rec.breakoff_until <= rec.tick_now) then
+    if not rec or rec.flee_until <= rec.tick_now then
         if at_debug.is_on() then _prop_silent = _prop_silent + 1 end
         return
     end
@@ -817,7 +800,6 @@ local function _load_tunables()
     _tun_num = {
         candidates = _read_num("select", "candidates") or 3,
         flee_throttle_ms = (_read_num("throttle", "flee") or 60) * 1000,
-        breakoff_throttle_ms = (_read_num("throttle", "breakoff") or 6) * 1000,
         cap_player = _read_num("caps", "vs_player"),
         cap_npc = _read_num("caps", "vs_npc"),
         int_cap = _read_num("intelligence", "cap"),
@@ -829,10 +811,6 @@ local function _load_tunables()
         survival_frac = _read_num("survival", "health_frac"),
         survival_hold_min = _read_num("survival", "hold_min"),
         survival_hold_max = _read_num("survival", "hold_max"),
-        breakoff_close_m = _read_num("breakoff", "close_m"),
-        breakoff_face_cone = _read_num("breakoff", "face_cone_deg"),
-        breakoff_hold_min = _read_num("breakoff", "hold_min"),
-        breakoff_hold_max = _read_num("breakoff", "hold_max"),
         threat_cone = _read_num("threat", "facing_cone_deg"),
         aim_cone = _read_num("threat", "aim_cone_deg"),
         adapt_min = _read_num("adapt", "factor_min"), adapt_max = _read_num("adapt", "factor_max"),

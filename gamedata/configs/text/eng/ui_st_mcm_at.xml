@@ -387,12 +387,6 @@
   <string id="ui_mcm_at_mutants_flee_desc">
     <text>[int, wild] Breaks off and runs when near death and far enough to reach safety. A cornered mutant has no room to run and fights to the end.</text>
   </string>
-  <string id="ui_mcm_at_mutants_breakoff">
-    <text>Breakoff</text>
-  </string>
-  <string id="ui_mcm_at_mutants_breakoff_desc">
-    <text>[int, wild] Occasionally breaks contact for a moment and closes again, so its circling and pressing never settle into a steady pattern you can read.</text>
-  </string>
   <!-- ==================== SHARED ==================== -->
   <string id="ui_mcm_at_title">
     <text>AlifeTactics</text>

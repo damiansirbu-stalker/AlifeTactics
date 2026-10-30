@@ -82,7 +82,7 @@ The chance is Intelligence then Personality: Intelligence is a base plus a per-r
 Character is Personality plus the move envelope: a faction takes each action at a per-action chance (the Personality sections in `at_faction_config.ltx`) and a species takes each move at a per-species chance (the `[personality_*]` sections in `at_mutants_config.ltx`), 0 = never, 1 = always, an absent entry universal; a species also either carries a move at all (the `[moves]` envelope).
 The two Intelligence pairs are separate controls, the stalker's on the Combat General page and the mutant's on the Mutants General page; the mutant's rank is the map tier (`xlevel.get_danger_tier`, 0-5), the stalker's his own rank.
 Push, Pull, the maneuver catalog, and the LIQUIDATE deferral run it on the stalker side, where the premise is each `check_need`, the press cause, or a helpless target; a miss lets the opening go, a pass commits to a window, and each spends a start from the window budget.
-The mutant side runs the atom in `at_mutants`: every 600ms beat a held window (flee, breakoff, gravity) skips the beat, otherwise Intelligence rolls ONCE at the top (`_check_intelligence`) and a miss does zero premise or feasibility work.
+The mutant side runs the atom in `at_mutants`: every 600ms beat a held window (flee, gravity) skips the beat, otherwise Intelligence rolls ONCE at the top (`_check_intelligence`) and a miss does zero premise or feasibility work.
 On a pass the species' toggled moves are shuffled in place (Fisher-Yates) and walked up to `[select] candidates`; each move is a Chain-of-Responsibility handler that tests its own premise then its Personality (`_check_personality`), both falling through free on a miss, and the FIRST that fires consumes the beat.
 There is no premise table and no shared gate; the rate slot is stamped only on an executed fire, and the `[select]` cap is the budget.
 The stalker resolver runs the same atom: `_resolve_maneuver` rolls Intelligence once at the top, then shuffles the maneuver catalog and walks it, each row self-gating premise then Personality, the first that picks winning; both sides share the Intelligence x Personality chance and the `inside_chance` second roll is retired.
@@ -667,7 +667,7 @@ The loot and trade inventory floors own carrier persistence, and Gear only marks
 ## Mutants
 
 Mutant combat runs the shared decision model with no takeover: the engine FSM stays the sole mover, and the module varies values innately and commands moves the engine validates itself.
-THE ATOM: every 600ms a fighting mutant that holds no committed window (flee, breakoff, gravity) rolls Intelligence ONCE at the top; a miss does zero premise or feasibility work and the vanilla FSM fights on.
+THE ATOM: every 600ms a fighting mutant that holds no committed window (flee, gravity) rolls Intelligence ONCE at the top; a miss does zero premise or feasibility work and the vanilla FSM fights on.
 On a pass the species' toggled decision moves are shuffled in place (Fisher-Yates) and walked up to `[select] candidates` (3); each move is a self-contained handler that tests its own premise then its Personality, falls through free on either miss, and the FIRST that fires consumes the beat and breaks.
 There is no premise table and no shared gate: every check is a handler's own line over the pass memo - one scratch reset per pass, plus a beat-cache for the actor's vulnerability. A refused invoke falls through to the next candidate; the rate slot stamps only on an executed fire.
 Intelligence is base + map-rank slope, capped; rank is the map tier (`xlevel.get_danger_tier`, 0-5). Personality is the per-species per-move chance (the `[personality_*]` sections), final chance = Intelligence x Personality; the retired `inside_chance` second roll is gone.
@@ -680,7 +680,6 @@ GRAVITY is the burer's forced gravi throw, shield-safe by its trigger: a vulnera
 The charge is engine-owned end to end - the autonomous trigger re-checks it every scheduler tick through the same gates a command would pass, so a commanded charge can never add a fire; what the module owns is the PACING: the species' own wait between charges, scaled by Intelligence at adoption (a smart one waits less and presses), never the band geometry.
 FLEE has ONE trigger, ability to flee: health below the survival fraction, the actor 20m+ to disengage (`[survival] min_dist_m`), and the mutant not nose-on to the enemy (no 180-turn-and-die) - a cornered mutant fights. Its Personality carries the rarity (low on the apex and pack, high on prey); the window is a fixed 45-75s timer and while it holds the proposal subscriber re-proposes `eStateAttack_RunAway`.
 THE GATE: the atom evaluates a mutant only within `gate_radius_m` of the player (`at_core.is_in_gate`), the one shared radius the stalker resolver and the HUD also read, so a mutant decides only when it is near enough to the player to matter and never acts across the map. A disengage move (the mutant equivalent of the stalker retreat) was tried and dropped - no proxy told "genuinely cannot reach" from "the player is dodging well", and the engine exposes no reachability read; it is parked as research (`todo-alifetactics-mutants.md` m24 MUTANT_DISENGAGE).
-BREAKOFF is the restless-predator hop: the same engine RunAway, briefer (`[breakoff]` hold ~2s), on the actor within 10m and the mutant not nose-on (a flank) - a dart sideways then a re-approach, so the circling never reads as a steady orbit. A `[throttle] breakoff` gap (6s) spaces the darts so they never chain beat to beat; its Personality carries the rarity, over the melee species envelope (chimera/lurker and the casters out).
 Monster health is a normalized fraction clamped to 1.0 every condition update, so a health pool, regeneration, or lifesteal cannot raise it; toughness lives in resistance alone, stat = 1 + x% * rank.
 
 Does: adopts each online mutant on its first binder update, scales its hits by tier, and runs the decision model on one 600ms lane.
@@ -698,14 +697,14 @@ monster_on_update (binder scheduler, 100ms near to 625ms far) -> the one lane, g
          the backstrike arm roll (re-decided each adoption)
   every beat: upkeep (the gravi-force clear at its window end, the claw-override clear on its window or any
          jump, the jump-gain restore on landing), the motion samples (recede, lateral strafe)
-  a held window (flee / breakoff / gravity) -> skip the beat
+  a held window (flee / gravity) -> skip the beat
   the gate: the actor within gate_radius_m (is_in_gate) -> else skip the beat
   else Intelligence rolls ONCE -> a miss does zero premise or feasibility work
   on a pass: shuffle the toggled decision moves, walk up to [select] candidates, the first FIRE breaks -
          leap (not aiming) / jump (aiming or vulnerable) / the adapt pair (strafing), feasibility in xmonster
          flee (low health, actor 20m+, not nose-on)
-         breakoff (actor <10m, not nose-on, 6s throttle)   claw (contact + facing, outside the caps)   gravity (burer: vulnerable or back-turned)
-monster_on_combat_action -> the proposal subscriber: pure Lua on the silent path, re-proposes while a flee or breakoff window holds
+         claw (contact + facing, outside the caps)   gravity (burer: vulnerable or back-turned)
+monster_on_combat_action -> the proposal subscriber: pure Lua on the silent path, re-proposes while a flee window holds
 before-hit seams: damage dealt (victim-side, keyed on shit.draftsman) and damage taken
                   (monster_on_before_hit); a 1.0 track skips the engine write, so rank-0 maps pay a table lookup
 ```
@@ -777,7 +776,7 @@ Jamming        a module function on xr_weapon_jam                            xr_
 Ammo           the CWeapon m_ammoType field, a per-fight box delete          wpn:set_ammo_type, alife_release
 Gear           five resolver providers plus the single regen bind           register, set_health_restore_boost
 Mutants        per-mutant params at adoption, one-shot move invokes,        the xmonster setters and invokes, play/stop animation,
-               the flee and breakoff proposals, the hit-power scaling       monster_on_combat_action, the three before-hit seams
+               the flee proposal, the hit-power scaling                     monster_on_combat_action, the three before-hit seams
 ```
 
 ## File and config layout

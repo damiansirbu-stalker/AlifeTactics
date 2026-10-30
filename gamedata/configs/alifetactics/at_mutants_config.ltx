@@ -28,7 +28,6 @@ jump           = chimera, lurker, cat, bloodsucker, psysucker, dog, snork, pseud
 leap_adapt     = chimera, lurker, cat, bloodsucker, psysucker, dog, snork, pseudodog, psy_dog
 jump_adapt     = chimera, lurker, cat, bloodsucker, psysucker, dog, snork, pseudodog, psy_dog
 flee           = bloodsucker, psysucker, dog, boar, snork, pseudodog, psy_dog, gigant, cat, flesh, fracture, karlik, tushkano
-breakoff       = bloodsucker, psysucker, dog, boar, snork, pseudodog, psy_dog, gigant, cat, flesh, fracture, karlik, tushkano
 cloak          = bloodsucker, psysucker
 gravity_attack = burer
 claw           = chimera, lurker
@@ -42,7 +41,6 @@ candidates = 3
 
 [throttle] ; per-move re-fire gaps, seconds; a routed mutant does not instantly re-rout once its committed window closes
 flee     = 120
-breakoff = 6
 
 [caps] ; max driven moves assumed running at once per bucket; a slot counts slot_s seconds
 slot_s    = 3
@@ -59,7 +57,7 @@ strafe_lat_m = 1.0      ; the enemy lateral displacement per beat that counts as
 
 [survival] ; the flee trigger: health below this fraction while far enough to disengage and not nose-on to the enemy
 health_frac   = 0.30
-min_dist_m    = 20 ; the actor must be at least this far to flee - a close mutant cannot outrun melee, it circles (breakoff) instead
+min_dist_m    = 20 ; the actor must be at least this far to flee - a close mutant cannot outrun melee and stays in the fight
 face_cone_deg = 60 ; skip the flee while the enemy sits within this cone of the mutant's nose - no 180 turn-and-die, a tangent or already-turned mutant flees
 hold_min      = 45000
 hold_max      = 75000
@@ -77,12 +75,6 @@ factor_max = 0.6
 [charge] ; the charge pacing (the Rush row): the species' own Run_Attack_Delay scaled by Intelligence
 slow_mult = 1.3 ; the wait multiplier at zero Intelligence - hesitant
 fast_mult = 0.6 ; the wait multiplier at the Intelligence cap - pressing
-
-[breakoff] ; the hit-and-run dart: a short RunAway when close and not nose-on, the restless-predator circling hop
-close_m       = 10 ; the actor must be within this for a breakoff (the short-range circling/flanking hop; past it the mutant closes or leaps instead)
-face_cone_deg = 60 ; skip the breakoff while nose-on to the actor (reuse the flee cone) - a dart sideways out of a flank
-hold_min     = 1500 ; ~2s - a quick dart out and back
-hold_max     = 2500
 
 [gravity_attack] ; the burer forced gravi throw, shield-safe: the trigger (vulnerable or back-turned) only fires when the player is not shooting, so no shield is wanted
 face_cone_deg = 45 ; the engine gravi facing gate (is_face_target deg(45), burer_state_attack_gravi_inline.h:87); the range band is the burer's own Gravi_MinDist/MaxDist, the LOS its own see
@@ -147,21 +139,6 @@ pseudodog   = 0.05
 gigant      = 0.0
 
 
-[personality_breakoff] ; the circling/flanking hit-and-run dart; the skittish and swarm species circle, the brute does not
-default     = 0.5
-cat         = 0.8
-tushkano    = 0.8
-flesh       = 0.6
-bloodsucker = 0.5
-psysucker   = 0.5
-karlik      = 0.5
-psy_dog     = 0.5
-dog         = 0.4
-pseudodog   = 0.4
-fracture    = 0.4
-snork       = 0.3
-boar        = 0.3
-gigant      = 0.1
 
 [personality_cloak] ; the bloodsucker visibility pacing
 default     = 1.0
