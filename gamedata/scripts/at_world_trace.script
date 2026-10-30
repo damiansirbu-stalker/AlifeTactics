@@ -237,7 +237,7 @@ local _COMBAT_OPS = { combat = true, danger = true }
 local _nat_ms, _nat_n = 0, 0
 local _mob_ms, _mob_n = 0, 0
 local _occ_n, _occ_danger = 0, 0
-local _mut_dmg, _mut_hits = 0, 0
+local _mut_dmg, _mut_hits, _mut_t0 = 0, 0, 0
 
 local function _get_nat(id)
     local nat = _nat[id]
@@ -627,6 +627,7 @@ local function _reset()
     _t0 = time_global()
     _tiers, _drive, _bursts, _open, _ctx = {}, {}, {}, {}, {}
     _avx, _avz, _apx, _apz, _at = 0, 0, nil, nil, 0
+    _mut_dmg, _mut_hits, _mut_t0 = 0, 0, time_global()
 end
 
 local function _get_tier_row(tier)
@@ -954,9 +955,10 @@ local function _check_mob_stuck(mob, id, state_name, jumping, tg)
         log.info("[WORLD] mob id=%d %s ONSET into STUCK; the %d beats before: %s", id, mob.name or "?",
             MOB_HIST_DEPTH, table_concat(mob.hist or {}, " | "))
     end
-    log.info("[WORLD] mob id=%d %s STUCK state=%s drv=%s dist=%.0f speed=%.2f air=%s dur=%dms",
+    log.info("[WORLD] mob id=%d %s STUCK state=%s drv=%s dist=%.0f speed=%.2f air=%s dur=%dms hit=%dms",
         id, mob.name or "?", state_name, _format_mob_driver(id, at_mutants.get_driver(id)),
-        mob.d, mob.spd, jumping and "y" or "n", tg - mob.stuck_ms)
+        mob.d, mob.spd, jumping and "y" or "n", tg - mob.stuck_ms,
+        mob.hit_ms and (tg - mob.hit_ms) or -1)
 end
 
 -- The leap-strand probe: on a fresh commanded leap fire, watch the mob's displacement for LEAP_WINDOW_MS.
@@ -1152,10 +1154,21 @@ function write_report()
         log.info("[OCC] out_of_combat_samples=%d danger_scheme=%.1f%%", _occ_n, 100 * _occ_danger / _occ_n)
         _occ_n, _occ_danger = 0, 0
     end
-    if _mut_hits > 0 then
-        log.info("[MUT] incoming damage=%.1f hits=%d", _mut_dmg, _mut_hits)
-        _mut_dmg, _mut_hits = 0, 0
+    local kpi_ms = time_global() - _mut_t0
+    if _mut_hits > 0 and kpi_ms > 0 then
+        log.info("[KPI] mutant hits on actor=%d over %.0fs = %.1f/min (dmg=%.1f)",
+            _mut_hits, kpi_ms / 1000, _mut_hits * 60000 / kpi_ms, _mut_dmg)
     end
+    _mut_dmg, _mut_hits, _mut_t0 = 0, 0, time_global()
+end
+
+--- Log the mutant-hits-on-actor KPI for the window since the last call, then reset the window - the A/B scenario boundary, called from the console.
+--- @novalidate(conventions.unused_export, reason:"console-invoked KPI boundary for the A/B measurement; no in-code caller by design")
+function write_kpi(label)
+    local kpi_ms = time_global() - _mut_t0
+    log.info("[KPI] %s: mutant hits on actor=%d over %.0fs = %.1f/min (dmg=%.1f)",
+        tostring(label), _mut_hits, kpi_ms / 1000, kpi_ms > 0 and (_mut_hits * 60000 / kpi_ms) or 0, _mut_dmg)
+    _mut_dmg, _mut_hits, _mut_t0 = 0, 0, time_global()
 end
 
 function on_game_start()
