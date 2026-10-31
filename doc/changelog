@@ -58,6 +58,9 @@
     Commitment
       - Liquidate now draws from the same per-window budget as every other action AlifeTactics starts, so a crowd cannot all extend fire through your one reload at once.
 
+    Conduct
+      - Improved cover posture: a stalker holds his tactical crouch or stand longer before re-deciding, so he settles into cover and shuffles his stance less under fire.
+
   Effectiveness
     - Changed every rank curve to a base slider plus a percent-per-rank slider, the same pair the Intelligence gate uses:
         accuracy, moving fire, tracking speed, tracking lock, target lead, burst size, fire cadence, and the two vision curves.
