@@ -123,12 +123,13 @@ local function _add_crpop_elig(npc, npc_id, elig)
     if POSTURE_TIERS[ranks.get_obj_rank_name(npc) or ""] == true then _add_crpop("tier", npc_id) end
 end
 
---- Tier and the one Intelligence roll, cached once per NPC life.
+--- Tier, the Intelligence roll, then the Personality roll, cached once per NPC life.
 local function _is_eligible(npc, id)
     local ok = _eligible[id]
     if ok == nil then
         ok = POSTURE_TIERS[ranks.get_obj_rank_name(npc) or ""] == true
             and at_faction.check_intelligence(npc)
+            and at_faction.check_personality(npc, "conduct")
         _eligible[id] = ok
     end
     return ok

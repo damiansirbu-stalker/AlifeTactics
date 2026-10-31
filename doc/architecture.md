@@ -376,7 +376,7 @@ npc_on_best_cover_repick (PR #607, via xcombat.on_cover_repick) -> _on_cover_rep
 - every gate falsifies itself, so release needs no machinery
 - `kill_enemy` (`stalker_combat_planner.cpp`) requires `InCover`, and a best-cover re-pick clears it before the exit is proposed, so holding the cover keeps the exit unselectable
 - the cap (`commitment_hold_s`) is a time-to-live on one continuous refusal, and an allowed switch resets it
-- at the relent moment the veto consults `at_core.is_enemy_vulnerable` and defers up to VULNERABLE_EXTEND_MS (4000ms) while the enemy cannot answer, the Liquidate deferral (`_try_extend_hold`); the first deferral takes the Intelligence roll and spends a start from the compose window budget (`at_core.check_start`), and a failed roll or a dry bucket relents exactly as without the feature
+- at the relent moment the veto consults `at_core.is_enemy_vulnerable` and defers up to VULNERABLE_EXTEND_MS (4000ms) while the enemy cannot answer, the Liquidate deferral (`_try_extend_hold`); the first deferral takes the Intelligence then Personality roll (the `[liquidate]` faction chance) and spends a start from the compose window budget (`at_core.check_start`), and a failed roll or a dry bucket relents exactly as without the feature
 - a seized NPC never reaches this seam, because his blocked planner runs no combat action
 
 ### Conduct
@@ -387,8 +387,8 @@ Stops: no takeover and no held actions. A maneuver-held NPC never reaches either
 
 ```
 npc_on_combat_set_body_state -> _on_combat_body_state (at_conduct.script)
-  answers only hold_position (the one provably stationary op, stalker_combat_actions.cpp). long weapons, experienced+ tier, past 20m
-  the decision is HELD, re-decided per DECIDE_MS (3s) by a crouch-eye shot ray (xcombat.has_shot_obstacle):
+  answers only hold_position (the one provably stationary op, stalker_combat_actions.cpp). eligibility: long weapons, experienced+ tier, then Intelligence and Personality (the [conduct] faction chance, militarized high) cached per NPC life; crouch floor past 20m
+  the decision is HELD, re-decided per DECIDE_MS (5s) by a crouch-eye shot ray (xcombat.has_shot_obstacle):
     crouch when the low line is clear, stand when a low wall would eat the shot
 npc_on_get_min/max_combat_dist (#563, via xcombat.on_get_min/max_combat_dist) -> scale the engine's own band
   SMG tightened x0.6, sniper minimum raised by rank. the same handler answers the Push cap and the Pull band as overlays
@@ -397,7 +397,7 @@ npc_on_get_min/max_combat_dist (#563, via xcombat.on_get_min/max_combat_dist) ->
 - every handler scales the handed base and never replaces it, so the engine's weapon-type semantics survive underneath
 - the posture decision is held for the DECIDE_MS window, because the engine re-asks the body state several times a second
 - the crouch-shot line flips between clear and blocked, so a stateless per-ask decision would flap crouch and stand
-- a per-NPC Intelligence roll, cached for his life, crouches only some eligible stalkers, so a firing line mixes standing and crouched shooters
+- a per-NPC Intelligence then Personality roll, cached for his life, runs the posture on only some stalkers (militarized factions hold it, scavengers less), so a firing line mixes disciplined and vanilla shooters
 
 ### Behaviors: Push and Pull
 
@@ -410,8 +410,8 @@ at_core.update_npc -> at_behaviors.update_npc per record per pass (no seam of it
 Push (_update_push_npc at_behaviors.script): open in-gate on a human target
   press cause polled from the target: is_enemy_vulnerable under push_reload, or standing weak with hysteresis under push_finisher
   FIRE bump range-gated by the burst-tail law. BAND bump gated by target-facing advantage (bleeding, back turned, self healthy)
-  the open takes one Intelligence roll, a miss stamps the press cooldown; the first write spends one start, caps at push_window_max_ms
-Pull (_try_open_pull / _update_pull_npc): my record shows reloading or hurt with a recent hit, my target strong, one Intelligence roll opens it (a miss stamps the pull cooldown)
+  the open takes the Intelligence then Personality roll (the [push] faction chance), a miss stamps the press cooldown; the first write spends one start, caps at push_window_max_ms
+Pull (_try_open_pull / _update_pull_npc): my record shows reloading or hurt with a recent hit, my target strong, the Intelligence then Personality roll (the [pull] faction chance) opens it (a miss stamps the pull cooldown)
   set_pull_band raises my accepted cover minimum so my re-picks land farther, held then cooled down
 ```
 
@@ -671,26 +671,26 @@ THE MOVE SELECTION: every 600ms a fighting mutant that holds no committed window
 On a pass the species' toggled decision moves are shuffled in place (Fisher-Yates) and walked up to `[select] candidates` (3); each move is a self-contained handler that tests its own premise then its Personality, falls through free on either miss, and the FIRST that fires consumes the beat and breaks.
 There is no premise table and no shared gate: every check is a handler's own line over the pass memo - one scratch reset per pass, plus a beat-cache for the actor's vulnerability. A refused invoke falls through to the next candidate; the rate slot stamps only on an executed fire.
 Intelligence is base + map-rank slope, capped; rank is the map tier (`xlevel.get_danger_tier`, 0-5). Personality is the per-species per-move chance (the `[personality_*]` sections), final chance = Intelligence x Personality; the retired `inside_chance` second roll is gone.
-Wild varies a mutant's standalone ability numbers only - the gravity, telekinesis, aura, detection, tube, stamina, and cloak values, each the engine's own number multiplied inside a bounded envelope. It never touches a value a locomotion or attack solver reads (the charge band, the attack-on-move geometry, the melee window, the jump band): perturbing those desyncs the engine's tuned path and animation timing, which froze and stumbled mutants for no visible gain.
+Wild varies a mutant's standalone ability numbers and cadence timings only - the gravity, telekinesis, aura, detection, tube, stamina, cloak values, and the charge cadence (the wait between charges), each the engine's own number multiplied inside a bounded envelope. It never touches a value a locomotion or attack solver reads (the charge distance band, the attack-on-move geometry, the melee window, the jump band): perturbing those desyncs the engine's tuned path and animation timing, which froze and stumbled mutants for no visible gain. The charge cadence is a re-eligibility timer the engine stamps a cooldown from, never a path or animation input, so it varies like the cloak dwell.
 CAPS bound the spice: at most 3 driven moves assumed running per bucket (vs_player, vs_npc) on 3s slots - an offensive fire checks then adds, flee adds unchecked, claw sits outside; the `[select]` walk cap is the per-beat budget.
 THE LEAP FAMILY is four handlers sharing one Personality, predator logic: aiming decides the wind-up, strafing decides the steering. An enemy NOT dead-aiming at the mutant gets the telegraphed Leap (the wind-up is dodgeable, the common case); an enemy aiming at it (`is_aim_held`, the tight ~15deg cone) OR vulnerable gets the instant Jump (winding up in front of a locked gun hands it a free second, and a reloading enemy cannot react either way); a strafing enemy gets the adapt variant - the air-steering leap via `set_monster_jump_flags` auto-aim, the gain rolled inside the vanilla envelope and the species' own basis restored at the landing (the engine reads the gain live through the flight, so an immediate restore would kill the steering). Aiming (tight) gates the leap wind-up; watching (the wide cone) stays only the gravity shield-safe read.
 THE BODY-PLAN LAW: a quadruped takes OUR commanded leap ONLY at an enemy exploiting elevation (`xcombat.is_enemy_above`, the engine's own 0.8m dog-gate standard; flat ground stays its vanilla character); a biped takes the full jump band.
 THE JUMP FEASIBILITY lives in `xmonster.try_monster_jump`: the engine's `script_try_jump` bypasses `can_jump`, so the interim mirror runs the distance band, the angle (`jump_max_angle`) and the height (`jump_max_height`) there and the handler believes the return, uniform with the other invokes; it retires when the jump PR (n070) makes the engine run `can_jump` itself.
 GRAVITY is the burer's forced gravi throw, shield-safe by its trigger: a vulnerable or back-turned player is not shooting, so the burer's own shield (top of the attack selector, armed on lost health) is not wanted that tick and forcing gravi steals nothing. `burer_set_force_gravi_attack` bypasses the gravi gate (`burer_state_attack_gravi_inline.h:81`), so the handler hoists the range band (`Gravi_Min/MaxDist`), the LOS and the 45-degree facing and keeps the engine cooldown bypassed; the forced flag holds one gravi cycle then clears.
-The charge is engine-owned end to end - the autonomous trigger re-checks it every scheduler tick through the same gates a command would pass, so a commanded charge can never add a fire; what the module owns is the PACING: the species' own wait between charges, scaled by Intelligence at adoption (a smart one waits less and presses), never the band geometry.
+The charge is engine-owned end to end - the autonomous trigger re-checks it every scheduler tick through the same gates a command would pass, so a commanded charge can never add a fire; what the module owns is the PACING, set once at adoption: Personality decides whether the mutant takes it (the `[personality_charge]` per-species chance), then the species' own wait between charges is scaled by Intelligence (a smart one waits less and presses) and Wild-varied per individual, never the band geometry.
 FLEE has ONE trigger, ability to flee: health below the survival fraction, the actor 20m+ to disengage (`[survival] min_dist_m`), and the mutant not nose-on to the enemy (no 180-turn-and-die) - a cornered mutant fights. Its Personality carries the rarity (low on the apex and pack, high on prey); the window is a fixed 45-75s timer and while it holds the proposal subscriber re-proposes `eStateAttack_RunAway`.
 THE GATE: the selection evaluates a mutant only within `gate_radius_m` of the player (`at_core.is_in_gate`), the one shared radius the stalker resolver and the HUD also read, so a mutant decides only when it is near enough to the player to matter and never acts across the map. A disengage move (the mutant equivalent of the stalker retreat) was tried and dropped - no proxy told "genuinely cannot reach" from "the player is dodging well", and the engine exposes no reachability read; it is parked as research (`todo-alifetactics-mutants.md` m24 MUTANT_DISENGAGE).
 Monster health is a normalized fraction clamped to 1.0 every condition update, so a health pool, regeneration, or lifesteal cannot raise it; toughness lives in resistance alone, stat = 1 + x% * rank.
 
 Does: adopts each online mutant on its first binder update, scales its hits by tier, and runs the decision model on one 600ms lane.
-Changes: per-object ability params once at adoption, as MULTIPLIERS over the install's own LTX values (the gravity, telekinesis, aura, detection, tube, stamina, cloak families), so modpack mutant balance survives; the charge pacing, the species' own charge cooldown scaled by Intelligence; the damage dealt and taken multipliers per hit; one-shot invokes and proposal windows in the fight. It reads the species' own jump auto-aim factor and gravi band at adoption, for the steered leap and the gravi gate, never writing them back.
+Changes: per-object ability params once at adoption, as MULTIPLIERS over the install's own LTX values (the gravity, telekinesis, aura, detection, tube, stamina, cloak families), so modpack mutant balance survives; the charge pacing, the species' own charge cooldown gated by Personality, scaled by Intelligence, and Wild-varied; the damage dealt and taken multipliers per hit; one-shot invokes and proposal windows in the fight. It reads the species' own jump auto-aim factor and gravi band at adoption, for the steered leap and the gravi gate, never writing them back.
 Stops: inert below the monster seam set with one INACTIVE line; a move never fires outside its species envelope; on toggle-off the module releases what it still owns live (the animation override, a pending gravi force, or a gain restore) - pushed params revert on the next spawn.
 
 ```
 monster_on_update (binder scheduler, 100ms near to 625ms far) -> the one lane, gated 600ms per mutant (at_mutants.script)
   adopt: tier, the [moves] envelope, the quadruped flag,
-         the jump auto-aim basis (the steered leap) and the burer gravi band, the charge pacing (the
-         species' own Run_Attack_Delay scaled by Intelligence), bounded wild
+         the jump auto-aim basis (the steered leap) and the burer gravi band, the charge pacing (a
+         Personality gate, then the species' own Run_Attack_Delay scaled by Intelligence and Wild-varied), bounded wild
          offsets over ini_sys basis values behind the ability vary rows (the burer gravity numbers
          and telekinesis with its lifted-object count, the controller tube and stamina, the
          poltergeist detection, the aura row) and behind the Cloak move row (the visibility dwell),

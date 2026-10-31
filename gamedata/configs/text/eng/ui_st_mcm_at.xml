@@ -132,7 +132,7 @@
     <text>Cover posture</text>
   </string>
   <string id="ui_mcm_at_conduct_conduct_posture_desc">
-    <text>Experienced riflemen and snipers crouch to steady the shot when the line to the enemy is clear, and stand to fire over low cover that would block a crouched shot. Vanilla picks its combat posture blind, so stalkers crouch behind bumps and fire into them, or stand tall in the open where a crouch would steady the aim. The decision reads the game's own cover map toward the enemy. Short-weapon carriers and green ranks keep vanilla behavior. Zombified stalkers are held upright and never take a deliberate firing-line crouch.</text>
+    <text>Experienced riflemen and snipers crouch to steady the shot when the line to the enemy is clear, and stand to fire over low cover that would block a crouched shot. Vanilla picks its combat posture blind, so stalkers crouch behind bumps and fire into them, or stand tall in the open where a crouch would steady the aim. The decision reads the game's own cover map toward the enemy. Whether a given fighter holds the discipline is his training: militarized factions keep it, scavengers slouch. Short-weapon carriers and green ranks keep vanilla behavior. Zombified stalkers are held upright and never take a deliberate firing-line crouch.</text>
   </string>
   <string id="ui_mcm_at_conduct_conduct_spacing">
     <text>Weapon spacing</text>
@@ -319,7 +319,7 @@
     <text>Rush</text>
   </string>
   <string id="ui_mcm_at_mutants_rush_desc">
-    <text>[int] Paces the charge: a smarter creature waits less between charges and presses harder. The charge itself stays the game's own move.</text>
+    <text>[int, wild] Paces the charge: a smarter creature waits less between charges and presses harder, and no two individuals pace quite alike. Whether a creature presses with the charge at all is its own temperament. The charge itself stays the game's own move.</text>
   </string>
   <string id="ui_mcm_at_mutants_backstrike">
     <text>Backstrike</text>
