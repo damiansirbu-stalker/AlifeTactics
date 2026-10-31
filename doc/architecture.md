@@ -748,6 +748,7 @@ Code tracing goes to `alifetactics.log`, world tracing to `alifetactics_world.lo
   - The minute report carries the out-of-combat danger-scheme occupancy (OCC), the jumpiness of the calm population as one number.
   - The ballistics recorder writes per-minute per-tier hit tables split still and moving, per-driver hit rates, and the burst-length histogram.
   - The mutant-lethality meter accumulates the damage mutants deal the actor on the existing hit feed and writes it per minute (`[MUT] incoming damage`), the measure for a moves-on against moves-off comparison; the per-window reset keeps each minute to its own regime.
+  - The monster-movement read uses the `get_monster_movement_info` bind as the stall truth: a mutant whose state wants speed while actively pathing yet does not translate reads STUCK, and the per-mob velsummary carries its mean current, target, and real velocity. Below the bind there is no stall read, because position delta cannot separate a commanded stop from a real one.
 - at_hud: two lines per NPC on one shared grid, AT-driven first then fighting then idle, capped with an overflow line. The row colour is the driving system.
   - The candidate pass reads only the record's own facts against the gate, and the expensive row build runs only for the capped visible set.
 - at_test: console commands (`@export console`, run via `run_string`).

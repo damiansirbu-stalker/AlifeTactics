@@ -56,18 +56,14 @@ local MOB_ORBIT_MAX_M     = 6
 local MOB_ORBIT_VR        = 0.8
 local MOB_ORBIT_VT        = 2
 local MOB_ORBIT_MIN_MS    = 1200
-local MOB_STUCK_SPEED     = 0.3
+local MOB_STALL_REAL      = 0.3
+local MOB_WANTS_MOVE      = 0.3
+local MOB_MOVING_EPS      = 0.1
 local MOB_HIST_DEPTH      = 2
 local MOB_STUCK_MS        = 1200
 local MOB_STUCK_RELOG_MS  = 5000
 local LEAP_WINDOW_MS      = 1500
 local LEAP_MIN_DISP_M     = 2.0
-
--- The FSM states that intend ground movement; standing still in one of these past MOB_STUCK_MS is a stuck episode.
-local MOB_MOVE_STATES = {
-    Attack_Run = true, Attack_RunAttack = true, Attack_RunAway = true,
-    Attack_FindEnemy = true, Attack_On_Run = true, Panic = true, FindEnemy = true,
-}
 
 -- The commanded leap-family drivers (at_mutants _log_fire upper-cases the move name); a fire that never displaces is a strand.
 local LEAP_DRIVERS = {
@@ -585,8 +581,8 @@ local function _on_unregister(se_obj)
             id, mob.name or "?", mob.contacts, mob.contact_hits, mob.hits or 0, mob.overshoots, mob.orbit_s)
     end
     if mob and (mob.vn or 0) > 0 then
-        log.info("[WORLD] mob id=%d %s velsummary samples=%d frozen=%d(%.0f%%) mean_cur=%.2f mean_tgt=%.2f mean_real=%.2f",
-            id, mob.name or "?", mob.vn, mob.frozen or 0, 100 * (mob.frozen or 0) / mob.vn,
+        log.info("[WORLD] mob id=%d %s velsummary samples=%d stalled=%d(%.0f%%) mean_cur=%.2f mean_tgt=%.2f mean_real=%.2f",
+            id, mob.name or "?", mob.vn, mob.stalled or 0, 100 * (mob.stalled or 0) / mob.vn,
             mob.vcur_sum / mob.vn, mob.vtgt_sum / mob.vn, mob.vreal_sum / mob.vn)
     end
     _mob[id] = nil
@@ -913,15 +909,15 @@ end
 
 local function _read_mob_motion(mob, pos, ap, tg)
     local dist = math_sqrt(pos:distance_to_sqr(ap))
-    local vr, vt, speed, had_prev = 0, 0, 0, mob.sampled_ms ~= nil
+    local vr, vt, had_prev = 0, 0, mob.sampled_ms ~= nil
     if had_prev and tg > mob.sampled_ms then
         local dt = (tg - mob.sampled_ms) / 1000
         vr = (dist - mob.d) / dt
-        speed = math_sqrt((pos.x - mob.px) ^ 2 + (pos.z - mob.pz) ^ 2) / dt
+        local speed = math_sqrt((pos.x - mob.px) ^ 2 + (pos.z - mob.pz) ^ 2) / dt
         local tangential_sqr = speed * speed - vr * vr
         vt = tangential_sqr > 0 and math_sqrt(tangential_sqr) or 0
     end
-    mob.d, mob.px, mob.pz, mob.spd = dist, pos.x, pos.z, speed
+    mob.d, mob.px, mob.pz = dist, pos.x, pos.z
     return dist, vr, vt, had_prev
 end
 
@@ -939,14 +935,16 @@ local function _format_mob_memory(obj, tg)
 end
 
 
--- Drivers where stillness IS the move (the cast, the strike), not a stall; the watchdog skips them so a casting burer never reads STUCK.
-local MOB_HOLD_STILL_DRIVERS = { ["GRAVITY ATTACK"] = true, CLAW = true }
+-- Ground-truth stall from the movement bind: the engine wants speed and is actively pathing, yet the body does not translate (real velocity ~ 0).
+-- A commanded-still mutant (a casting burer, a standing strike) has a zero target, so it never reads STUCK - no state whitelist or driver skip-list needed.
+local function _is_mob_stalled(mi)
+    return mi.velocity_target > MOB_WANTS_MOVE and mi.real_velocity < MOB_STALL_REAL
+        and mi.path_active and not mi.path_completed
+end
 
--- The run-in-place watchdog: ground speed under MOB_STUCK_SPEED in a movement state past MOB_STUCK_MS logs STUCK.
--- The line repeats every MOB_STUCK_RELOG_MS with the growing duration while the stall persists, airborne included (air=y).
-local function _check_mob_stuck(mob, id, state_name, jumping, tg)
-    if mob.spd > MOB_STUCK_SPEED or not MOB_MOVE_STATES[state_name]
-       or MOB_HOLD_STILL_DRIVERS[at_mutants.get_driver(id) or ""] then
+-- The run-in-place watchdog: a ground-truth stall held past MOB_STUCK_MS logs STUCK, re-logged every MOB_STUCK_RELOG_MS with the growing duration.
+local function _check_mob_stuck(mob, mi, id, state_name, jumping, tg)
+    if not _is_mob_stalled(mi) then
         mob.stuck_ms, mob.stuck_next, mob.stuck_logged = nil, nil, nil
         return
     end
@@ -960,10 +958,9 @@ local function _check_mob_stuck(mob, id, state_name, jumping, tg)
         log.info("[WORLD] mob id=%d %s ONSET into STUCK; the %d beats before: %s", id, mob.name or "?",
             MOB_HIST_DEPTH, table_concat(mob.hist or {}, " | "))
     end
-    log.info("[WORLD] mob id=%d %s STUCK state=%s drv=%s dist=%.0f speed=%.2f air=%s dur=%dms hit=%dms",
+    log.info("[WORLD] mob id=%d %s STUCK state=%s drv=%s dist=%.0f cur=%.2f tgt=%.2f real=%.2f air=%s dur=%dms",
         id, mob.name or "?", state_name, _format_mob_driver(id, at_mutants.get_driver(id)),
-        mob.d, mob.spd, jumping and "y" or "n", tg - mob.stuck_ms,
-        mob.hit_ms and (tg - mob.hit_ms) or -1)
+        mob.d, mi.velocity_current, mi.velocity_target, mi.real_velocity, jumping and "y" or "n", tg - mob.stuck_ms)
 end
 
 -- The leap-strand probe: on a fresh commanded leap fire, watch the mob's displacement for LEAP_WINDOW_MS.
@@ -990,11 +987,12 @@ local function _check_leap_strand(mob, obj, id, tg)
 end
 
 -- Keep the last MOB_HIST_DEPTH beat snapshots so the stuck onset can print what led into the freeze.
-local function _push_mob_hist(mob, id, state_name, jumping)
+local function _push_mob_hist(mob, mi, id, state_name, jumping)
     local hist = mob.hist
     if not hist then hist = {} mob.hist = hist end
-    hist[#hist + 1] = string_format("state=%s drv=%s spd=%.2f d=%.0f air=%s",
-        state_name, _format_mob_driver(id, at_mutants.get_driver(id)), mob.spd, mob.d, jumping and "y" or "n")
+    hist[#hist + 1] = string_format("state=%s drv=%s cur=%.2f real=%.2f d=%.0f air=%s",
+        state_name, _format_mob_driver(id, at_mutants.get_driver(id)),
+        mi.velocity_current, mi.real_velocity, mob.d, jumping and "y" or "n")
     while #hist > MOB_HIST_DEPTH do table_remove(hist, 1) end
 end
 
@@ -1014,19 +1012,15 @@ local function _log_mob_edge(mob, obj, id, dist, tg)
     return jumping
 end
 
--- Sample the engine movement record (get_monster_movement_info, modded exes only); trace-only, nil below the bind.
--- Accumulate cur/target/real for the velsummary, and log the sample when the mob is trying to move or is moving.
-local function _log_mob_velocity(mob, obj, id)
-    local mi = xmonster.get_monster_movement_info(obj)
-    if not mi then return end
+-- Accumulate the velsummary (mean cur/tgt/real + the stalled-sample tally over the one stall predicate) and log the per-sample velocity when moving.
+-- mi is the movement record read once in _update_mob; it is non-nil here (the caller gates on the bind).
+local function _log_mob_velocity(mob, mi, id)
     mob.vn = (mob.vn or 0) + 1
     mob.vcur_sum = (mob.vcur_sum or 0) + mi.velocity_current
     mob.vtgt_sum = (mob.vtgt_sum or 0) + mi.velocity_target
     mob.vreal_sum = (mob.vreal_sum or 0) + mi.real_velocity
-    if mi.velocity_target > mi.velocity_current + 0.3 and mi.velocity_current < 0.3 then
-        mob.frozen = (mob.frozen or 0) + 1
-    end
-    if mi.velocity_target > 0.1 or mi.velocity_current > 0.1 then
+    if _is_mob_stalled(mi) then mob.stalled = (mob.stalled or 0) + 1 end
+    if mi.velocity_target > MOB_MOVING_EPS or mi.velocity_current > MOB_MOVING_EPS then
         log.debug("[WORLD] mob id=%d vel cur=%.2f tgt=%.2f real=%.2f pc=%s pa=%s pact=%s",
             id, mi.velocity_current, mi.velocity_target, mi.real_velocity,
             mi.path_completed and "y" or "n", mi.path_actual and "y" or "n", mi.path_active and "y" or "n")
@@ -1042,11 +1036,14 @@ local function _update_mob(obj, id, tg, ap)
     if tg < mob.next_ms then return end
     local dist, vr, vt, had_prev = _read_mob_motion(mob, obj:position(), ap, tg)
     local jumping = _log_mob_edge(mob, obj, id, dist, tg)
-    _log_mob_velocity(mob, obj, id)
-    if had_prev then
-        local state_name = at_core.get_mob_state_name(mob.state)
-        _check_mob_stuck(mob, id, state_name, jumping, tg)
-        _push_mob_hist(mob, id, state_name, jumping)
+    local mi = xmonster.get_monster_movement_info(obj)
+    if mi then
+        _log_mob_velocity(mob, mi, id)
+        if had_prev then
+            local state_name = at_core.get_mob_state_name(mob.state)
+            _check_mob_stuck(mob, mi, id, state_name, jumping, tg)
+            _push_mob_hist(mob, mi, id, state_name, jumping)
+        end
     end
     _check_leap_strand(mob, obj, id, tg)
     if mob.contact then
