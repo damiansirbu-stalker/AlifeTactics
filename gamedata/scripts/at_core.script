@@ -252,7 +252,7 @@ function add_start(bucket)
     _starts:add(bucket)
 end
 
---- The bucket key for a tier (impose = maneuvers, compose = Push, Pull, LIQUIDATE) against a target.
+--- The bucket key for a tier (impose = maneuvers, compose = Push, Pull, Liquidate) against a target.
 function get_bucket(tier, is_actor)
     return tier .. (is_actor and "_player" or "_npc")
 end

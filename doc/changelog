@@ -158,7 +158,7 @@
     - The debug HUD's engine cell now opens with the planner operator owning the NPC, in and out of combat: the engine entries (combat, danger, alife), every scheme
         by name (rx_ff, fight_from_cover, kill_wounded, camper), the combat sub-scheme when one drives (monolith, zombied), and the takeover. Scheme ids that logged
         as bare numbers now resolve to names in the world trace too.
-    - The debug HUD's Commitment token reads LIQUIDATE while a stalker holds fire on an enemy who cannot answer, and LIQUIDATED in the afterglow, so sub-second holds stay readable.
+    - The debug HUD's Commitment token reads Liquidate while a stalker holds fire on an enemy who cannot answer, and Liquidated in the afterglow, so sub-second holds stay readable.
     - The debug HUD shows PUSH in its own amber row colour on every stalker the push window is currently bumping, and PULL on a stalker falling back through his own window.
     - The world trace's held-danger line now shows whether the alert stalker entered AlifeTactics' own danger scheme or the engine alone is holding a stale sound perception.
       It re-logs when that flips, separating our reaction from a distant weapon sound the engine keeps alive.

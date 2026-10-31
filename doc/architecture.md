@@ -81,7 +81,7 @@ The premise is a read of the fight.
 The chance is Intelligence then Personality: Intelligence is a base plus a per-rank term, capped, and Personality is the proclivity to take that one move.
 Character is Personality plus the move envelope: a faction takes each action at a per-action chance (the Personality sections in `at_faction_config.ltx`) and a species takes each move at a per-species chance (the `[personality_*]` sections in `at_mutants_config.ltx`), 0 = never, 1 = always, an absent entry universal; a species also either carries a move at all (the `[moves]` envelope).
 The two Intelligence pairs are separate controls, the stalker's on the Combat General page and the mutant's on the Mutants General page; the mutant's rank is the map tier (`xlevel.get_danger_tier`, 0-5), the stalker's his own rank.
-Push, Pull, the maneuver catalog, and the LIQUIDATE deferral run it on the stalker side, where the premise is each `check_need`, the press cause, or a helpless target; a miss lets the opening go, a pass commits to a window, and each spends a start from the window budget.
+Push, Pull, the maneuver catalog, and the Liquidate deferral run it on the stalker side, where the premise is each `check_need`, the press cause, or a helpless target; a miss lets the opening go, a pass commits to a window, and each spends a start from the window budget.
 The mutant side runs the atom in `at_mutants`: every 600ms beat a held window (flee, gravity) skips the beat, otherwise Intelligence rolls ONCE at the top (`_check_intelligence`) and a miss does zero premise or feasibility work.
 On a pass the species' toggled moves are shuffled in place (Fisher-Yates) and walked up to `[select] candidates`; each move is a Chain-of-Responsibility handler that tests its own premise then its Personality (`_check_personality`), both falling through free on a miss, and the FIRST that fires consumes the beat.
 There is no premise table and no shared gate; the rate slot is stamped only on an executed fire, and the `[select]` cap is the budget.
@@ -116,9 +116,9 @@ The loop is the only writer of both directions.
 Callers read candidates from `get_threats`.
 The reader verifies every predicate live at its decision, so a stale entry costs one failed compare.
 
-The start budget is one sliding-window counter (`_starts`, an xttltable) split by tier (`impose` for a maneuver takeover, `compose` for a Push, Pull, or LIQUIDATE) crossed with target (`player`, `npc`), four buckets, so a nudge never starves a takeover and neither target class starves the other.
+The start budget is one sliding-window counter (`_starts`, an xttltable) split by tier (`impose` for a maneuver takeover, `compose` for a Push, Pull, or Liquidate) crossed with target (`player`, `npc`), four buckets, so a nudge never starves a takeover and neither target class starves the other.
 The default is 6 per 10s each (`at_maneuvers_config.ltx [at_core]`).
-Only a start spends: a maneuver grant, a first press, a pull open, a LIQUIDATE deferral.
+Only a start spends: a maneuver grant, a first press, a pull open, a Liquidate deferral.
 Re-applies and engine re-grants never count.
 
 ### The API
@@ -143,7 +143,7 @@ The actor answers on the weapon block terms (`xcombat.get_block_reason`: unarmed
 A stalker answers on the block terms plus a playing animation (`xcombat.is_body_busy`).
 A mutant never answers.
 Every term reads objective state and no threshold enters the rule.
-Commitment's LIQUIDATE, the Push press, and a future maneuver all read this one rule.
+Commitment's Liquidate, the Push press, and a future maneuver all read this one rule.
 
 `is_in_gate` compares `actor_dist_sqr` against `gate_radius_m` (150 default, the sniper band maximum).
 The combat systems' scope and the HUD's display set read the same fact through the same public.
@@ -376,7 +376,7 @@ npc_on_best_cover_repick (PR #607, via xcombat.on_cover_repick) -> _on_cover_rep
 - every gate falsifies itself, so release needs no machinery
 - `kill_enemy` (`stalker_combat_planner.cpp`) requires `InCover`, and a best-cover re-pick clears it before the exit is proposed, so holding the cover keeps the exit unselectable
 - the cap (`commitment_hold_s`) is a time-to-live on one continuous refusal, and an allowed switch resets it
-- at the relent moment the veto consults `at_core.is_enemy_vulnerable` and defers up to VULNERABLE_EXTEND_MS (4000ms) while the enemy cannot answer, the LIQUIDATE deferral (`_try_extend_hold`); the first deferral takes the Intelligence roll and spends a start from the compose window budget (`at_core.check_start`), and a failed roll or a dry bucket relents exactly as without the feature
+- at the relent moment the veto consults `at_core.is_enemy_vulnerable` and defers up to VULNERABLE_EXTEND_MS (4000ms) while the enemy cannot answer, the Liquidate deferral (`_try_extend_hold`); the first deferral takes the Intelligence roll and spends a start from the compose window budget (`at_core.check_start`), and a failed roll or a dry bucket relents exactly as without the feature
 - a seized NPC never reaches this seam, because his blocked planner runs no combat action
 
 ### Conduct
