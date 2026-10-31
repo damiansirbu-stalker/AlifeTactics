@@ -387,17 +387,17 @@ Stops: no takeover and no held actions. A maneuver-held NPC never reaches either
 
 ```
 npc_on_combat_set_body_state -> _on_combat_body_state (at_conduct.script)
-  answers only hold_position (the one provably stationary op, stalker_combat_actions.cpp). eligibility: long weapons, experienced+ tier, then Intelligence and Personality (the [conduct] faction chance, militarized high) cached per NPC life; crouch floor past 20m
+  answers only hold_position (the one provably stationary op, stalker_combat_actions.cpp). eligibility: long weapons, experienced+ tier, and the conduct discipline roll (Intelligence then Personality, the [conduct] faction chance, cached per NPC life, shared with spacing); crouch floor past 20m
   the decision is HELD, re-decided per DECIDE_MS (5s) by a crouch-eye shot ray (xcombat.has_shot_obstacle):
     crouch when the low line is clear, stand when a low wall would eat the shot
-npc_on_get_min/max_combat_dist (#563, via xcombat.on_get_min/max_combat_dist) -> scale the engine's own band
+npc_on_get_min/max_combat_dist (#563, via xcombat.on_get_min/max_combat_dist) -> scale the engine's own band behind the same discipline roll
   SMG tightened x0.6, sniper minimum raised by rank. the same handler answers the Push cap and the Pull band as overlays
 ```
 
 - every handler scales the handed base and never replaces it, so the engine's weapon-type semantics survive underneath
 - the posture decision is held for the DECIDE_MS window, because the engine re-asks the body state several times a second
 - the crouch-shot line flips between clear and blocked, so a stateless per-ask decision would flap crouch and stand
-- a per-NPC Intelligence then Personality roll, cached for his life, runs the posture on only some stalkers (militarized factions hold it, scavengers less), so a firing line mixes disciplined and vanilla shooters
+- one per-NPC Intelligence then Personality roll, cached for his life, is the conduct discipline gate for both posture and weapon spacing (militarized factions hold it, scavengers less), so a firing line mixes disciplined and vanilla fighters
 
 ### Behaviors: Push and Pull
 

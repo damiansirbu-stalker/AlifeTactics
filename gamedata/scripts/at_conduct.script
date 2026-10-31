@@ -26,7 +26,7 @@ local CRPOP_WINDOW_MS = 60000
 local CRPOP_GATES = { "asked", "op", "kind", "tier", "int", "enemy", "calm", "floor", "ray", "crouch" }
 
 local _decision = {}
-local _eligible = {}
+local _disciplined = {}
 local _spacing = {}
 local _push_max = {}
 local _pull = {}
@@ -123,14 +123,13 @@ local function _add_crpop_elig(npc, npc_id, elig)
     if POSTURE_TIERS[ranks.get_obj_rank_name(npc) or ""] == true then _add_crpop("tier", npc_id) end
 end
 
---- Tier, the Intelligence roll, then the Personality roll, cached once per NPC life.
-local function _is_eligible(npc, id)
-    local ok = _eligible[id]
+--- The conduct discipline roll, Intelligence then Personality, cached once per NPC life.
+--- Shared by cover posture and weapon spacing so a disciplined fighter holds both; militarized factions carry it.
+local function _is_disciplined(npc, id)
+    local ok = _disciplined[id]
     if ok == nil then
-        ok = POSTURE_TIERS[ranks.get_obj_rank_name(npc) or ""] == true
-            and at_faction.check_intelligence(npc)
-            and at_faction.check_personality(npc, "conduct")
-        _eligible[id] = ok
+        ok = at_faction.check_intelligence(npc) and at_faction.check_personality(npc, "conduct")
+        _disciplined[id] = ok
     end
     return ok
 end
@@ -145,7 +144,7 @@ local function _check_admission(npc, id, crpop_id)
     local kind = xcombat.get_weapon_kind(npc)
     if not (kind and LONG_KINDS[kind]) then return false end
     if crpop_id then _add_crpop("kind", crpop_id) end
-    local elig = _is_eligible(npc, id)
+    local elig = POSTURE_TIERS[ranks.get_obj_rank_name(npc) or ""] == true and _is_disciplined(npc, id)
     if crpop_id then _add_crpop_elig(npc, crpop_id, elig) end
     return elig
 end
@@ -235,7 +234,7 @@ local function _on_min_dist(npc, base, flags)
     local timer = xprofiler.new_if(at_debug.is_on()):start()
     local tg = time_global()
     local id = npc:id()
-    local row = cfg.conduct_spacing and _get_spacing_row(npc, id, tg) or nil
+    local row = cfg.conduct_spacing and _is_disciplined(npc, id) and _get_spacing_row(npc, id, tg) or nil
     local raised = (row and row.min_k) and base * row.min_k or base
     local pull = _pull[id]
     if pull and pull.min > raised then raised = pull.min end
@@ -252,7 +251,7 @@ local function _on_max_dist(npc, base, flags)
     local timer = xprofiler.new_if(at_debug.is_on()):start()
     local tg = time_global()
     local id = npc:id()
-    local row = cfg.conduct_spacing and _get_spacing_row(npc, id, tg) or nil
+    local row = cfg.conduct_spacing and _is_disciplined(npc, id) and _get_spacing_row(npc, id, tg) or nil
     local capped = (row and row.max_k) and base * row.max_k or base
     local push_cap = _push_max[id]
     if push_cap and push_cap < capped then capped = push_cap end
@@ -284,7 +283,7 @@ end
 local function _on_entity_unregister(se_obj)
     if se_obj then
         _decision[se_obj.id] = nil
-        _eligible[se_obj.id] = nil
+        _disciplined[se_obj.id] = nil
         _spacing[se_obj.id] = nil
         _push_max[se_obj.id] = nil
         _pull[se_obj.id] = nil
