@@ -79,13 +79,13 @@ Every behaviour decides the same way.
 An objective premise gates a chance, and only a passed roll acts.
 The premise is a read of the fight.
 The chance is Intelligence then Personality: Intelligence is a base plus a per-rank term, capped, and Personality is the proclivity to take that one move.
-Character is Personality plus the move envelope: a faction takes each action at a per-action chance (the Personality sections in `at_faction_config.ltx`) and a species takes each move at a per-species chance (the `[personality_*]` sections in `at_mutants_config.ltx`), 0 = never, 1 = always, an absent entry universal; a species also either carries a move at all (the `[moves]` envelope).
+A faction takes each action at a per-action chance (the Personality sections in `at_faction_config.ltx`) and a species takes each move at a per-species chance (the `[personality_*]` sections in `at_mutants_config.ltx`), 0 = never, 1 = always, an absent entry universal; a species also either carries a move at all (the `[moves]` envelope).
 The two Intelligence pairs are separate controls, the stalker's on the Combat General page and the mutant's on the Mutants General page; the mutant's rank is the map tier (`xlevel.get_danger_tier`, 0-5), the stalker's his own rank.
 Push, Pull, the maneuver catalog, and the Liquidate deferral run it on the stalker side, where the premise is each `check_need`, the press cause, or a helpless target; a miss lets the opening go, a pass commits to a window, and each spends a start from the window budget.
-The mutant side runs the atom in `at_mutants`: every 600ms beat a held window (flee, gravity) skips the beat, otherwise Intelligence rolls ONCE at the top (`_check_intelligence`) and a miss does zero premise or feasibility work.
+The mutant side runs the move selection in `at_mutants` (`_select_move`): every 600ms beat a held window (flee, gravity) skips the beat, otherwise Intelligence rolls ONCE at the top (`_check_intelligence`) and a miss does zero premise or feasibility work.
 On a pass the species' toggled moves are shuffled in place (Fisher-Yates) and walked up to `[select] candidates`; each move is a Chain-of-Responsibility handler that tests its own premise then its Personality (`_check_personality`), both falling through free on a miss, and the FIRST that fires consumes the beat.
 There is no premise table and no shared gate; the rate slot is stamped only on an executed fire, and the `[select]` cap is the budget.
-The stalker resolver runs the same atom: `_resolve_maneuver` rolls Intelligence once at the top, then shuffles the maneuver catalog and walks it, each row self-gating premise then Personality, the first that picks winning; both sides share the Intelligence x Personality chance and the `inside_chance` second roll is retired.
+The stalker side runs the same selection: `_select_maneuver` rolls Intelligence once at the top, then shuffles the maneuver catalog and walks it, each row self-gating premise then Personality, the first that picks winning; both sides share the Intelligence x Personality chance and the `inside_chance` second roll is retired.
 Observing is free, deciding is hard: every mutant sees the reload from the first fight, and rank buys seizing the opening more often.
 
 Correctness fixes and skill scaling sit outside the pattern.
@@ -194,9 +194,9 @@ A change that breaks one is wrong even when it works.
 
 The substrate carries no user surface.
 at_core is above (Control model, Data and ownership).
-Faction character, the effects resolver, the xcombat boundary, and the GOAP graft follow.
+Faction gates, the effects resolver, the xcombat boundary, and the GOAP graft follow.
 
-### Faction character
+### Faction gates
 
 Does: answers a faction's per-action Personality chance - the proclivity it takes an action - and owns the stalker Intelligence roll.
 Changes: nothing in the world; a lookup and a roll the decision systems consume.
@@ -209,7 +209,7 @@ at_faction.script:
   check_intelligence(npc)   one roll against min((int_base + int_rank_pct * rank index) / 100, intelligence cap)
 ```
 
-The hurt answer is where character shows most: flee (stow and run to base) against retreat (fighting walk to cover); a faction at 0 for both holds and keeps fighting.
+The hurt answer is where Personality shows most: flee (stow and run to base) against retreat (fighting walk to cover); a faction at 0 for both holds and keeps fighting.
 The per-action chances live in `at_faction_config.ltx`, all user-set; the Intelligence pair lives on the Combat General page, capped at 0.75 (`[caps]`), so nothing is ever certain.
 
 ### Effects resolver
@@ -320,7 +320,7 @@ Stops: at most one open maneuver per NPC, bounded by the start budget, ended on 
 begin check (600ms, _try_begin_maneuver at_maneuvers.script):
   fighting? (live best_enemy or a hit within hit_fight_ms), enemy is actor or stalker
   _check_seize_block: armed, outside smart cover, no playing animation, budget left
-  _resolve_maneuver: roll Intelligence ONCE (a miss ends the beat, zero walk), then Fisher-Yates-shuffle the catalog and walk it
+  _select_maneuver: roll Intelligence ONCE (a miss ends the beat, zero walk), then shuffle the catalog (xmath.shuffle_back) and walk it
     per row: scope -> toggle -> faction -> palette -> check_need -> Personality -> find_destination
     a premise or Personality miss falls through to the next shuffled row; the first that finds a destination
     (the one geometry probe) wins and ends the walk
@@ -667,7 +667,7 @@ The loot and trade inventory floors own carrier persistence, and Gear only marks
 ## Mutants
 
 Mutant combat runs the shared decision model with no takeover: the engine FSM stays the sole mover, and the module varies values innately and commands moves the engine validates itself.
-THE ATOM: every 600ms a fighting mutant that holds no committed window (flee, gravity) rolls Intelligence ONCE at the top; a miss does zero premise or feasibility work and the vanilla FSM fights on.
+THE MOVE SELECTION: every 600ms a fighting mutant that holds no committed window (flee, gravity) rolls Intelligence ONCE at the top; a miss does zero premise or feasibility work and the vanilla FSM fights on.
 On a pass the species' toggled decision moves are shuffled in place (Fisher-Yates) and walked up to `[select] candidates` (3); each move is a self-contained handler that tests its own premise then its Personality, falls through free on either miss, and the FIRST that fires consumes the beat and breaks.
 There is no premise table and no shared gate: every check is a handler's own line over the pass memo - one scratch reset per pass, plus a beat-cache for the actor's vulnerability. A refused invoke falls through to the next candidate; the rate slot stamps only on an executed fire.
 Intelligence is base + map-rank slope, capped; rank is the map tier (`xlevel.get_danger_tier`, 0-5). Personality is the per-species per-move chance (the `[personality_*]` sections), final chance = Intelligence x Personality; the retired `inside_chance` second roll is gone.
@@ -679,7 +679,7 @@ THE JUMP FEASIBILITY lives in `xmonster.try_monster_jump`: the engine's `script_
 GRAVITY is the burer's forced gravi throw, shield-safe by its trigger: a vulnerable or back-turned player is not shooting, so the burer's own shield (top of the attack selector, armed on lost health) is not wanted that tick and forcing gravi steals nothing. `burer_set_force_gravi_attack` bypasses the gravi gate (`burer_state_attack_gravi_inline.h:81`), so the handler hoists the range band (`Gravi_Min/MaxDist`), the LOS and the 45-degree facing and keeps the engine cooldown bypassed; the forced flag holds one gravi cycle then clears.
 The charge is engine-owned end to end - the autonomous trigger re-checks it every scheduler tick through the same gates a command would pass, so a commanded charge can never add a fire; what the module owns is the PACING: the species' own wait between charges, scaled by Intelligence at adoption (a smart one waits less and presses), never the band geometry.
 FLEE has ONE trigger, ability to flee: health below the survival fraction, the actor 20m+ to disengage (`[survival] min_dist_m`), and the mutant not nose-on to the enemy (no 180-turn-and-die) - a cornered mutant fights. Its Personality carries the rarity (low on the apex and pack, high on prey); the window is a fixed 45-75s timer and while it holds the proposal subscriber re-proposes `eStateAttack_RunAway`.
-THE GATE: the atom evaluates a mutant only within `gate_radius_m` of the player (`at_core.is_in_gate`), the one shared radius the stalker resolver and the HUD also read, so a mutant decides only when it is near enough to the player to matter and never acts across the map. A disengage move (the mutant equivalent of the stalker retreat) was tried and dropped - no proxy told "genuinely cannot reach" from "the player is dodging well", and the engine exposes no reachability read; it is parked as research (`todo-alifetactics-mutants.md` m24 MUTANT_DISENGAGE).
+THE GATE: the selection evaluates a mutant only within `gate_radius_m` of the player (`at_core.is_in_gate`), the one shared radius the stalker resolver and the HUD also read, so a mutant decides only when it is near enough to the player to matter and never acts across the map. A disengage move (the mutant equivalent of the stalker retreat) was tried and dropped - no proxy told "genuinely cannot reach" from "the player is dodging well", and the engine exposes no reachability read; it is parked as research (`todo-alifetactics-mutants.md` m24 MUTANT_DISENGAGE).
 Monster health is a normalized fraction clamped to 1.0 every condition update, so a health pool, regeneration, or lifesteal cannot raise it; toughness lives in resistance alone, stat = 1 + x% * rank.
 
 Does: adopts each online mutant on its first binder update, scales its hits by tier, and runs the decision model on one 600ms lane.
@@ -789,7 +789,7 @@ AlifeTactics/gamedata/
     at_mcm.script                the MCM tree and the one config-defaults source
     at_debug.script              the code-trace primitives (one logger, the on() gate)
     at_core.script               the store, the 200ms monitor, the start budget
-    at_faction.script            faction Character + the stalker gates (is_participant, check_intelligence, check_personality)
+    at_faction.script            faction Personality + the stalker gates (is_participant, check_intelligence, check_personality)
     at_maneuvers.script          the takeover lifecycle and the row methods
     at_maneuvers_config.script   the catalog rows (structure LTX cannot hold)
     at_commitment.script         the anti-shuffle veto

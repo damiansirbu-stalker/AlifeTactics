@@ -98,7 +98,7 @@ Every system below has its own MCM page in this order, where it is toggled and t
 
 Combat
 
-Faction character and Intelligence:
+Faction Personality and Intelligence:
 Intelligence is how sharply a stalker reads a fight, and it scales with his rank, a base plus a bonus per rank, two sliders on the General page.
 A novice fumbles the openings a veteran takes, so his judgment emerges from his rank where vanilla clamps every NPC to one flat setting. It caps short of certain, so even a legend is never guaranteed the right call.
 Then the faction's Personality decides whether his kind takes that action at all, every action carrying a per-faction chance from 0 (never) to 1 (always).

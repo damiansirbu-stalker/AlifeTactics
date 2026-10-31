@@ -52,8 +52,5 @@ end
 
 --- Roll the action's Personality for this faction, per opening; >= 1 always, 0 never, between rolls.
 function check_personality(npc, action)
-    local chance = _get_personality(npc, action)
-    if chance >= 1 then return true end
-    if chance <= 0 then return false end
-    return math_random() < chance
+    return at_core.check_chance(_get_personality(npc, action))
 end

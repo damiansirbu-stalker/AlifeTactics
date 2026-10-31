@@ -12,7 +12,7 @@
         - A missed roll lets the opening pass, so a Cordon dog wastes most of its chances and a deep-Zone chimera takes them. A cap on how many driven moves run at once holds a pack to waves.
       Personality
         - Each mutant kind takes each of its moves at its own chance, the way a faction has its doctrine. A chimera leaps and claws without pause and never routs, a flesh bolts early, a cat darts and circles.
-        - The final chance is Intelligence times Personality, so a sharp read still acts only when the creature's character would. The values are grounded in GSC's own per-creature design.
+        - The final chance is Intelligence times Personality, so a sharp read still acts only when the creature's Personality would. The values are grounded in GSC's own per-creature design.
       Wild
         - One dial for how much a mutant's own numbers vary between individuals: the move timings and the ranges, bands, and reach of its abilities.
             At 0 a kind is identical and learnable, at 100 no two spawns read alike.

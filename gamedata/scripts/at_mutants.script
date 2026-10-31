@@ -30,7 +30,7 @@ local MOVE_KEYS = {
     "cloak", "gravity_attack", "claw", "backstrike",
 }
 
--- The per-beat decision chain the atom shuffles and walks; cloak/backstrike/charge/auras arm at adoption, not here.
+-- The per-beat decision chain the selection shuffles and walks; cloak/backstrike/charge/auras arm at adoption, not here.
 local DECISION_MOVES = {
     "leap", "jump", "leap_adapt", "jump_adapt", "flee", "claw", "gravity_attack",
 }
@@ -47,7 +47,7 @@ local _move_cfg = {}
 local _all_toggle_keys = {}
 local _claw_motion = nil
 local _backstrike_motions = {}
-local _slots = nil
+local _starts = nil
 local _active = false
 local _seams = nil
 local _runaway_id = nil
@@ -175,18 +175,18 @@ local function _read_pair(section, key)
     return { tonumber(first), tonumber(second) }
 end
 
--- The caps: slots assumed running per bucket; an offensive fire checks then adds, flee adds and is never denied.
-local function _check_slot(bucket)
+-- The caps: starts assumed running per bucket; an offensive fire checks then adds, flee adds and is never denied.
+local function _check_start(bucket)
     local cap = bucket == VS_PLAYER and _tun_num.cap_player or _tun_num.cap_npc
-    return _slots:get_count(bucket) < cap
+    return _starts:get_count(bucket) < cap
 end
 
-local function _add_slot(bucket)
-    _slots:add(bucket)
+local function _add_start(bucket)
+    _starts:add(bucket)
 end
 
 -- The per-species Personality roll for a move, rolled after the beat's Intelligence pass (the at_faction twin); cached per (move, species), absent = 1.0.
--- The four leap variants share the one personality_leap value - the variant is a situational pick (watching/strafing), not a character trait.
+-- The four leap variants share the one personality_leap value - the variant is a situational pick (watching/strafing), not a Personality trait.
 local function _check_personality(rec, move)
     local species = rec.species
     if not species then return true end
@@ -477,7 +477,7 @@ local function _try_leap(mob, rec, move, now)
     if not _check_leap_premise(move, memo, rec.strafing) then return false end
     if not _check_personality(rec, LEAP_FAMILY) then return false end
     if rec.quadruped and not xcombat.is_enemy_above(memo.enemy, mob, _tun_num.above_m) then return false end
-    if not _check_slot(memo.bucket) then return false end
+    if not _check_start(memo.bucket) then return false end
     local steered = move == MOVE_LEAP_ADAPT or move == MOVE_JUMP_ADAPT
     local sudden = move == MOVE_JUMP or move == MOVE_JUMP_ADAPT
     _clear_claw(mob, rec, now, true)
@@ -492,7 +492,7 @@ local function _try_leap(mob, rec, move, now)
         xmonster.set_monster_jump_flags(mob, fired and {} or { auto_aim_factor = rec.aim_basis })
     end
     if not fired then return false end
-    _add_slot(memo.bucket)
+    _add_start(memo.bucket)
     _log_fire(rec, move, aim and (" aim=%.2f"):format(aim) or nil)
     return true
 end
@@ -507,7 +507,7 @@ local function _try_flee(mob, rec, _move, now)
     local hold = _select_band(_tun_num.survival_hold_min, _tun_num.survival_hold_max)
     rec.flee_until = now + hold
     rec.flee_ok_at = now + _tun_num.flee_throttle_ms
-    _add_slot(memo.bucket)
+    _add_start(memo.bucket)
     _log_fire(rec, "flee", (" hold=%dms"):format(hold))
     return true
 end
@@ -534,10 +534,10 @@ local function _try_gravity(mob, rec, _move, now)
     if rec.gravi_max and (memo.dist > rec.gravi_max or memo.dist < (rec.gravi_min or 0)) then return false end
     if not xcombat.can_see(mob, memo.enemy) then return false end
     if not xcombat.is_facing(mob, memo.enemy_pos, _tun_num.gravity_cone) then return false end
-    if not _check_slot(memo.bucket) then return false end
+    if not _check_start(memo.bucket) then return false end
     if not xmonster.set_burer_gravi_force(mob, true) then return false end
     rec.gravity_release = now + _tun_num.gravity_release
-    _add_slot(memo.bucket)
+    _add_start(memo.bucket)
     _log_fire(rec, "gravity_attack")
     return true
 end
@@ -549,9 +549,9 @@ local TRY = {
     gravity_attack = _try_gravity,
 }
 
--- The atom shuffles this species' toggled decision moves in place (Fisher-Yates, ap_core_producer.script:186-189).
+-- The selection shuffles this species' toggled decision moves in place (xmath.shuffle_back).
 -- It walks up to [select] candidates and the FIRST that fires consumes the beat and breaks; no premise table, no shared gate.
-local function _run_atom(mob, rec, now)
+local function _select_move(mob, rec, now)
     local buf = rec.move_buf
     local count = 0
     for i = 1, #DECISION_MOVES do
@@ -562,10 +562,7 @@ local function _run_atom(mob, rec, now)
         end
     end
     if count == 0 then return end
-    for i = count, 2, -1 do
-        local j = math_random(i)
-        if j ~= i then buf[i], buf[j] = buf[j], buf[i] end
-    end
+    xmath.shuffle_back(buf, count)
     local limit = _tun_num.candidates
     if limit > count then limit = count end
     for i = 1, limit do
@@ -592,7 +589,7 @@ end
 local _gate_probe = {}
 
 -- The one 600ms lane runs upkeep and samples every beat, then (if no committed window holds) rolls Intelligence once.
--- Only on a pass does it build the decision memo and run the atom; a miss does zero premise or feasibility work.
+-- Only on a pass does it build the decision memo and run the move selection; a miss does zero premise or feasibility work.
 local function _update_mutant(mob, rec, now)
     rec.tick_now = now
     rec.seen_ms = now
@@ -636,7 +633,7 @@ local function _update_mutant(mob, rec, now)
     memo.aiming = xcombat.is_aim_held(enemy, mob, _tun_num.aim_cone)
     memo.vulnerable = _check_enemy_vulnerable(enemy, is_actor, now)
     rec.low_now = xmonster.get_monster_health(mob) <= _tun_num.survival_frac
-    _run_atom(mob, rec, now)
+    _select_move(mob, rec, now)
 end
 
 local function _on_mob_update(mob)
@@ -823,7 +820,7 @@ local function _load_tunables()
         backstrike_arc = _read_num("backstrike", "arc_deg"),
         ability_pct = _read_num("wild", "ability_pct"),
     }
-    _slots = xttltable.create_ttl_counter({ ttl = _read_num("caps", "slot_s") or 3 })
+    _starts = xttltable.create_ttl_counter({ ttl = _read_num("caps", "starts_s") or 3 })
     _move_species = {}
     for i = 1, #MOVE_KEYS do
         local move = MOVE_KEYS[i]

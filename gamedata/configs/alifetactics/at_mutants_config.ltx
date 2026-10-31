@@ -36,14 +36,14 @@ backstrike     = chimera, lurker, burer, controller
 [quadrupeds] ; the body-plan law: these jump carriers take OUR commanded leap ONLY at an elevated enemy
 species = dog, pseudodog, psy_dog, cat, chimera, lurker
 
-[select] ; the atom walks up to this many shuffled candidates per beat; the first that fires wins and breaks (the budget - "max 3 checks", user 2026-10-27)
+[select] ; the selection walks up to this many shuffled candidates per beat; the first that fires wins and breaks (the budget - "max 3 checks", user 2026-10-27)
 candidates = 3
 
 [throttle] ; per-move re-fire gaps, seconds; a routed mutant does not instantly re-rout once its committed window closes
 flee     = 120
 
-[caps] ; max driven moves assumed running at once per bucket; a slot counts slot_s seconds
-slot_s    = 3
+[caps] ; max driven moves assumed running at once per bucket; a start counts starts_s seconds
+starts_s  = 3
 vs_player = 3
 vs_npc    = 3
 
@@ -100,7 +100,7 @@ ability_pct     = 0.20
 
 ; --- Personality: the per-species chance (0..1) a mutant takes a move when its premise fires, rolled AFTER the Intelligence
 ; gate passes (the at_faction Personality twin, section = personality_<move>, key = species, default covers any unlisted). The four
-; leap variants (leap/jump/leap_adapt/jump_adapt) share the one personality_leap value - the variant is picked by watching/strafing, not character.
+; leap variants (leap/jump/leap_adapt/jump_adapt) share the one personality_leap value - the variant is picked by watching/strafing, not a Personality trait.
 ; Final rate = Intelligence (0.40-0.70 by map tier) x Personality, so a 1.0 move fires on 40-70% of its openings, a 0.1 on 4-7%, a 0.0 never.
 ; The values ARE each creature's temperament - who pounces, who routs, who holds - grounded in GSC's per-species bestiary (характер) and
 ; the creature_courage ratings [8] (doc/gsc/gsc-design-documents.md), the engine panic_threshold (flee propensity), and the species ecology.

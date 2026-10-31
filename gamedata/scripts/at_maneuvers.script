@@ -439,12 +439,12 @@ local function _check_repeat_limit(state, situation, npc_pos)
     return true
 end
 
--- The shared catalog-order scratch, shuffled per resolve (the walk is synchronous, one NPC at a time).
+-- The shared catalog-order scratch, shuffled per selection (the walk is synchronous, one NPC at a time).
 local _order = {}
 
--- The atom, identical to the mutant side: Intelligence rolls ONCE at the top and a miss lets the opening go.
--- Then Fisher-Yates-shuffle the catalog and walk it, each row self-gating premise then Personality, the first that picks winning.
-local function _resolve_maneuver(npc, enemy, state, tg)
+-- The move selection, identical in shape to the mutant side: Intelligence rolls ONCE at the top and a miss lets the opening go.
+-- Then shuffle the catalog (xmath.shuffle_back) and walk it, each row self-gating premise then Personality, the first that picks winning.
+local function _select_maneuver(npc, enemy, state, tg)
     if not at_faction.is_participant(npc) then return nil end
     local count = #CATALOG
     if count == 0 then return nil end
@@ -457,10 +457,7 @@ local function _resolve_maneuver(npc, enemy, state, tg)
     local walk_timer = xprofiler.new_if(tracing)
     walk_timer:start()
     for i = 1, count do _order[i] = i end
-    for i = count, 2, -1 do
-        local j = math_random(i)
-        if j ~= i then _order[i], _order[j] = _order[j], _order[i] end
-    end
+    xmath.shuffle_back(_order, count)
     local rows_trace = tracing and {} or nil
     local spent_row, spent_vid, spent_situation
     for i = 1, count do
@@ -656,7 +653,7 @@ local function _try_begin_maneuver(npc, state, tg)
 
     if _check_seize_block(npc) then return end
 
-    local maneuver, dest = _resolve_maneuver(npc, enemy, state, tg)
+    local maneuver, dest = _select_maneuver(npc, enemy, state, tg)
     if maneuver and not _try_seize(npc, state, maneuver, dest, tg) then maneuver = nil end
     _trace_decision(state, enemy, maneuver and maneuver.name)
 end
