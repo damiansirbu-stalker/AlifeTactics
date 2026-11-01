@@ -141,6 +141,7 @@ He sees a decision through without second-guessing himself every frame.
 
 Conduct:
 Conduct makes better choices at moments the engine already decides, with no takeover, for stalkers the vanilla engine drives.
+Whether a fighter holds the discipline is his training, settled once in his life and weighed by faction, so militarized stalkers keep it and scavengers slouch.
 Cover posture: experienced riflemen and snipers crouch to steady the shot when the line to the enemy is clear, and stand to fire over low cover that would block a crouched shot.
 It replaces vanilla's blind posture picks, such as a crouch behind a random bump, or standing tall where a crouch would steady the aim.
 They crouch only past close range and only while holding a position, so they stay mobile in a knife fight and while moving to cover.
@@ -277,7 +278,7 @@ Each species gets its own page carrying only the moves its body has: first the m
 Then come the new moves the vanilla game never fires for it.
 The leap family reads your aim: Leap is the telegraphed leap for anything short of a dead aim, Jump drops the wind-up when you aim right at it, and the adapt versions steer mid-air when you strafe.
 Every jumper leaps up at a shooter above it, so climbing a rock or a ledge stops being safe.
-Rush paces the charge: how often a boar, bloodsucker, or pseudogigant charges scales with its Intelligence, so a deep-Zone charger presses harder than a Cordon one.
+Rush paces the charge: how often a boar, bloodsucker, or pseudogigant charges scales with its Intelligence, so a deep-Zone charger presses harder than a Cordon one. Its temperament decides whether it leans on the charge at all, and no two individuals pace quite alike.
 The charge itself stays the game's own move.
 Backstrike arms a spin strike on an enemy circling behind, once per individual, on the four species whose models carry the motions. Claw gives the chimera the point-blank strike vanilla never gave it.
 Flee breaks a dying mutant out of the fight, rarely, and only when it is far enough to escape. A cornered one fights to the end. Cloak varies the bloodsucker kind's invisibility rhythm.
