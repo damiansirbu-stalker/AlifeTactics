@@ -120,6 +120,7 @@ Conduct sharpens the choices the engine already makes, with no takeover.
 A rifleman crouches to steady a clear shot and stands to fire over cover a crouch would hide behind.
 A submachine gunner takes closer cover to keep his fire in range, and a sniper holds extra distance.
 The cover map and the posture states are the engine's own, and Conduct only chooses better among them.
+One discipline decides both the posture and the spacing, Intelligence then Personality rolled once in a fighter's life, so militarized factions hold it and scavengers slouch.
 
 #### Push and Pull
 
@@ -225,7 +226,7 @@ Power grows with the map's danger, so a dog in Cordon barely changes while a chi
 
 #### Wild
 
-Wild varies each ability value inside the species' own envelope, so no two spawns read alike.
+Wild varies each ability value and the charge cadence inside the species' own envelope, so no two spawns read alike.
 
 #### Moves
 
