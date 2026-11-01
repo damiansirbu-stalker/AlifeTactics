@@ -1,5 +1,7 @@
 # AlifeTactics: NPC combat behavior for STALKER Anomaly
 
+X-Ray is strong mechanically, but its enemies fight stereotypically, their actions shuffled and settled by a die roll. AlifeTactics adds the intelligence to choose the action and a per-faction and per-mutant Personality over which action its kind takes.
+
 A complete combat system. It keeps X-Ray's GOAP planner and drives it, replacing no vanilla file.
 GOAP control: a bounded full takeover with six maneuvers, a planner veto, cover posture and spacing.
 Battle mechanics: per-rank dispersion, aim, lead, burst, sight, sound, healing, jamming, ammo, artefacts and optics, on stalkers and mutants, from the items they actually carry.

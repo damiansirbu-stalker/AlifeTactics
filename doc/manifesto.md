@@ -2,6 +2,8 @@
 
 AlifeTactics makes the Zone's enemies fight for real.
 
+X-Ray is strong mechanically, but its enemies fight stereotypically, their actions shuffled and settled by a die roll. AlifeTactics adds the intelligence to choose the action, and a Personality, per faction and per mutant species, for which action its kind takes at all.
+
 Everyone in the Zone wants to live.
 A stalker caught reloading runs for cover.
 A hurt bandit breaks contact while a Duty trooper holds the line.
@@ -29,7 +31,8 @@ The Zone is dangerous because the things in it are trying to survive.
 
 ### Intelligent decisions
 
-One formula runs every decision, stalker or mutant.
+X-Ray picks its combat actions stereotypically, shuffled and settled by a die roll. AlifeTactics adds the decision itself.
+One formula runs it, stalker or mutant.
 A premise opens it, the read of the actual fight.
 Two things then gate it. Intelligence is competence, rising with rank: how sharply he reads the fight. Personality is character: whether his kind takes this action at all.
 It fires only when both pass, a sharp read and a willing character. A passed decision commits to its window, and a missed one lets the opening go.
@@ -69,7 +72,7 @@ A stalker's accuracy follows his rank, and a mutant fights with the body GSC wro
 > Fix pistol bursts."
 > GSC AI design documents [8]
 
-### Faction and species flavour
+### Faction and species Personality
 
 Every faction fights its own way, across every choice it makes, not only when it is hurt.
 Monolith presses and never yields. Duty holds the line and gives ground in order. Bandits finish a downed man and rout when the fight turns. Ecologists fight poorly and pull back early.
@@ -231,7 +234,7 @@ Anything short of a dead aim gets the telegraphed Leap you can dodge.
 Aim right at it and it drops the wind-up and lunges.
 Strafe and it steers in the air to track you.
 A burer answers a reloading or turned-away player with its Gravity throw.
-Charge, Backstrike, Claw, Cloak, Retreat, and the hit-and-run Breakoff round out the set, each the creature's own.
+Charge, Backstrike, Claw, Cloak, and Flee round out the set, each the creature's own.
 
 ---
 

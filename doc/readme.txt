@@ -48,6 +48,7 @@ After every update, use Reset ALL to Defaults in MCM under Development.
 Everyone wants to live.
 
 AlifeTactics rebuilds how creatures behave and fight in STALKER Anomaly.
+The engine is strong mechanically, but its enemies fight stereotypically, their actions shuffled and settled by a die roll. AlifeTactics adds the intelligence to choose the action, and a Personality for each faction and each mutant species over which action it takes at all.
 Sections marked (planned) are not built yet.
 
 It rebuilds the combat mind GSC designed and shelved, the intelligence their own AI documents lay out.
