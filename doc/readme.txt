@@ -364,15 +364,15 @@ Drop:
 - G.A.M.M.A. NPCs Faster Reactions - raises sight range and detection, so NPCs see across open ground and swamp the Vision curve. No toggle.
 - NPC Limping and Healing (Vodoxleb) - stacks the limp and heal animation and breaks the heal cue.
 - NPC Weapon Jamming, and any NPC-jam mod - re-adds the jams the Jamming system removes, looping reloads with no end.
-- RE:DONE Combat AI - drives combat aim itself and leaves the game's aim settings altered on removal.
+- RE:DONE Combat AI - a full combat-AI takeover: full-file overrides of the combat schemes, danger, visual memory, GOAP state and aim, replacing the whole layer Alife Tactics works at.
 - Worse NPC Vision and Accuracy, and any mod with its own NPC vision config - override the Vision and Accuracy systems. No toggle.
 - Companion Spotters - replaces vanilla NPC movement game-wide so one bug breaks every NPC, does per-frame work plus a full world scan,
   and misroutes companions on large maps with a broken vertex check.
 - G.A.M.M.A. No logs, Log spam remover - full-file _g.script overrides that drop the modded-exes weapon-accuracy hook the Accuracy system reads.
   Accuracy goes dead, and No logs (a stale 1.5.1 copy) reverts newer engine callbacks the whole game needs.
 Avoid:
-- G.A.M.M.A. AI Rework - runs alongside, but cripples NPC combat: it swaps the engine's targeting and firing for its own logic, revives broken combat subschemes,
-  reseeds RNG at load, and is littered with dead code and hardcoded values.
+- G.A.M.M.A. AI Rework - hands combat to broken scripted subschemes in place of the engine brain. Past 173m a normal NPC gets a camper that fires through cover or a "cover" scheme that freezes it.
+  Monolith, Sin and ISG run an assault-rush at any range that can crash. It also reseeds the global RNG at load and is half dead code.
 Interferes:
 - Useful Idiots - a well-liked companion UI, fine to keep. Two combat caveats: companions keep its combat modes when the takeover skips them, and it replaces 1 of Crossfire's 3 friendly-fire fixes.
   Combat runs cleanest with it off, but it works.
