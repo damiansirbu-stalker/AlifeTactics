@@ -1,10 +1,13 @@
---- at_test: AlifeTactics tests - unarmed-seize spawn, AP arming, lab stocking
+--- at_test: AlifeTactics tests - unarmed-seize spawn, AP arming, lab stocking, the mutant efficiency harness
 --- @novalidate(conventions.unused_export, reason:"console commands, invoked by name via run_string")
+--- @novalidate(xray.stale_entity_table, reason:"_eff.seen is reset each phase and dropped at harness stop, never leaks")
 
 local tostring, string_format, math_rad, math_cos, math_sin = tostring, string.format, math.rad, math.cos, math.sin
 local pairs, IsStalker, IsWeapon, get_object_squad = pairs, IsStalker, IsWeapon, get_object_squad
 local time_global, alife_object, level = time_global, alife_object, level
 local alife = alife
+local type, ipairs, rawget, table_concat = type, ipairs, rawget, table.concat
+local math_floor, math_max, math_random = math.floor, math.max, math.random
 
 local DEFAULT_SECTION  = "bandit_sim_squad_novice"
 local DEFAULT_DISTANCE = 50
@@ -24,6 +27,17 @@ local LAB_WEAPONS = { "wpn_svd", "wpn_spas12", "wpn_mp5", "wpn_pm" }
 local _strip_buf = {}
 local _lab_wpn_i = 0
 local _lab_loop_on = false
+
+local EFF_COUNT, EFF_DIST, EFF_PHASE_SEC, EFF_ANNOUNCE_SEC = 2, 12, 60, 5
+local EFF_INT_JIT, EFF_INT_REVERT, EFF_INT_LO, EFF_INT_HI = 20, 0.3, 10, 100
+local EFF_PHASES = {
+    { at = false, move = "stand"  },
+    { at = true,  move = "stand"  },
+    { at = false, move = "strafe" },
+    { at = true,  move = "strafe" },
+}
+local _eff = nil
+local _eff_log = nil
 
 local function _show_tip(msg)
     if db.actor then news_manager.send_tip(db.actor, msg, nil, nil, 5000) end
@@ -217,6 +231,119 @@ local function _update_lab()
     ResetTimeEvent("at_lab", "loop", LAB_PERIOD_SEC)
 end
 
+-- Efficiency harness: AT off/on x stand/strafe A/B per species, counting hits and driven moves; TestZone owns the bench primitives.
+local function _get_eff_cfg()
+    local flags = {}
+    for k, v in pairs(at_mcm.cfg) do
+        if tostring(k):sub(1, 4) == "mut_" and (type(v) == "boolean" or type(v) == "number") then flags[k] = v end
+    end
+    return flags
+end
+
+local function _set_eff_at(on)
+    local cfg = at_mcm.cfg
+    if on then
+        for k, v in pairs(_eff.snap) do cfg[k] = v end
+        if _eff.int_base then cfg.mut_int_base = _eff.int_cur or _eff.int_base end
+    else
+        for k in pairs(_eff.snap) do cfg[k] = (type(cfg[k]) == "boolean") and false or 0 end
+    end
+end
+
+local function _format_eff_moves(moves)
+    local parts = {}
+    for move, count in pairs(moves) do parts[#parts + 1] = move .. ":" .. count end
+    return #parts > 0 and table_concat(parts, " ") or "-"
+end
+
+local function _on_eff_before_hit(s_hit)
+    if not (_eff and s_hit) then return end
+    local attacker = s_hit.draftsman
+    if attacker and attacker:id() ~= AC_ID and xcreature.get_mutant_species(attacker:id()) then
+        _eff.phase.hits = _eff.phase.hits + 1
+    end
+end
+
+local function _on_eff_mob_update(mob)
+    if not (_eff and mob and mob:alive()) then return end
+    local rec = at_mutants.get_mutant_record(mob:id())
+    if not (rec and rec.fired_at) then return end
+    if _eff.seen[mob:id()] ~= rec.fired_at then
+        _eff.seen[mob:id()] = rec.fired_at
+        local move = rec.fired_move or "?"
+        _eff.phase.moves[move] = (_eff.phase.moves[move] or 0) + 1
+        _eff_log.info("[fire] p%d id=%d move=%s", _eff.i, mob:id(), move)
+    end
+end
+
+local function _start_eff_phase(i)
+    _eff.i = i
+    local phase_def = EFF_PHASES[i]
+    _eff.phase = { hits = 0, moves = {}, move = phase_def.move, at = phase_def.at }
+    _eff.phase_at = time_global()
+    _eff.next_announce = 0
+    _eff.seen = {}
+    _set_eff_at(phase_def.at)
+    _eff.tz.clear_mutants()
+    _eff.tz.start_actor_drive(phase_def.move)
+    _eff.tz.spawn_mutant(_eff.species, EFF_COUNT, EFF_DIST)
+    _eff_log.info("[phase %d/4] %s AT=%s %s spawn=%d", i, _eff.species, phase_def.at and "on" or "off", phase_def.move, EFF_COUNT)
+end
+
+local function _log_eff_summary()
+    _eff_log.info("=== %s SUMMARY (count=%d dist=%dm phase=%ds) ===", _eff.species, EFF_COUNT, EFF_DIST, EFF_PHASE_SEC)
+    for _, phase_rec in ipairs(_eff.results) do
+        _eff_log.info("%-6s AT %-3s : hits=%d moves=%s", phase_rec.move, phase_rec.at and "on" or "off", phase_rec.hits, _format_eff_moves(phase_rec.moves))
+    end
+    _eff_log.flush()
+end
+
+local function _stop_eff()
+    if not _eff then return end
+    _set_eff_at(true)
+    _eff.tz.stop_actor_drive()
+    _eff.tz.clear_mutants()
+    _eff.tz.stop_lifepump()
+    UnregisterScriptCallback("actor_on_before_hit", _on_eff_before_hit)
+    UnregisterScriptCallback("monster_on_update", _on_eff_mob_update)
+    RemoveTimeEvent("at_efficiency", "tick")
+    if _eff_log then _eff_log.flush() end
+    _eff = nil
+end
+
+local function _update_eff()
+    if not _eff then return true end
+    ResetTimeEvent("at_efficiency", "tick", 1)
+    local now = time_global()
+    local into = (now - _eff.phase_at) / 1000
+    local left = EFF_PHASE_SEC - into
+    local phase_def = EFF_PHASES[_eff.i]
+    if phase_def.at and _eff.int_base then
+        _eff.int_cur = _eff.int_cur + (_eff.int_base - _eff.int_cur) * EFF_INT_REVERT + (math_random() * 2 - 1) * EFF_INT_JIT
+        if _eff.int_cur < EFF_INT_LO then _eff.int_cur = EFF_INT_LO elseif _eff.int_cur > EFF_INT_HI then _eff.int_cur = EFF_INT_HI end
+        at_mcm.cfg.mut_int_base = _eff.int_cur
+    end
+    if now >= _eff.next_announce then
+        _eff.next_announce = now + EFF_ANNOUNCE_SEC * 1000
+        _show_tip(string_format("%s | AT %s | %s | %ds", _eff.species, phase_def.at and "ON" or "OFF", phase_def.move, math_max(0, math_floor(left))))
+        _eff_log.info("[run] p%d %s AT=%s %s t=%ds hits=%d moves=%s", _eff.i, _eff.species, phase_def.at and "on" or "off", phase_def.move,
+            math_floor(into), _eff.phase.hits, _format_eff_moves(_eff.phase.moves))
+    end
+    if left <= 0 then
+        _eff.results[#_eff.results + 1] = _eff.phase
+        _eff_log.info("[phase %d/4 END] %s AT=%s %s hits=%d moves=%s", _eff.i, _eff.species, phase_def.at and "on" or "off", phase_def.move,
+            _eff.phase.hits, _format_eff_moves(_eff.phase.moves))
+        if _eff.i >= #EFF_PHASES then
+            _log_eff_summary()
+            _show_tip(_eff.species .. " done - see harness_at.log")
+            _stop_eff()
+        else
+            _start_eff_phase(_eff.i + 1)
+        end
+    end
+    return false
+end
+
 --- Spawn an armed military squad, strip every weapon 3s later - proves the unarmed seize decline.
 function create_squad_unarmed()
     local squad = _spawn_squad("army_sim_squad_novice", 40, 0)
@@ -272,5 +399,32 @@ function run_lab_loop()
     CreateTimeEvent("at_lab", "loop", LAB_PERIOD_SEC, _update_lab)
     at_debug.info("[LAB] loop started period=%ds", LAB_PERIOD_SEC)
     _show_tip("AT.LAB: loop started (a pass every " .. LAB_PERIOD_SEC .. "s)")
+end
+
+--- Run the 4-phase AT off/on x stand/strafe efficiency A/B on a mutant species; logs to harness_at.log. Needs TestZone.
+function run_efficiency(species, int_base)
+    if _eff then return _show_tip("AT.EFF: running - stop_efficiency() first") end
+    if not (db.actor and species) then return _show_tip("AT.EFF: need in-game and a species") end
+    local tz = rawget(_G, "tz_commands")
+    if not (type(tz) == "table" and type(tz.spawn_mutant) == "function" and type(tz.start_actor_drive) == "function") then
+        return _show_tip("AT.EFF: TestZone not loaded (needs tz_commands)")
+    end
+    _eff_log = xlog.get_logger("harness_at", { outfile = "harness_at.log", buffer_size = 1, level = "INFO" })
+    _eff = { species = species, results = {}, snap = _get_eff_cfg(), seen = {},
+             int_base = int_base, int_cur = int_base, tz = tz }
+    _eff_log.info("========== RUN %s%s ==========", species, int_base and (" int_base=" .. int_base) or "")
+    tz.start_lifepump(1.0, 0.02)
+    RegisterScriptCallback("actor_on_before_hit", _on_eff_before_hit)
+    RegisterScriptCallback("monster_on_update", _on_eff_mob_update)
+    _start_eff_phase(1)
+    RemoveTimeEvent("at_efficiency", "tick")
+    CreateTimeEvent("at_efficiency", "tick", 1, _update_eff)
+    _show_tip("AT.EFF: " .. species .. " - follow the tip (stand / strafe)")
+end
+
+--- Stop the efficiency harness, release its mutants, and restore the AT config and actor control.
+function stop_efficiency()
+    _stop_eff()
+    _show_tip("AT.EFF: stopped")
 end
 
