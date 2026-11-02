@@ -2,16 +2,17 @@
 
 AlifeTactics makes the Zone's enemies fight for real.
 
-X-Ray is strong mechanically, but its enemies fight stereotypically, their actions shuffled and settled by a die roll. AlifeTactics adds the intelligence to choose the action, and a Personality, per faction and per mutant species, for which action its kind takes at all.
+X-Ray is strong mechanically, but its enemies fight stereotypically, their actions shuffled and settled by a die roll.
+AlifeTactics adds the intelligence to choose the action, and a Personality, per faction and per mutant species, for which action its kind takes at all.
 
 Everyone in the Zone wants to live.
 A stalker caught reloading runs for cover.
 A hurt bandit breaks contact while a Duty trooper holds the line.
-A dog that cannot reach you gives ground and comes again from another angle.
+The dog that cannot reach you gives ground and comes again from another angle.
 Every combatant reads the fight it is in and acts in its own favour, and no one stages it for the player.
 
 GSC built this intelligence first and cut it later.
-Its AI grew so sharp that stalkers won the firefights and finished the quests before the player could, so the studio reined it in to leave the player room to win [9].
+Its AI grew so sharp that stalkers won the firefights and finished the quests before the player could. The studio reined it in to leave the player room to win [9].
 AlifeTactics rebuilds the combat mind GSC designed and shelved.
 
 > "The paradigm of Stalker at the time was that we don't really care about the player. We have this living world."
@@ -31,10 +32,10 @@ The Zone is dangerous because the things in it are trying to survive.
 
 ### Intelligent decisions
 
-X-Ray picks its combat actions stereotypically, shuffled and settled by a die roll. AlifeTactics adds the decision itself.
+X-Ray picks its combat actions stereotypically. A die roll shuffles and settles them. AlifeTactics adds the decision itself.
 One formula runs it, stalker or mutant.
 A premise opens it, the read of the actual fight.
-Two things then gate it. Intelligence is competence, rising with rank: how sharply he reads the fight. Personality is character: whether his kind takes this action at all.
+Intelligence and Personality then gate it. Intelligence is competence, rising with rank, how sharply he reads the fight. Personality is character, whether his kind takes this action at all.
 It fires only when both pass, a sharp read and a willing character. A passed decision commits to its window, and a missed one lets the opening go.
 Rank only improves the odds of a good decision, never grants a new one.
 A novice and a legend both act, and the legend is right more of the time.
@@ -75,9 +76,9 @@ A stalker's accuracy follows his rank, and a mutant fights with the body GSC wro
 ### Faction and species Personality
 
 Every faction fights its own way, across every choice it makes, not only when it is hurt.
-Monolith presses and never yields. Duty holds the line and gives ground in order. Bandits finish a downed man and rout when the fight turns. Ecologists fight poorly and pull back early.
-Each faction carries its own chance on every action, rout, give ground, press, finish, hold, so one opening draws a different answer from a merc than from a renegade.
-This is GSC's own design, its documents rate every character by type and every creature for courage, the attack-and-defence profile left out of the shipped game.
+Monolith presses and holds its ground to the end. Duty holds the line and gives ground in order. Bandits finish a downed man and rout when the fight turns. Ecologists fight poorly and pull back early.
+Each faction carries its own chance on every one of its actions, the rout, the give-ground, the press, the finish, the hold. One opening draws a different answer from a merc than from a renegade.
+This is GSC's own design, its documents rate every character by type and every creature for courage, the attack and defence profile left out of the shipped game.
 Every mutant fights to its body, and takes each of its moves at its own chance.
 A chimera circles to the flank, leaps and claws without pause, and never routs.
 A burer hurls debris with its mind, a bloodsucker turns invisible and strikes from cover, a flesh bolts the moment it is hurt.
@@ -108,7 +109,7 @@ The named moves are our design, the fight-read behind them is GSC's.
 
 #### Commitment
 
-Vanilla stalkers re-plan every moment, so a flicker of lost sight makes one drop a good decision and pick again.
+Vanilla stalkers re-plan every moment. A flicker of lost sight makes one drop a good decision and pick again.
 Commitment holds a stalker to a decision while it still works and lets him switch the moment it stops.
 When his enemy is caught reloading or hurt, he keeps firing through the window and holds his spot.
 The engine re-plans the fight every moment, and Commitment damps the wasted re-planning.
@@ -120,7 +121,7 @@ Conduct sharpens the choices the engine already makes, with no takeover.
 A rifleman crouches to steady a clear shot and stands to fire over cover a crouch would hide behind.
 A submachine gunner takes closer cover to keep his fire in range, and a sniper holds extra distance.
 The cover map and the posture states are the engine's own, and Conduct only chooses better among them.
-One discipline decides both the posture and the spacing, Intelligence then Personality rolled once in a fighter's life, so militarized factions hold it and scavengers slouch.
+One discipline holds both the posture and the spacing, Intelligence then Personality rolled once in a fighter's life. Militarized factions keep that discipline and scavengers slouch.
 
 #### Push and Pull
 
@@ -163,7 +164,7 @@ GSC's design lists fix pistol bursts among the combat bugs, and Discipline scale
 
 A hostile stalker reacts to gunfire he hears but cannot see, facing the shots and moving to cover once he sees the shooter.
 He hears you move, each footstep carrying by stance, surface, and weather, and a crouch stays silent.
-A sound is never a confirmed enemy, so he investigates at a walk.
+A sound is never a confirmed enemy. He investigates at a walk.
 Stealth is untouched, because Sound never reads vision.
 GSC's monster design gives the dogs sharp hearing, and Sound answers the engine hear callback the vanilla AI ignores.
 The carry model is ours, each footstep scaled by how a stalker moves and what he crosses.
@@ -214,25 +215,26 @@ Gear reads each item's own data for one capped edge, and the advantages are our 
 
 AlifeTactics gives every mutant the decision model the stalkers run, reading your reload, your aim, your perch, and your strafe, then answering the opening each one invites.
 Perch on high ground and the jumpers come up after you.
-Catch yourself reloading or turn your back near a burer and its gravity throw answers.
+Reload or turn your back near a burer and its gravity throw answers.
 The engine still drives every mutant.
 AlifeTactics scales its stats and commands the moves. The engine runs them itself.
 This is the strongest-grounded system in the mod.
-Every move traces to a line of GSC's monster design, the burer's gravity field, the dog's leaping bite, the boar's charge, the fracture's strike at a turned back, the bloodsucker's night hunt, the chimera's flank.
+Every move traces to a line of GSC's monster design.
+The burer's gravity field, the dog's leaping bite, the boar's charge, the fracture's strike at a turned back, the bloodsucker's night hunt, the chimera's flank.
 
 #### Power
 
-Power grows with the map's danger, so a dog in Cordon barely changes while a chimera deep in the Zone is far deadlier.
+Power grows with the map's danger. A dog in Cordon barely changes while a chimera deep in the Zone is far deadlier.
 
 #### Wild
 
-Wild varies each ability value inside the species' own envelope, so no two spawns read alike.
+Wild varies each ability value inside the species' own envelope. No two spawns read alike.
 
 #### Moves
 
 The leap family reads your perch, your aim, and your movement.
 Climb to high ground and it leaps up after you.
-Aim at it and it drops the wind-up and lunges before you fire; catch it while you reload and it strikes inside that opening.
+Against a raised weapon it drops the wind-up and lunges before the shot. Against a reload it strikes inside that opening.
 Keep moving and it steers in the air to track you, instantly when you are aiming as well.
 A burer answers a reloading or turned-away player with its Gravity throw.
 Charge, Backstrike, Claw, Cloak, and Flee round out the set, each the creature's own.
