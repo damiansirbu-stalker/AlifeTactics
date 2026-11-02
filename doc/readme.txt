@@ -368,11 +368,11 @@ Drop:
 - Worse NPC Vision and Accuracy, and any mod with its own NPC vision config - override the Vision and Accuracy systems. No toggle.
 - Companion Spotters - replaces vanilla NPC movement game-wide so one bug breaks every NPC, does per-frame work plus a full world scan,
   and misroutes companions on large maps with a broken vertex check.
+- G.A.M.M.A. No logs, Log spam remover - full-file _g.script overrides that drop the modded-exes weapon-accuracy hook the Accuracy system reads.
+  Accuracy goes dead, and No logs (a stale 1.5.1 copy) reverts newer engine callbacks the whole game needs.
 Avoid:
 - G.A.M.M.A. AI Rework - runs alongside, but cripples NPC combat: it swaps the engine's targeting and firing for its own logic, revives broken combat subschemes,
   reseeds RNG at load, and is littered with dead code and hardcoded values.
-Change:
-- G.A.M.M.A. No logs and Log spam remover - leave their option off (off by default). Enabling it disables the Accuracy system.
 Interferes:
 - Useful Idiots - a well-liked companion UI, fine to keep. Two combat caveats: companions keep its combat modes when the takeover skips them, and it replaces 1 of Crossfire's 3 friendly-fire fixes.
   Combat runs cleanest with it off, but it works.
