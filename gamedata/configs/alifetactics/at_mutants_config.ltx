@@ -84,6 +84,12 @@ range_m         = 2.2
 facing_cone_deg = 35
 clear_ms        = 1000 ; the one-animation-owner throttle, a round 1s (not a precise anim-length match - the override self-ends, this just spaces re-strikes)
 
+[cloak] ; the bloodsucker decided cloak: vanish reactively while closing, then re-appear when the window ends (forces the vanilla visibility state)
+melee_m     = 3     ; no cloak inside this reach - a bloodsucker at strike range attacks, it does not vanish
+hit_ms      = 3000  ; a hit within this window counts as "recently hit" - shoot a closing bloodsucker and it vanishes
+window_ms   = 2500  ; hold the forced invisibility this long, then release to the engine's natural flicker
+throttle_ms = 5000  ; re-cloak gap, so it cannot flicker-spam (the beat-timer throttle, mirrors the flee re-fire gap)
+
 [backstrike] ; per-species motion pair for the rear spin-strike; motions must carry attack_params rows
 arc_deg    = 120
 chimera    = jump_attack_0, jump_attack_1
@@ -180,6 +186,11 @@ chimera    = 0.7
 lurker     = 0.7
 burer      = 0.5
 controller = 0.5
+
+[personality_cloak] ; the bloodsucker decided vanish; the bloodsucker rules cloak, the psy variant leans on it less
+default     = 0
+bloodsucker = 1.0
+psysucker   = 0.6
 
 [personality_gravity_attack] ; the burer forced gravi throw (the vulnerable/back-turn punish)
 default = 1.0

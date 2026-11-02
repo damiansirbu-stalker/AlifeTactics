@@ -42,8 +42,10 @@
         - A point-blank strike for the chimera and lurker, which vanilla otherwise walks into melee with no attack to use.
       Flee
         - A mutant near death and far enough to escape takes one long run from the fight. A cornered one fights to the end.
+      Cloak
+        - A bloodsucker you aim at or hit while it is still closing vanishes to break the moment, then re-appears a beat later. It never vanishes once at strike range, and it cannot flicker-spam.
       Ability variation
-        - Each species varies its own ability numbers: burer gravity and telekinesis, controller tube, stamina, and auras, poltergeist detection, bloodsucker cloak. Movement stays vanilla.
+        - Each species varies its own ability numbers: burer gravity and telekinesis, controller tube, stamina, and auras, poltergeist detection. Movement stays vanilla.
 
   Combat
     The stalker side is harmonized to the mutant decision model. It shares one per-rank Intelligence gate, and the effectiveness curves are rebuilt as the same base-plus-per-rank pair.

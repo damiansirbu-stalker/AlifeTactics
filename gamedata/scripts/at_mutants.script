@@ -24,15 +24,15 @@ local MOVE_JUMP       = "jump"
 local MOVE_LEAP_ADAPT = "leap_adapt"
 local MOVE_JUMP_ADAPT = "jump_adapt"
 
--- Every move the adopt line and the MCM tree key on; cloak and backstrike arm at adoption, the rest decide per beat.
+-- Every move the adopt line and the MCM tree key on; backstrike arms at adoption, the rest decide per beat.
 local MOVE_KEYS = {
     "leap", "jump", "leap_adapt", "jump_adapt", "flee",
     "cloak", "gravity_attack", "claw", "backstrike",
 }
 
--- The per-beat decision chain the selection shuffles and walks; cloak/backstrike/charge/auras arm at adoption, not here.
+-- The per-beat decision chain the selection shuffles and walks; backstrike/charge/auras arm at adoption, not here.
 local DECISION_MOVES = {
-    "leap", "jump", "leap_adapt", "jump_adapt", "flee", "claw", "gravity_attack",
+    "leap", "jump", "leap_adapt", "jump_adapt", "flee", "claw", "gravity_attack", "cloak",
 }
 
 local _states = {}
@@ -266,15 +266,8 @@ local function _apply_poltergeist_pacing(mob, rec, section)
     end
 end
 
--- The species pacing rolls: the cloak dwell, the controller tube and stamina, the poltergeist detection.
+-- The species pacing rolls: the controller tube and stamina, the poltergeist detection (cloak is a decided move now, not a dwell vary).
 local function _apply_pacing(mob, rec, section)
-    if rec.moves.cloak and _check_toggle(rec, "cloak") then
-        local dwell = _compute_offset(_read_basis(section, "visibility_state_change_min_delay"), _tun_num.ability_pct)
-        if dwell then
-            xmonster.set_bloodsucker_invisibility_delay(mob, dwell)
-            if at_debug.is_on() then at_debug.debug("[MUT] vary id=%d cloak=%.0fms", rec.id, dwell) end
-        end
-    end
     if rec.species == CONTROLLER then _apply_controller_pacing(mob, rec, section) end
     if rec.species == POLTERGEIST then _apply_poltergeist_pacing(mob, rec, section) end
 end
@@ -381,6 +374,8 @@ local function _add_mutant(mob, id, now)
         flee_until = 0,
         gravity_release = 0,
         claw_until = 0,
+        cloak_until = 0,
+        cloak_ok_at = 0,
         claw_motion = species and moves.claw and _claw_motion or nil,
         low_now = false,
     }
@@ -563,11 +558,27 @@ local function _try_gravity(mob, rec, _move, now)
     return true
 end
 
+-- The bloodsucker cloak: vanish reactively to break a lock or a hit while closing, then re-appear when the window ends.
+-- Forces no_visibility over the engine's natural flicker (the vanilla force_visibility_state); rate-limited, released on its window in the upkeep.
+local function _try_cloak(mob, rec, _move, now)
+    local memo = rec.memo
+    if memo.dist <= _tun_num.cloak_melee_m then return false end
+    local hit = rec.hit_at and (now - rec.hit_at) < _tun_num.cloak_hit_ms
+    if not (memo.aiming or hit) then return false end
+    if now < rec.cloak_ok_at then return false end
+    if not _check_personality(rec, "cloak") then return false end
+    if not xmonster.force_visibility_state(mob, 0) then return false end
+    rec.cloak_until = now + _tun_num.cloak_window_ms
+    rec.cloak_ok_at = now + _tun_num.cloak_throttle_ms
+    _log_fire(rec, "cloak", hit and " on=hit" or " on=aim")
+    return true
+end
+
 -- The move -> handler dispatch; each leap variant is its own atomic handler with its own premise and Personality.
 local TRY = {
     leap = _try_leap, jump = _try_jump, leap_adapt = _try_leap_adapt, jump_adapt = _try_jump_adapt,
     flee = _try_flee, claw = _try_claw,
-    gravity_attack = _try_gravity,
+    gravity_attack = _try_gravity, cloak = _try_cloak,
 }
 
 -- The selection shuffles this species' toggled decision moves in place (xmath.shuffle_back).
@@ -601,6 +612,10 @@ local function _reset_fight(mob, rec)
         xmonster.set_burer_gravi_force(mob, false)
         rec.gravity_release = 0
     end
+    if rec.cloak_until > 0 then
+        xmonster.force_visibility_state(mob, -1)
+        rec.cloak_until = 0
+    end
     rec.driver = "-"
     rec.gate = nil
     rec.enemy_px, rec.enemy_pz = nil, nil
@@ -617,6 +632,10 @@ local function _update_mutant(mob, rec, now)
     if rec.gravity_release > 0 and now >= rec.gravity_release then
         xmonster.set_burer_gravi_force(mob, false)
         rec.gravity_release = 0
+    end
+    if rec.cloak_until > 0 and now >= rec.cloak_until then
+        xmonster.force_visibility_state(mob, -1)
+        rec.cloak_until = 0
     end
     if rec.aim_restore and not xmonster.is_monster_jumping(mob) then
         xmonster.set_monster_jump_flags(mob, { auto_aim_factor = rec.aim_basis })
@@ -725,6 +744,7 @@ local function _on_monster_before_hit(mob, shit, _bone_id)
     _apply_dealt(shit)
     local rec = _states[mob:id()]
     if not rec then return end
+    rec.hit_at = rec.tick_now
     local dbg = at_debug.is_on()
     local tmr = xprofiler.new_if(dbg):start()
     local taken = _tracks.taken[rec.tier]
@@ -748,6 +768,7 @@ local function _release_mutant(rec)
     if not mob then return end
     if rec.claw_until > 0 then xmonster.stop_monster_animation(mob) end
     if rec.gravity_release > 0 then xmonster.set_burer_gravi_force(mob, false) end
+    if rec.cloak_until > 0 then xmonster.force_visibility_state(mob, -1) end
     if rec.aim_restore then xmonster.set_monster_jump_flags(mob, { auto_aim_factor = rec.aim_basis }) end
 end
 
@@ -836,6 +857,10 @@ local function _load_tunables()
         claw_clear = _read_num("claw", "clear_ms"),
         gravity_cone = _read_num("gravity_attack", "face_cone_deg"),
         gravity_release = _read_num("gravity_attack", "release_ms"),
+        cloak_melee_m = _read_num("cloak", "melee_m"),
+        cloak_hit_ms = _read_num("cloak", "hit_ms"),
+        cloak_window_ms = _read_num("cloak", "window_ms"),
+        cloak_throttle_ms = _read_num("cloak", "throttle_ms"),
         backstrike_arc = _read_num("backstrike", "arc_deg"),
         ability_pct = _read_num("wild", "ability_pct"),
     }

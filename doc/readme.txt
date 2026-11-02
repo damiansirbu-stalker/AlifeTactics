@@ -273,7 +273,7 @@ General:
 Observing is free, deciding is hard: every mutant sees your reload from the first fight, and Intelligence is the chance it answers with the RIGHT move, a base plus a bonus per map rank.
 Personality then sets which moves its species favours, a chimera leaping and clawing without pause where a flesh bolts early, so the final chance is Intelligence times Personality.
 A missed roll lets the opening go, so a dull mutant wastes chance after chance while a sharp one punishes each - every move you see has a real cause behind it, and a cap holds a pack to waves.
-Wild is how much a mutant's own ability numbers vary between spawns, the gravity, telekinesis, aura, tube, detection, and cloak values: at 0 a kind is identical and learnable, at 100 no two spawns read alike.
+Wild is how much a mutant's own ability numbers vary between spawns, the gravity, telekinesis, aura, tube, and detection values: at 0 a kind is identical and learnable, at 100 no two spawns read alike.
 
 Species:
 Each species gets its own page carrying only the moves its body has: first the managed moves, the creature's own attacks and the values AlifeTactics varies.
@@ -283,11 +283,11 @@ Every jumper leaps up at a shooter above it, so climbing a rock or a ledge stops
 Rush drives the charge: a boar, bloodsucker, or pseudogigant may be an aggressive charger, its Intelligence and temperament deciding, and then it recharges at its fastest and keeps pressing while the rest vary per individual.
 The charge itself stays the game's own move.
 Backstrike arms a spin strike on an enemy circling behind, once per individual, on the four species whose models carry the motions. Claw gives the chimera the point-blank strike vanilla never gave it.
-Flee breaks a dying mutant out of the fight, rarely, and only when it is far enough to escape. A cornered one fights to the end. Cloak varies the bloodsucker kind's invisibility rhythm.
+Flee breaks a dying mutant out of the fight, rarely, and only when it is far enough to escape. A cornered one fights to the end. Cloak sends a bloodsucker invisible when you aim at it or hit it while it is still closing, then it re-appears a beat later, never vanishing once it is already at strike range.
 Retreat yields ground for a few seconds when a mutant cannot close on you or strike you, whatever is blocking it, then it returns to the fight.
 Breakoff is a shorter form fired on no trigger: now and then a melee mutant breaks contact for a moment and closes again, so its circling and pressing never settle into a steady pattern.
 A reloading or defenseless enemy draws the instant Jump over the telegraphed Leap, since a helpless target cannot punish the wind-up.
-Beyond the moves, each species' own ability numbers breathe: the burer's gravity and telekinesis, the controller's psi tube and stamina and auras, the poltergeist's detection, the bloodsucker's cloak,
+Beyond the moves, each species' own ability numbers breathe: the burer's gravity and telekinesis, the controller's psi tube and stamina and auras, the poltergeist's detection,
 each behind its own row, each a bounded variation over the installed balance.
 Movement stays the game's own, since varying what the engine's path and attack timing depend on only ever made mutants worse.
 

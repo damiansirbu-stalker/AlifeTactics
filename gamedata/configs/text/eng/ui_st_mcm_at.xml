@@ -379,7 +379,7 @@
     <text>Cloak</text>
   </string>
   <string id="ui_mcm_at_mutants_cloak_desc">
-    <text>Varies the flicker timing of the invisibility per individual. (wild)</text>
+    <text>The bloodsucker vanishes to break your aim or a hit while it is still closing, then re-appears when the window ends. Rate-limited, and it never vanishes once at strike range. (int, pers)</text>
   </string>
   <string id="ui_mcm_at_mutants_flee">
     <text>Flee</text>
