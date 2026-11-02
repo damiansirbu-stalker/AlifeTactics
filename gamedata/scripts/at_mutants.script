@@ -546,10 +546,10 @@ end
 local function _try_gravity(mob, rec, _move, now)
     local memo = rec.memo
     if not memo.vulnerable and xcombat.is_enemy_watching(memo.enemy, mob, _tun_num.threat_cone) then return false end
-    if not _check_personality(rec, "gravity_attack") then return false end
     if rec.gravi_max and (memo.dist > rec.gravi_max or memo.dist < (rec.gravi_min or 0)) then return false end
     if not xcombat.can_see(mob, memo.enemy) then return false end
     if not xcombat.is_facing(mob, memo.enemy_pos, _tun_num.gravity_cone) then return false end
+    if not _check_personality(rec, "gravity_attack") then return false end
     if not _check_start(memo.bucket) then return false end
     if not xmonster.set_burer_gravi_force(mob, true) then return false end
     rec.gravity_release = now + _tun_num.gravity_release
