@@ -469,13 +469,13 @@
     <text>Enable Dispersion</text>
   </string>
   <string id="ui_mcm_at_accuracy_disp_enabled_desc">
-    <text>How tight each rank's aim cone is. Low ranks spray wide, top ranks group tight. Off leaves the engine's flat cone.</text>
+    <text>How tight each rank's aim cone is. Low ranks spray wide, top ranks group tight. Off leaves the engine's flat cone. (rank)</text>
   </string>
   <string id="ui_mcm_at_accuracy_move_enabled">
     <text>Enable Moving Fire</text>
   </string>
   <string id="ui_mcm_at_accuracy_move_enabled_desc">
-    <text>How much each rank cancels the accuracy penalty for firing on the move. Top ranks stay accurate while moving. Off keeps the full penalty.</text>
+    <text>How much each rank cancels the accuracy penalty for firing on the move. Top ranks stay accurate while moving. Off keeps the full penalty. (rank)</text>
   </string>
   <string id="ui_mcm_at_hdr_accuracy_curve">
     <text>Rank Accuracy</text>
@@ -512,7 +512,7 @@
     <text>Enable Tracking Speed</text>
   </string>
   <string id="ui_mcm_at_reaction_aim_enabled_desc">
-    <text>How fast a stalker's barrel moves while tracking, per rank. This is speed only. How tightly it holds a strafing target is Tracking Lock below, which this toggle also gates. Off leaves the engine's flat aim.</text>
+    <text>How fast a stalker's barrel moves while tracking, per rank. This is speed only. How tightly it holds a strafing target is Tracking Lock below, which this toggle also gates. Off leaves the engine's flat aim. (rank)</text>
   </string>
   <string id="ui_mcm_at_hdr_reaction_aim">
     <text>Tracking Speed</text>
@@ -551,7 +551,7 @@
     <text>Enable Target Lead</text>
   </string>
   <string id="ui_mcm_at_reaction_lead_enabled_desc">
-    <text>How far ahead of a moving target a stalker aims, from the round's real flight time. Top ranks lead true and hit movers, low ranks over-lead. Off leaves the engine's fixed lead.</text>
+    <text>How far ahead of a moving target a stalker aims, from the round's real flight time. Top ranks lead true and hit movers, low ranks over-lead. Off leaves the engine's fixed lead. (rank)</text>
   </string>
   <string id="ui_mcm_at_reaction_rct_lead_base">
     <text>Target lead base</text>
@@ -572,7 +572,7 @@
     <text>Enable Vision Speed</text>
   </string>
   <string id="ui_mcm_at_reaction_vision_enabled_desc">
-    <text>How fast a stalker turns a glimpse into a confirmed threat, per rank. This is reaction, not eyesight. Novice matches your setup's baseline and higher ranks notice sooner, so no rank is slower than the base game. Point-blank detection is unaffected. Off leaves the flat detection speed.</text>
+    <text>How fast a stalker turns a glimpse into a confirmed threat, per rank. This is reaction, not eyesight. Novice matches your setup's baseline and higher ranks notice sooner, so no rank is slower than the base game. Point-blank detection is unaffected. Off leaves the flat detection speed. (rank)</text>
   </string>
   <string id="ui_mcm_at_hdr_reaction_trigger">
     <text>Burst Size</text>
@@ -581,7 +581,7 @@
     <text>Enable Fire Discipline</text>
   </string>
   <string id="ui_mcm_at_reaction_discipline_enabled_desc">
-    <text>Scales each rank's burst length and cadence. High ranks fire crisper short bursts more often, and low ranks stay vanilla. Defaults keep the burst-size scale at or above the interval scale, so hits per minute never drops below vanilla. Off = vanilla queues.</text>
+    <text>Scales each rank's burst length and cadence. High ranks fire crisper short bursts more often, and low ranks stay vanilla. Defaults keep the burst-size scale at or above the interval scale, so hits per minute never drops below vanilla. Off = vanilla queues. (rank)</text>
   </string>
   <string id="ui_mcm_at_reaction_rct_qsize_base">
     <text>Burst size base</text>
