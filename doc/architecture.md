@@ -75,30 +75,29 @@ Commitment runs on the action-switch and cover-repick vetoes, Conduct on the bod
 
 ## Decision model
 
-Every behaviour decides the same way.
-An objective premise gates a chance, and only a passed roll acts.
-The premise is a read of the fight.
-The chance is Intelligence then Personality: Intelligence is a base plus a per-rank term, capped, and Personality is the proclivity to take that one move.
-A faction takes each action at a per-action chance (the Personality sections in `at_faction_config.ltx`) and a species takes each move at a per-species chance (the `[personality_*]` sections in `at_mutants_config.ltx`), 0 = never, 1 = always, an absent entry universal; a species also either carries a move at all (the `[moves]` envelope).
-The two Intelligence pairs are separate controls, the stalker's on the Combat General page and the mutant's on the Mutants General page; the mutant's rank is the map tier (`xlevel.get_danger_tier`, 0-5), the stalker's his own rank.
-Push, Pull, the maneuver catalog, and the Liquidate deferral run it on the stalker side, where the premise is each `check_need`, the press cause, or a helpless target; a miss lets the opening go, a pass commits to a window, and each spends a start from the window budget.
-The mutant side runs the move selection in `at_mutants` (`_select_move`): every 600ms beat a held window (flee, gravity) skips the beat, otherwise Intelligence rolls ONCE at the top (`_check_intelligence`) and a miss does zero premise or feasibility work.
-On a pass the species' toggled moves are shuffled in place (Fisher-Yates) and walked up to `[select] candidates`; each move is a Chain-of-Responsibility handler that tests its own premise then its Personality (`_check_personality`), both falling through free on a miss, and the FIRST that fires consumes the beat.
-There is no premise table and no shared gate; the rate slot is stamped only on an executed fire, and the `[select]` cap is the budget.
-The stalker side runs the same selection: `_select_maneuver` rolls Intelligence once at the top, then shuffles the maneuver catalog and walks it, each row self-gating premise then Personality, the first that picks winning; both sides share the Intelligence x Personality chance and the `inside_chance` second roll is retired.
-Observing is free, deciding is hard: every mutant sees the reload from the first fight, and rank buys seizing the opening more often.
+Every lever decides the same way: an objective premise, a read of the fight, gates a chance, and only a passed roll acts.
+The chance is Intelligence then Personality - Intelligence a base plus a per-rank term, capped; Personality the proclivity to take that one move.
 
-A lever takes one of three shapes, told apart by who owns the firing moment.
-A per-opening action is one AlifeTactics fires itself, so Intelligence and Personality roll at each opening: the leaps, flee, claw, gravity, Push, Pull, the Liquidate deferral, and the maneuvers.
-A persistent trait is one the engine or a vanilla loop fires, so there is no opening for AlifeTactics to see; it rolls Intelligence and Personality once per life for whether the individual carries the disposition, and caches the result.
-The backstrike reflex (armed once at adoption, then the engine rear-strike seam self-fires it on rear exposure) and the Conduct discipline (`_is_disciplined`, rolled once and cached, governing posture and weapon spacing) are persistent traits; this is the one place a roll result is stored rather than re-rolled, and it is correct because a trait is not a per-opening decision.
-Wild variation is the third shape and takes no roll: it spreads a standalone value on a bounded band (the ability numbers and the charge recharge delay on its no-advantage path), never a fire-or-not.
+- Faction per-action chance: the `[<action>]` sections of `at_faction_config.ltx`.
+- Species per-move chance: the `[personality_*]` sections of `at_mutants_config.ltx`; the `[moves]` envelope gates whether a species carries a move at all. 0 never, 1 always, absent universal.
+- Two Intelligence controls: the stalker's on the Combat General page keyed to his own rank, the mutant's on the Mutants General page keyed to the map tier (`xlevel.get_danger_tier`, 0-5).
 
-Correctness fixes and skill scaling sit outside the three shapes.
-A correctness fix, a veto or a vanilla-bug repair, carries no premise and no roll and always applies.
-Commitment's switch denial, the danger-scheme repairs, and the targeting fixes are correctness.
-Skill scaling is a per-rank curve gated only by `is_participant`, with no situational premise.
-The accuracy, aim, vision, and discipline curves and the mutant damage and resistance tracks are skill scaling.
+One Intelligence roll fires per decision moment, a set of atomic checks weighed together in one pass, and Personality rolls per atomic check.
+
+- A selection weighs its checks in one pass, so Intelligence rolls once at the top and every candidate shares it: the maneuver walk (`_select_maneuver`) and the mutant beat (`_select_move`). The one roll is what stops N candidates reading as N Intelligence chances.
+- Independent openings fire on their own triggers, so each rolls Intelligence at its own opening: Push on the target's weakness, Pull on the NPC's own.
+- A single-check decision is one moment, one roll: the Liquidate deferral.
+
+A lever takes one of three shapes, told apart by who owns the trigger.
+
+- Per-opening action: AlifeTactics fires it, so Intelligence and Personality roll at each opening - the leaps, flee, claw, gravity, cloak, Push, Pull, the Liquidate deferral, the maneuvers.
+- Persistent trait: the engine or a vanilla loop fires it with no opening to see, so Intelligence and Personality roll once per life and the result caches - the backstrike reflex, the charge press, the Conduct discipline.
+- Wild: no roll, a standalone value spread on a bounded band - the ability numbers, the charge no-advantage delay.
+
+Correctness and skill scaling sit outside the three shapes.
+
+- Correctness: a veto or vanilla-bug repair, no premise and no roll, always applies - Commitment's switch denial, the danger-scheme repairs, the targeting fixes.
+- Skill scaling: a per-rank curve gated only by `is_participant` with no situational premise - the accuracy, aim, vision, and discipline curves, the mutant damage and resistance tracks.
 
 ## Data and ownership
 
