@@ -205,7 +205,7 @@
     <text>Tushkano</text>
   </string>
   <string id="ui_mcm_at_mutants_general_desc">
-    <text>How often mutants act on an opening, and how much their moves vary. Each species page lists its moves: MANAGED MOVES are the creature's own attacks whose timing this mod decides, NEW MOVES are attacks the vanilla game never fires for that species. Every move's tooltip names its gates: int (Intelligence decides when) and wild (the values vary).</text>
+    <text>How often mutants act on an opening, and how much their moves vary. Each species page lists its moves: MANAGED MOVES are the creature's own attacks whose timing this mod decides, NEW MOVES are attacks the vanilla game never fires for that species. Every move's tooltip names its gates: int (Intelligence decides when), pers (the creature's own leaning toward it), and wild (the values vary).</text>
   </string>
   <string id="ui_mcm_at_mutants_power_desc">
     <text>A mutant's raw hit and toughness, scaled by the map rank (rookie maps rank 0 up to endgame maps rank 5): damage dealt and damage resistance each grow by their slider's percent per rank. Multiplies the installed balance, so other mutant overhauls keep their numbers.</text>

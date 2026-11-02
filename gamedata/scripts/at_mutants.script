@@ -558,7 +558,7 @@ local function _try_gravity(mob, rec, _move, now)
     return true
 end
 
--- The bloodsucker cloak: vanish reactively to break a lock or a hit while closing, then re-appear when the window ends.
+-- The bloodsucker cloak: vanish reactively to break a lock or a hit, then re-appear when the window ends.
 -- Forces no_visibility over the engine's natural flicker (the vanilla force_visibility_state); rate-limited, released on its window in the upkeep.
 local function _try_cloak(mob, rec, _move, now)
     local memo = rec.memo
@@ -691,7 +691,10 @@ local function _on_mob_update(mob)
             return
         end
     end
-    if not rec then rec = _add_mutant(mob, id, now) end
+    if not rec then
+        if cfg.combat_ignore_companions and xsquad.is_companion(get_object_squad(mob)) then return end
+        rec = _add_mutant(mob, id, now)
+    end
     rec.next_ms = now + BEAT_MS
     local timer = xprofiler.new_if(at_debug.is_on()):start()
     _update_mutant(mob, rec, now)

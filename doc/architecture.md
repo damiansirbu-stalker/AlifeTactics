@@ -748,6 +748,7 @@ It drives single-shot invokes and proposal windows in the fight.
 At adoption it reads the species' own jump auto-aim factor and gravi band, for the steered leap and the gravi gate, never writing them back.
 Stops: inert below the monster seam set with one INACTIVE line.
 A move never fires outside its species envelope.
+A companion mutant is never adopted while `combat_ignore_companions` is on, the mutant twin of the stalker exclusion.
 On toggle-off the module releases what it still owns live (the animation override, a pending gravi force, or a gain restore), and pushed params revert on the next spawn.
 
 ```
@@ -757,7 +758,7 @@ monster_on_update (binder scheduler, 100ms near to 625ms far) -> the one lane, g
          once-per-life Intelligence+Personality roll: pass drops it to the species' minimum, miss Wild-spreads the vanilla delay), bounded wild
          offsets over ini_sys basis values behind the ability vary rows (the burer gravity numbers
          and telekinesis with its lifted-object count, the controller tube and stamina, the
-         poltergeist detection, the aura row) and behind the Cloak move row (the visibility dwell),
+         poltergeist detection, the aura row),
          the backstrike arm roll (re-decided each adoption)
   every beat: upkeep (the gravi-force clear at its window end, the claw-override clear on its window or any
          jump, the jump-gain restore on landing), the motion samples (recede, lateral strafe)
@@ -768,7 +769,7 @@ monster_on_update (binder scheduler, 100ms near to 625ms far) -> the one lane, g
          leap (elevated) / sudden leap (aiming or vulnerable) / adjusting leap (moving, not aiming) / darting leap (moving, aiming), feasibility in xmonster
          flee (low health, actor 20m+, not nose-on)
          claw (contact + facing, outside the caps)   gravity (burer: vulnerable or back-turned)
-         cloak (bloodsucker: aimed-at or recently hit while closing, forces no_visibility then releases on its window)
+         cloak (bloodsucker: aimed-at or recently hit, forces no_visibility then releases on its window)
 monster_on_combat_action -> the proposal subscriber: pure Lua on the silent path, re-proposes while a flee window holds
 before-hit seams: damage dealt (victim-side, keyed on shit.draftsman) and damage taken
                   (monster_on_before_hit); a 1.0 track skips the engine write, so rank-0 maps pay a table lookup

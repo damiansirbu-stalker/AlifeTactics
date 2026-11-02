@@ -179,14 +179,14 @@ end
 local function _find_pickoff_spot(npc, enemy, state, tg, _memo)
     local blocked = _check_pickoff_block(npc, enemy, state, tg)
     if blocked then
-        at_debug.debug("[CMB] can_pickoff id=%s name=%s dist=%.1f enemy_max=unknown result=%s",
-            show(state.id), show(state.name), state.dist or -1, show(blocked))
+        if at_debug.is_on() then at_debug.debug("[CMB] can_pickoff id=%s name=%s dist=%.1f enemy_max=unknown result=%s",
+            show(state.id), show(state.name), state.dist or -1, show(blocked)) end
         return nil
     end
     local enemy_band = xcombat.get_weapon_range(xcombat.get_weapon_kind(enemy) or "w_rifle")
     local planted = state.dist > enemy_band.max * PICKOFF_ENTER_FACTOR
-    at_debug.debug("[CMB] can_pickoff id=%s name=%s dist=%.1f enemy_max=%s result=%s",
-        show(state.id), show(state.name), state.dist or -1, show(enemy_band.max), planted and "plant" or "in_effective_range")
+    if at_debug.is_on() then at_debug.debug("[CMB] can_pickoff id=%s name=%s dist=%.1f enemy_max=%s result=%s",
+        show(state.id), show(state.name), state.dist or -1, show(enemy_band.max), planted and "plant" or "in_effective_range") end
     if not planted then return nil end
     state.pickoff_exit_sqr = enemy_band.max * enemy_band.max
     return npc:level_vertex_id()
@@ -203,33 +203,33 @@ local function _check_end_pickoff(npc, enemy, state, tg)
 end
 
 local function _find_counterflank_spot(npc, _enemy, state, _tg, _memo)
-    at_debug.debug("[CMB] can_counterflank id=%s name=%s path=taken", show(state.id), show(state.name))
+    if at_debug.is_on() then at_debug.debug("[CMB] can_counterflank id=%s name=%s path=taken", show(state.id), show(state.name)) end
     return npc:level_vertex_id()
 end
 
 local function _find_reload_cover(npc, _enemy, state, _tg, memo)
     if not xcombat.is_reloading(npc) then
-        at_debug.debug("[CMB] can_reload_cover id=%s name=%s path=not_reloading cover=-", show(state.id), show(state.name))
+        if at_debug.is_on() then at_debug.debug("[CMB] can_reload_cover id=%s name=%s path=not_reloading cover=-", show(state.id), show(state.name)) end
         return nil
     end
     local watcher, watcher_dist = _find_closest_threat(npc, state, memo, function(member, _dist)
         return xcombat.is_in_sight(member, npc, RELOAD_COVER_CONE_DEG)
     end)
     if not watcher then
-        at_debug.debug("[CMB] can_reload_cover id=%s name=%s path=not_in_sight cover=-", show(state.id), show(state.name))
+        if at_debug.is_on() then at_debug.debug("[CMB] can_reload_cover id=%s name=%s path=not_in_sight cover=-", show(state.id), show(state.name)) end
         return nil
     end
     _set_staged_threat(memo, watcher, watcher_dist)
     local vid = xcombat.get_quick_cover(npc, memo.staged_pos, { radius = RELOAD_COVER_NEAR_M, radius_far = RELOAD_COVER_FAR_M, owner_id = state.id })
     if not vid then
-        at_debug.debug("[CMB] can_reload_cover id=%s name=%s path=no_cover cover=-", show(state.id), show(state.name))
+        if at_debug.is_on() then at_debug.debug("[CMB] can_reload_cover id=%s name=%s path=no_cover cover=-", show(state.id), show(state.name)) end
         return nil
     end
     if not xcombat.register_cover(vid, state.id) then
-        at_debug.debug("[CMB] can_reload_cover id=%s name=%s path=claim_lost cover=%s", show(state.id), show(state.name), show(vid))
+        if at_debug.is_on() then at_debug.debug("[CMB] can_reload_cover id=%s name=%s path=claim_lost cover=%s", show(state.id), show(state.name), show(vid)) end
         return nil
     end
-    at_debug.debug("[CMB] can_reload_cover id=%s name=%s path=taken cover=%s", show(state.id), show(state.name), show(vid))
+    if at_debug.is_on() then at_debug.debug("[CMB] can_reload_cover id=%s name=%s path=taken cover=%s", show(state.id), show(state.name), show(vid)) end
     state.cover_lvid = vid
     return vid
 end
@@ -237,6 +237,14 @@ end
 local function _check_end_reload_cover(_npc, _enemy, state, _tg)
     if state.reloading then return nil end
     return "reload_done"
+end
+
+local function _trace_retreat(state, path, vid, ep, npc_dist)
+    if not at_debug.is_on() then return end
+    local cover_dist = -1
+    if vid and ep then cover_dist = math_sqrt(xmath.get_flat_dist(level.vertex_position(vid), ep)) end
+    at_debug.debug("[CMB] can_retreat id=%s name=%s path=%s cover=%s cover_dist=%.1f npc_dist=%.1f",
+        show(state.id), show(state.name), path, vid and show(vid) or "-", cover_dist, npc_dist or -1)
 end
 
 local function _find_retreat_cover(npc, _enemy, state, _tg, memo)
@@ -252,19 +260,14 @@ local function _find_retreat_cover(npc, _enemy, state, _tg, memo)
         vid = xcombat.find_free_lane(npc, away_dir, RETREAT_LANE_M, KITE_ARC_DEG, KITE_SPREAD_DEG)
     end
     if not vid then
-        at_debug.debug("[CMB] can_retreat id=%s name=%s path=no_cover cover=- cover_dist=-1.0 npc_dist=%.1f",
-            show(state.id), show(state.name), away_dist or -1)
+        _trace_retreat(state, "no_cover", nil, nil, away_dist or -1)
         return nil
     end
     if not xcombat.register_cover(vid, state.id) then
-        at_debug.debug("[CMB] can_retreat id=%s name=%s path=claim_lost cover=%s cover_dist=-1.0 npc_dist=-1.0",
-            show(state.id), show(state.name), show(vid))
+        _trace_retreat(state, "claim_lost", vid, nil, nil)
         return nil
     end
-    local vp = level.vertex_position(vid)
-    local cover_dist = math_sqrt(xmath.get_flat_dist(vp, ep))
-    at_debug.debug("[CMB] can_retreat id=%s name=%s path=taken cover=%s cover_dist=%.1f npc_dist=%.1f",
-        show(state.id), show(state.name), show(vid), cover_dist, away_dist or -1)
+    _trace_retreat(state, "taken", vid, ep, away_dist or -1)
     state.cover_lvid = vid
     return vid
 end
@@ -279,23 +282,23 @@ local function _find_flee_base(npc, enemy, state, _tg, memo)
     local threat = memo.staged or enemy
     local blocked = _check_flee_block(npc, threat, state)
     if blocked then
-        at_debug.debug("[CMB] can_flee id=%s name=%s path=%s", show(state.id), show(state.name), show(blocked))
+        if at_debug.is_on() then at_debug.debug("[CMB] can_flee id=%s name=%s path=%s", show(state.id), show(state.name), show(blocked)) end
         return nil
     end
     if (memo.staged_dist or state.dist) < FLEE_MIN_DIST_M then
-        at_debug.debug("[CMB] can_flee id=%s name=%s path=too_close", show(state.id), show(state.name))
+        if at_debug.is_on() then at_debug.debug("[CMB] can_flee id=%s name=%s path=too_close", show(state.id), show(state.name)) end
         return nil
     end
     if memo.faction == nil then memo.faction = xcreature.get_community(npc) end
     local base = xsmart.find_friendly_base(memo.faction, memo.npc_pos,
         { level_id = xlevel.get_actor_level(), away_from_pos = memo.staged_pos or memo.enemy_pos, min_distance = FLEE_BASE_MIN_DIST_M })
     if base then
-        at_debug.debug("[CMB] can_flee id=%s name=%s path=base", show(state.id), show(state.name))
+        if at_debug.is_on() then at_debug.debug("[CMB] can_flee id=%s name=%s path=base", show(state.id), show(state.name)) end
         local vid = base.m_level_vertex_id
         if not vid or vid >= INVALID_LEVEL_VERTEX_ID then vid = level.vertex_id(base.position) end
         return vid
     end
-    at_debug.debug("[CMB] can_flee id=%s name=%s path=no_base", show(state.id), show(state.name))
+    if at_debug.is_on() then at_debug.debug("[CMB] can_flee id=%s name=%s path=no_base", show(state.id), show(state.name)) end
     return nil
 end
 

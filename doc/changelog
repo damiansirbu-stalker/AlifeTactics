@@ -75,7 +75,12 @@
   Effectiveness
     - Changed every rank curve to a base slider plus a percent-per-rank slider, the same pair the Intelligence gate uses:
         accuracy, moving fire, tracking speed, tracking lock, target lead, burst size, fire cadence, and the two vision curves.
-        2 sliders per curve replace 8, fitted to the old tables. Moved sliders on these pages reset to defaults once.
+        2 sliders per curve replace 8, refit from the old tables a hair softer at the top. Moved sliders on these pages reset to defaults once.
+    - Fixed NPC target lead ignoring the loaded round's bullet speed, dead since a key rename. Stalkers again lead a moving target by the round's real flight time.
+
+  Mechanics
+    Gear
+      - Fixed gear health regeneration healing a wounded NPC to near full almost instantly. The chem-gear restore now adds at its intended per-second rate.
 
   Development
     - Added the mutant rows to the debug HUD and the world trace: the live move with its gates, the engine state, health, morale, and target.
