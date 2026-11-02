@@ -366,7 +366,7 @@ xlibs (https://www.moddb.com/mods/stalker-anomaly/addons/xlibs-1001)
 MCM
 
 Compatibility:
-Depends only on xlibs. You can install and uninstall mid-save. Tested: Anomaly 1.5.3, GAMMA, EFP, Zona, Forgotten Zone.
+Depends only on xlibs. Install and uninstall mid-save work. Tested: Anomaly 1.5.3, GAMMA, EFP, Zona, Forgotten Zone.
 Drop:
 - NPC self-heal replacements - run in place of the Healing system.
 - G.A.M.M.A. No NPC Friendly Fire, and community friendly-fire blockers - re-filter the friendly hits Crossfire already handles and rewrite NPC relations on hit.
@@ -396,16 +396,16 @@ Not AlifeTactics (base game or your setup):
 How It's Built:
 
 The code and patterns are original, built on best practices from the best STALKER modders and hands-on reverse-engineering of X-Ray.
-Its design stays engine-native and minimal, with event-native pub/sub not polling, work spread across frames via deferred queues and rate limiters, and per-level caches replacing world scans.
+The design stays engine-native and minimal, with event-native pub/sub not polling, work spread across frames via deferred queues and rate limiters, and per-level caches replacing world scans.
 The raycasting and range math are hand-written and load-tested live, following the engine's own standards and flags.
 Where scripting hits an engine limit, the fix is made in X-Ray itself, in the modded exes.
-Performance is the first invariant. Each flow stays under 2ms or the build rewrites or drops it, profiled continuously with JitProfiler and hand-tested on unoptimized, single-threaded exes.
+Performance is the first invariant, so every flow stays under 2ms or the build rewrites or drops it, profiled continuously with JitProfiler and hand-tested on unoptimized, single-threaded exes.
 Every mod carries OpenTelemetry-style tracing and performance monitoring, spanning world events and every flow, gated by the log level so it costs nothing when off.
 Every commit runs the full pipeline locally and in CI, with luacheck, a custom STALKER selene build, and a load test on engine stubs.
 Rule layers then check Lua practice, engine truth, conventions, contracts, release, security, and docs.
 Every rate, threshold, and toggle is exposed through MCM or LTX with nothing left hard-coded, and it writes no engine values, keeping its state within engine bounds so a save can never corrupt.
 It runs on one xlibs rulebook shared across the whole mod family, the same protection, distances, faction logic, and combat reads in every mod.
-It depends only on X-Ray and xlibs beneath it. Not even the author's own mods are needed.
+It depends on no other mod, not even the author's own, and needs only X-Ray and xlibs beneath it.
 See the Health and JitProfiler links up top for every test and smoke result, and the mod's real CPU and allocation cost.
 
 Credits:
