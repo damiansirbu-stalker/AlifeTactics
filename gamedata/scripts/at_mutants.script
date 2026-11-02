@@ -186,7 +186,7 @@ local function _add_start(bucket)
 end
 
 -- The per-species Personality roll for a move, rolled after the beat's Intelligence pass (the at_faction twin); cached per (move, species), absent = 1.0.
--- The four leap variants share the one personality_leap value - the variant is a situational pick (watching/strafing), not a Personality trait.
+-- Each leap variant carries its own personality section (personality_leap / _jump / _leap_adapt / _jump_adapt); the four share nothing.
 local function _check_personality(rec, move)
     local species = rec.species
     if not species then return true end
@@ -200,21 +200,23 @@ local function _check_personality(rec, move)
     return at_core.check_chance(chance)
 end
 
--- The charge pacing: Personality decides whether the mutant takes it, then the species' own
--- Run_Attack_Delay scaled by Intelligence and Wild-varied per individual like the cloak dwell
--- (a cadence timing, never the band geometry or a path/aim input).
+-- The charge: a once-per-life Intelligence + Personality roll decides whether this individual presses (shape 2; the engine fires the charge itself).
+-- On a pass the recharge cooldown drops to the species' own minimum - the advantage at full; on a miss Wild spreads the vanilla delay per individual.
 local function _apply_charge_pacing(mob, rec, section)
     if not _check_vary(rec, "rush") then return end
-    if not _check_personality(rec, "charge") then return end
     local delay = _read_pair(section, "Run_Attack_Delay")
     if not delay then return end
-    local skill = _compute_intelligence(rec) / _tun_num.int_cap
-    local mult = _tun_num.charge_slow + (_tun_num.charge_fast - _tun_num.charge_slow) * skill
-    local min_ms, max_ms = _compute_band(delay[1] * mult, delay[2] * mult, _tun_num.ability_pct)
+    local pressed = _check_intelligence(rec) and _check_personality(rec, "charge")
+    local min_ms, max_ms
+    if pressed then
+        min_ms, max_ms = delay[1], delay[1]
+    else
+        min_ms, max_ms = _compute_band(delay[1], delay[2], _tun_num.ability_pct)
+    end
     xmonster.set_monster_rush_params(mob, { min_delay_ms = min_ms, max_delay_ms = max_ms })
     rec.paces_charge = true
     if at_debug.is_on() then
-        at_debug.debug("[MUT] pace id=%d charge=%.0f-%.0fms mult=%.2f", rec.id, min_ms, max_ms, mult)
+        at_debug.debug("[MUT] charge id=%d delay=%.0f-%.0fms pressed=%s gate=%s", rec.id, min_ms, max_ms, tostring(pressed), GATE)
     end
 end
 
@@ -439,18 +441,14 @@ local function _clear_claw(mob, rec, now, forced)
     end
 end
 
--- The per-beat motion sample: the lateral-displacement read (enemy strafing), the adapt-steering premise.
-local function _update_samples(rec, enemy_pos, mob_pos)
+-- The per-beat motion sample: the enemy moved more than the threshold since the last beat, in any direction - the steered-leap premise.
+local function _update_samples(rec, enemy_pos, _mob_pos)
     local px, pz = rec.enemy_px, rec.enemy_pz
     rec.enemy_px, rec.enemy_pz = enemy_pos.x, enemy_pos.z
-    rec.strafing = false
+    rec.moving = false
     if not px then return end
     local dx, dz = enemy_pos.x - px, enemy_pos.z - pz
-    local ax, az = enemy_pos.x - mob_pos.x, enemy_pos.z - mob_pos.z
-    local alen = math_sqrt(ax * ax + az * az)
-    if alen < 1 then return end
-    local along = (dx * ax + dz * az) / alen
-    rec.strafing = dx * dx + dz * dz - along * along > _tun_num.strafe_lat_sqr
+    rec.moving = dx * dx + dz * dz > _tun_num.move_min_sqr
 end
 
 -- Stamp the driver label, the gate, and the fire time; the HUD reads them.
@@ -465,21 +463,10 @@ local function _log_fire(rec, move, detail)
     end
 end
 
--- The 2x2 the pounce variant reads: aiming splits telegraph (Leap) from instant (Jump), strafing splits straight from steered (adapt).
-local function _check_leap_premise(move, memo, strafing)
-    if move == LEAP_FAMILY then return not memo.aiming end
-    if move == MOVE_JUMP then return memo.vulnerable or memo.aiming end
-    if move == MOVE_LEAP_ADAPT then return strafing and not memo.aiming end
-    return (memo.aiming or memo.vulnerable) and strafing
-end
-
--- The pounce family; the premise picks the variant, then Personality, then feasibility (the engine can_jump mirrored in xmonster.try_monster_jump).
--- A quadruped leaps only at an elevated enemy (the body-plan law).
-local function _try_leap(mob, rec, move, now)
+-- The shared leap execution: the start cap, the claw clear, the optional air-steering, the engine jump, the restore.
+-- The move key decides the form: adapt variants steer, jump variants skip the wind-up; feasibility is the engine can_jump (xmonster.try_monster_jump).
+local function _execute_leap(mob, rec, move, now)
     local memo = rec.memo
-    if not _check_leap_premise(move, memo, rec.strafing) then return false end
-    if not _check_personality(rec, LEAP_FAMILY) then return false end
-    if rec.quadruped and not xcombat.is_enemy_above(memo.enemy, mob, _tun_num.above_m) then return false end
     if not _check_start(memo.bucket) then return false end
     local steered = move == MOVE_LEAP_ADAPT or move == MOVE_JUMP_ADAPT
     local sudden = move == MOVE_JUMP or move == MOVE_JUMP_ADAPT
@@ -498,6 +485,37 @@ local function _try_leap(mob, rec, move, now)
     _add_start(memo.bucket)
     _log_fire(rec, move, aim and (" aim=%.2f"):format(aim) or nil)
     return true
+end
+
+-- Leap: the telegraphed pounce at an enemy exploiting elevation (a rock or ledge the FSM's own flat jump cannot reach), every leaper.
+local function _try_leap(mob, rec, _move, now)
+    if not xcombat.is_enemy_above(rec.memo.enemy, mob, _tun_num.above_m) then return false end
+    if not _check_personality(rec, LEAP_FAMILY) then return false end
+    return _execute_leap(mob, rec, LEAP_FAMILY, now)
+end
+
+-- Sudden leap: the instant no-wind-up pounce when the enemy aims (a telegraph hands them the shot) or is vulnerable (strike inside the reload or turn window).
+local function _try_jump(mob, rec, _move, now)
+    local memo = rec.memo
+    if not (memo.aiming or memo.vulnerable) then return false end
+    if not _check_personality(rec, MOVE_JUMP) then return false end
+    return _execute_leap(mob, rec, MOVE_JUMP, now)
+end
+
+-- Adjusting leap: the telegraphed pounce that steers in flight toward a moving enemy not aiming at the mutant.
+local function _try_leap_adapt(mob, rec, _move, now)
+    local memo = rec.memo
+    if not (rec.moving and not memo.aiming) then return false end
+    if not _check_personality(rec, MOVE_LEAP_ADAPT) then return false end
+    return _execute_leap(mob, rec, MOVE_LEAP_ADAPT, now)
+end
+
+-- Darting leap: the instant pounce that steers in flight toward a moving, aiming enemy - the apex reflex.
+local function _try_jump_adapt(mob, rec, _move, now)
+    local memo = rec.memo
+    if not (rec.moving and memo.aiming) then return false end
+    if not _check_personality(rec, MOVE_JUMP_ADAPT) then return false end
+    return _execute_leap(mob, rec, MOVE_JUMP_ADAPT, now)
 end
 
 -- Rout out of melee reach: hurt, far enough to disengage, not nose-on to the enemy; a committed fixed-timer window, the caps never deny it.
@@ -545,9 +563,9 @@ local function _try_gravity(mob, rec, _move, now)
     return true
 end
 
--- The move -> handler dispatch; the four leap variants share _try_leap (it branches on the move key inside).
+-- The move -> handler dispatch; each leap variant is its own atomic handler with its own premise and Personality.
 local TRY = {
-    leap = _try_leap, jump = _try_leap, leap_adapt = _try_leap, jump_adapt = _try_leap,
+    leap = _try_leap, jump = _try_jump, leap_adapt = _try_leap_adapt, jump_adapt = _try_jump_adapt,
     flee = _try_flee, claw = _try_claw,
     gravity_attack = _try_gravity,
 }
@@ -586,7 +604,7 @@ local function _reset_fight(mob, rec)
     rec.driver = "-"
     rec.gate = nil
     rec.enemy_px, rec.enemy_pz = nil, nil
-    rec.strafing = false
+    rec.moving = false
 end
 
 local _gate_probe = {}
@@ -804,8 +822,7 @@ local function _load_tunables()
         cap_npc = _read_num("caps", "vs_npc"),
         int_cap = _read_num("intelligence", "cap"),
         above_m = _read_num("premises", "above_m"),
-        climb_near_m = _read_num("premises", "climb_near_m"),
-        strafe_lat_sqr = (_read_num("premises", "strafe_lat_m") or 1) ^ 2,
+        move_min_sqr = (_read_num("premises", "move_min_m") or 0.5) ^ 2,
         flee_min_m = _read_num("survival", "min_dist_m"),
         flee_face_cone = _read_num("survival", "face_cone_deg"),
         survival_frac = _read_num("survival", "health_frac"),
@@ -814,7 +831,6 @@ local function _load_tunables()
         threat_cone = _read_num("threat", "facing_cone_deg"),
         aim_cone = _read_num("threat", "aim_cone_deg"),
         adapt_min = _read_num("adapt", "factor_min"), adapt_max = _read_num("adapt", "factor_max"),
-        charge_slow = _read_num("charge", "slow_mult"), charge_fast = _read_num("charge", "fast_mult"),
         claw_range = _read_num("claw", "range_m"),
         claw_cone = _read_num("claw", "facing_cone_deg"),
         claw_clear = _read_num("claw", "clear_ms"),

@@ -27,14 +27,15 @@
 
     Moves
       Leap family
-        - Leap keeps its wind-up whenever you are not dead-aiming at the mutant. Jump drops the wind-up when you aim right at it or are caught reloading. Leap adapt and Jump adapt steer in the air when you strafe.
-        - Disabling Jump keeps every leap telegraphed and dodgeable.
-        - A quadruped leaps at you when you take high ground it would never jump at on the flat, so camping a height is no longer safe.
+        - Leap springs up at you when you take high ground, the one leap the flat jump cannot reach, so camping a rock or a ledge is no longer safe.
+        - Sudden leap drops the wind-up and strikes at once when you aim right at it or are caught reloading or turned away.
+        - Adjusting leap and Darting leap steer in the air to track you while you move, Darting leap instant when you are aiming as well.
+        - Each leaper carries all four, and its species Personality sets which it favours.
         - A leap it cannot actually make - out of range, bad angle, or a ledge too high - no longer fires as a dud; it closes in or gives ground instead.
       Gravity
         - A burer forces its gravity throw when you cannot answer it, caught reloading or with your back turned, the moment its own shield is not needed. It never throws into your fire, so it keeps its defense.
       Rush
-        - How often a boar, bloodsucker, or pseudogigant charges scales with its Intelligence, its temperament decides whether it presses with the charge at all, and the pacing varies per individual. The charge stays the game's own move.
+        - A boar, bloodsucker, or pseudogigant may be an aggressive charger - its Intelligence and temperament decide - and then it recharges at its fastest and keeps coming; the rest vary per individual. The charge stays the game's own move.
       Backstrike
         - A spin-strike when the enemy works around to a mutant's back, on the chimera, lurker, burer, and controller whose models carry the motion.
       Claw

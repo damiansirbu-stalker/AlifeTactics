@@ -71,7 +71,7 @@ Rank buys the correct answer more often, never new abilities, so a novice and a 
 Effects:
 - Creatures make emergent decisions from environment, own state, enemy state, squad state, weapons, and faction doctrine.
 - Every faction fights its own way: who routs, who presses your weak moment, who plants for deliberate shots, who crouches on the line, who never backs down.
-- Mutants answer your weak moments and punish the cheese: reload and a leap comes, perch on a rock and the jumpers come up after you, strafe and they steer in the air to follow.
+- Mutants answer your weak moments and punish the cheese: reload and a leap comes, perch on a rock and the jumpers come up after you, move and they steer in the air to follow.
 - Every mutant ability value varies inside its species' own envelope, so no two spawns read alike. Movement stays the game's own tuning. The variation is one dial.
 - Nothing is player-centric, and no side gets an advantage or a handicap.
 - Creatures use the items they acquired themselves: medkits, ammo, props.
@@ -278,9 +278,9 @@ Wild is how much a mutant's own ability numbers vary between spawns, the gravity
 Species:
 Each species gets its own page carrying only the moves its body has: first the managed moves, the creature's own attacks and the values AlifeTactics varies.
 Then come the new moves the vanilla game never fires for it.
-The leap family reads your aim: Leap is the telegraphed leap for anything short of a dead aim, Jump drops the wind-up when you aim right at it, and the adapt versions steer mid-air when you strafe.
+The leap family reads your aim and your movement: Sudden leap drops the wind-up when you aim right at it or catch it reloading, and the adjusting versions steer mid-air to track you while you move.
 Every jumper leaps up at a shooter above it, so climbing a rock or a ledge stops being safe.
-Rush paces the charge: how often a boar, bloodsucker, or pseudogigant charges scales with its Intelligence, so a deep-Zone charger presses harder than a Cordon one. Its temperament decides whether it leans on the charge at all, and no two individuals pace quite alike.
+Rush drives the charge: a boar, bloodsucker, or pseudogigant may be an aggressive charger, its Intelligence and temperament deciding, and then it recharges at its fastest and keeps pressing while the rest vary per individual.
 The charge itself stays the game's own move.
 Backstrike arms a spin strike on an enemy circling behind, once per individual, on the four species whose models carry the motions. Claw gives the chimera the point-blank strike vanilla never gave it.
 Flee breaks a dying mutant out of the fight, rarely, and only when it is far enough to escape. A cornered one fights to the end. Cloak varies the bloodsucker kind's invisibility rhythm.
@@ -374,8 +374,8 @@ Avoid:
 Change:
 - G.A.M.M.A. No logs and Log spam remover - leave their option off (off by default). Enabling it disables the Accuracy system.
 Interferes:
-- Useful Idiots - the combat takeover skips companions, so companions fight with its combat modes. Its own enemy evaluation decides when any NPC engages, with night, rain, and enemy-memory rules.
-  It overwrites 1 of the 3 Crossfire friendly-fire fixes with its own version.
+- Useful Idiots - a well-liked companion UI, fine to keep. Two combat caveats: companions keep its combat modes when the takeover skips them, and it replaces 1 of Crossfire's 3 friendly-fire fixes.
+  Combat runs cleanest with it off, but it works.
 Everything else coexists, as long as it extends X-Ray and Anomaly and never overrides them.
 
 Not AlifeTactics (base game or your setup):

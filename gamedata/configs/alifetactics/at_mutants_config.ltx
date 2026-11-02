@@ -51,9 +51,8 @@ vs_npc    = 3
 cap = 0.75
 
 [premises] ; the reads the move handlers share through the pass memo
-above_m      = 0.8      ; object-position height delta that counts as the enemy being above (the body-plan law: a quadruped leaps only at an elevated enemy)
-climb_near_m = 6        ; the enemy_above near gate: an elevated enemy within this range is a reachable ledge to leap at, farther is valley terrain
-strafe_lat_m = 1.0      ; the enemy lateral displacement per beat that counts as strafing (the steered-leap premise)
+above_m    = 0.8      ; object-position height delta that counts as the enemy being elevated - the Leap trigger (a rock or ledge the FSM flat jump cannot reach), every leaper species; the engine can_jump bounds the reach
+move_min_m = 0.5      ; the enemy displacement per beat (any direction) that counts as moving - the steered-leap premise (adjusting and darting leaps)
 
 [survival] ; the flee trigger: health below this fraction while far enough to disengage and not nose-on to the enemy
 health_frac   = 0.30
@@ -72,9 +71,8 @@ aim_cone_deg    = 15 ; aiming: the enemy holds the crosshair ON the mutant - onl
 factor_min = 0.3
 factor_max = 0.6
 
-[charge] ; the charge pacing (the Rush row): the species' own Run_Attack_Delay scaled by Intelligence
-slow_mult = 1.8 ; the wait multiplier at zero Intelligence - hesitant (a low-rank charger reads vanilla at tier 0, skill 0.53)
-fast_mult = 0.3 ; the wait multiplier at the Intelligence cap - pressing (an apex charger cuts recovery to ~40% at tier 5)
+; The charge (the Rush row) takes no tunables: on a passed Intelligence + Personality roll the recharge drops to the species' own
+; Run_Attack_Delay minimum (the advantage at full), on a miss Wild spreads that delay by [wild] ability_pct. The engine fires the charge.
 
 [gravity_attack] ; the burer forced gravi throw, shield-safe: the trigger (vulnerable or back-turned) only fires when the player is not shooting, so no shield is wanted
 face_cone_deg = 45 ; the engine gravi facing gate (is_face_target deg(45), burer_state_attack_gravi_inline.h:87); the range band is the burer's own Gravi_MinDist/MaxDist, the LOS its own see
@@ -99,23 +97,59 @@ controller = stand_attack_0, stand_attack_1
 ability_pct     = 0.20
 
 ; --- Personality: the per-species chance (0..1) a mutant takes a move when its premise fires, rolled AFTER the Intelligence
-; gate passes (the at_faction Personality twin, section = personality_<move>, key = species, default covers any unlisted). The four
-; leap variants (leap/jump/leap_adapt/jump_adapt) share the one personality_leap value - the variant is picked by watching/strafing, not a Personality trait.
+; gate passes (the at_faction Personality twin, section = personality_<move>, key = species, default covers any unlisted). Each
+; leap variant (leap/jump/leap_adapt/jump_adapt) carries its OWN personality section and they share nothing; the situation (elevation / aiming / moving) decides which variant is eligible, its own Personality then gates it.
 ; Final rate = Intelligence (0.40-0.70 by map tier) x Personality, so a 1.0 move fires on 40-70% of its openings, a 0.1 on 4-7%, a 0.0 never.
 ; The values ARE each creature's temperament - who pounces, who routs, who holds - grounded in GSC's per-species bestiary (характер) and
 ; the creature_courage ratings [8] (doc/gsc/gsc-design-documents.md), the engine panic_threshold (flee propensity), and the species ecology.
 
-[personality_leap] ; the pounce family (leap/jump/leap_adapt/jump_adapt)
+[personality_leap] ; Leap - the telegraphed pounce at an elevated enemy; the core reach-the-ledge propensity, every leaper
 default     = 0.5
+snork       = 1.0
 chimera     = 0.9
 lurker      = 0.9
-snork       = 1.0
 dog         = 0.9
 pseudodog   = 0.8
+cat         = 0.7
 bloodsucker = 0.7
 psysucker   = 0.7
-cat         = 0.7
 psy_dog     = 0.6
+
+[personality_jump] ; Sudden leap - the instant no-wind-up pounce (aiming or vulnerable); decisive aggression, the ambushers low because they cloak rather than leap into a ready gun
+default     = 0.5
+snork       = 1.0
+dog         = 0.9
+chimera     = 0.8
+lurker      = 0.8
+pseudodog   = 0.7
+cat         = 0.7
+psy_dog     = 0.5
+bloodsucker = 0.4
+psysucker   = 0.4
+
+[personality_leap_adapt] ; Adjusting leap - the telegraphed steered pounce at a moving enemy; agile tracking, the acrobats and cats highest
+default     = 0.5
+snork       = 1.0
+chimera     = 0.9
+lurker      = 0.9
+cat         = 0.9
+dog         = 0.8
+pseudodog   = 0.7
+bloodsucker = 0.6
+psysucker   = 0.6
+psy_dog     = 0.5
+
+[personality_jump_adapt] ; Darting leap - the instant steered pounce at a moving, aiming enemy; the apex reflex, rare, defaults low
+default     = 0.3
+snork       = 0.9
+chimera     = 0.8
+lurker      = 0.8
+cat         = 0.7
+dog         = 0.6
+pseudodog   = 0.4
+bloodsucker = 0.3
+psysucker   = 0.3
+psy_dog     = 0.3
 
 [personality_claw] ; the chimera-class contact strike
 default = 1.0
@@ -140,11 +174,6 @@ gigant      = 0.0
 
 
 
-[personality_cloak] ; the bloodsucker visibility pacing
-default     = 1.0
-bloodsucker = 1.0
-psysucker   = 1.0
-
 [personality_backstrike] ; the rear spin-strike; the apex punishes the flank hard, the casters less
 default    = 1.0
 chimera    = 0.7
@@ -156,7 +185,7 @@ controller = 0.5
 default = 1.0
 burer   = 1.0
 
-[personality_charge] ; the run-attack lead (spawn-paced); the brute charges, the ambusher rarely
+[personality_charge] ; the once-per-life charge-press roll (rolled at adoption with Intelligence); the brute presses, the ambusher rarely
 default     = 1.0
 gigant      = 1.0
 boar        = 0.9

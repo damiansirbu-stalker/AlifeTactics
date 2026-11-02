@@ -218,7 +218,7 @@ Catch yourself reloading or turn your back near a burer and its gravity throw an
 The engine still drives every mutant.
 AlifeTactics scales its stats and commands the moves. The engine runs them itself.
 This is the strongest-grounded system in the mod.
-Every move traces to a line of GSC's monster design, the burer's gravity field, the fracture's strike at a turned back, the bloodsucker's night hunt, the chimera's flank.
+Every move traces to a line of GSC's monster design, the burer's gravity field, the dog's leaping bite, the boar's charge, the fracture's strike at a turned back, the bloodsucker's night hunt, the chimera's flank.
 
 #### Power
 
@@ -226,14 +226,14 @@ Power grows with the map's danger, so a dog in Cordon barely changes while a chi
 
 #### Wild
 
-Wild varies each ability value and the charge cadence inside the species' own envelope, so no two spawns read alike.
+Wild varies each ability value inside the species' own envelope, so no two spawns read alike.
 
 #### Moves
 
-The leap family reads your aim.
-Anything short of a dead aim gets the telegraphed Leap you can dodge.
-Aim right at it and it drops the wind-up and lunges.
-Strafe and it steers in the air to track you.
+The leap family reads your perch, your aim, and your movement.
+Climb to high ground and it leaps up after you.
+Aim at it and it drops the wind-up and lunges before you fire; catch it while you reload and it strikes inside that opening.
+Keep moving and it steers in the air to track you, instantly when you are aiming as well.
 A burer answers a reloading or turned-away player with its Gravity throw.
 Charge, Backstrike, Claw, Cloak, and Flee round out the set, each the creature's own.
 

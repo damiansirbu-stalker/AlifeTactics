@@ -295,25 +295,25 @@
     <text>Leap</text>
   </string>
   <string id="ui_mcm_at_mutants_leap_desc">
-    <text>[int, wild] The telegraphed leap, fired when the enemy is not watching, where the wind-up costs nothing against a turned back. Every leaper also leaps at an enemy who exploits elevation, and never into an aimed shotgun in range.</text>
+    <text>[int, wild] The telegraphed pounce at an enemy up on a rock or ledge, the one leap the engine's own flat jump cannot reach. Every leaper carries it; the engine's jump reach bounds how far.</text>
   </string>
   <string id="ui_mcm_at_mutants_jump">
-    <text>Jump</text>
+    <text>Sudden leap</text>
   </string>
   <string id="ui_mcm_at_mutants_jump_desc">
-    <text>[int, wild] The leap with no wind-up, fired when the enemy is watching, where a telegraphed wind-up in front of a ready gun would hand it time to react. Turn this off and every leap keeps its telegraph, so all stay dodgeable.</text>
+    <text>[int, wild] The instant pounce with no wind-up, fired when the enemy aims at it (a telegraph would hand them the shot) or is reloading or turned away (the strike lands before they recover). Turn this off and the leaps keep their telegraph.</text>
   </string>
   <string id="ui_mcm_at_mutants_leap_adapt">
-    <text>Leap adapt</text>
+    <text>Adjusting leap</text>
   </string>
   <string id="ui_mcm_at_mutants_leap_adapt_desc">
-    <text>[int, wild] The telegraphed leap with mid-air steering, fired at a strafing enemy that is not watching. The steering stays inside the game's own envelope.</text>
+    <text>[int, wild] The telegraphed pounce that steers in mid-air toward a moving enemy not aiming at it. The steering stays inside the game's own envelope.</text>
   </string>
   <string id="ui_mcm_at_mutants_jump_adapt">
-    <text>Jump adapt</text>
+    <text>Darting leap</text>
   </string>
   <string id="ui_mcm_at_mutants_jump_adapt_desc">
-    <text>[int, wild] The no-wind-up leap with mid-air steering, fired when the enemy both watches and strafes. The steering stays inside the game's own envelope.</text>
+    <text>[int, wild] The instant no-wind-up pounce that steers in mid-air toward a moving, aiming enemy - the apex reflex. The steering stays inside the game's own envelope.</text>
   </string>
   <string id="ui_mcm_at_mutants_rush">
     <text>Rush</text>
