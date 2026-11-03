@@ -1,6 +1,10 @@
 1.2.2-snapshot
   Summary: Mutant combat, the decision model and per-species Personality, the leap family and the burer gravity throw, anti-camping leaps, per-species move pages, Wild variation,
-    the stalker Intelligence gate and per-faction Personality, rank curves as pairs, the cover rebuild for retreat and reload
+    the stalker Intelligence gate and per-faction Personality, rank curves as pairs, the cover rebuild for retreat and reload, the takeover on a jobless spawn
+
+  Combat
+    Maneuvers
+      - Changed the takeover so a stalker that comes online without a job, as at a full Warfare base, picks up maneuvers once he enters combat.
 
   Mutants
     Mutants now fight you. A mutant reads your weak moments and answers with a move its own body carries.

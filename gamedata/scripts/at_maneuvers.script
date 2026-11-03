@@ -611,6 +611,8 @@ local function _trace_decision(state, _enemy, result)
 end
 
 local function _check_seize_block(npc)
+    if cfg.combat_ignore_companions and npc:has_info(COMPANION_INFO) then return "companion" end
+    if not xgraft.register_takeover(npc, SPEC) then return "no_logic" end
     local can_seize, seize_block = _can_seize(npc)
     if not can_seize then return "cannot_seize", seize_block end
     if not at_core.can_start() then return "at_cap" end
@@ -772,8 +774,11 @@ end
 local function _register_graft(npc)
     if not npc or not IsStalker(npc) then return end
     if cfg.combat_ignore_companions and npc:has_info(COMPANION_INFO) then return end
-    xgraft.register_takeover(npc, SPEC)
-    if at_debug.is_on() then at_debug.debug("[CMB] installed id=%d name=%s", npc:id(), npc:name()) end
+    local ok = xgraft.register_takeover(npc, SPEC)
+    if at_debug.is_on() then
+        at_debug.debug("[CMB] graft id=%d name=%s %s", npc:id(), npc:name(),
+            ok and "installed" or "deferred until logic ready")
+    end
 end
 
 local function _on_hit(npc, amount)
