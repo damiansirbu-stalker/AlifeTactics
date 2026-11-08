@@ -23,6 +23,7 @@ local LEAP_FAMILY     = "leap"
 local MOVE_JUMP       = "jump"
 local MOVE_LEAP_ADAPT = "leap_adapt"
 local MOVE_JUMP_ADAPT = "jump_adapt"
+local VIS_FULL        = 2
 
 -- Every move the adopt line and the MCM tree key on; backstrike arms at adoption, the rest decide per beat.
 local MOVE_KEYS = {
@@ -458,6 +459,25 @@ local function _log_fire(rec, move, detail)
     end
 end
 
+--- Stamp an engine-fired move (charge, backstrike, gravi) so the trace, HUD and manifest see it; fired outside the beat, so time_global not tick_now.
+local function _log_engine_fire(mob, move)
+    local rec = mob and _states[mob:id()]
+    if not rec then return end
+    rec.driver = move:gsub("_", " "):upper()
+    rec.fired_move = move
+    rec.gate = "-"
+    rec.fired_at = time_global()
+end
+
+--- The engine run-attack (charge) completion relay.
+local function _on_run_attack_end(mob) _log_engine_fire(mob, "charge") end
+
+--- The engine melee-jump (rear backstrike) completion relay.
+local function _on_melee_jump_end(mob) _log_engine_fire(mob, "backstrike") end
+
+--- A burer gravi blast, autonomous or forced.
+local function _on_burer_gravi(burer) _log_engine_fire(burer, "gravity_attack") end
+
 -- The shared leap execution: the start cap, the claw clear, the optional air-steering, the engine jump, the restore.
 -- The move key decides the form: adapt variants steer, jump variants skip the wind-up; feasibility is the engine can_jump (xmonster.try_monster_jump).
 local function _execute_leap(mob, rec, move, now)
@@ -566,6 +586,7 @@ local function _try_cloak(mob, rec, _move, now)
     local hit = rec.hit_at and (now - rec.hit_at) < _tun_num.cloak_hit_ms
     if not (memo.aiming or hit) then return false end
     if now < rec.cloak_ok_at then return false end
+    if xmonster.get_visibility_state(mob) ~= VIS_FULL then return false end
     if not _check_personality(rec, "cloak") then return false end
     if not xmonster.force_visibility_state(mob, 0) then return false end
     rec.cloak_until = now + _tun_num.cloak_window_ms
@@ -689,6 +710,11 @@ local function _on_mob_update(mob)
             at_debug.warn("at_mutants INACTIVE: the monster seam set is absent on this exe")
             _apply_enabled()
             return
+        end
+        if xmonster.has_trace_surface(mob) then
+            xmonster.on_run_attack_end(_on_run_attack_end)
+            xmonster.on_melee_jump_end(_on_melee_jump_end)
+            xmonster.on_burer_gravi(_on_burer_gravi)
         end
     end
     if not rec then
@@ -913,6 +939,17 @@ end
 --- The per-mutant record for one id (the HUD read: moves, windows, the decision clock), nil when not adopted.
 function get_mutant_record(id)
     return _states[id]
+end
+
+--- The species' per-beat decided moves as a set (the DECISION_MOVES the species carries), for the manifestation coverage harness.
+function get_species_moves(species)
+    local set = {}
+    if not species then return set end
+    for i = 1, #DECISION_MOVES do
+        local move = DECISION_MOVES[i]
+        if _move_species[move] and _move_species[move][species] then set[move] = true end
+    end
+    return set
 end
 
 --- The driver label for one adopted mutant ("CLAW"/"JUMP"/"LEAP ADAPT"/"RUSH"/.../"-"), nil when not adopted.

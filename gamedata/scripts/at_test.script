@@ -39,6 +39,20 @@ local EFF_PHASES = {
 local _eff = nil
 local _eff_log = nil
 
+local MANIFEST_ROSTER = {
+    "chimera", "lurker", "bloodsucker", "psysucker", "burer", "controller", "poltergeist",
+    "dog", "boar", "snork", "pseudodog", "psy_dog", "gigant", "cat", "flesh", "fracture", "karlik", "tushkano",
+}
+local MANIFEST_COUNT = 2
+local MANIFEST_DIST = 10
+local MANIFEST_SEC = 40
+local MANIFEST_INT = 95
+local MANIFEST_ANNOUNCE_SEC = 5
+local DRIVE_STAND = "stand"
+local DRIVE_STRAFE = "strafe"
+local _manifest = nil
+local _manifest_log = nil
+
 local function _show_tip(msg)
     if db.actor then news_manager.send_tip(db.actor, msg, nil, nil, 5000) end
 end
@@ -302,6 +316,7 @@ local function _stop_eff()
     if not _eff then return end
     _set_eff_at(true)
     _eff.tz.stop_actor_drive()
+    _eff.tz.stop_actor_aim()
     _eff.tz.clear_mutants()
     _eff.tz.stop_lifepump()
     UnregisterScriptCallback("actor_on_before_hit", _on_eff_before_hit)
@@ -339,6 +354,100 @@ local function _update_eff()
             _stop_eff()
         else
             _start_eff_phase(_eff.i + 1)
+        end
+    end
+    return false
+end
+
+--- The roster index for a species name, or 1 when the name is absent (the manifest start point).
+local function _find_roster_index(species)
+    if not species then return 1 end
+    for i = 1, #MANIFEST_ROSTER do
+        if MANIFEST_ROSTER[i] == species then return i end
+    end
+    return 1
+end
+
+--- Record each fired decided move per species (the manifestation detector, mirrors the efficiency fire read).
+local function _on_manifest_mob_update(mob)
+    if not (_manifest and mob and mob:alive()) then return end
+    local rec = at_mutants.get_mutant_record(mob:id())
+    if not (rec and rec.fired_at) then return end
+    if _manifest.seen[mob:id()] ~= rec.fired_at then
+        _manifest.seen[mob:id()] = rec.fired_at
+        local move = rec.fired_move or "?"
+        _manifest.fired[move] = (_manifest.fired[move] or 0) + 1
+        _manifest_log.info("[fire] %s id=%d move=%s", _manifest.species, mob:id(), move)
+    end
+end
+
+--- Write the species coverage line: which of its decided moves fired, which did not.
+local function _log_manifest_coverage()
+    local expected = at_mutants.get_species_moves(_manifest.species)
+    local fired, missed = {}, {}
+    for move in pairs(expected) do
+        if _manifest.fired[move] then fired[#fired + 1] = move else missed[#missed + 1] = move end
+    end
+    _manifest_log.info("%-12s fired=[%s] missed=[%s]", _manifest.species, table_concat(fired, " "), table_concat(missed, " "))
+end
+
+--- Clear, spawn a pair of the next species, reset the per-species fire tally.
+local function _start_manifest_species(i)
+    _manifest.i = i
+    _manifest.species = MANIFEST_ROSTER[i]
+    _manifest.fired = {}
+    _manifest.seen = {}
+    _manifest.at = time_global()
+    _manifest.next_announce = 0
+    _manifest.phase = 1
+    _manifest.tz.clear_mutants()
+    _manifest.tz.start_actor_aim()
+    _manifest.tz.start_actor_drive(DRIVE_STAND)
+    _manifest.tz.spawn_mutant(_manifest.species, MANIFEST_COUNT, MANIFEST_DIST)
+    _manifest_log.info("[species %d/%d] %s spawn=%d int=%d", i, #MANIFEST_ROSTER, _manifest.species, MANIFEST_COUNT, MANIFEST_INT)
+end
+
+--- Tear the harness down: restore the AT config, release mutants, hand the actor back.
+local function _stop_manifest()
+    if not _manifest then return end
+    for k, v in pairs(_manifest.snap) do at_mcm.cfg[k] = v end
+    _manifest.tz.stop_actor_aim()
+    _manifest.tz.stop_actor_drive()
+    _manifest.tz.stop_lifepump()
+    _manifest.tz.clear_mutants()
+    UnregisterScriptCallback("monster_on_update", _on_manifest_mob_update)
+    RemoveTimeEvent("at_manifest", "tick")
+    if _manifest_log then _manifest_log.flush() end
+    _manifest = nil
+end
+
+--- Advance the roster once per second: at a species' window end log coverage and step to the next, or finish.
+local function _update_manifest()
+    if not _manifest then return true end
+    ResetTimeEvent("at_manifest", "tick", 1)
+    local now = time_global()
+    local into = (now - _manifest.at) / 1000
+    local third = MANIFEST_SEC / 3
+    if _manifest.phase == 1 and into >= third then
+        _manifest.phase = 2
+        _manifest.tz.start_actor_aim(true)
+    elseif _manifest.phase == 2 and into >= third * 2 then
+        _manifest.phase = 3
+        _manifest.tz.start_actor_aim()
+        _manifest.tz.start_actor_drive(DRIVE_STRAFE)
+    end
+    if now >= _manifest.next_announce then
+        _manifest.next_announce = now + MANIFEST_ANNOUNCE_SEC * 1000
+        _show_tip(string_format("manifest %d/%d %s | %ds", _manifest.i, #MANIFEST_ROSTER, _manifest.species, math_max(0, math_floor(MANIFEST_SEC - into))))
+    end
+    if into >= MANIFEST_SEC then
+        _log_manifest_coverage()
+        if _manifest.i >= #MANIFEST_ROSTER then
+            _manifest_log.info("=== MANIFEST DONE ===")
+            _stop_manifest()
+            _show_tip("manifest done - see manifest_at.log")
+        else
+            _start_manifest_species(_manifest.i + 1)
         end
     end
     return false
@@ -406,7 +515,7 @@ function run_efficiency(species, int_base)
     if _eff then return _show_tip("AT.EFF: running - stop_efficiency() first") end
     if not (db.actor and species) then return _show_tip("AT.EFF: need in-game and a species") end
     local tz = rawget(_G, "tz_commands")
-    if not (type(tz) == "table" and type(tz.spawn_mutant) == "function" and type(tz.start_actor_drive) == "function") then
+    if not (type(tz) == "table" and type(tz.spawn_mutant) == "function" and type(tz.start_actor_drive) == "function" and type(tz.start_actor_aim) == "function") then
         return _show_tip("AT.EFF: TestZone not loaded (needs tz_commands)")
     end
     _eff_log = xlog.get_logger("harness_at", { outfile = "harness_at.log", buffer_size = 1, level = "INFO" })
@@ -414,6 +523,7 @@ function run_efficiency(species, int_base)
              int_base = int_base, int_cur = int_base, tz = tz }
     _eff_log.info("========== RUN %s%s ==========", species, int_base and (" int_base=" .. int_base) or "")
     tz.start_lifepump(1.0, 0.02)
+    tz.start_actor_aim()
     RegisterScriptCallback("actor_on_before_hit", _on_eff_before_hit)
     RegisterScriptCallback("monster_on_update", _on_eff_mob_update)
     _start_eff_phase(1)
@@ -426,5 +536,32 @@ end
 function stop_efficiency()
     _stop_eff()
     _show_tip("AT.EFF: stopped")
+end
+
+--- Iterate the mutant roster (or from start_species on) a pair each, aim+strafe+lifepump, and log which decided moves manifest. See manifest_at.log.
+function run_manifest(start_species)
+    if _manifest then return _show_tip("AT.MANIFEST: running - stop_manifest() first") end
+    if not db.actor then return _show_tip("AT.MANIFEST: need in-game") end
+    local tz = rawget(_G, "tz_commands")
+    if not (type(tz) == "table" and type(tz.spawn_mutant) == "function" and type(tz.start_actor_aim) == "function"
+        and type(tz.start_actor_drive) == "function" and type(tz.start_lifepump) == "function") then
+        return _show_tip("AT.MANIFEST: TestZone not loaded (needs tz_commands)")
+    end
+    _manifest_log = xlog.get_logger("manifest_at", { outfile = "manifest_at.log", buffer_size = 1, level = "INFO" })
+    _manifest = { tz = tz, snap = _get_eff_cfg(), fired = {}, seen = {}, next_announce = 0 }
+    at_mcm.cfg.mut_int_base = MANIFEST_INT
+    _manifest_log.info("========== MANIFEST RUN int=%d count=%d dist=%dm window=%ds ==========", MANIFEST_INT, MANIFEST_COUNT, MANIFEST_DIST, MANIFEST_SEC)
+    tz.start_lifepump(1.0, 0.02)
+    RegisterScriptCallback("monster_on_update", _on_manifest_mob_update)
+    _start_manifest_species(_find_roster_index(start_species))
+    RemoveTimeEvent("at_manifest", "tick")
+    CreateTimeEvent("at_manifest", "tick", 1, _update_manifest)
+    _show_tip("AT.MANIFEST: iterating all mutants")
+end
+
+--- Stop the manifestation harness and restore the AT config and actor control.
+function stop_manifest()
+    _stop_manifest()
+    _show_tip("AT.MANIFEST: stopped")
 end
 
