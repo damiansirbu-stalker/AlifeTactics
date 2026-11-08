@@ -6,7 +6,7 @@ A complete combat system. It keeps X-Ray's GOAP planner and drives it, replacing
 GOAP control: a bounded full takeover with six maneuvers, a planner veto, cover posture and spacing.
 Battle mechanics: per-rank dispersion, aim, lead, burst, sight, sound, healing, jamming, ammo, artefacts and optics, on stalkers and mutants, from the items they actually carry.
 
-[ModDB](https://www.moddb.com/mods/stalker-anomaly/addons/alifetactics) | [Releases](https://github.com/damiansirbu-stalker/AlifeTactics/releases) | [Bugs, suggestions](https://github.com/damiansirbu-stalker/AlifeTactics/issues)
+[![ModDB](https://img.shields.io/badge/ModDB-c8102e)](https://www.moddb.com/mods/stalker-anomaly/addons/alifetactics) [![Nexus Mods](https://img.shields.io/badge/Nexus_Mods-da8e35)](https://www.nexusmods.com/stalkeranomaly/mods/121) [![Releases](https://img.shields.io/badge/Releases-24292f?logo=github&logoColor=white)](https://github.com/damiansirbu-stalker/AlifeTactics/releases) [![Bugs, suggestions](https://img.shields.io/badge/Bugs%2C_suggestions-24292f?logo=github&logoColor=white)](https://github.com/damiansirbu-stalker/AlifeTactics/issues) [![Ko-fi](https://img.shields.io/badge/Ko--fi-ff5e5b?logo=kofi&logoColor=white)](https://ko-fi.com/damiansirbu)
 
 [![ci](https://github.com/damiansirbu-stalker/AlifeTactics/actions/workflows/ci.yml/badge.svg)](https://github.com/damiansirbu-stalker/AlifeTactics/actions/workflows/ci.yml) [![Project Health](https://img.shields.io/badge/project_health-dashboard-00ced1)](https://damiansirbu-stalker.github.io/AlifeTactics/)
 
