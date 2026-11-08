@@ -939,7 +939,7 @@ end
 -- A commanded-still mutant (a casting burer, a standing strike) has a zero target, so it never reads STUCK - no state whitelist or driver skip-list needed.
 local function _is_mob_stalled(mi)
     return mi.velocity_target > MOB_WANTS_MOVE and mi.real_velocity < MOB_STALL_REAL
-        and mi.path_active and not mi.path_completed
+        and mi.path_capturer == monster_path_capturer.none and not mi.path_completed
 end
 
 -- The run-in-place watchdog: a ground-truth stall held past MOB_STUCK_MS logs STUCK, re-logged every MOB_STUCK_RELOG_MS with the growing duration.
@@ -1021,9 +1021,9 @@ local function _log_mob_velocity(mob, mi, id)
     mob.vreal_sum = (mob.vreal_sum or 0) + mi.real_velocity
     if _is_mob_stalled(mi) then mob.stalled = (mob.stalled or 0) + 1 end
     if mi.velocity_target > MOB_MOVING_EPS or mi.velocity_current > MOB_MOVING_EPS then
-        log.debug("[WORLD] mob id=%d vel cur=%.2f tgt=%.2f real=%.2f pc=%s pa=%s pact=%s",
+        log.debug("[WORLD] mob id=%d vel cur=%.2f tgt=%.2f real=%.2f pc=%s pa=%s cap=%d",
             id, mi.velocity_current, mi.velocity_target, mi.real_velocity,
-            mi.path_completed and "y" or "n", mi.path_actual and "y" or "n", mi.path_active and "y" or "n")
+            mi.path_completed and "y" or "n", mi.path_actual and "y" or "n", mi.path_capturer)
     end
 end
 
