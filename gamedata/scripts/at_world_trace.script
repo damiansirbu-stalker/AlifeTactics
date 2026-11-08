@@ -10,6 +10,7 @@ local pcall, debug = pcall, debug
 
 local log = xlog.get_logger("AT.WORLD", { outfile = "alifetactics_world.log", level = "DEBUG" })
 local cfg = at_mcm.cfg
+local PATH_FREE = rawget(_G, "monster_path_capturer") and monster_path_capturer.none
 
 local SAMPLE_SEC  = 0.15
 local RADIUS_SQR  = 70 * 70
@@ -939,7 +940,7 @@ end
 -- A commanded-still mutant (a casting burer, a standing strike) has a zero target, so it never reads STUCK - no state whitelist or driver skip-list needed.
 local function _is_mob_stalled(mi)
     return mi.velocity_target > MOB_WANTS_MOVE and mi.real_velocity < MOB_STALL_REAL
-        and mi.path_capturer == monster_path_capturer.none and not mi.path_completed
+        and mi.path_capturer == PATH_FREE and not mi.path_completed
 end
 
 -- The run-in-place watchdog: a ground-truth stall held past MOB_STUCK_MS logs STUCK, re-logged every MOB_STUCK_RELOG_MS with the growing duration.
