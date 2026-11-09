@@ -290,9 +290,6 @@ Each species gets its own page carrying only the moves its body has. First come 
 Then come the new moves the vanilla game never fires for it.
 The leap family reads your aim and your movement: Sudden leap drops the wind-up when you aim right at it or catch it reloading, and the adjusting versions steer mid-air to track you while you move.
 Every jumper leaps up at a shooter above it. Climbing a rock or a ledge stops being safe.
-Rush drives the charge. A boar, bloodsucker, or pseudogigant may be an aggressive charger, its Intelligence and temperament deciding.
-A charger then recharges at its fastest and keeps pressing, while the rest vary per individual.
-The charge itself stays the game's own move.
 Backstrike arms a spin strike on an enemy circling behind, once per individual, on the four species whose models carry the motions. Claw gives the chimera the point-blank strike vanilla never gave it.
 Flee breaks a dying mutant out of the fight, rarely, and only when it is far enough to escape. A mutant with no escape fights to the end.
 Cloak sends a bloodsucker invisible when you aim at it or hit it while it is still closing. It re-appears a beat later, and never vanishes once it is already at strike range.

@@ -704,7 +704,7 @@ Sudden leap is the instant no-wind-up pounce in two cases.
 The enemy aims at the mutant (`is_aim_held`, the tight ~15deg cone, where winding up before a locked gun hands it a free second).
 Or the enemy is vulnerable (reloading or turned, where the strike arrives before they recover).
 The Adjusting leap is the telegraphed pounce that steers in flight toward a moving enemy not aiming.
-Its instant form, the Darting leap, strikes a moving AND aiming enemy - the apex reflex.
+Its instant form, the Darting leap, strikes a moving AND aiming enemy.
 The steered pair drive `set_monster_jump_flags` auto-aim, the gain rolled inside the vanilla envelope and the species' own basis restored on touchdown.
 The engine reads the gain live through the flight, and an immediate restore would kill the steering.
 BODY PLAN IS A SOFT GATE. Every leaper carries all four moves, and the per-species Personality values (the `[personality_leap/jump/leap_adapt/jump_adapt]` sections) decide who leaps how and how often.
@@ -722,16 +722,10 @@ A forced gravi then steals nothing.
 The handler hoists the range band (`Gravi_Min/MaxDist`), the LOS, and the 45-degree facing.
 It keeps the engine cooldown bypassed.
 The forced flag holds one gravi cycle then clears.
-The charge is engine-owned end to end.
-Its autonomous trigger re-checks it on every binder schedule tick (100ms near to 625ms far) through the same gates a command would pass, and a commanded charge can never add a fire.
-The module owns the recharge delay alone, set once at adoption (a persistent trait, shape 2).
-A once-per-life Intelligence and Personality roll (the `[personality_charge]` per-species chance) decides whether this individual presses the charge.
-On a pass the recharge drops to the species' own Run_Attack_Delay minimum - the advantage at full, never scaled.
-On a miss Wild spreads the vanilla delay per individual.
-The engine's own is_active lock bars a re-fire mid-charge, a minimum recharge cannot stunlock, and the band geometry is never touched.
+The charge (the engine run-attack lunge) is engine-owned and AT drives nothing on it. The completion relay only traces it grey.
 FLEE has ONE trigger, the ability to flee - health below the survival fraction, the actor 20m+ to disengage (`[survival] min_dist_m`), and the mutant not nose-on to the enemy (no 180-turn-and-die).
 A cornered mutant holds its ground.
-Its Personality carries the rarity (low on the apex and pack, high on prey).
+Its Personality carries the rarity (high on flesh and fracture, low on the hunters, zero on the pseudogigant).
 The window is a fixed 45-75s timer, and while it holds the proposal subscriber re-proposes `eStateAttack_RunAway`.
 THE GATE bounds the selection, which evaluates a mutant only within `gate_radius_m` of the player (`at_core.is_in_gate`), the one shared radius the stalker resolver and the HUD also read.
 A mutant decides only when it is near enough to the player to matter and never acts across the map.

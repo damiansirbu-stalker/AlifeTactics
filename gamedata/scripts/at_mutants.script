@@ -1,7 +1,7 @@
 --- at_mutants: the mutant combat driver - tier stat scaling, innate Wild, the decision model over the engine FSM
 
 local math_random, math_min, math_sqrt, math_floor = math.random, math.min, math.sqrt, math.floor
-local time_global, pairs, next, rawget, tostring, tonumber = time_global, pairs, next, rawget, tostring, tonumber
+local time_global, pairs, next, rawget, tostring = time_global, pairs, next, rawget, tostring
 local table_concat = table.concat
 local RegisterScriptCallback, UnregisterScriptCallback = RegisterScriptCallback, UnregisterScriptCallback
 local ini_sys, level, AC_ID = ini_sys, level, AC_ID
@@ -24,6 +24,9 @@ local MOVE_JUMP       = "jump"
 local MOVE_LEAP_ADAPT = "leap_adapt"
 local MOVE_JUMP_ADAPT = "jump_adapt"
 local MOVE_GRAVITY    = "gravity_attack"
+local MOVE_RUN_ATTACK = "run_attack"
+local MOVE_BACKSTRIKE = "backstrike"
+local FIRED_CALLED, FIRED_SHAPED, FIRED_ENGINE = "called", "shaped", "engine"
 local VIS_FULL        = 2
 
 -- Every move the adopt line and the MCM tree key on; backstrike arms at adoption, the rest decide per beat.
@@ -113,12 +116,6 @@ local function _check_vary(rec, family)
     return page ~= nil and cfg["mut_" .. page .. "_" .. family] == true
 end
 
--- True when any of the four leap-family variants is toggled on for the species (the family row's eligibility).
-local function _check_leap_toggled(rec)
-    return _check_toggle(rec, "leap") or _check_toggle(rec, "jump")
-        or _check_toggle(rec, "leap_adapt") or _check_toggle(rec, "jump_adapt")
-end
-
 -- The adopt-line move list: the species' applicable moves (anatomy, the [moves] envelope).
 local function _format_moves(species)
     if not species then return "-" end
@@ -168,15 +165,6 @@ local function _compute_band(min_basis, max_basis, pct)
     return min_basis and min_basis * factor or nil, max_basis and max_basis * factor or nil
 end
 
--- A "min, max" tuple string from the install's own section ("4.5, 8.0"), nil when absent.
-local function _read_pair(section, key)
-    local raw = ini_sys:r_string_ex(section, key)
-    if not raw then return nil end
-    local first, second = raw:match("([%d%.]+)%s*,%s*([%d%.]+)")
-    if not first then return nil end
-    return { tonumber(first), tonumber(second) }
-end
-
 -- The caps: starts assumed running per bucket; an offensive fire checks then adds, flee adds and is never denied.
 local function _check_start(bucket)
     local cap = bucket == VS_PLAYER and _tun_num.cap_player or _tun_num.cap_npc
@@ -200,26 +188,6 @@ local function _check_personality(rec, move)
         _personality_cache[ck] = chance
     end
     return at_core.check_chance(chance)
-end
-
--- The charge: a once-per-life Intelligence + Personality roll decides whether this individual presses (shape 2; the engine fires the charge itself).
--- On a pass the recharge cooldown drops to the species' own minimum - the advantage at full; on a miss Wild spreads the vanilla delay per individual.
-local function _apply_charge_pacing(mob, rec, section)
-    if not _check_vary(rec, "rush") then return end
-    local delay = _read_pair(section, "Run_Attack_Delay")
-    if not delay then return end
-    local pressed = _check_intelligence(rec) and _check_personality(rec, "charge")
-    local min_ms, max_ms
-    if pressed then
-        min_ms, max_ms = delay[1], delay[1]
-    else
-        min_ms, max_ms = _compute_band(delay[1], delay[2], _tun_num.ability_pct)
-    end
-    xmonster.set_monster_rush_params(mob, { min_delay_ms = min_ms, max_delay_ms = max_ms })
-    rec.paces_charge = true
-    if at_debug.is_on() then
-        at_debug.debug("[MUT] charge id=%d delay=%.0f-%.0fms pressed=%s gate=%s", rec.id, min_ms, max_ms, tostring(pressed), GATE)
-    end
 end
 
 -- The adapt-steering restore point: the species' own jump_auto_aim_factor (0 when absent, the engine default).
@@ -343,6 +311,7 @@ local function _try_arm_backstrike(mob, rec)
         and _backstrike_motions[rec.species] or nil
     if not motions or not _check_intelligence(rec) or not _check_personality(rec, "backstrike") then return end
     xmonster.set_monster_melee_strike(mob, motions[1], motions[2], _tun_num.backstrike_arc)
+    rec.armed_backstrike = true
     if at_debug.is_on() then
         at_debug.debug("[MUT] arm id=%d backstrike arc=%.0f gate=%s", rec.id, _tun_num.backstrike_arc, GATE)
     end
@@ -384,7 +353,6 @@ local function _add_mutant(mob, id, now)
     _states[id] = rec
     local section = mob:section()
     _apply_leap(mob, rec, section)
-    _apply_charge_pacing(mob, rec, section)
     _apply_pacing(mob, rec, section)
     _apply_burer_params(mob, rec, section)
     _apply_auras(mob, rec, section)
@@ -452,6 +420,7 @@ end
 local function _log_fire(rec, move, detail)
     rec.driver = move:gsub("_", " "):upper()
     rec.fired_move = move
+    rec.fired_kind = FIRED_CALLED
     rec.gate = GATE
     rec.fired_at = rec.tick_now
     if at_debug.is_on() then
@@ -460,7 +429,14 @@ local function _log_fire(rec, move, detail)
     end
 end
 
---- Stamp an engine-fired move (charge, backstrike, gravi) so the trace, HUD and manifest see it; fired outside the beat, so time_global not tick_now.
+--- True when AT shaped this engine-fired move: backstrike was armed by us, Gravity numbers varied the blast; the run-attack is engine-only.
+local function _check_shaped(rec, move)
+    if move == MOVE_BACKSTRIKE then return rec.armed_backstrike == true end
+    if move == MOVE_GRAVITY then return _check_vary(rec, "gravity_numbers") end
+    return false
+end
+
+--- Stamp an engine-fired move (run-attack, backstrike, gravi) so the trace, HUD and manifest see it; fired outside the beat, so time_global not tick_now.
 --- No gate: the HUD files a gated row as AT-driven. A gravi blast inside our own force window keeps the stamp _try_gravity wrote.
 local function _log_engine_fire(mob, move)
     local rec = mob and _states[mob:id()]
@@ -468,15 +444,16 @@ local function _log_engine_fire(mob, move)
     if move == MOVE_GRAVITY and rec.gravity_release > 0 then return end
     rec.driver = move:gsub("_", " "):upper()
     rec.fired_move = move
+    rec.fired_kind = _check_shaped(rec, move) and FIRED_SHAPED or FIRED_ENGINE
     rec.gate = nil
     rec.fired_at = time_global()
 end
 
---- The engine run-attack (charge) completion relay.
-local function _on_run_attack_end(mob) _log_engine_fire(mob, "charge") end
+--- The engine run-attack completion relay - the vanilla lunge, traced only.
+local function _on_run_attack_end(mob) _log_engine_fire(mob, MOVE_RUN_ATTACK) end
 
 --- The engine melee-jump (rear backstrike) completion relay.
-local function _on_melee_jump_end(mob) _log_engine_fire(mob, "backstrike") end
+local function _on_melee_jump_end(mob) _log_engine_fire(mob, MOVE_BACKSTRIKE) end
 
 --- A burer gravi blast, autonomous or forced.
 local function _on_burer_gravi(burer) _log_engine_fire(burer, MOVE_GRAVITY) end
@@ -528,7 +505,7 @@ local function _try_leap_adapt(mob, rec, _move, now)
     return _execute_leap(mob, rec, MOVE_LEAP_ADAPT, now)
 end
 
--- Darting leap: the instant pounce that steers in flight toward a moving, aiming enemy - the apex reflex.
+-- Darting leap: the instant pounce that steers in flight toward a moving, aiming enemy.
 local function _try_jump_adapt(mob, rec, _move, now)
     local memo = rec.memo
     if not (rec.moving and memo.aiming) then return false end
@@ -861,11 +838,6 @@ local VARY_KEYS = {
     "mut_burer_gravity_numbers", "mut_burer_telekinesis",
 }
 
--- The charge-pacing row keys (Rush, Intelligence-driven); the Run_Attack_Delay basis gates species without the charge.
-local CHARGE_KEYS = {
-    "mut_bloodsucker_rush", "mut_boar_rush", "mut_gigant_rush",
-}
-
 local function _load_tunables()
     _tun = xltx.resolve_handle(LTX_PATH)
     _tun_num = {
@@ -917,7 +889,6 @@ local function _load_tunables()
         _move_cfg[species] = _build_species_keys(species, page, seen_keys)
     end
     for i = 1, #VARY_KEYS do _all_toggle_keys[#_all_toggle_keys + 1] = VARY_KEYS[i] end
-    for i = 1, #CHARGE_KEYS do _all_toggle_keys[#_all_toggle_keys + 1] = CHARGE_KEYS[i] end
     _claw_motion = xltx.read_str(_tun, "claw", "motion")
     _backstrike_motions = {}
     local backstrike_list = xltx.read_list(_tun, "moves", "backstrike")
@@ -955,23 +926,11 @@ function get_species_moves(species)
     return set
 end
 
---- The driver label for one adopted mutant ("CLAW"/"JUMP"/"LEAP ADAPT"/"RUSH"/.../"-"), nil when not adopted.
+--- The driver label for one adopted mutant ("CLAW"/"JUMP"/"LEAP ADAPT"/"RUN ATTACK"/.../"-"), nil when not adopted.
 --- The record's .gate ("int, pers") names what influenced the fired move; the HUD appends it.
 function get_driver(id)
     local rec = _states[id]
     return rec and rec.driver or nil
-end
-
---- True when AT governs this mutant's leaps - any of its four leap variants managed and toggled on; the HUD colours an engine-timed leap we govern.
-function is_leap_governed(rec)
-    return rec ~= nil and _check_leap_toggled(rec)
-end
-
---- True when AT governs this mutant's melee - a managed claw or backstrike toggled on; the HUD colours Attack_Melee until the backstrike getter PR lands.
-function is_melee_governed(rec)
-    if not rec then return false end
-    return (rec.moves.claw and _check_toggle(rec, "claw"))
-        or (rec.moves.backstrike and _check_toggle(rec, "backstrike")) or false
 end
 
 function on_game_start()

@@ -30,7 +30,13 @@ local MOB_LINGER_MS = 3000
 local MOB_STALE_MS  = 2000
 local DRIVER_HOLD, DRIVER_PUSH, DRIVER_PULL, DRIVER_CONDUCT = "HOLD", "PUSH", "PULL", "CONDUCT"
 local OP_COMBAT = "combat"
-local LEAP_FAMILY_NAME = "leap"
+-- Inline %c escapes for the mutant move: green when AT fired it, gold when the engine fired a move AT shaped, grey for the engine alone.
+local ESC_INT  = "%c[240,170,220,170]"
+local ESC_WILD = "%c[240,235,190,140]"
+local ESC_DIM  = "%c[150,150,150,150]"
+local ESC_END  = "%c[default]"
+local FIRED_ESC = { called = ESC_INT, shaped = ESC_WILD, engine = ESC_DIM }
+local MOVE_LABEL_PREFIX = "ui_mcm_at_mutants_"
 
 local CLR_AT, CLR_HOLD, CLR_PUSH, CLR_CONDUCT, CLR_NORMAL, CLR_DIM = nil, nil, nil, nil, nil, nil
 local _MENTAL
@@ -39,6 +45,7 @@ local _shown = false
 local _tick_active = false
 local _mob = {}
 local _gate_probe = {}
+local _move_labels = {}
 
 local function _init_colors()
     if CLR_AT then return end
@@ -149,39 +156,26 @@ local function _build_row(npc, st)
     }
 end
 
--- Inline %c escapes: the running or just-ran move colours by gate (Intelligence green, Wild gold), every other governed ability stays dim.
-local ESC_INT  = "%c[240,170,220,170]"
-local ESC_WILD = "%c[240,235,190,140]"
-local ESC_DIM  = "%c[150,150,150,150]"
-local ESC_END  = "%c[default]"
-local WILD_MOVES = {
-    cloak = true, tube = true, stamina = true, aura = true,
-    detection = true, gravity_numbers = true, telekinesis = true,
-}
-local RUN_ATTACK_STATE = "Attack_On_Run"
-local RUN_AWAY_STATE = "Attack_RunAway"
-local MELEE_STATE = "Attack_Melee"
+-- The move's own MCM label, so the HUD names a move exactly as the menu does; an engine-only move with no row keeps its key.
+local function _get_move_label(move)
+    local label = _move_labels[move]
+    if not label then
+        local id = MOVE_LABEL_PREFIX .. move
+        label = game.translate_string(id)
+        if label == id then label = move end
+        _move_labels[move] = label
+    end
+    return label
+end
 
--- Mutant systems cell: the live action now, in our move vocabulary - gate-coloured when AT drives it, grey for his own engine action; FSM state the fallback.
-local function _format_mob_systems(rec, tg, state, jumping)
-    local sname = at_core.get_mob_state_name(state)
-    local ours
-    if rec.flee_until > rec.tick_now then ours = "flee"
-    elseif rec.claw_until > 0 then ours = "claw"
-    elseif rec.paces_charge and sname == RUN_ATTACK_STATE then ours = "charge"
-    elseif rec.fired_at and tg - rec.fired_at < MOB_LINGER_MS then ours = rec.fired_move end
-    if ours then
-        return (WILD_MOVES[ours] and ESC_WILD or ESC_INT) .. ours .. ESC_END
-    end
-    if jumping then
-        return (at_mutants.is_leap_governed(rec) and ESC_INT or ESC_DIM) .. LEAP_FAMILY_NAME .. ESC_END
-    end
-    if sname == MELEE_STATE then
-        return (at_mutants.is_melee_governed(rec) and ESC_INT or ESC_DIM) .. "melee" .. ESC_END
-    end
-    if sname == RUN_AWAY_STATE then return ESC_DIM .. "retreat" .. ESC_END end
-    if sname == RUN_ATTACK_STATE then return ESC_DIM .. "charge" .. ESC_END end
-    return ESC_DIM .. sname .. ESC_END
+-- Mutant systems cell: the running or just-fired move under its MCM name, coloured by who fired it; the grey FSM state otherwise.
+local function _format_mob_systems(rec, tg, state)
+    local move, kind
+    if rec.flee_until > rec.tick_now then move, kind = "flee", "called"
+    elseif rec.claw_until > 0 then move, kind = "claw", "called"
+    elseif rec.fired_at and tg - rec.fired_at < MOB_LINGER_MS then move, kind = rec.fired_move, rec.fired_kind end
+    if move then return (FIRED_ESC[kind] or ESC_DIM) .. _get_move_label(move) .. ESC_END end
+    return ESC_DIM .. at_core.get_mob_state_name(state) .. ESC_END
 end
 
 -- Mutant rows obey the stalker rules: the same gate radius, and fighting mutants only.
@@ -218,7 +212,7 @@ local function _on_mob_update(obj)
         scheme = db.storage[id] and db.storage[id].active_scheme or nil,
         morale = xmonster.get_monster_morale(obj),
         jumping = jumping,
-        systems = rec and _format_mob_systems(rec, tg, state, jumping) or nil,
+        systems = rec and _format_mob_systems(rec, tg, state) or nil,
         gate = rec and rec.gate or nil,
         enemy = fighting and string_format("%s %dm",
             _format_label(xcreature.get_name(enemy:id()), TARGET_NAME_MAX),
@@ -338,7 +332,7 @@ local function _compute_widths(chars)
     return widths, total
 end
 
--- The gate color code: Intelligence-influenced reads the AT green (int dominant over wild), wild-only reads gold.
+-- The row colour = the driving system; a mutant row stays neutral and colours its move inline.
 local function _get_row_color(row)
     if row.is_overflow then return CLR_DIM end
     if row.is_mob then return CLR_NORMAL end

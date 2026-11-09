@@ -313,19 +313,13 @@
     <text>Darting leap</text>
   </string>
   <string id="ui_mcm_at_mutants_jump_adapt_desc">
-    <text>The instant no-wind-up pounce that steers in mid-air toward a moving, aiming enemy - the apex reflex. The steering stays inside the game's own envelope. (int, pers, wild)</text>
-  </string>
-  <string id="ui_mcm_at_mutants_rush">
-    <text>Rush</text>
-  </string>
-  <string id="ui_mcm_at_mutants_rush_desc">
-    <text>A charger that presses keeps its recharge at the species' fastest and comes again sooner; whether it presses at all is decided once from its Intelligence and temperament, and the rest vary per individual. The charge itself stays the game's own move. (int, pers, wild)</text>
+    <text>The instant no-wind-up pounce that steers in mid-air toward a moving, aiming enemy. The steering stays inside the game's own envelope. (int, pers, wild)</text>
   </string>
   <string id="ui_mcm_at_mutants_backstrike">
     <text>Backstrike</text>
   </string>
   <string id="ui_mcm_at_mutants_backstrike_desc">
-    <text>A spin-strike when the enemy works around to its back. Whether an individual carries the reflex is settled the moment it appears. (int, pers)</text>
+    <text>A spin-strike when the enemy works around to its back. Whether an individual carries it is settled the moment it appears. (int, pers)</text>
   </string>
   <string id="ui_mcm_at_mutants_claw">
     <text>Claw</text>

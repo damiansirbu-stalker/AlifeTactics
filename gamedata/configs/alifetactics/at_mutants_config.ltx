@@ -71,9 +71,6 @@ aim_cone_deg    = 15 ; aiming: the enemy holds the crosshair ON the mutant - onl
 factor_min = 0.3
 factor_max = 0.6
 
-; The charge (the Rush row) takes no tunables: on a passed Intelligence + Personality roll the recharge drops to the species' own
-; Run_Attack_Delay minimum (the advantage at full), on a miss Wild spreads that delay by [wild] ability_pct. The engine fires the charge.
-
 [gravity_attack] ; the burer forced gravi throw, shield-safe: the trigger (vulnerable or back-turned) only fires when the player is not shooting, so no shield is wanted
 face_cone_deg = 45 ; the engine gravi facing gate (is_face_target deg(45), burer_state_attack_gravi_inline.h:87); the range band is the burer's own Gravi_MinDist/MaxDist, the LOS its own see
 release_ms    = 2500 ; hold the forced-gravi flag and skip re-deciding this long (one gravi cycle), then clear the flag; the engine consumes it on entry, this bounds a missed consume
@@ -121,7 +118,7 @@ bloodsucker = 0.7
 psysucker   = 0.7
 psy_dog     = 0.6
 
-[personality_jump] ; Sudden leap - the instant no-wind-up pounce (aiming or vulnerable); decisive aggression, the ambushers low because they cloak rather than leap into a ready gun
+[personality_jump] ; Sudden leap - the instant no-wind-up pounce (aiming or vulnerable); bloodsucker and psysucker low because they cloak rather than leap into a ready gun
 default     = 0.5
 snork       = 1.0
 dog         = 0.9
@@ -133,7 +130,7 @@ psy_dog     = 0.5
 bloodsucker = 0.4
 psysucker   = 0.4
 
-[personality_leap_adapt] ; Adjusting leap - the telegraphed steered pounce at a moving enemy; agile tracking, the acrobats and cats highest
+[personality_leap_adapt] ; Adjusting leap - the telegraphed steered pounce at a moving enemy; snork, chimera, lurker and cat highest
 default     = 0.5
 snork       = 1.0
 chimera     = 0.9
@@ -145,7 +142,7 @@ bloodsucker = 0.6
 psysucker   = 0.6
 psy_dog     = 0.5
 
-[personality_jump_adapt] ; Darting leap - the instant steered pounce at a moving, aiming enemy; the apex reflex, rare, defaults low
+[personality_jump_adapt] ; Darting leap - the instant steered pounce at a moving, aiming enemy; rare, the default is low
 default     = 0.3
 snork       = 0.9
 chimera     = 0.8
@@ -162,7 +159,7 @@ default = 1.0
 chimera = 1.0
 lurker  = 1.0
 
-[personality_flee] ; rout out when hurt and far; apex and brute never flee, prey bolt
+[personality_flee] ; break off when hurt and far; flesh and fracture flee most, the hunters rarely, the pseudogigant never
 default     = 0.5
 flesh       = 0.8
 fracture    = 0.6
@@ -180,7 +177,7 @@ gigant      = 0.0
 
 
 
-[personality_backstrike] ; the rear spin-strike; the apex punishes the flank hard, the casters less
+[personality_backstrike] ; the rear spin-strike; chimera and lurker more often than burer and controller
 default    = 1.0
 chimera    = 0.7
 lurker     = 0.7
@@ -195,9 +192,3 @@ psysucker   = 0.6
 [personality_gravity_attack] ; the burer forced gravi throw (the vulnerable/back-turn punish)
 default = 1.0
 burer   = 1.0
-
-[personality_charge] ; the once-per-life charge-press roll (rolled at adoption with Intelligence); the brute presses, the ambusher rarely
-default     = 1.0
-gigant      = 1.0
-boar        = 0.9
-bloodsucker = 0.3
