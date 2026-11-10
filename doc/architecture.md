@@ -156,7 +156,7 @@ Commitment's Liquidate, the Push press, and a future maneuver all read this one 
 `is_in_gate` compares `actor_dist_sqr` against `gate_radius_m` (150 default, the sniper band maximum).
 The combat systems' scope and the HUD's display set read the same fact through the same public.
 
-Every combat command and read crosses the xcombat boundary (see Substrate).
+Combat commands and reads that need a guard, a meaning or a probe cross the xcombat boundary (see Substrate, and the xlibs boundary invariant).
 AT owns policy.
 xcombat owns mechanism.
 
@@ -196,7 +196,13 @@ Dispatch in front of a throttle is per-frame work when the carrier fires every r
 A scheduler-cadence callback is itself a discrete engine event. monster_on_update is called per binder schedule tick, 100ms near to 625ms far, and a cadence gate inside it is a legitimate carrier.
 - File overrides never ship. Every system attaches by a callback, a function patch, a DLTX overlay, a scheme patch, or the time-boxed takeover.
 - Engine truth. Every mechanism claim carries an engine source cite. Where the engine had no seam, the seam was added upstream first.
-- The xcombat boundary. Every NPC combat command and read goes through an xcombat primitive.
+- The xlibs boundary. An engine call goes through xlibs (xcombat for stalkers, xmonster for mutants) when it needs a guard, carries a hidden meaning, or needs a probe.
+The rule is stalker-code.md, xlibs wrapper criteria. Where a guarded wrapper exists, the raw call is a defect.
+- Gates are named, never inline. Every action an AlifeTactics system fires passes through named gates, in this shape:
+  - `_can_<action>(obj)` is the engine-state gate. It returns a boolean and a reason, and calls only xlibs predicates (example: `_can_seize`).
+  - `_check_<action>_block(...)` is the business gate. It holds the premises, calls `_can_<action>`, and returns nil or a reason string for the trace (example: `_check_seize_block`).
+  - Intelligence and Personality are named rolls: `at_faction.check_intelligence` and `at_faction.check_personality` for stalkers, `_check_intelligence` and `_check_personality` in at_mutants.
+  - `_try_<action>` is one block check, then Personality, then the act. It writes no check inline.
 - Debug is free when off. Every trace gates on one integer compare (`at_debug.is_on()`), and the timers are null objects. Measurement costs nothing live.
 - Every vanilla or xray fix appears on three surfaces: readme.txt under Fixes to Vanilla, the changelog as a Fixed vanilla bug line, and the MCM Fixes tab.
 
@@ -260,7 +266,7 @@ It is inert without grok_bo.
 
 ### xcombat boundary
 
-Does: issues every AT combat command and read to the engine through one primitive per call.
+Does: issues the AT combat commands and reads that need a guard, a meaning or a probe, one primitive per call (the xlibs boundary invariant).
 Changes: weapon state, aim, movement, cover search, the cover reservation, and the takeover.
 Reads: line of fire, sight, memory, arrival, and enemy state.
 Stops: it holds no live-event callback and no ownership table of its own, and stays stateless.
@@ -769,8 +775,8 @@ before-hit seams: damage dealt (victim-side, keyed on shit.draftsman) and damage
                   (monster_on_before_hit); a 1.0 track skips the engine write, so rank-0 maps pay a table lookup
 ```
 
-- Every engine verb crosses xmonster, the xlibs monster surface.
-  Every move is a self-gating Chain-of-Responsibility handler composing xcombat primitives (`is_aim_held`, `is_enemy_watching`, `is_enemy_above`, `can_see`), no raw engine read.
+- Engine verbs that need a guard, a meaning or a probe cross xmonster, the xlibs monster surface.
+  Every move is a handler gated by named checks (the gate invariant), composing xcombat primitives (`is_aim_held`, `is_enemy_watching`, `is_enemy_above`, `can_see`).
   The shuffle-walk over the per-species chain is the selection mechanism, with no premise table.
 - The MCM is a General page (Intelligence base, per rank, Wild), Power (damage, resistance), then one page per species.
   The species are chimera, bloodsucker, burer, controller, poltergeist, dog, boar, snork, pseudodog, pseudogigant, cat, flesh, fracture, karlik, tushkano.
