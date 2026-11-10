@@ -643,7 +643,7 @@ local function _update_mutant(mob, rec, now)
         rec.aim_restore = nil
     end
     _clear_claw(mob, rec, now, false)
-    local enemy = xmonster.get_monster_enemy(mob)
+    local enemy = mob:get_enemy()
     if not enemy or not enemy:alive() then
         _reset_fight(mob, rec)
         return

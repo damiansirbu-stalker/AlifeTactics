@@ -196,7 +196,7 @@ local function _on_mob_update(obj)
         _mob[id] = nil
         return
     end
-    local enemy = xmonster.get_monster_enemy(obj)
+    local enemy = obj:get_enemy()
     local fighting = enemy ~= nil and enemy:alive()
     if not (HUD_SHOW_IDLE or fighting) then
         _mob[id] = nil
