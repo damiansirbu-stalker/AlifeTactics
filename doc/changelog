@@ -1,6 +1,6 @@
 1.2.2-snapshot
   Summary: Mutant combat, the decision model and per-species Personality, the leap family and the burer gravity throw, anti-camping leaps, per-species move pages, Wild variation,
-    the stalker Intelligence gate and per-faction Personality, rank curves as pairs, the cover rebuild for retreat and reload, the takeover on a jobless spawn
+    the stalker Intelligence gate and per-faction Personality, rank curves as pairs, the cover rebuild for retreat and reload, the takeover on a jobless spawn, NPC attachment mounting
 
   Combat
     Maneuvers
@@ -83,6 +83,9 @@
     - Fixed NPC target lead ignoring the loaded round's bullet speed, dead since a key rename. Stalkers again lead a moving target by the round's real flight time.
 
   Mechanics
+    Attachments
+      - Added attachment mounting. A stalker fits the scope, silencer or grenade launcher that suits his own pistol or rifle once he is out of a fight.
+        Vanilla never fits a scope on an NPC's gun, or anything on his second gun. A looted or bought scope now shows on his rifle at the next quiet moment.
     Gear
       - Fixed gear health regeneration healing a wounded NPC to near full almost instantly. The chem-gear restore now adds at its intended per-second rate.
 

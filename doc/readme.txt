@@ -254,6 +254,11 @@ Veteran-rank and higher stalkers use armor-piercing rounds from their own invent
 That AP comes from trade and looting through the Alife Collection. What an NPC scavenged shapes how dangerous he is. NPCs drop no AP as loot.
 Rank threshold and consumption rate are tunable in the ammo config under configs/alifetactics/.
 
+Attachments:
+Stalkers fit the scopes, silencers and grenade launchers they carry onto their own guns.
+Vanilla mounts only a fitting silencer or launcher, and only on an NPC's main gun.
+AlifeTactics adds scopes and the second gun. A stalker mounts them once he is out of a fight and his hands are free, and a looted or bought scope shows on his rifle at the next quiet moment.
+
 Gear:
 Items a stalker carries give him combat advantages, each read from its own game data. An artefact from any mod works the same way.
 An artefact grants one advantage chosen by its anomaly class, scaled by its own tier. Gravity and armour-plate artefacts cut the damage he takes.

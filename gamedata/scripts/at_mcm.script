@@ -99,6 +99,7 @@ local defaults = {
     fix_heal_lists         = true,
     jam_enabled  = true,
     ammo_enabled = true,
+    attachments_enabled = true,
 
     gear_enabled           = true,
     gear_resist_enabled    = true,
@@ -264,6 +265,7 @@ local _key_to_tab = {
     fix_heal_lists         = "vanilla_fixes",
     jam_enabled         = "mechanics/jam",
     ammo_enabled        = "mechanics/ammo",
+    attachments_enabled = "mechanics/attachments",
     gear_enabled           = "mechanics/gear",
     gear_resist_enabled    = "mechanics/gear",
     gear_dealt_enabled     = "mechanics/gear",
@@ -692,6 +694,16 @@ function on_mcm_load()
                                 text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
                             { id = "desc", type = "desc", text = "ui_mcm_at_ammo_desc" },
                             { id = "ammo_enabled", type = "check", val = 1, def = true, hint = "at_fixes_ammo_ammo_enabled" },
+                        },
+                    },
+                    {
+                        id = "attachments",
+                        sh = true,
+                        gr = {
+                            { id = "title", type = "slide", link = "at_mcm_banner",
+                                text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
+                            { id = "desc", type = "desc", text = "ui_mcm_at_attachments_desc" },
+                            { id = "attachments_enabled", type = "check", val = 1, def = true, hint = "at_attachments_attachments_enabled" },
                         },
                     },
                     {

@@ -203,6 +203,12 @@ A stalker is as dangerous as the ammunition he scavenged.
 GSC's trader design has stalkers buy ammo and equipment and carry it.
 Ammo spends what a stalker holds, and the armour-piercing decay is our extension of that supply.
 
+#### Attachments
+
+A stalker fits the scope, silencer or grenade launcher that suits his own gun once the fight is over, and a looted scope shows on his rifle.
+GSC's trader design has stalkers buy equipment and carry it.
+Attachments puts what he carries on the gun he fights with, through the game's own addon and scoped-gun paths.
+
 #### Gear
 
 An artefact grants one combat edge by its class, capped so it tilts a fight and never decides it.

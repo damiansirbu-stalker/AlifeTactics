@@ -1,0 +1,131 @@
+--- at_attachments: a stalker mounts the scope, silencer or grenade launcher that fits his own pistol or rifle once he is out of a fight
+
+local pairs, IsStalker = pairs, IsStalker
+local RegisterScriptCallback = RegisterScriptCallback
+local xinventory, xcombat, xcreature, xobject, xprofiler = xinventory, xcombat, xcreature, xobject, xprofiler
+local at_debug, at_faction = at_debug, at_faction
+
+local cfg = at_mcm.cfg
+
+local MONITOR_PERIOD_SEC = 3
+local EVENT_ID, MONITOR_ID = "at_attachments", "monitor"
+local CAT_ATTACHMENT = "attachment"
+local CAT_SLOT_PISTOL, CAT_SLOT_RIFLE = "attachment_slot_2", "attachment_slot_3"
+local CAT_UNTOUCHABLE = "untouchable"
+
+local BLOCK_COMBAT, BLOCK_BUSY, BLOCK_COVER = "combat", "busy", "smart_cover"
+local BLOCK_DISABLED, BLOCK_DEAD, BLOCK_UNSCRIPTABLE = "disabled", "dead", "unscriptable"
+local BLOCK_NONE, BLOCK_REFUSED, BLOCK_OFFLINE = "none", "refused", "offline"
+
+-- A block that clears on its own keeps the stalker pending; any other drops him.
+local RETRY_BLOCKS = { [BLOCK_COMBAT] = true, [BLOCK_BUSY] = true, [BLOCK_COVER] = true }
+
+local _pending = {}
+local _monitor_active = false
+
+-- Engine-state gate: the body is free to draw a new gun. xlibs predicates plus the smart-cover read _can_seize uses.
+local function _can_mount(npc)
+    if not npc:alive() then return false, BLOCK_DEAD end
+    if xcombat.is_body_busy(npc) then return false, BLOCK_BUSY end
+    if npc:in_smart_cover() then return false, BLOCK_COVER end
+    return true
+end
+
+-- Business gate: the feature, the stalker's standing, the fight, then _can_mount; nil or the block reason for the trace.
+local function _check_mount_block(npc)
+    if not cfg.attachments_enabled then return BLOCK_DISABLED end
+    if not at_faction.is_participant(npc) or xcreature.is_unscriptable(npc) then return BLOCK_UNSCRIPTABLE end
+    if xcombat.get_best_enemy(npc) then return BLOCK_COMBAT end
+    local ok, reason = _can_mount(npc)
+    if not ok then return reason end
+    return nil
+end
+
+-- First loose attachment that fits the gun in its slot, with that gun; a gun the player or a quest claims is skipped.
+local function _find_mount(npc, opts)
+    local found, gun
+    xinventory.iterate_inventory(npc:id(), function(_, item)
+        if not item then return end
+        local cat = xinventory.get_category(item, opts)
+        local slot_gun = (cat == CAT_SLOT_PISTOL and opts.equipped_pistol) or (cat == CAT_SLOT_RIFLE and opts.equipped_rifle)
+        if not slot_gun or xinventory.get_category(slot_gun, opts) == CAT_UNTOUCHABLE then return end
+        found, gun = item, slot_gun
+        return true
+    end)
+    return found, gun
+end
+
+-- One block check, then the mount after the walk returns; the gun id that carries it and the item section, or nil and the block reason.
+local function _try_mount(npc)
+    local block = _check_mount_block(npc)
+    if block then return nil, block end
+    local opts = xinventory.get_category_opts(npc)
+    local item, gun = _find_mount(npc, opts)
+    if not item then return nil, BLOCK_NONE end
+    local gun_id, sec = gun:id(), xinventory.get_section(item)
+    local new_id = xinventory.try_add_attachment(gun, item)
+    if not new_id then return nil, BLOCK_REFUSED end
+    return new_id, nil, gun_id, sec
+end
+
+local function _update_npc(id)
+    local npc = xobject.get_go(id)
+    if not npc then
+        _pending[id] = nil
+        if at_debug.is_on() then at_debug.debug("[ATT] DROP id=%d reason=%s", id, BLOCK_OFFLINE) end
+        return
+    end
+    local timer = xprofiler.new_if(at_debug.is_on()):start()
+    local new_id, block, gun_id, sec = _try_mount(npc)
+    timer:stop()
+    if new_id then
+        if at_debug.is_on() then at_debug.debug("[ATT] MOUNT id=%d sec=%s gun=%d->%d [%.3fms]", id, sec, gun_id, new_id, timer:get_ms()) end
+        return
+    end
+    if RETRY_BLOCKS[block] then
+        if at_debug.is_on() then at_debug.debug("[ATT] RETRY id=%d reason=%s", id, block) end
+        return
+    end
+    _pending[id] = nil
+    if at_debug.is_on() then at_debug.debug("[ATT] DROP id=%d reason=%s [%.3fms]", id, block, timer:get_ms()) end
+end
+
+local function _run_monitor()
+    if not _monitor_active then return true end
+    ResetTimeEvent(EVENT_ID, MONITOR_ID, MONITOR_PERIOD_SEC)
+    if not cfg.attachments_enabled then return end
+    for id in pairs(_pending) do _update_npc(id) end
+end
+
+-- Mark a stalker that took an attachment; the mount waits for the monitor, never this callback (xlibs try_add_attachment contract).
+local function _on_item_take(npc, item)
+    if not (cfg.attachments_enabled and npc and item and IsStalker(npc)) then return end
+    local sec = xinventory.get_section(item)
+    if xinventory.get_section_category(sec) ~= CAT_ATTACHMENT then return end
+    local id = npc:id()
+    if _pending[id] then return end
+    _pending[id] = true
+    if at_debug.is_on() then at_debug.debug("[ATT] PENDING id=%d sec=%s", id, sec) end
+end
+
+local function _on_first_update()
+    if _monitor_active then return end
+    _monitor_active = true
+    RemoveTimeEvent(EVENT_ID, MONITOR_ID)
+    CreateTimeEvent(EVENT_ID, MONITOR_ID, MONITOR_PERIOD_SEC, _run_monitor)
+end
+
+local function _on_net_destroy(npc)
+    if npc then _pending[npc:id()] = nil end
+end
+
+local function _on_entity_unregister(se_obj)
+    if se_obj then _pending[se_obj.id] = nil end
+end
+
+function on_game_start()
+    RegisterScriptCallback("npc_on_item_take",            _on_item_take)
+    RegisterScriptCallback("npc_on_net_destroy",          _on_net_destroy)
+    RegisterScriptCallback("server_entity_on_unregister", _on_entity_unregister)
+    RegisterScriptCallback("actor_on_first_update",       _on_first_update)
+end

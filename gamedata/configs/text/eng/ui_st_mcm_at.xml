@@ -54,6 +54,9 @@
   <string id="ui_mcm_menu_ammo">
     <text>Ammo</text>
   </string>
+  <string id="ui_mcm_menu_attachments">
+    <text>Attachments</text>
+  </string>
   <string id="ui_mcm_menu_gear">
     <text>Gear</text>
   </string>
@@ -1045,6 +1048,16 @@
   </string>
   <string id="ui_mcm_at_fixes_ammo_ammo_enabled_desc">
     <text>On: eligible stalkers load the AP they carry and spend it per fight. Off: every stalker fires vanilla standard rounds and no carried ammo is consumed.</text>
+  </string>
+  <!-- ==================== ATTACHMENTS PAGE ==================== -->
+  <string id="ui_mcm_at_attachments_desc">
+    <text>Stalkers fit the scopes, silencers and grenade launchers they carry onto their own pistol or rifle. The mount waits until the stalker is out of a fight and his hands are free. A scope then shows on his rifle at the next quiet moment. The base game mounts a fitting silencer or launcher on the gun he holds at once, and this adds scopes and his second gun.</text>
+  </string>
+  <string id="ui_mcm_at_attachments_attachments_enabled">
+    <text>NPC attachment mounting</text>
+  </string>
+  <string id="ui_mcm_at_attachments_attachments_enabled_desc">
+    <text>On: stalkers mount the scopes and addons that fit their guns when out of combat. Off: only the base game's mounting runs, which never fits a scope.</text>
   </string>
   <!-- ==================== GEAR PAGE ==================== -->
   <string id="ui_mcm_at_gear_desc">

@@ -25,7 +25,7 @@ The Substrate and Observability containers carry no MCM page.
 - Combat: General (the stalker Intelligence pair), Maneuvers, Commitment, Conduct, Behaviors (Push and Pull).
 - Effectiveness: Accuracy, Crossfire, Reaction, Discipline, Range (planned).
 - Perception: Sound, Vision, Danger.
-- Mechanics: Healing, Jamming, Ammo, Gear.
+- Mechanics: Healing, Jamming, Ammo, Attachments, Gear.
 - Mutants: General, Power, one page per species.
 - Effects (planned).
 - Fixes to Vanilla: the always-on repairs, shown as locked toggles.
@@ -63,6 +63,7 @@ The service loops run beside it, each inert until its feature needs it.
 ```
 loop                        owner and cadence            walks
 at_ammo._run_monitor        at_ammo.script, 5s           the spawn roster: the AP box-decay tick
+at_attachments._run_monitor at_attachments.script, 3s    the stalkers who took an attachment: the out-of-combat mount
 at_healing._run_monitor     at_healing.script, 200ms     the spawn roster: the limp pose and its drop detectors
 at_sound._run_pass          at_sound.script, 500ms       online stalkers inside the accumulated step radius
 at_world_trace monitors     at_world_trace.script, 150ms + 60ms   near-actor NPCs, registered only while World trace is on
@@ -667,6 +668,29 @@ The budget is the inventory itself, no ledger.
 A whole-box delete is permanent, because `try_advance_ammo` (`object_actions.cpp`) refills rounds inside surviving boxes but cannot recreate a deleted box.
 Decay is per-engagement rather than per-shot, because no NPC fire callback exists.
 
+### Attachments
+
+Does: a stalker mounts a loose scope, silencer or grenade launcher that fits his own pistol or rifle, at the next quiet moment.
+Changes: an engine addon sets the gun's addon flag. A scope on an Anomaly base gun swaps the gun for its scoped variant, which has a new id.
+Stops: it never mounts in a fight, on a busy body, in a smart cover, or on a gun the player or a quest claims. Companions, story and named NPCs are left to vanilla.
+
+```
+npc_on_item_take (pickup, trade, barter, gift, and every item at net_spawn): an attachment marks the stalker pending, nothing mounts here
+_run_monitor (3s, pending stalkers only) -> _try_mount (at_attachments.script):
+  _check_mount_block: toggle, participant and scriptable, no best enemy, then _can_mount (alive, body free, no smart cover)
+  combat / busy / smart cover -> stays pending; any other block -> dropped
+  one walk finds the first loose item classified attachment_slot_2 / _3 (xinventory, pistol first like ammo), then xinventory.try_add_attachment
+  one mount per stalker per pass; he stays pending until a pass finds nothing
+```
+
+The mount never runs inside the take callback.
+The engine attach checks no item state, and the item's destroy reaches the client only on the next frame (`WeaponMagazined.cpp:1285-1321`, `GameObject.cpp:1088-1099`).
+A mount in the callback would put vanilla's same item on a second gun.
+Vanilla mounts a fitting engine addon on `best_weapon()` during the take (`xr_gather_items.script:55-57`). The next pass no longer finds that item, and mounts only one still loose.
+The scope swap empties the rifle slot until the new gun spawns, which spawn antifreeze can defer past one frame (`Level.cpp:748-845`). One mount per pass keeps a second swap off a gun still in flight.
+The mount acts on state like Ammo and Healing, and takes no Personality roll, since it is not a combat decision.
+The feature saves nothing. The pending set and the timer live in the session and re-arm on the first update after a load.
+
 ### Gear
 
 Does: gives an artefact one combat edge chosen by its anomaly class, scaled by the section's tier.
@@ -889,6 +913,7 @@ Danger         the danger evaluators and action on the winning binder        pat
 Healing        the NPC health and bleeding fields, the healing_charge var    change_health, bleeding =, se_save_var
 Jamming        a module function on xr_weapon_jam                            xr_weapon_jam.GetConditionMisfireProbability
 Ammo           the CWeapon m_ammoType field, a per-fight box delete          wpn:set_ammo_type, alife_release
+Attachments    the gun's addon flag, or the gun swapped for its scoped copy   xinventory.try_add_attachment (weapon_addon_attach, alife_clone_weapon)
 Gear           five resolver providers plus the single regen bind           register, set_health_restore_boost
 Mutants        per-mutant params at adoption, one-shot move invokes,        the xmonster setters and invokes, play/stop animation,
                the flee proposal, the hit-power scaling                     monster_on_combat_action, the three before-hit seams
@@ -919,6 +944,7 @@ AlifeTactics/gamedata/
     zzz_at_healing_patch.script  the vanilla on_register re-roll suppressor
     at_jam.script                the modded-exes misfire suppressor
     at_ammo.script               NPC AP ammo simulation
+    at_attachments.script        the out-of-combat attachment mount
     at_gear.script               the functional-inventory source
     at_effects_resolver.script   the multi-source effects substrate
     at_compat.script             the grok_bo hit-pipeline compatibility wrapper
