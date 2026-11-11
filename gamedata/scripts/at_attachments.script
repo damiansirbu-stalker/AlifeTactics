@@ -99,7 +99,7 @@ end
 
 -- Mark a stalker that took an attachment; the mount waits for the monitor, never this callback (xlibs try_add_attachment contract).
 local function _on_item_take(npc, item)
-    if not (cfg.attachments_enabled and npc and item and IsStalker(npc)) then return end
+    if not (cfg.attachments_enabled and npc and item and IsStalker(npc) and npc:alive()) then return end
     local sec = xinventory.get_section(item)
     if xinventory.get_section_category(sec) ~= CAT_ATTACHMENT then return end
     local id = npc:id()
