@@ -146,7 +146,8 @@ is_enemy_vulnerable(enemy) -> bool[,term]  the one vulnerability rule, branched 
 is_in_gate(state) -> bool               actor_dist_sqr against the one gate radius
 ```
 
-`is_enemy_vulnerable` (`at_core.script`) answers whether an enemy can return fire now, branched per kind.
+`is_enemy_vulnerable(enemy, asker)` (`at_core.script`) answers whether an enemy can return fire now, branched per kind.
+Any enemy answers first on a back turned on the asker, facing more than 90 degrees away (`is_enemy_back_turned`).
 The actor answers on the weapon block terms (`xcombat.get_block_reason`: unarmed, reloading, empty magazine) plus sprinting and climbing.
 A stalker answers on the block terms plus a playing animation (`xcombat.is_body_busy`).
 A mutant never answers.
@@ -695,32 +696,43 @@ There is no premise table and no shared gate. Every check is a handler's own lin
 A refused invoke falls through to the next candidate. The rate slot stamps only on an executed fire.
 Intelligence is base + map-rank slope, capped. Rank is the map tier (`xlevel.get_danger_tier`, 0-5).
 Personality is the per-species per-move chance (the `[personality_*]` sections), final chance = Intelligence x Personality. The retired `inside_chance` second roll is gone.
-Wild varies a mutant's standalone ability numbers only - the gravity, telekinesis, aura, detection, tube, and stamina values, each the engine's own number multiplied inside a bounded envelope.
-It never touches a value a locomotion or attack solver reads (the charge distance band, the attack-on-move geometry, the melee window, the jump band).
-A perturbation there desyncs the engine's tuned path and animation timing, which froze and stumbled mutants for no visible gain.
+Wild varies three kinds of value, each inside a bounded envelope.
+The first is a standalone ability number, the engine's own value multiplied, such as gravity, telekinesis, aura, detection, psi tube, and stamina.
+Next comes the jump force, which `CControlJump` fits its glide animation to, stretching it to the flight.
+The third is the steering gain, which a controller reads live each frame with no path or capture consequence.
+It never touches a value a capture-start gate, a path builder, or a prepare trace reads (the jump distances, `jump_build_line_distance`, `Run_Attack_Dist`).
+A perturbation there desyncs the engine's tuned path and froze the boar charge.
 The charge recharge delay is a re-eligibility timer, outside path and animation.
 Wild may spread it too - but only on the charge's no-advantage path (below), never as the charge's primary shape.
 CAPS bound the spice. At most 3 driven moves assumed running per bucket (vs_player, vs_npc) on 3s slots - an offensive fire checks then adds, flee adds unchecked, claw sits outside.
 The `[select]` walk cap is the per-beat budget.
-THE LEAP FAMILY is four independent handlers, one per move, each with its own premise and its own Personality, and they share nothing.
-Each fills a gap the engine's own flat telegraphed jump does not cover.
-Leap is the telegraphed pounce at an enemy exploiting elevation (`xcombat.is_enemy_above`, the engine's own 0.8m dog-gate standard).
-It reaches a rock or ledge the flat jump cannot, the one elevation move, every leaper.
-Sudden leap is the instant no-wind-up pounce in two cases.
-The enemy aims at the mutant (`is_aim_held`, the tight ~15deg cone, where winding up before a locked gun hands it a free second).
-Or the enemy is vulnerable (reloading or turned, where the strike arrives before they recover).
-The Adjusting leap is the telegraphed pounce that steers in flight toward a moving enemy not aiming.
-Its instant form, the Darting leap, strikes a moving AND aiming enemy.
-The steered pair drive `set_monster_jump_flags` auto-aim, the gain rolled inside the vanilla envelope and the species' own basis restored on touchdown.
-The engine reads the gain live through the flight, and an immediate restore would kill the steering.
-BODY PLAN IS A SOFT GATE. Every leaper carries all four moves, and the per-species Personality values (the `[personality_leap/jump/leap_adapt/jump_adapt]` sections) decide who leaps how and how often.
+THE LEAP FAMILY is five independent handlers, one per move, each with its own premise and its own Personality, and they share nothing but two gates.
+Every leap is the species' own jump, launched through `xmonster.try_monster_jump`, and its damage is the jump's own hit test (`CControlJump::hit_test`).
+Charged leap is the one leap with a wind-up, at an enemy 0.8m or more above the mutant (`xcombat.is_enemy_above`, the game's own dog standard).
+The crouch is the warning a perched player sees, and it flies at the species force so the arc clears a ledge lip.
+Sudden leap is the instant pounce at where the enemy stands, when the enemy aims at the mutant or is vulnerable.
+The aim read is `xcombat.is_enemy_watching` at the tight `[threat] aim_cone_deg`, from the player's camera.
+The Adjusting leap is the instant pounce that steers in flight toward an enemy moving more than `[motion] move_min_m` per beat.
+It drives `set_monster_jump_flags` auto-aim, the gain rolled inside the vanilla envelope and the species' own basis restored on touchdown.
+The Intercepting leap is the instant pounce at where an enemy moving steadily (two moving beats, a turn of at most `steady_deg`) will be.
+The lead is the enemy's velocity over the engine's own flight time (`xmonster.compute_jump_time`), scaled by an Intelligence-only gain and capped at 1m.
+A lead point off the navmesh (`xcombat.is_point_off_navmesh`) falls back to the unled point, and so does a refused launch.
+It does not steer, because the steering homes on the live position and would undo the lead.
+The Closing leap is the bloodsucker and psysucker gap-closer, inside the range where it is drawn (`partial_visibility_radius`).
+It fires at a perched enemy at any distance, or at the player aiming at it from outside its charge band.
+Its jump config never loads (`CAI_Bloodsucker::Load`). It never hits in the air, and its claws strike after the leap.
+THE FORCE is rolled once per mutant at adoption, the species `jump_factor` (`[leap] basis` where none loads) times a Wild-spread band of 2.0-3.0.
+Charged leap and the Closing leap perch case fly at the basis.
+THE TWO SHARED GATES are a per-mob gap of `[leap] gap_ms` between leaps, since the chimera and lurker ship a jump delay of 0.
+The other is the mutant seeing its enemy now (`xcombat.can_see`), the gate the game's own jump runs (`CControlManagerCustom::check_attack_jump`).
+BODY PLAN IS A SOFT GATE. Every leaper carries Charged, Sudden, Adjusting, and Intercepting leap, and the per-species Personality values decide who leaps how and how often.
 A species that should never take a move gets Personality 0 there.
-Elevation is Leap's own trigger and stands apart from any quadruped side-gate.
-The engine `can_jump` (via `xmonster.try_monster_jump`) bounds the reach for all.
 THE JUMP FEASIBILITY lives in `xmonster.try_monster_jump`.
-Because the engine's `script_try_jump` bypasses `can_jump`, the interim mirror runs the distance band, the angle (`jump_max_angle`) and the height (`jump_max_height`) there.
+Because the engine's `script_try_jump` bypasses `can_jump`, the interim mirror runs the restrictor test, the distance band, the angle and the height there.
+A species with no jump keys takes the chimera's angle and height, and a force of 0 or less is refused there.
 The handler then believes the return, uniform with the other invokes.
 It retires when the jump PR (n070) makes the engine run `can_jump` itself.
+Every leap logs its launch (`[MUT] FIRE ... force= lead= T=`) and its outcome (`[MUT] LEAP ... dur= hit= dealt= end=land|abort|stuck`), the stuck line the freeze check.
 GRAVITY is the burer's forced gravi throw, shield-safe by its trigger.
 A vulnerable or back-turned player is not shooting, and the burer's own shield (top of the attack selector, armed on lost health) is not wanted on that beat.
 A forced gravi then steals nothing.
@@ -749,26 +761,29 @@ At adoption it reads the species' own jump auto-aim factor and gravi band, for t
 Stops: inert below the monster seam set with one INACTIVE line.
 A move never fires outside its species envelope.
 A companion mutant is never adopted while `combat_ignore_companions` is on, the mutant twin of the stalker exclusion.
-On toggle-off the module releases what it still owns live (the animation override, a pending gravi force, or a gain restore), and pushed params revert on the next spawn.
+On toggle-off the module releases what it still owns live (a pending gravi force, a cloak, or a gain restore), and pushed params revert on the next spawn.
 
 ```
 monster_on_update (binder scheduler, 100ms near to 625ms far) -> the one lane, gated 600ms per mutant (at_mutants.script)
-  adopt: tier, the [moves] envelope, the quadruped flag,
+  adopt: tier, the [moves] envelope, the leap force, lead gain and Closing leap reach,
          the jump auto-aim basis (the steered leap) and the burer gravi band, the charge recharge delay (a
          once-per-life Intelligence+Personality roll: pass drops it to the species' minimum, miss Wild-spreads the vanilla delay), bounded wild
          offsets over ini_sys basis values behind the ability vary rows (the burer gravity numbers
          and telekinesis with its lifted-object count, the controller tube and stamina, the
          poltergeist detection, the aura row),
          the backstrike arm roll (re-decided each adoption)
-  every beat: upkeep (the gravi-force clear at its window end, the claw-override clear on its window or any
-         jump, the jump-gain restore on landing), the motion samples (recede, lateral strafe)
+  every beat: upkeep (the gravi-force clear at its window end, the cloak release), the distance and the motion sample
+         (the enemy's velocity over the real elapsed time, moving above move_min_m, steady over two beats)
   a held window (flee / gravity) -> skip the beat
   the gate: the actor within gate_radius_m (is_in_gate) -> else skip the beat
   else Intelligence rolls ONCE -> a miss does zero premise or feasibility work
   on a pass: shuffle the toggled decision moves, walk up to [select] candidates, the first FIRE breaks -
-         leap (elevated) / sudden leap (aiming or vulnerable) / adjusting leap (moving, not aiming) / darting leap (moving, aiming), feasibility in xmonster
+         charged leap (elevated) / sudden leap (aiming or vulnerable) / adjusting leap (moving) / intercepting leap (moving steadily)
+         / closing leap (bloodsucker: perch, or the player aiming from 4.5m), the gap and sight gates, feasibility in xmonster
          flee (low health, actor 20m+, not nose-on)
-         claw (contact + facing, outside the caps)   gravity (burer: vulnerable or back-turned)
+         gravity (burer: vulnerable or back-turned)
+monster_on_update, every update ahead of the beat -> the contact lane: the leap outcome, the steering restore,
+         claw (within 1.8m and 30 deg, a no-wind-up pounce that stops where it lands, one roll per opening, 2s gap, outside the caps)
          cloak (bloodsucker: aimed-at or recently hit, forces no_visibility then releases on its window)
 monster_on_combat_action -> the proposal subscriber: pure Lua on the silent path, re-proposes while a flee window holds
 before-hit seams: damage dealt (victim-side, keyed on shit.draftsman) and damage taken
@@ -776,7 +791,7 @@ before-hit seams: damage dealt (victim-side, keyed on shit.draftsman) and damage
 ```
 
 - Engine verbs that need a guard, a meaning or a probe cross xmonster, the xlibs monster surface.
-  Every move is a handler gated by named checks (the gate invariant), composing xcombat primitives (`is_aim_held`, `is_enemy_watching`, `is_enemy_above`, `can_see`).
+  Every move is a handler gated by named checks (the gate invariant), composing xcombat primitives (`is_enemy_watching`, `is_enemy_above`, `can_see`, `is_point_off_navmesh`, `get_actor_velocity`).
   The shuffle-walk over the per-species chain is the selection mechanism, with no premise table.
 - The MCM is a General page (Intelligence base, per rank, Wild), Power (damage, resistance), then one page per species.
   The species are chimera, bloodsucker, burer, controller, poltergeist, dog, boar, snork, pseudodog, pseudogigant, cat, flesh, fracture, karlik, tushkano.
@@ -791,11 +806,13 @@ before-hit seams: damage dealt (victim-side, keyed on shit.draftsman) and damage
   Every band is bounded in `at_mutants_config.ltx`, and the classification lives in its `[moves]` and `[managed]` sections.
 - The Backstrike arms chimera, lurker, burer, and controller with their own models' strike motions.
   Every armed motion carries its own `attack_params` row (the damage law) - the chimera-class DLTX rows, the burer's `stand_attack_0`, the controller's `stand_attack_0`/`stand_attack_1`.
-- The claw's damage is author-owned: the DLTX rows give `jump_attack_0` its own `attack_params` numbers (chimera and lurker), instead of the release fallback to the leap row.
+- Claw is the chimera's own jump at point-blank range, and its damage is the jump hit. `jump_attack_0` is the chimera's leap wind-up, not a strike (`ChimeraAttackState`, the prepare-jump state).
+  Played as an animation it never raised a hit (field 2026-11-11, 9 clean windows, 0 hits). Claw does not play it.
+  The DLTX row giving `jump_attack_0` its own numbers stays for Backstrike, which arms that motion.
 - The HUD mob rows follow the stalker rules (the same gate radius, fighting mutants only) and speak plain words.
   The systems cell names the one live action now in our move vocabulary, with the raw FSM state as the fallback label.
   It is gate-colored (Intelligence green, Wild gold) when AT governs or commands the action, and neutral grey when it is the creature's own engine behaviour.
-  An AT-commanded move shows its exact name (the four leap variants distinct), and an engine-timed move AT governs reads its generic class (leap, melee, charge) colored by governance.
+  An AT-commanded move shows its exact name (the five leaps distinct), and an engine-timed move AT governs reads its generic class (leap, melee, charge) colored by governance.
   Two labels stay approximate until their demonized getters merge.
   The engine leap's exact variant waits on the jump-flags getter (todo-demonized-exes.md n066).
   Backstrike and charge turn from governance-colored to commanded once the melee-jump and run-attack fired-events (n062) stamp them onto the fired path.

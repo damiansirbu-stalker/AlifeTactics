@@ -23,18 +23,16 @@ karlik      = karlik
 tushkano    = tushkano
 
 [moves] ; per-move species envelope: a species either has a move or not (anatomy; engine components, flee = the shared-attack-tree species the proposal reaches)
-leap           = chimera, lurker, cat, bloodsucker, psysucker, dog, snork, pseudodog, psy_dog
-jump           = chimera, lurker, cat, bloodsucker, psysucker, dog, snork, pseudodog, psy_dog
-leap_adapt     = chimera, lurker, cat, bloodsucker, psysucker, dog, snork, pseudodog, psy_dog
-jump_adapt     = chimera, lurker, cat, bloodsucker, psysucker, dog, snork, pseudodog, psy_dog
+charged_leap      = chimera, lurker, cat, dog, snork, pseudodog, psy_dog
+sudden_leap       = chimera, lurker, cat, dog, snork, pseudodog, psy_dog
+adjusting_leap    = chimera, lurker, cat, dog, snork, pseudodog, psy_dog
+intercepting_leap = chimera, lurker, cat, dog, snork, pseudodog, psy_dog
+closing_leap      = bloodsucker, psysucker ; their jump never loads its config, so it never hits in the air (bloodsucker.cpp:77,87)
 flee           = bloodsucker, psysucker, dog, boar, snork, pseudodog, psy_dog, gigant, cat, flesh, fracture, karlik, tushkano
 cloak          = bloodsucker, psysucker
 gravity_attack = burer
 claw           = chimera, lurker
 backstrike     = chimera, lurker, burer, controller
-
-[quadrupeds] ; the body-plan law: these jump carriers take OUR commanded leap ONLY at an elevated enemy
-species = dog, pseudodog, psy_dog, cat, chimera, lurker
 
 [select] ; the selection walks up to this many shuffled candidates per beat; the first that fires wins and breaks (the budget - "max 3 checks", user 2026-10-27)
 candidates = 3
@@ -51,8 +49,27 @@ vs_npc    = 3
 cap = 0.75
 
 [premises] ; the reads the move handlers share through the pass memo
-above_m    = 0.8      ; object-position height delta that counts as the enemy being elevated - the Leap trigger (a rock or ledge the FSM flat jump cannot reach), every leaper species; the engine can_jump bounds the reach
-move_min_m = 0.5      ; the enemy displacement per beat (any direction) that counts as moving - the steered-leap premise (adjusting and darting leaps)
+above_m    = 0.8      ; object-position height delta that counts as the enemy being elevated (the game's own dog standard, dog.cpp:410-422) - the Charged leap and Closing leap perch trigger
+
+[leap] ; the numbers every leap shares; the force is rolled once per mutant at adoption
+basis           = 2.0  ; the force basis for a species with no jump_factor (the bloodsucker's jump config never loads); every leaper ships 2.0
+force_min_mult  = 1.0  ; the instant leaps fly at basis x [min, max] spread by Wild, so 2.0-3.0 and 2.5 with Wild off (the field-tested 10-01 probe band, narrowed by the user)
+force_max_mult  = 1.5
+gap_ms          = 2500 ; the per-mob gap between two leaps: the cat's jump_delay, the shortest nonzero one among the leapers (the chimera and lurker ship 0)
+stuck_margin_ms = 1000 ; a jump still holding the body past its flight time plus this is logged as stuck, the freeze check
+
+[lead] ; the Intercepting leap lead: Intelligence scales it, capped at a full intercept
+floor_mult    = 0.5  ; the lead gain at zero Intelligence, as a fraction of a full intercept (CANDIDATE, field-tune)
+max_m         = 1.0  ; the lead offset cap: with no steering a leap hits only within about 1m of its aim point
+navmesh_gap_m = 2.5  ; a lead point farther than this above its floor counts as off the navmesh and falls back to the unled point
+
+[motion] ; the enemy motion read, one sample per 600ms beat
+move_min_m = 0.5 ; moving: the enemy covered more than this since the last beat, in any direction - the Adjusting leap premise
+steady_deg = 30  ; steady: moving on this beat and the last, turning at most this between the two - the Intercepting leap premise
+
+[closing_leap] ; the bloodsucker gap-closer
+see_radius = 10  ; the reach when the section has no partial_visibility_radius: the engine default (bloodsucker.cpp:46); the vanilla section ships 9
+aim_min_m  = 4.5 ; the aim case starts outside the bloodsucker's own charge band (Run_Attack_Dist 3.5-4.5, m_bloodsucker.ltx:146)
 
 [survival] ; the flee trigger: health below this fraction while far enough to disengage and not nose-on to the enemy
 health_frac   = 0.30
@@ -61,13 +78,13 @@ face_cone_deg = 60 ; skip the flee while the enemy sits within this cone of the 
 hold_min      = 45000
 hold_max      = 75000
 
-[threat] ; the two facing reads: the wide watch (gravity's "not shooting me" gate) and the tight aim (the leap wind-up split)
+[threat] ; the two facing reads: the wide watch (gravity's "not shooting me" gate) and the tight aim (the Sudden leap and Closing leap read)
 facing_cone_deg = 60 ; watching: the enemy roughly faces the mutant - gravity skips a facing player so it never steals the burer's shield
-aim_cone_deg    = 15 ; aiming: the enemy holds the crosshair ON the mutant - only a dead-aim draws the instant Jump, everything looser gets the dodgeable telegraphed Leap (field-tune)
+aim_cone_deg    = 15 ; aiming: the enemy holds the crosshair ON the mutant - the Sudden leap and Closing leap aim trigger (field-tune)
 
-; The leap fire gate (distance band, angle, height) is the engine can_jump, mirrored in xmonster.try_monster_jump until the jump PR (n070) ships; the handler believes the return.
+; The leap fire gate (restrictor, distance band, angle, height) is the engine can_jump, mirrored in xmonster.try_monster_jump until the jump PR (n070) ships; the handler believes the return.
 
-[adapt] ; the air-steering gain band for both adapt leaps = the vanilla envelope (borya 0.3, pseudodog 0.5, cat 0.6)
+[adapt] ; the Adjusting leap air-steering gain band = the vanilla envelope (borya 0.3, pseudodog 0.5, cat 0.6)
 factor_min = 0.3
 factor_max = 0.6
 
@@ -75,11 +92,11 @@ factor_max = 0.6
 face_cone_deg = 45 ; the engine gravi facing gate (is_face_target deg(45), burer_state_attack_gravi_inline.h:87); the range band is the burer's own Gravi_MinDist/MaxDist, the LOS its own see
 release_ms    = 2500 ; hold the forced-gravi flag and skip re-deciding this long (one gravi cycle), then clear the flag; the engine consumes it on entry, this bounds a missed consume
 
-[claw] ; the chimera-class contact strike (covers the lurker: same engine class and anim table)
-motion          = jump_attack_0
-range_m         = 2.2
-facing_cone_deg = 35
-clear_ms        = 1000 ; the one-animation-owner throttle, a round 1s (not a precise anim-length match - the override self-ends, this just spaces re-strikes)
+[claw] ; the chimera-class point-blank pounce with no wind-up, checked on every monster update (covers the lurker: same engine class)
+range_m         = 1.8  ; inside the 2m jump hit window (jump_hit_trace_range, m_chimera.ltx:134), with a margin
+near_m          = 10   ; the last beat's distance under which the contact lane reads live positions: the reach plus 12 m/s closing over one 600ms beat
+facing_cone_deg = 30   ; inside the jump's own angle limit (jump_max_angle 0.55 rad, m_chimera.ltx:138) and its +/-30 deg hit cone
+gap_ms          = 2000 ; the gap between two claw decisions, stamped on every roll (user ruling)
 
 [cloak] ; the bloodsucker decided cloak: vanish reactively while closing, then re-appear when the window ends (forces the vanilla visibility state)
 melee_m     = 3     ; no cloak inside this reach - a bloodsucker at strike range attacks, it does not vanish
@@ -95,18 +112,23 @@ burer      = stand_attack_0, stand_attack_0
 controller = stand_attack_0, stand_attack_1
 
 [wild] ; bounded ability variation as a fraction of the install's own loaded value
-; Wild varies standalone ability numbers only (gravity, telekinesis, aura, detection, tube, stamina, cloak);
-; never a locomotion or attack-solver input, which desyncs from the tuned path and animation timing.
+; Wild may vary (a) a standalone ability number (gravity, telekinesis, aura, detection, psi tube, stamina),
+; (b) a value the engine time-scales its animation to (the jump force, control_jump.cpp:513-516), or
+; (c) a value a controller reads live per frame with no path or capture consequence (the steering gain, :283-285,326-337).
+; Never a value a capture-start gate, a path builder or a prepare trace reads (jump distances, jump_build_line_distance,
+; Run_Attack_Dist): those desync from the tuned path and froze the boar charge.
 ability_pct     = 0.20
 
 ; --- Personality: the per-species chance (0..1) a mutant takes a move when its premise fires, rolled AFTER the Intelligence
 ; gate passes (the at_faction Personality twin, section = personality_<move>, key = species, default covers any unlisted). Each
-; leap variant (leap/jump/leap_adapt/jump_adapt) carries its OWN personality section and they share nothing; the situation (elevation / aiming / moving) decides which variant is eligible, its own Personality then gates it.
+; leap carries its OWN personality section and they share nothing; the situation (elevation / aiming / motion) decides which leap is eligible, its own Personality then gates it.
+; The leap values carry over from the leaps they replace: Charged from Leap, Sudden from Sudden, Adjusting from Darting (the instant steered leap),
+; Intercepting from the retired wind-up steered leap (the moving-target propensity), Closing from the bloodsucker's Leap.
 ; Final rate = Intelligence (0.40-0.70 by map tier) x Personality, so a 1.0 move fires on 40-70% of its openings, a 0.1 on 4-7%, a 0.0 never.
 ; The values ARE each creature's temperament - who pounces, who routs, who holds - grounded in GSC's per-species bestiary (характер) and
 ; the creature_courage ratings [8] (doc/gsc/gsc-design-documents.md), the engine panic_threshold (flee propensity), and the species ecology.
 
-[personality_leap] ; Leap - the telegraphed pounce at an elevated enemy; the core reach-the-ledge propensity, every leaper
+[personality_charged_leap] ; Charged leap - the wind-up pounce at an elevated enemy; the core reach-the-ledge propensity
 default     = 0.5
 snork       = 1.0
 chimera     = 0.9
@@ -114,11 +136,9 @@ lurker      = 0.9
 dog         = 0.9
 pseudodog   = 0.8
 cat         = 0.7
-bloodsucker = 0.7
-psysucker   = 0.7
 psy_dog     = 0.6
 
-[personality_jump] ; Sudden leap - the instant no-wind-up pounce (aiming or vulnerable); bloodsucker and psysucker low because they cloak rather than leap into a ready gun
+[personality_sudden_leap] ; Sudden leap - the instant pounce (aiming or vulnerable)
 default     = 0.5
 snork       = 1.0
 dog         = 0.9
@@ -127,22 +147,8 @@ lurker      = 0.8
 pseudodog   = 0.7
 cat         = 0.7
 psy_dog     = 0.5
-bloodsucker = 0.4
-psysucker   = 0.4
 
-[personality_leap_adapt] ; Adjusting leap - the telegraphed steered pounce at a moving enemy; snork, chimera, lurker and cat highest
-default     = 0.5
-snork       = 1.0
-chimera     = 0.9
-lurker      = 0.9
-cat         = 0.9
-dog         = 0.8
-pseudodog   = 0.7
-bloodsucker = 0.6
-psysucker   = 0.6
-psy_dog     = 0.5
-
-[personality_jump_adapt] ; Darting leap - the instant steered pounce at a moving, aiming enemy; rare, the default is low
+[personality_adjusting_leap] ; Adjusting leap - the instant steered pounce at a moving enemy
 default     = 0.3
 snork       = 0.9
 chimera     = 0.8
@@ -150,9 +156,22 @@ lurker      = 0.8
 cat         = 0.7
 dog         = 0.6
 pseudodog   = 0.4
-bloodsucker = 0.3
-psysucker   = 0.3
 psy_dog     = 0.3
+
+[personality_intercepting_leap] ; Intercepting leap - the instant led pounce at a steadily moving enemy; snork, chimera, lurker and cat highest
+default     = 0.5
+snork       = 1.0
+chimera     = 0.9
+lurker      = 0.9
+cat         = 0.9
+dog         = 0.8
+pseudodog   = 0.7
+psy_dog     = 0.5
+
+[personality_closing_leap] ; Closing leap - the bloodsucker gap-closer at a perched or aiming enemy
+default     = 0.7
+bloodsucker = 0.7
+psysucker   = 0.7
 
 [personality_claw] ; the chimera-class contact strike
 default = 1.0

@@ -131,9 +131,9 @@ local function _get_fire_band(dist)
 end
 
 -- The press cause, polled from the target: the vulnerability terms or standing weak with hysteresis.
-local function _get_press_cause(state, target, joined)
+local function _get_press_cause(npc, state, target, joined)
     if cfg.push_reload then
-        local vuln, term = at_core.is_enemy_vulnerable(target)
+        local vuln, term = at_core.is_enemy_vulnerable(target, npc)
         if vuln then return term or "vulnerable" end
     end
     if cfg.push_finisher then
@@ -189,7 +189,7 @@ local function _update_push_npc(npc, state, tg)
         _clear_push_npc(npc, state, stop, tg)
         return
     end
-    local cause = _get_press_cause(state, target, joined)
+    local cause = _get_press_cause(npc, state, target, joined)
     if not cause then
         if joined then
             state.push_until = tg + PUSH_PRESS_COOLDOWN_MS

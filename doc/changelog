@@ -22,10 +22,11 @@
           A chimera leaps and claws without pause and never routs, a flesh bolts early, a cat darts and circles.
         - The final chance is Intelligence times Personality. A sharp read still acts only when the creature's Personality would. The values are grounded in GSC's own per-creature design.
       Wild
-        - One dial for how much a mutant's own numbers vary between individuals: the move timings and the ranges, bands, and reach of its abilities.
+        - One dial for how much a mutant's own numbers vary between individuals: the move timings, how hard it leaps and steers, and the ranges, bands, and reach of its abilities.
             At 0 a kind is identical and learnable, at 100 no two spawns read alike.
       Threat read
         - A mutant reads the weapon in your hands. A gun stowed in your pack no longer counts. Holstering stops a mutant treating you as armed.
+        - A mutant reads your aim from where you look, not from where your body points. Strafing with your sights on it now counts as aiming.
 
     Power
       Damage
@@ -35,24 +36,25 @@
 
     Moves
       Leap family
-        - Leap springs up at you when you take high ground, the one leap the flat jump cannot reach. Camping a rock or a ledge is no longer safe.
-        - Sudden leap drops the wind-up and strikes at once when you aim right at it or are caught reloading or turned away.
-        - Adjusting leap and Darting leap steer in the air to track you while you move, Darting leap instant when you are aiming as well.
-        - Each leaper carries all four, and its species Personality sets which it favours.
-        - A leap it cannot actually make - out of range, bad angle, or a ledge too high - no longer fires as a dud. It closes in instead.
+        - Charged leap springs up at you when you take high ground, the one leap with a wind-up, the crouch a perched player sees coming. Camping a rock or a ledge is no longer safe.
+        - Sudden leap strikes at once, with no wind-up, when you aim at it, reload, sprint, or turn your back.
+        - Adjusting leap steers in the air to follow you while you move. Intercepting leap aims at where you will be when you run in a line, a smarter mutant leading you further.
+        - Closing leap gives the bloodsucker its own gap-closer: it flies to you on a perch or under your aim, then strikes with its claws. It never hits in the air.
+        - The instant leaps fly at full strength, each mutant with its own. They reach you fast and flat instead of lobbing over your head.
+        - A leap it cannot make, out of range, at a bad angle, over its height, or out of its allowed area, does not fire. Neither does a leap at an enemy it cannot see.
       Gravity
         - A burer forces its gravity throw when you cannot answer it, caught reloading or with your back turned, the moment its own shield is not needed.
           It never throws into your fire. It keeps its defense.
       Backstrike
         - A spin-strike when the enemy works around to a mutant's back, on the chimera, lurker, burer, and controller whose models carry the motion.
       Claw
-        - A point-blank strike for the chimera and lurker, which vanilla otherwise walks into melee with no attack to use.
+        - A point-blank pounce with no wind-up for the chimera and lurker, which vanilla walks into melee with no attack to use. It stops where it touches down, every 2 seconds at most.
       Flee
         - A mutant near death and far enough to escape takes one long run from the fight. A cornered one fights to the end.
       Cloak
         - A bloodsucker you aim at or hit while it is still closing vanishes to break the moment, then re-appears a beat later. It never vanishes once at strike range, and it cannot flicker-spam.
       Ability variation
-        - Each species varies its own ability numbers: burer gravity and telekinesis, controller tube, stamina, and auras, poltergeist detection. Movement stays vanilla.
+        - Each species varies its own ability numbers: burer gravity and telekinesis, controller psi tube, stamina, and auras, poltergeist detection. Movement stays vanilla.
 
   Combat
     The stalker side is harmonized to the mutant decision model. It shares one per-rank Intelligence gate, and the effectiveness curves are rebuilt as the same base-plus-per-rank pair.
@@ -68,6 +70,7 @@
           Rebuilt on new engine-grade cover primitives - escalating search, a concealment floor, give-ground, no cover-stacking - load-tested cheap in a 200-NPC battle.
     Commitment
       - Liquidate now draws from the same per-window budget as every other action AlifeTactics starts. A crowd cannot all extend fire through your one reload at once.
+      - Liquidate and the Push press now also count your back turned on the stalker as an opening, the same as a reload.
 
     Conduct
       - Improved cover posture: a stalker holds his tactical crouch or stand longer before re-deciding. He settles into cover and shuffles his stance less under fire.

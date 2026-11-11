@@ -172,7 +172,6 @@ end
 local function _format_mob_systems(rec, tg, state)
     local move, kind
     if rec.flee_until > rec.tick_now then move, kind = "flee", "called"
-    elseif rec.claw_until > 0 then move, kind = "claw", "called"
     elseif rec.fired_at and tg - rec.fired_at < MOB_LINGER_MS then move, kind = rec.fired_move, rec.fired_kind end
     if move then return (FIRED_ESC[kind] or ESC_DIM) .. _get_move_label(move) .. ESC_END end
     return ESC_DIM .. at_core.get_mob_state_name(state) .. ESC_END

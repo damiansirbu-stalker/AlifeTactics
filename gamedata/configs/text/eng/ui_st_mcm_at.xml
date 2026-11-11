@@ -277,7 +277,7 @@
     <text>Wild</text>
   </string>
   <string id="ui_mcm_at_mutants_mut_wild_desc">
-    <text>How much a mutant's own numbers vary between individuals: the timings of its moves and the ranges, bands, and reach of its abilities. At 0 every value sits at its band middle, so a kind is identical and learnable. At 100 each spawn and each use rolls any point across its band, so no two read alike.</text>
+    <text>How much a mutant's own numbers vary between individuals: the timings of its moves, how hard it leaps and steers in the air, and the ranges, bands, and reach of its abilities. At 0 every value sits at its band middle, so a kind is identical and learnable. At 100 each spawn and each use rolls any point across its band, so no two read alike.</text>
   </string>
   <string id="ui_mcm_at_mutants_mut_damage_pct">
     <text>Damage per rank (%)</text>
@@ -291,29 +291,35 @@
   <string id="ui_mcm_at_mutants_mut_resist_pct_desc">
     <text>Damage a mutant receives shrinks by this percent for each map rank, so a deep-Zone mutant shrugs off fire a Cordon one would feel.</text>
   </string>
-  <string id="ui_mcm_at_mutants_leap">
-    <text>Leap</text>
+  <string id="ui_mcm_at_mutants_charged_leap">
+    <text>Charged leap</text>
   </string>
-  <string id="ui_mcm_at_mutants_leap_desc">
-    <text>The telegraphed pounce at an enemy up on a rock or ledge, the one leap the engine's own flat jump cannot reach. Every leaper carries it; the engine's jump reach bounds how far. (int, pers)</text>
+  <string id="ui_mcm_at_mutants_charged_leap_desc">
+    <text>The one leap with a wind-up, at an enemy up on a rock or ledge. The crouch is the warning a perched player sees, and the leap flies at the game's own force so it clears the edge. (int, pers)</text>
   </string>
-  <string id="ui_mcm_at_mutants_jump">
+  <string id="ui_mcm_at_mutants_sudden_leap">
     <text>Sudden leap</text>
   </string>
-  <string id="ui_mcm_at_mutants_jump_desc">
-    <text>The instant pounce with no wind-up, fired when the enemy aims at it (a telegraph would hand them the shot) or is reloading or turned away (the strike lands before they recover). Turn this off and the leaps keep their telegraph. (int, pers)</text>
+  <string id="ui_mcm_at_mutants_sudden_leap_desc">
+    <text>An instant pounce with no wind-up, at where the enemy stands, when the enemy aims at it or is reloading or turned away. Each mutant leaps with its own strength. (int, pers, wild)</text>
   </string>
-  <string id="ui_mcm_at_mutants_leap_adapt">
+  <string id="ui_mcm_at_mutants_adjusting_leap">
     <text>Adjusting leap</text>
   </string>
-  <string id="ui_mcm_at_mutants_leap_adapt_desc">
-    <text>The telegraphed pounce that steers in mid-air toward a moving enemy not aiming at it. The steering stays inside the game's own envelope. (int, pers, wild)</text>
+  <string id="ui_mcm_at_mutants_adjusting_leap_desc">
+    <text>An instant pounce that steers in mid-air toward a moving enemy. The steering stays inside the game's own range. (int, pers, wild)</text>
   </string>
-  <string id="ui_mcm_at_mutants_jump_adapt">
-    <text>Darting leap</text>
+  <string id="ui_mcm_at_mutants_intercepting_leap">
+    <text>Intercepting leap</text>
   </string>
-  <string id="ui_mcm_at_mutants_jump_adapt_desc">
-    <text>The instant no-wind-up pounce that steers in mid-air toward a moving, aiming enemy. The steering stays inside the game's own envelope. (int, pers, wild)</text>
+  <string id="ui_mcm_at_mutants_intercepting_leap_desc">
+    <text>An instant pounce at where a steadily running enemy will be when it lands. A smarter mutant leads its target more. (int, pers, wild)</text>
+  </string>
+  <string id="ui_mcm_at_mutants_closing_leap">
+    <text>Closing leap</text>
+  </string>
+  <string id="ui_mcm_at_mutants_closing_leap_desc">
+    <text>The bloodsucker's own leap: it closes the distance to an enemy on a perch, or to a player aiming at it, and strikes with its claws once it lands. It never hits in the air. (int, pers, wild)</text>
   </string>
   <string id="ui_mcm_at_mutants_backstrike">
     <text>Backstrike</text>
@@ -325,7 +331,7 @@
     <text>Claw</text>
   </string>
   <string id="ui_mcm_at_mutants_claw_desc">
-    <text>A close standing strike the chimera otherwise lacks: a vanilla chimera closes to melee range with no attack to use there. (int, pers)</text>
+    <text>A point-blank pounce with no wind-up, the close strike the chimera otherwise lacks: a vanilla chimera closes to melee range with no attack to use there. It watches for contact constantly and strikes at most every two seconds. (int, pers)</text>
   </string>
   <string id="ui_mcm_at_mutants_gravity_attack">
     <text>Gravity attack</text>
@@ -345,10 +351,10 @@
   <string id="ui_mcm_at_mutants_telekinesis_desc">
     <text>Varies the telekinesis per individual: find radius, distance band, fly speed. (wild)</text>
   </string>
-  <string id="ui_mcm_at_mutants_tube">
+  <string id="ui_mcm_at_mutants_psi_tube">
     <text>Psi tube</text>
   </string>
-  <string id="ui_mcm_at_mutants_tube_desc">
+  <string id="ui_mcm_at_mutants_psi_tube_desc">
     <text>Varies the psi tube pacing per individual. (wild)</text>
   </string>
   <string id="ui_mcm_at_mutants_stamina">

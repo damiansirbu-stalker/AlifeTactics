@@ -288,12 +288,12 @@ At 0 a kind is identical and learnable. At 100 no two spawns read alike.
 Species:
 Each species gets its own page carrying only the moves its body has. First come the managed moves, the creature's own attacks and the values AlifeTactics varies.
 Then come the new moves the vanilla game never fires for it.
-The leap family reads your aim and your movement: Sudden leap drops the wind-up when you aim right at it or catch it reloading, and the adjusting versions steer mid-air to track you while you move.
-Every jumper leaps up at a shooter above it. Climbing a rock or a ledge stops being safe.
-Backstrike arms a spin strike on an enemy circling behind, once per individual, on the four species whose models carry the motions. Claw gives the chimera the point-blank strike vanilla never gave it.
+The leap family reads your aim, your movement, and your perch. Sudden leap strikes at once, with no wind-up, when you aim at it, reload, or turn your back.
+Adjusting leap steers mid-air to follow you while you move. Intercepting leap aims at where you will be when you run in a line.
+Charged leap, the one leap with a wind-up, springs up at a shooter above it. Climbing a rock or a ledge stops being safe. The bloodsucker closes the gap with its own Closing leap, then claws.
+Backstrike arms a spin strike on an enemy circling behind, once per individual, on the four species whose models carry the motions. Claw gives the chimera the point-blank pounce vanilla never gave it.
 Flee breaks a dying mutant out of the fight, rarely, and only when it is far enough to escape. A mutant with no escape fights to the end.
 Cloak sends a bloodsucker invisible when you aim at it or hit it while it is still closing. It re-appears a beat later, and never vanishes once it is already at strike range.
-A reloading or defenseless enemy draws the instant Jump over the telegraphed Leap, since a helpless target cannot punish the wind-up.
 Beyond the moves, each species' own ability numbers breathe: the burer's gravity and telekinesis, the controller's psi tube and stamina and auras, the poltergeist's detection,
 each behind its own row, each a bounded variation over the installed balance.
 Movement stays the game's own, since varying what the engine's path and attack timing depend on only ever made mutants worse.

@@ -234,8 +234,9 @@ Wild varies each ability value inside the species' own envelope. No two spawns r
 
 The leap family reads your perch, your aim, and your movement.
 Climb to high ground and it leaps up after you.
-Against a raised weapon it drops the wind-up and lunges before the shot. Against a reload it strikes inside that opening.
-Keep moving and it steers in the air to track you, instantly when you are aiming as well.
+Against a raised weapon it drops the wind-up and lunges before the shot. Against a reload or a turned back it strikes inside that opening.
+Keep moving and it steers in the air to follow you. Run in a line and it leaps at where you will be.
+A bloodsucker closes the gap with a leap of its own, then claws.
 A burer answers a reloading or turned-away player with its Gravity throw.
 Charge, Backstrike, Claw, Cloak, and Flee round out the set, each the creature's own.
 

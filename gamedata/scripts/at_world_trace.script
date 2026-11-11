@@ -68,7 +68,8 @@ local LEAP_MIN_DISP_M     = 2.0
 
 -- The commanded leap-family drivers (at_mutants _log_fire upper-cases the move name); a fire that never displaces is a strand.
 local LEAP_DRIVERS = {
-    ["LEAP"] = true, ["JUMP"] = true, ["LEAP ADAPT"] = true, ["JUMP ADAPT"] = true,
+    ["CHARGED LEAP"] = true, ["SUDDEN LEAP"] = true, ["ADJUSTING LEAP"] = true,
+    ["INTERCEPTING LEAP"] = true, ["CLOSING LEAP"] = true,
 }
 
 local TIERS = xcreature.RANK_TIERS
@@ -809,7 +810,7 @@ local function _on_impact(bullet)
     end
 end
 
--- The mutant driver column with its gate suffix ("JUMP[int, wild]"); "-" when idle.
+-- The mutant driver column with its gate suffix ("SUDDEN LEAP[int, pers, wild]"); "-" when idle.
 local function _format_mob_driver(id, driver)
     if not driver or driver == "-" then return "-" end
     local rec = at_mutants.get_mutant_record(id)
