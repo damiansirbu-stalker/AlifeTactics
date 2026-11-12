@@ -557,9 +557,15 @@ local function _on_melee_jump_end(mob) _log_engine_fire(mob, MOVE_BACKSTRIKE) en
 --- A burer gravi blast, autonomous or forced.
 local function _on_burer_gravi(burer) _log_engine_fire(burer, MOVE_GRAVITY) end
 
--- The engine-state gate every leap shares, the one the game's own jump runs first (control_manager_custom.cpp:554): the mutant sees its enemy now.
-local function _can_leap(mob, enemy)
-    if not xcombat.can_see(mob, enemy) then return false, "unseen" end
+-- The engine-state gate every leap shares: the mutant sensed its enemy within [leap] sense_ms, by its own enemy memory.
+-- Below the enemy-memory reader it falls back to the instant see read.
+local function _can_leap(mob, enemy, now)
+    local unseen_ms = xmonster.get_enemy_unseen_ms(mob, now)
+    if unseen_ms == nil then
+        if not xcombat.can_see(mob, enemy) then return false, "unseen" end
+        return true
+    end
+    if unseen_ms > _tun_num.leap_sense_ms then return false, "unseen" end
     return true
 end
 
@@ -567,7 +573,7 @@ end
 -- The mod owns the pacing because the game's own jump cooldown is 0 on the chimera and lurker and absent on the bloodsucker.
 local function _check_leap_block(mob, rec, now)
     if now < rec.leap_ok_at then return "gap" end
-    local can_leap, leap_block = _can_leap(mob, rec.memo.enemy)
+    local can_leap, leap_block = _can_leap(mob, rec.memo.enemy, now)
     if not can_leap then return leap_block end
     return nil
 end
@@ -1115,6 +1121,7 @@ local function _load_tunables()
         force_min_mult = _read_num("leap", "force_min_mult"),
         force_max_mult = _read_num("leap", "force_max_mult"),
         leap_gap = _read_num("leap", "gap_ms"),
+        leap_sense_ms = _read_num("leap", "sense_ms"),
         stuck_margin_ms = _read_num("leap", "stuck_margin_ms"),
         lead_floor = _read_num("lead", "floor_mult"),
         lead_max_m = _read_num("lead", "max_m"),

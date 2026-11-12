@@ -24,8 +24,7 @@ regen_scale = 0.003
 ; The aura every artefact carrier wears, whatever the artefact does. Applied by at_effects_resolver (the particle owner); this file holds the name because the carrier set is a gear fact.
 ; Carried binoculars, NVG, and plates grant no aura: they are tools and armour, not anomalous matter.
 ;
-; anomaly2\burer_prepare is the burer's gravity wind-up, a colourless space distortion that tracks the body (user pick 2026-07-26, auditioned against 8 other candidates; the coloured idle
-; glows tested the same day, thermal red, electric red, acidic green, a wide gravi distortion, were rejected as too loud). Blank or missing means no aura: there is deliberately no fallback
+; anomaly2\burer_prepare is the burer's gravity wind-up, a colourless space distortion that tracks the body; the coloured glows read too loud. Blank or missing means no aura: there is deliberately no fallback
 ; to the artefact's own particles key, so an unset row can never bring back an effect nobody chose.
 ;
 ; Only config-referenced particle names belong here. A name living solely inside particles.xr can be absent from a particle library that ships its own set, and a missing name is an engine

@@ -1,15 +1,14 @@
 ; AlifeTactics Reaction tuning. Paired with gamedata/scripts/at_reaction.script. All keys have script-side fallback defaults, so a missing key or file won't crash. The MCM Reaction
 ; sliders read their defaults from this file; a slider the player moved overrides that key, and "reset to defaults" returns to these values.
 ;
-; Difficulty paradigm (2026-08-05): base = the flat vanilla value on every curve (nothing sits below the base game, so low ranks never compound into a pushover), the per-rank percent
+; Difficulty paradigm: base =the flat vanilla value on every curve (nothing sits below the base game, so low ranks never compound into a pushover), the per-rank percent
 ; climbs toward a decent legend kept well short of the game's own hardcore-aim preset (harder, not aimbot). Vanilla rank scaling is non-functional - ai_stalker.cpp:761 clamps Rank() to
 ; [0,100] but Anomaly ranks run to the thousands, so m_fRankDisperison collapses to a constant and immunities/visibility ship 1.0/1.0 (game_relations.ltx); every curve here is a script-side
 ; rank axis over a flat baseline, not a retune of a working one.
 ;
 ;   value(tier) = base * (1 + rank_pct/100 * tier_index),  tier_index = 0 (novice) .. 7 (legend)
 ;
-; Each pair is least-squares fitted to the retired 8-value tables (2026-10-18, t232); the aim and track legends land softer
-; than the old hand-bent endpoints (aim 1.31 vs 1.50, track 0.37 vs 0.40) - the ruled field check covers them.
+; Each pair is least-squares fitted to the retired 8-value tables; the aim and track legends land softer than the old hand-bent endpoints (aim 1.31 vs 1.50, track 0.37 vs 0.40).
 ; src (vanilla aim endpoints): sight_manager.cpp:75-76 g_ai_aim_min_speed 0.24, g_ai_aim_min_angle PI/16 = 0.196; the hardcore-aim option (ui_options.script) sets min_speed 2.5 / min_angle 17,
 ; our legends stay far below that.
 ;
@@ -18,7 +17,7 @@
 
 [at_reaction]
 ; turn_max/turn_falloff_m: the hit-victim turn (set_hit_redirect, PR #636); the last attacker within falloff metres gets up to turn_max subtracted from his selection cost, 900/60
-; probe-proven to flip selection at ~10m. An always-on targeting fix, bound per NPC at spawn beside the curves below.
+; flips selection at ~10m. An always-on targeting fix, bound per NPC at spawn beside the curves below.
 turn_max       = 900
 turn_falloff_m = 60
 
@@ -31,7 +30,7 @@ aim_rank_pct = 63
 track_base     = 0.196
 track_rank_pct = 12
 
-; lead_* is the per-rank lead error (t156): the rank's multiplier on the physically-correct lead. The engine leads a moving target by aim_point += target_velocity * predict_time
+; lead_* is the per-rank lead error:the rank's multiplier on the physically-correct lead. The engine leads a moving target by aim_point += target_velocity * predict_time
 ; (sight_action.cpp:383-384); the correct predict_time is the bullet's flight time = range / bullet_speed (the weapon's bullet_speed times the round's k_bullet_speed, ShootingObject.cpp:168
 ; and Level_Bullet_Manager.cpp:66, so subsonic/AP ammo scales the lead). at_reaction recomputes predict_time per firing NPC on the fire seam (throttled 1s) as clamp(range / bullet_speed,
 ; 0, 0.5) * lead_<tier>, so the lead adapts to range and round speed on its own; lead_* is the only rank lever. Legend 1.00 leads true and hits movers, novice 2.00 over-leads, linear between.
@@ -42,7 +41,7 @@ lead_rank_pct = -7.4
 ; vision_* is the per-rank reaction/detection-speed factor: it multiplies get_visible_value accumulation (visual_memory_manager.cpp:365-379) after whichever detection stack the install runs
 ; (engine formula or a Lua get_visible_value functor), so it is a relative rank spread over the installed baseline. It is reaction, how fast a stalker turns a glimpse into a confirmed threat,
 ; not eyesight: detection timing only, never aim or accuracy. Every install is rank-blind at detection (vanilla: one [stalker_vision_*] set for all stalkers, m_stalker.ltx:76-99); this adds
-; the rank axis over that baseline, novice 1.00 = vanilla (retuned 2026-08-05 so no rank detects slower than the base game) to legend 1.20 (+20%), the prior spread shifted up to sit at or above vanilla.
+; the rank axis over that baseline, novice 1.00 = vanilla (no rank detects slower than the base game) to legend 1.20 (+20%), the prior spread shifted up to sit at or above vanilla.
 vision_base     = 1.00
 vision_rank_pct = 2.9
 
@@ -53,7 +52,7 @@ vision_rank_pct = 2.9
 vrange_base     = 1.00
 vrange_rank_pct = 2.1
 
-; qsize_* / qinterval_* are the two fire-queue scales (t154), fed to npc:set_fire_queue_scale (#603) at spawn: qsize_ multiplies the combat planner's burst size, qinterval_ the inter-burst
+; qsize_* / qinterval_* are the two fire-queue scales, fed to npc:set_fire_queue_scale (#603) at spawn: qsize_ multiplies the combat planner's burst size, qinterval_ the inter-burst
 ; pause (select_queue_params, stalker_combat_action_base.cpp:246-254). Higher rank = crisper short bursts (qsize < 1) at a tighter cadence (qinterval < 1). Non-degradation invariant:
 ; qsize >= qinterval at every tier. rounds/min is proportional to size/(interval + size*dt), so qsize >= qinterval keeps rounds/min >= vanilla; a shorter burst drops only the dispersed tail
 ; rounds (past base_dispersioned_bullets_count, WeaponMagazined.cpp:797-800), so per-shot% rises. Volume >= vanilla plus per-shot% >= vanilla gives hits/min >= vanilla

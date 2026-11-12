@@ -56,6 +56,7 @@ basis           = 2.0  ; the force basis for a species with no jump_factor (the 
 force_min_mult  = 1.0  ; the instant leaps fly at basis x [min, max] spread by Wild, so 2.0-3.0 and 2.5 with Wild off (the field-tested 10-01 probe band, narrowed by the user)
 force_max_mult  = 1.5
 gap_ms          = 2500 ; the per-mob gap between two leaps: the cat's jump_delay, the shortest nonzero one among the leapers (the chimera and lurker ship 0)
+sense_ms        = 1000 ; a leap needs the mutant to have sensed its enemy this recently (its enemy memory): one 600ms beat plus vision-update slack
 stuck_margin_ms = 1000 ; a jump still holding the body past its flight time plus this is logged as stuck, the freeze check
 
 [lead] ; the Intercepting leap lead: Intelligence scales it, capped at a full intercept
