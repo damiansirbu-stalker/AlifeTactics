@@ -59,7 +59,7 @@ end
 -- An unexpired STRONGER stamp survives a weaker one, so a look never cuts a live investigation short.
 function set_script_danger(npc,time,who_id,pos,strength)
 	if not strength then
-		strength = npc:has_info("npcx_is_companion") and "rush" or "solid"
+		strength = xcreature.is_companion(npc) and "rush" or "solid"
 	end
 	if at_debug.is_on() then
 		local info = debug.getinfo(2, "Sl")
@@ -932,7 +932,7 @@ function at_evaluator_check_danger:evaluate()
 	end
 
 	local bd_type = bd:type()
-	if (self.object:has_info("npcx_is_companion") and bd_type == danger_object.entity_corpse) then
+	if (xcreature.is_companion(self.object) and bd_type == danger_object.entity_corpse) then
 		return false
 	end
 

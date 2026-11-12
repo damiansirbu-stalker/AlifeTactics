@@ -12,7 +12,6 @@ local LTX_SECTION = "at_core"
 local MONITOR_PERIOD_SEC = 0.2
 local MON_FLUSH_MS = 5000
 local BEST_ENEMY_REFRESH_MS = 600
-local COMPANION_INFO = "npcx_is_companion"
 local FROM_DEATH_CALLBACK = "from_death_callback"
 local BACK_TURNED_DEG = 90
 
@@ -138,7 +137,7 @@ end
 -- Events: the substrate writes the timestamps; the systems keep their own subscriptions for their reactions.
 local function _on_net_spawn(npc)
     if not npc or not IsStalker(npc) then return end
-    if cfg.combat_ignore_companions and npc:has_info(COMPANION_INFO) then return end
+    if cfg.combat_ignore_companions and xcreature.is_companion(npc) then return end
     local id = npc:id()
     if _npc_states[id] then return end
     _npc_states[id] = { id = id, ran_at = {} }

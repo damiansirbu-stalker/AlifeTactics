@@ -190,7 +190,7 @@ local function _on_hear(npc, who_id, s_type, dist_sqr, _power, pos)
     local tg = time_global()
     local last = _glance_at[id]
     if last and (tg - last) < CREATURE_REALERT_MS then return end
-    if npc:has_info("npcx_is_companion") then return end
+    if xcreature.is_companion(npc) then return end
     local src = xobject.get_go(who_id)
     if not src then return end
     if IsStalker(src) and not xcreature.is_enemy(npc, src) then return end

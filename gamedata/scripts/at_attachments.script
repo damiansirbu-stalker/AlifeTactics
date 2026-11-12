@@ -32,9 +32,10 @@ local function _can_mount(npc)
 end
 
 -- Business gate: the feature, the stalker's standing, the fight, then _can_mount; nil or the block reason for the trace.
+-- Companions pass; story, named and story-squad NPCs keep their guns, since a scope swap gives the gun a new id.
 local function _check_mount_block(npc)
     if not cfg.attachments_enabled then return BLOCK_DISABLED end
-    if not at_faction.is_participant(npc) or xcreature.is_unscriptable(npc) then return BLOCK_UNSCRIPTABLE end
+    if not at_faction.is_participant(npc) or xcreature.is_unscriptable_se(xobject.get_se(npc)) then return BLOCK_UNSCRIPTABLE end
     if xcombat.get_best_enemy(npc) then return BLOCK_COMBAT end
     local ok, reason = _can_mount(npc)
     if not ok then return reason end

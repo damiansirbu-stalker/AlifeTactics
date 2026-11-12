@@ -258,6 +258,8 @@ Attachments:
 Stalkers fit the scopes, silencers and grenade launchers they carry onto their own guns.
 Vanilla mounts only a fitting silencer or launcher, and only on an NPC's main gun.
 AlifeTactics adds scopes and the second gun. A stalker mounts them once he is out of a fight and his hands are free, and a looted or bought scope shows on his rifle at the next quiet moment.
+Companions mount what they loot. What you hand a companion stays exactly as you gave it.
+A mounted scope tightens a stalker's aim by about a third when he shoots from a stop, as the base game does for scoped NPCs. It does not let him see farther on most rifles.
 
 Gear:
 Items a stalker carries give him combat advantages, each read from its own game data. An artefact from any mod works the same way.

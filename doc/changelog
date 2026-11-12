@@ -86,6 +86,8 @@
     Attachments
       - Added attachment mounting. A stalker fits the scope, silencer or grenade launcher that suits his own pistol or rifle once he is out of a fight.
         Vanilla never fits a scope on an NPC's gun, or anything on his second gun. A looted or bought scope now shows on his rifle at the next quiet moment.
+        Companions mount what they loot. What you hand a companion stays exactly as you gave it.
+        A mounted scope tightens his aim by about a third when he shoots from a stop, the base game's own scope bonus for NPCs.
     Gear
       - Fixed gear health regeneration healing a wounded NPC to near full almost instantly. The chem-gear restore now adds at its intended per-second rate.
 

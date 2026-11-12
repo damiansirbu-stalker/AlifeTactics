@@ -11,7 +11,6 @@ local show, flag = at_debug.show, at_debug.format_flag
 local LTX_PATH    = "alifetactics\\at_maneuvers_config.ltx"
 local LTX_SECTION = "at_maneuvers"
 
-local COMPANION_INFO = "npcx_is_companion"
 local MANEUVER_CAP_MS = 8000
 local HOLD_WINDOW_MS = 2000
 local QUEUE_KINDS = { "w_pistol", "w_shotgun", "w_rifle", "w_smg", "w_sniper" }
@@ -73,7 +72,7 @@ end
 
 local function _is_managed(npc)
     if not cfg.combat_enabled then return false end
-    if cfg.combat_ignore_companions and npc:has_info(COMPANION_INFO) then return false end
+    if cfg.combat_ignore_companions and xcreature.is_companion(npc) then return false end
     return true
 end
 
@@ -611,7 +610,7 @@ local function _trace_decision(state, _enemy, result)
 end
 
 local function _check_seize_block(npc)
-    if cfg.combat_ignore_companions and npc:has_info(COMPANION_INFO) then return "companion" end
+    if cfg.combat_ignore_companions and xcreature.is_companion(npc) then return "companion" end
     if not xgraft.register_takeover(npc, SPEC) then return "no_logic" end
     local can_seize, seize_block = _can_seize(npc)
     if not can_seize then return "cannot_seize", seize_block end
@@ -773,7 +772,7 @@ end
 
 local function _register_graft(npc)
     if not npc or not IsStalker(npc) then return end
-    if cfg.combat_ignore_companions and npc:has_info(COMPANION_INFO) then return end
+    if cfg.combat_ignore_companions and xcreature.is_companion(npc) then return end
     local ok = xgraft.register_takeover(npc, SPEC)
     if at_debug.is_on() then
         at_debug.debug("[CMB] graft id=%d name=%s %s", npc:id(), npc:name(),

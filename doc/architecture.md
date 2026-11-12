@@ -672,12 +672,13 @@ Decay is per-engagement rather than per-shot, because no NPC fire callback exist
 
 Does: a stalker mounts a loose scope, silencer or grenade launcher that fits his own pistol or rifle, at the next quiet moment.
 Changes: an engine addon sets the gun's addon flag. A scope on an Anomaly base gun swaps the gun for its scoped variant, which has a new id.
-Stops: it never mounts in a fight, on a busy body, in a smart cover, or on a gun the player or a quest claims. Companions, story and named NPCs are left to vanilla.
+Stops: it never mounts in a fight, on a busy body, in a smart cover, or on a gun the player or a quest claims. Vanilla alone handles story, named and story-squad NPCs.
+Companions mount what they loot or buy. Anything the player hands a companion is a gift (`axr_companions.script:1470-1477`), read as untouchable, and stays as given.
 
 ```
 npc_on_item_take (pickup, trade, barter, gift, and every item at net_spawn): an attachment marks the stalker pending, nothing mounts here
 _run_monitor (3s, pending stalkers only) -> _try_mount (at_attachments.script):
-  _check_mount_block: toggle, participant and scriptable, no best enemy, then _can_mount (alive, body free, no smart cover)
+  _check_mount_block: toggle, participant, no fixed identity (xcreature.is_unscriptable_se; companions pass), no best enemy, then _can_mount (alive, body free, no smart cover)
   combat / busy / smart cover -> stays pending; any other block -> dropped
   one walk finds the first loose item classified attachment_slot_2 / _3 (xinventory, pistol first like ammo), then xinventory.try_add_attachment
   one mount per stalker per pass; he stays pending until a pass finds nothing
@@ -690,6 +691,12 @@ Vanilla mounts a fitting engine addon on `best_weapon()` during the take (`xr_ga
 The scope swap empties the rifle slot until the new gun spawns, which spawn antifreeze can defer past one frame (`Level.cpp:748-845`). One mount per pass keeps a second swap off a gun still in flight.
 The mount acts on state like Ammo and Healing, and takes no Personality roll, since it is not a combat decision.
 The feature saves nothing. The pending set and the timer live in the session and re-arm on the first update after a load.
+
+Effects in a fight, engine-owned (AT changes no number):
+- Scope: a still, aiming stalker uses the zoom dispersion keys (`ai_stalker_fire.cpp:108-125,850-876`). The cone is `disp * g_dispersion_factor + g_dispersion_base`, so a sim stalker's cone tightens about 1.4-1.6x across vanilla, GAMMA, ZONA and EFP; moving fire is unchanged. AT Accuracy scales the result by one factor per rank and keeps that ratio.
+- Scope sight range: none on an Anomaly scoped variant, which keeps its base gun's `holder_range_modifier` (`Weapon.cpp:2377-2388,3202-3211`). The four guns with a real attachable scope take the scope's value while aiming.
+- Silencer: it swaps the shot sound (`WeaponMagazined.cpp:151,1560`). The distance at which other NPCs hear him follows the silenced sound's AI range, which the pack's sound data sets.
+- Grenade launcher: visual only. No engine path or script makes an NPC fire it.
 
 ### Gear
 
@@ -735,7 +742,7 @@ Every leap is the species' own jump, launched through `xmonster.try_monster_jump
 Charged leap is the one leap with a wind-up, at an enemy 0.8m or more above the mutant (`xcombat.is_enemy_above`, the game's own dog standard).
 The crouch is the warning a perched player sees, and it flies at the species force so the arc clears a ledge lip.
 Sudden leap is the instant pounce at where the enemy stands, when the enemy aims at the mutant or is vulnerable.
-The aim read is `xcombat.is_enemy_watching` at the tight `[threat] aim_cone_deg`, from the player's camera.
+The aim read is `xcombat.is_enemy_watching` at the tight `[threat] aim_cone_deg`: a weapon in hand, and the player's camera or a stalker's head on the mutant.
 The Adjusting leap is the instant pounce that steers in flight toward an enemy moving more than `[motion] move_min_m` per beat.
 It drives `set_monster_jump_flags` auto-aim, the gain rolled inside the vanilla envelope and the species' own basis restored on touchdown.
 The Intercepting leap is the instant pounce at where an enemy moving steadily (two moving beats, a turn of at most `steady_deg`) will be.
@@ -748,7 +755,8 @@ Its jump config never loads (`CAI_Bloodsucker::Load`). It never hits in the air,
 THE FORCE is rolled once per mutant at adoption, the species `jump_factor` (`[leap] basis` where none loads) times a Wild-spread band of 2.0-3.0.
 Charged leap and the Closing leap perch case fly at the basis.
 THE TWO SHARED GATES are a per-mob gap of `[leap] gap_ms` between leaps, since the chimera and lurker ship a jump delay of 0.
-The other is the mutant seeing its enemy now (`xcombat.can_see`), the gate the game's own jump runs (`CControlManagerCustom::check_attack_jump`).
+The other is the mutant having sensed its enemy within `[leap] sense_ms` (1000), by its own enemy memory (`xmonster.get_enemy_unseen_ms`).
+The game's own jump checks the instant see bit (`CControlManagerCustom::check_attack_jump`), but mid-fight that bit is false almost all the time, so it refused every leap.
 BODY PLAN IS A SOFT GATE. Every leaper carries Charged, Sudden, Adjusting, and Intercepting leap, and the per-species Personality values decide who leaps how and how often.
 A species that should never take a move gets Personality 0 there.
 THE JUMP FEASIBILITY lives in `xmonster.try_monster_jump`.
@@ -815,7 +823,7 @@ before-hit seams: damage dealt (victim-side, keyed on shit.draftsman) and damage
 ```
 
 - Engine verbs that need a guard, a meaning or a probe cross xmonster, the xlibs monster surface.
-  Every move is a handler gated by named checks (the gate invariant), composing xcombat primitives (`is_enemy_watching`, `is_enemy_above`, `can_see`, `is_point_off_navmesh`, `get_actor_velocity`).
+  Every move is a handler gated by named checks (the gate invariant), composing xlibs primitives (`is_enemy_watching`, `is_enemy_above`, `can_see`, `get_enemy_unseen_ms`, `is_point_off_navmesh`, `get_actor_velocity`).
   The shuffle-walk over the per-species chain is the selection mechanism, with no premise table.
 - The MCM is a General page (Intelligence base, per rank, Wild), Power (damage, resistance), then one page per species.
   The species are chimera, bloodsucker, burer, controller, poltergeist, dog, boar, snork, pseudodog, pseudogigant, cat, flesh, fracture, karlik, tushkano.
