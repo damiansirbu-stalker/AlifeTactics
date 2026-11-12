@@ -696,6 +696,11 @@ Effects in a fight, engine-owned (AT changes no number):
 - Scope: a still, aiming stalker uses the zoom dispersion keys (`ai_stalker_fire.cpp:108-125,850-876`). The cone is `disp * g_dispersion_factor + g_dispersion_base`, so a sim stalker's cone tightens about 1.4-1.6x across vanilla, GAMMA, ZONA and EFP; moving fire is unchanged. AT Accuracy scales the result by one factor per rank and keeps that ratio.
 - Scope sight range: none on an Anomaly scoped variant, which keeps its base gun's `holder_range_modifier` (`Weapon.cpp:2377-2388,3202-3211`). The four guns with a real attachable scope take the scope's value while aiming.
 - Silencer: it swaps the shot sound (`WeaponMagazined.cpp:151,1560`). The distance at which other NPCs hear him follows the silenced sound's AI range, which the pack's sound data sets.
+  A shot is a layered collection, and every layer loads with the shot's own `SOUND_TYPE_WEAPON_SHOOTING` (`CWeaponMagazined::Load`, `HUD_SOUND_COLLECTION_LAYERED::LoadSound`).
+  Each layer is its own AI sound event. It reaches `min(max_ai_dist, max_ai_dist x volume)` (`CSoundRender_Emitter::Event_Propagade`).
+  `max_ai_dist` comes from that ogg's own blob (`SoundRender_Emitter_StartStop.cpp`).
+  A heard shooting event becomes the attack_sound danger (`CDangerManager::add`), which AT handles. The farthest layer therefore decides who reacts, an echo tail included.
+  Vanilla carries the close shot 200 m, its distant layers 50 m, and the silenced shot 7-20 m (blobs read 2026-11-12).
 - Grenade launcher: visual only. No engine path or script makes an NPC fire it.
 
 ### Gear
