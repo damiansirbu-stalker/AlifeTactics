@@ -390,6 +390,8 @@ Avoid:
 Interferes:
 - Useful Idiots - a well-liked companion UI, fine to keep. Two combat caveats: companions keep its combat modes when the takeover skips them, and it replaces 1 of Crossfire's 3 friendly-fire fixes.
   Combat runs cleanest with it off, but it works.
+- Oleh's Weapons Sounds Tweaks and Fixes (GAMMA) - its shot sounds let NPCs hear an unsilenced rifle from about 5 m and a silenced one from about 100 m, the reverse of vanilla.
+  NPCs barely react to each other's normal gunfire, and a mounted silencer makes a stalker easier to hear.
 Everything else coexists, as long as it extends X-Ray and Anomaly and never overrides them.
 
 Not AlifeTactics (base game or your setup):
