@@ -59,6 +59,7 @@ local defaults = {
     crossfire_enabled        = true,
     crossfire_factor         = 0.0,
     danger_hit_bypass   = true,
+    danger_knife_miss   = true,
     danger_move_noise    = true,
     danger_heard_actions = true,
     danger_creature_awareness = true,
@@ -223,6 +224,7 @@ local _key_to_tab = {
     crossfire_enabled = "effectiveness/crossfire",
     crossfire_factor  = "effectiveness/crossfire",
     danger_hit_bypass   = "perception/danger",
+    danger_knife_miss   = "perception/danger",
     danger_move_noise    = "perception/sound",
     danger_heard_actions = "perception/sound",
     danger_creature_awareness = "perception/sound",
@@ -632,6 +634,7 @@ function on_mcm_load()
                                 text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
                             { id = "desc", type = "desc", text = "ui_mcm_at_perception_danger_desc" },
                             { id = "danger_hit_bypass", type = "check", val = 1, def = true, hint = "at_fixes_danger_danger_hit_bypass" },
+                            { id = "danger_knife_miss", type = "check", val = 1, def = true, hint = "at_danger_danger_knife_miss" },
 
                             { id = "div_targeting", type = "line" },
                             { id = "hdr_targeting", type = "desc", text = "ui_mcm_at_danger_hdr_targeting", clr = {255, 200, 200, 200} },

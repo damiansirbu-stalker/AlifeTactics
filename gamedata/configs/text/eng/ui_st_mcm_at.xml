@@ -767,11 +767,17 @@
   <string id="ui_mcm_at_fixes_danger_danger_hit_bypass_desc">
     <text>Vanilla stalkers ignore distant shooters because a distance gate caps the response. With this on a direct hit always registers, so a sniped stalker at 200m turns and seeks cover instead of standing still.</text>
   </string>
+  <string id="ui_mcm_at_danger_danger_knife_miss">
+    <text>Attempted murder</text>
+  </string>
+  <string id="ui_mcm_at_danger_danger_knife_miss_desc">
+    <text>A knife swing that lands on nobody is noticed by the stalker in front of you within 3 m. Vanilla registers nothing until a hit lands, so a failed stealth kill left the victim idle. He gets up, raises his weapon and faces you, and a hostile who then sees you fights. A neutral or friend reacts only while Neutral gunfire alert is on, and never turns hostile for a miss. Works with the quick melee too.</text>
+  </string>
   <string id="ui_mcm_at_danger_danger_neutral_gunfire">
     <text>Neutral gunfire alert</text>
   </string>
   <string id="ui_mcm_at_danger_danger_neutral_gunfire_desc">
-    <text>A neutral or friendly stalker goes on alert when your bullet lands within 30 m of him: he takes a weapon-ready stance facing the impact, moves a step to cover, and settles when the shooting stops. The engine itself discards a neutral's shot before it counts, so the bang alone never alarms him. Vanilla stamps the impact on him and then ignores it. Off, he ignores it too. He never turns hostile.</text>
+    <text>A neutral or friendly stalker goes on alert when your bullet lands within 30 m of him: he takes a weapon-ready stance facing the impact, moves a step to cover, and settles when the shooting stops. The engine itself discards a neutral's shot before it counts, so the bang alone never alarms him. Vanilla stamps the impact on him and then ignores it. Off, he ignores it too. He never turns hostile. The same switch governs Attempted murder at a neutral or friend, a knife swing of yours that misses him at arm's length. On, he gets up, raises his weapon and faces you. Off, he ignores it.</text>
   </string>
   <string id="ui_mcm_at_danger_danger_move_noise">
     <text>Movement noise</text>

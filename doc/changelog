@@ -1,6 +1,7 @@
 1.2.2-snapshot
   Summary: Mutant combat, the decision model and per-species Personality, the leap family and the burer gravity throw, anti-camping leaps, per-species move pages, Wild variation,
-    the stalker Intelligence gate and per-faction Personality, rank curves as pairs, the cover rebuild for retreat and reload, the takeover on a jobless spawn, NPC attachment mounting
+    the stalker Intelligence gate and per-faction Personality, rank curves as pairs, the cover rebuild for retreat and reload, the takeover on a jobless spawn, NPC attachment mounting,
+    Attempted murder
 
   Combat
     Maneuvers
@@ -91,6 +92,9 @@
       - Neutral gunfire alert now governs the reaction a neutral actually gives, to your bullet striking within 30 m of him. The engine discards a neutral's shot itself. The impact is what he notices.
           Off restores vanilla, where he ignores it.
     Danger
+      - Attempted murder: a knife swing that misses is now noticed. Vanilla registers nothing until a hit lands, and a failed stealth kill left the victim idle.
+          The stalker in front of you within 3 m gets up, raises his weapon and faces you. A hostile who sees you fights.
+          A neutral or friend reacts under Neutral gunfire alert and never turns hostile for a miss. Works with the quick melee. Its own toggle, default on.
       - Removed the Player ranges toggle. The actor-specific danger tables it read are identical to the normal ones in every shipped config. It changed nothing.
       - Distant hits now applies to enemies only. The relation and alive checks run first and the bypass skips the range gate alone. A neutral's accidental hit is no longer answered as an attack.
       - Fixed vanilla bug "hit shooter identity". A stalker hit by a bullet lost track of who shot him and stared at the spot the shooter fired from.

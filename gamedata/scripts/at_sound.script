@@ -1,7 +1,7 @@
---- at_sound: Danger > Sound - the sound memory stores your sounds before first contact, hostiles hear your noise, stalkers glance at heard creatures
+--- at_sound: Danger > Sound - the sound memory stores your sounds before contact, hostiles hear your noise and your missed knife, stalkers glance at creatures
 
 local time_global, string_find, string_lower, string_sub = time_global, string.find, string.lower, string.sub
-local IsStalker, IsMonster, IsMoveState = IsStalker, IsMonster, IsMoveState
+local IsStalker, IsMonster, IsMoveState, IsMelee = IsStalker, IsMonster, IsMoveState, IsMelee
 local pairs, next, tostring, move = pairs, next, tostring, move
 local RegisterScriptCallback, ini_sys, ini_file = RegisterScriptCallback, ini_sys, ini_file
 local string_match, tonumber = string.match, tonumber
@@ -11,7 +11,12 @@ local LTX_SECTION = "at_sound"
 
 local VANILLA_SOUND_THRESHOLD = 0.5
 local VANILLA_NPC_FACTOR      = 1.0
-local STRENGTH_SOLID, STRENGTH_FAINT = "solid", "faint"
+local STRENGTH_SOLID, STRENGTH_FAINT, STRENGTH_WATCH = "solid", "faint", "watch"
+
+-- A knife strike runs on the hud fire states (Weapon.h eFire, eFire2); a landed hit reaches npc_on_before_hit within three frames.
+local HUD_STATE_FIRE, HUD_STATE_FIRE2 = 5, 6
+local SWING_WINDOW_SEC = 0.3
+local SWING_WINDOW_MS = SWING_WINDOW_SEC * 1000
 
 -- The sound memory's keep floor and type factors from the config, and the half-second window in which a hostile hearer's enemy check says yes for you.
 local STORE_WINDOW_MS = 500
@@ -32,8 +37,10 @@ local HEAR_SCALE_MIN
 local HEAR_SCALE_MAX
 local MATERIAL_FACTORS
 local ACTIONS
+local KNIFE_MISS_M
+local KNIFE_CONE_DEG
 
-local _enabled = { move = true, actions = true, creature = true }
+local _enabled = { move = true, actions = true, creature = true, knife = true }
 local CREATURE_ACTIONS
 local CREATURE_REALERT_MS
 local _mult = 1.0
@@ -44,6 +51,7 @@ local _step_strength = "faint"
 local _alert_at       = {}
 local _alert_strength = {}
 local _glance_at      = {}
+local _swing = { id = nil, at = 0 }
 local _pass_active = false
 
 local function _load_config()
@@ -75,6 +83,8 @@ local function _load_config()
         if not radius then radius, strength = string_match(def, "^%s*([%d%.]+)%s*,%s*(%a+)") end
         ACTIONS[s_type] = { tonumber(radius), strength }
     end
+    KNIFE_MISS_M   = read_num("knife_miss_m",   3)
+    KNIFE_CONE_DEG = read_num("knife_cone_deg", 45)
     CREATURE_ACTIONS = {}
     local creature_defaults = { MST_step = 5, MST_talk = 8, MST_eat = 5, MST_die = 10 }
     for s_type, def in pairs(creature_defaults) do
@@ -116,7 +126,7 @@ local function _on_land(_landing_speed)
     _step_at = time_global()
 end
 
--- Callers own the hearer admission: actor-source paths pass hostiles only; creature sounds glance and never reach here.
+-- Callers own the hearer admission: the noise paths pass hostiles only, the knife swing passes every relation and at_danger admits it.
 local function _try_alert(npc, src_id, pos, source, strength, realert_ms)
     if not IsStalker(npc) then return end
     if not npc:alive() then return end
@@ -232,12 +242,84 @@ local function _on_hear(npc, who_id, s_type, dist_sqr, power, pos)
     _try_glance(npc, id, tg, pos, s_type)
 end
 
+--- The squared distance to a living stalker inside the knife reach and the camera cone, or nil.
+local function _get_swing_dist_sqr(npc, actor_pos, limit_sqr)
+    if not (npc and npc:alive()) then return nil end
+    local npc_pos = npc:position()
+    local sqr = actor_pos:distance_to_sqr(npc_pos)
+    if sqr >= limit_sqr then return nil end
+    if not xcombat.is_facing(db.actor, npc_pos, KNIFE_CONE_DEG) then return nil end
+    return sqr
+end
+
+--- The nearest stalker a knife swing could have been meant for, or nil.
+local function _find_swing_target(actor_pos)
+    local best, best_sqr = nil, KNIFE_MISS_M * KNIFE_MISS_M
+    for i = 1, #db.OnlineStalkers do
+        local st = db.storage[db.OnlineStalkers[i]]
+        local sqr = _get_swing_dist_sqr(st and st.object, actor_pos, best_sqr)
+        if sqr then best, best_sqr = st.object, sqr end
+    end
+    return best
+end
+
+--- Why the pending swing raises no alert, or nil and the target: a landed hit cleared it, the toggle is off, the target is gone.
+local function _check_swing_block()
+    if not _swing.id then return "hit" end
+    if not _enabled.knife then return "off" end
+    if not db.actor then return "no_actor" end
+    local st = db.storage[_swing.id]
+    local npc = st and st.object
+    if not (npc and npc:alive()) then return "gone" end
+    return nil, npc
+end
+
+--- The one-shot event of a swing: a miss stamps the target watch, he stands weapon-up facing you, with no throttle since one swing is one stamp.
+local function _try_swing_alert()
+    local block, npc = _check_swing_block()
+    _swing.id = nil
+    if block then return true end
+    _try_alert(npc, AC_ID, db.actor:position(), "knife", STRENGTH_WATCH, 0)
+    return true
+end
+
+--- A knife swing of yours arms the miss check at the stalker in front of the camera; the marks of one swing arm it once.
+local function _on_hud_mark(state, _mark, obj, _owner)
+    if not _enabled.knife then return end
+    if state ~= HUD_STATE_FIRE and state ~= HUD_STATE_FIRE2 then return end
+    if not db.actor then return end
+    if not IsMelee(obj or db.actor:active_item()) then return end
+    local tg = time_global()
+    if (tg - _swing.at) < SWING_WINDOW_MS then return end
+    local target = _find_swing_target(db.actor:position())
+    if not target then return end
+    _swing.id, _swing.at = target:id(), tg
+    RemoveTimeEvent("at_sound", "swing")
+    CreateTimeEvent("at_sound", "swing", SWING_WINDOW_SEC, _try_swing_alert)
+    if at_debug.is_on() then
+        at_debug.debug("[SOUND] swing id=%d name=%s state=%d", _swing.id, target:name(), state)
+    end
+end
+
+--- A landed hit of yours on the pending target clears the swing, so a hit never alerts twice.
+local function _on_before_hit(npc, shit)
+    local id = _swing.id
+    if not id or npc:id() ~= id then return end
+    local who = shit and shit.draftsman
+    if not (who and who:id() == AC_ID) then return end
+    _swing.id = nil
+    if at_debug.is_on() then
+        at_debug.debug("[SOUND] swing hit id=%d after=%dms", id, time_global() - _swing.at)
+    end
+end
+
 local function _on_entity_unregister(se_obj)
     if se_obj then
         _alert_at[se_obj.id] = nil
         _alert_strength[se_obj.id] = nil
         _glance_at[se_obj.id] = nil
         _store_open_at[se_obj.id] = nil
+        if _swing.id == se_obj.id then _swing.id = nil end
     end
 end
 
@@ -263,6 +345,7 @@ local function _update_config()
     _enabled.move     = at_mcm.get_config("danger_move_noise")        ~= false
     _enabled.actions  = at_mcm.get_config("danger_heard_actions")     ~= false
     _enabled.creature = at_mcm.get_config("danger_creature_awareness") ~= false
+    _enabled.knife    = at_mcm.get_config("danger_knife_miss")          ~= false
     _mult = at_mcm.get_config("danger_noise_mult") or 1.0
 end
 
@@ -278,8 +361,8 @@ local function _on_first_update()
     _read_keep()
     _hear_scale = _compute_hear_scale()
     _start_pass()
-    at_debug.info("Sound initialized (move=%s actions=%s creature=%s mult=%.2f hear_scale=%.2f)",
-        tostring(_enabled.move), tostring(_enabled.actions), tostring(_enabled.creature), _mult, _hear_scale)
+    at_debug.info("Sound initialized (move=%s actions=%s creature=%s knife=%s mult=%.2f hear_scale=%.2f)",
+        tostring(_enabled.move), tostring(_enabled.actions), tostring(_enabled.creature), tostring(_enabled.knife), _mult, _hear_scale)
 end
 
 function on_game_start()
@@ -287,6 +370,8 @@ function on_game_start()
     RegisterScriptCallback("actor_on_footstep",           _on_footstep)
     RegisterScriptCallback("actor_on_land",               _on_land)
     RegisterScriptCallback("npc_on_hear_callback",        _on_hear)
+    RegisterScriptCallback("actor_on_hud_animation_mark", _on_hud_mark)
+    RegisterScriptCallback("npc_on_before_hit",           _on_before_hit)
     RegisterScriptCallback("on_enemy_eval",               _on_enemy_eval)
     RegisterScriptCallback("server_entity_on_unregister", _on_entity_unregister)
     RegisterScriptCallback("actor_on_first_update",       _on_first_update)

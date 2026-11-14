@@ -30,6 +30,11 @@ action_wpn_reload = 8, solid
 action_wpn_empty  = 6, solid
 action_itm_use    = 5, faint
 
+; Attempted murder (Perception > Danger): a knife swing of yours that lands on nobody alerts the nearest stalker inside this reach and camera cone with a watch stamp.
+; The knife itself reaches 2 m, a 1.5 m ray plus a 0.5 m splash. 3 m is one lunge past it, and 45 degrees keeps a man beside you out.
+knife_miss_m   = 3
+knife_cone_deg = 45
+
 ; Creature awareness radii, the same room-scale band as the player rows above (5-10m); nobody alerts to distant sounds. The reaction is a standing glance (a same-state look turn), never a
 ; danger stamp: a walking stalker ignores it, a mutant sound always qualifies, a stalker sound qualifies only when the source is hostile to the hearer. Attack and damage sounds are absent;
 ; the danger config's own fight reaction covers active fights.

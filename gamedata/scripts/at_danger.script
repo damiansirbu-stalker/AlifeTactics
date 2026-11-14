@@ -30,7 +30,7 @@ local function _parse_cached(npc, bd_name, key, src)
 end
 
 local script_danger = {}
-local GRADE_RANK = { faint = 1, solid = 2, rush = 3 }
+local GRADE_RANK = { faint = 1, solid = 2, watch = 2, rush = 3 }
 local bd_types = {
 	[danger_object.bullet_ricochet] = "bullet_ricochet",
 	[danger_object.attack_sound]    = "attack_sound",
@@ -48,7 +48,7 @@ function get_type_name(danger_type)
 end
 
 --- Stamp a scripted danger on npc at pos for `time` ms; optional strength = the reaction grade.
--- Grades: faint = a standing look only, solid = walk-over investigate, rush = converge at a run.
+-- Grades: faint = a standing look only, solid = walk-over investigate, watch = stand weapon-up facing the source, rush = converge at a run.
 -- Ungraded foreign callers default to solid; companions keep the run (an ordered assist is urgent).
 -- who_id may be nil (vanilla quest stamps pass none); the reaction reads the position alone.
 -- An unexpired STRONGER stamp survives a weaker one, so a look never cuts a live investigation short.
@@ -119,7 +119,7 @@ local function danger_in_radius(npc,best_danger,bd_type)
 	return false
 end
 
--- Segment scratch for the SLOW watchdog: which check inside is_danger burned the time (t145).
+-- Segment scratch for the SLOW watchdog: which check inside is_danger burned the time.
 -- Written only while debug is on; reported through the existing SLOW line, no lines of its own.
 local _seg_wounded_us, _seg_zone_us, _seg_corpse_us, _seg_enemy_us, _seg_radius_us = 0, 0, 0, 0, 0
 
@@ -453,6 +453,15 @@ local function _resolve_hit_source(stamp, id)
 	if rec and rec.hit_at == stamp.danger_time then stamp.id = rec.hit_by end
 end
 
+-- A look direction, not a position: the state manager skips a position while the sight still carries an animpoint's animation direction.
+local function _get_watch_target(stamp, npc, look_pos)
+	if not look_pos then return nil end
+	stamp.look_dir = stamp.look_dir or vector()
+	stamp.look_dir:set(look_pos):sub(npc:position())
+	if stamp.look_dir:magnitude() < 0.1 then return nil end
+	return {look_dir = stamp.look_dir}
+end
+
 local function script_action_danger_scripted(npc,st)
 	local id = npc:id()
 	_resolve_hit_source(script_danger[id], id)
@@ -465,6 +474,11 @@ local function script_action_danger_scripted(npc,st)
 	local strength = script_danger[id].strength
 	if at_debug.is_on() then at_debug.debug("scripted danger reaction npc=%s strength=%s src=%s", npc:name(), tostring(strength), tostring(script_danger[id].id)) end
 	local look_pos = who_dist and who_dist < 22500 and bdo and bdo:position() or bdo_pos
+
+	if (strength == "watch") then
+		_set_state_once(npc, "threat_na", _get_watch_target(script_danger[id], npc, look_pos))
+		return
+	end
 
 	if (strength == "faint") then
 		if npc:movement_type() ~= move.stand then return end

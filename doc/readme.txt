@@ -230,6 +230,8 @@ Both are base plus percent-per-rank slider pairs under one Vision toggle, on the
 Danger:
 A stalker hit from far off reacts even when vanilla would have him stand still. Sniped at 200m he turns and seeks cover.
 The reaction is the duck, and returning fire at that range is the planned Range page above.
+Attempted murder: a knife swing that lands on nobody is noticed by the stalker in front of you within 3 m. Vanilla registers nothing until a hit lands, so a failed stealth kill left the victim idle.
+He gets up, raises his weapon and faces you, and a hostile who then sees you fights. A neutral or friend reacts only while Neutral gunfire alert is on, and never turns hostile for a miss.
 A Player target pull dial tunes how strongly NPCs prioritize you over other combatants once you are seen, down to treating you like anyone else.
 A hit victim turns on his shooter through the engine's own target selection, always on: the real "he hit me" signal outweighs a distant visible enemy,
 and he returns fire the moment he has line of sight. Nothing is revealed through walls, and a suppressed kill tells no one.

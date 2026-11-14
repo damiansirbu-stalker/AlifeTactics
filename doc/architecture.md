@@ -532,7 +532,7 @@ Danger owns the reaction scheme both stamp into.
 
 ### Sound
 
-Does: makes a stalker's sound memory store the player's sounds before first contact, stamps the danger scheme for the noise it still drops, and lets a standing stalker glance at a heard creature.
+Does: opens a stalker's sound memory to the player before first contact, stamps the danger scheme for the noise it still drops, and lets a standing stalker glance at a heard creature.
 Changes: `on_enemy_eval` answers yes for the actor for 500 ms after a keep-worthy actor sound at a hostile hearer, so the engine's sound store keeps the sound and its own danger plan runs.
 The quieter signals stamp `xr_danger.set_script_danger`, which makes their reaction, decay, and cleanup the danger scheme's. A creature sound only refreshes the hearer's look target.
 Stops: crouched movement is silent, a neutral hearer never gets the answer or a stamp from the player's noise, no sound-only stamp produces a run state.
@@ -608,9 +608,14 @@ per plan solve:
   at_evaluator_check_danger claims attacked, corpse and grenade for the script; every sound danger stays with the engine planner (cover, look-out, hold, detour, search)
   at_action_danger:execute -> script_danger first, else per-type response (grenade / corpse / attacked)
   combat-safe by GOAP: the action requires property_enemy == false
+Attempted murder (at_sound.script, the stamp channel):
+  actor_on_hud_animation_mark (hud state 5 or 6, a knife-class item) -> _find_swing_target: the nearest living stalker inside knife_miss_m and the camera cone
+  -> a 0.3 s time event; npc_on_before_hit from the actor on that stalker clears it
+  -> _try_swing_alert: a solid stamp through _try_alert; relation unchecked, _has_admitted_stamp admits
 ```
 
 - a heard sound buys attention in proportion to its evidence. FAINT turns a standing NPC (a walking one ignores it), SOLID walks over (raid), rush runs (companions only).
+  WATCH, the knife grade, is a stand in `threat_na` looking at the source, the engine turning the body past the torso limits, ranked with solid so it replaces a live noise walk.
   The weaker stamp never overwrites a live stronger one
 - the active theatre is time-boxed per episode to the alert machine's own stage-2 give-up band, then the NPC settles into a standing watch until the config inertion decays
 - the squad stand-down gate (`_is_squad_engaged`) skips the theatre while any squadmate holds a live enemy, memoized 500ms per squad
@@ -618,10 +623,21 @@ per plan solve:
 - the install registers the monolith sub-scheme's four actions in `state_mgr.combat_action_ids`, which vanilla omits, and the omitted actions no longer cause the crouch-aim shuffle
 - it patches three rx_ff members to fix the friendly-fire freeze, the over-hold, and the blocked-shot test that held fire for bodies in any direction or beyond the target
 
-One Perception/Danger toggle adds an improvement over the patched scheme, default on:
+Two Perception/Danger toggles add improvements over the patched scheme, default on:
 
 - Distant hits (`danger_hit_bypass`) returns a hit-perceive danger true past the ignore distance only, after the relation, alive and combat-ignore checks have passed.
   A hit that strikes home is proof of range, and a stalker sniped from beyond the ignore distance still ducks. A neutral's accidental hit is no attack.
+- Attempted murder (`danger_knife_miss`) stamps the stalker a knife swing of yours was meant for and missed, the one actor stamp with no relation check.
+  The knife strikes on the hud fire states (`CWeaponKnife::OnMotionMark`), by a 1.5 m object ray or a 0.5 m sphere at 1.5 m, with no geometry test.
+  A hit that connects reaches `npc_on_before_hit` through the game-event pass two or three frames later (`Level_bullet_manager_firetrace.cpp`, `CLevel::OnFrame`). A miss fires nothing.
+  The swing arms a 0.3 s event and the hit clears it. The target is the nearest stalker inside 3 m and 45 degrees of the camera, the direction the knife itself fires along.
+  On plain Anomaly the swing is a shot the sound memory also keeps. A modpack that plays the swing from script with no sound type makes it AI-silent. The stamp claims the scheme in both cases.
+  The reaction is the watch grade: one flip to `threat_na`, weapon up, with a look direction to your live position for the stamp's 5 s, and the engine turns his body in place past the torso limits.
+  It is `threat_na` because the `bloodsucker_search` animation of `threat_danger` owns the look and scans the area. Faint leaves a seated man seated, and solid runs the noise theatre.
+  It is a direction, not a position, because the state manager's direction evaluator counts a position as reached while the sight still carries an animpoint's animation direction (`state_mgr_direction.script`).
+  The direction vector lives on the stalker's stamp record, one per man, since the state manager keeps a reference to it.
+  A neutral or friend takes the impact-stamp admission of Neutral gunfire alert. The knife stamp skips the 4 s per-stalker throttle, one swing being one stamp.
+  A stalker on the camper job never reaches this action: the camper scheme bars the danger action and answers the flag with its own handler, aimed at his engine danger (`xr_camper.script`).
 
 The paired DLTX (`mod_xr_danger_at.ltx`) is delete-lines only.
 It drops the dead perceive keys of the `danger_object` enum name collision (`danger_object.h`), where the perceive-type names hit/sound/visual share values 0/1/2 with danger types.
