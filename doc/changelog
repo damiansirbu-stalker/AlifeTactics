@@ -40,6 +40,7 @@
         - Charged leap springs up at you when you take high ground, the one leap with a wind-up, the crouch a perched player sees coming. Camping a rock or a ledge is no longer safe.
         - Sudden leap strikes at once, with no wind-up, when you aim at it, reload, sprint, or turn your back.
         - Adjusting leap steers in the air to follow you while you move. Intercepting leap aims at where you will be when you run in a line, a smarter mutant leading you further.
+            Both are signature moves. A mutant uses each at most once every 30 seconds, and each lands once or twice in a fight.
         - Closing leap gives the bloodsucker its own gap-closer: it flies to you on a perch or under your aim, then strikes with its claws. It never hits in the air.
         - The instant leaps fly at full strength, each mutant with its own. They reach you fast and flat instead of lobbing over your head.
         - A leap it cannot make, out of range, at a bad angle, over its height, or out of its allowed area, does not fire. Neither does a leap at an enemy it cannot see.

@@ -37,8 +37,13 @@ backstrike     = chimera, lurker, burer, controller
 [select] ; the selection walks up to this many shuffled candidates per beat; the first that fires wins and breaks (the budget - "max 3 checks", user 2026-10-27)
 candidates = 3
 
-[throttle] ; per-move re-fire gaps, seconds; a routed mutant does not instantly re-rout once its committed window closes
-flee     = 120
+[cooldown] ; per-mutant re-fire gaps in ms, one row per move name; leap is the shared gap between any two leaps; a move with no row never cools down
+leap              = 2500   ; the cat's jump_delay, the shortest nonzero one among the leapers (the chimera and lurker ship 0)
+claw              = 2000   ; stamped on every claw roll, fired or not (user ruling)
+flee              = 120000 ; a routed mutant does not re-rout as soon as its committed window closes
+cloak             = 5000   ; re-cloak gap, so it cannot flicker-spam
+adjusting_leap    = 30000  ; a signature move, used once or twice in a fight
+intercepting_leap = 30000  ; a signature move, used once or twice in a fight
 
 [caps] ; max driven moves assumed running at once per bucket; a start counts starts_s seconds
 starts_s  = 3
@@ -55,7 +60,6 @@ above_m    = 0.8      ; object-position height delta that counts as the enemy be
 basis           = 2.0  ; the force basis for a species with no jump_factor (the bloodsucker's jump config never loads); every leaper ships 2.0
 force_min_mult  = 1.0  ; the instant leaps fly at basis x [min, max] spread by Wild, so 2.0-3.0 and 2.5 with Wild off (the field-tested 10-01 probe band, narrowed by the user)
 force_max_mult  = 1.5
-gap_ms          = 2500 ; the per-mob gap between two leaps: the cat's jump_delay, the shortest nonzero one among the leapers (the chimera and lurker ship 0)
 sense_ms        = 1000 ; a leap needs the mutant to have sensed its enemy this recently (its enemy memory): one 600ms beat plus vision-update slack
 stuck_margin_ms = 1000 ; a jump still holding the body past its flight time plus this is logged as stuck, the freeze check
 
@@ -97,13 +101,11 @@ release_ms    = 2500 ; hold the forced-gravi flag and skip re-deciding this long
 range_m         = 1.8  ; inside the 2m jump hit window (jump_hit_trace_range, m_chimera.ltx:134), with a margin
 near_m          = 10   ; the last beat's distance under which the contact lane reads live positions: the reach plus 12 m/s closing over one 600ms beat
 facing_cone_deg = 30   ; inside the jump's own angle limit (jump_max_angle 0.55 rad, m_chimera.ltx:138) and its +/-30 deg hit cone
-gap_ms          = 2000 ; the gap between two claw decisions, stamped on every roll (user ruling)
 
 [cloak] ; the bloodsucker decided cloak: vanish reactively while closing, then re-appear when the window ends (forces the vanilla visibility state)
 melee_m     = 3     ; no cloak inside this reach - a bloodsucker at strike range attacks, it does not vanish
 hit_ms      = 3000  ; a hit within this window counts as "recently hit" - shoot a closing bloodsucker and it vanishes
 window_ms   = 2500  ; hold the forced invisibility this long, then release to the engine's natural flicker
-throttle_ms = 5000  ; re-cloak gap, so it cannot flicker-spam (the beat-timer throttle, mirrors the flee re-fire gap)
 
 [backstrike] ; per-species motion pair for the rear spin-strike; motions must carry attack_params rows
 arc_deg    = 120

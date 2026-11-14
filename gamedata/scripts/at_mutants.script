@@ -30,6 +30,8 @@ local MOVE_CLAW       = "claw"
 local MOVE_GRAVITY    = "gravity_attack"
 local MOVE_RUN_ATTACK = "run_attack"
 local MOVE_BACKSTRIKE = "backstrike"
+-- The [cooldown] row all leaps share, beside each leap's own row.
+local COOLDOWN_LEAP   = "leap"
 local MOTION_STEADY, MOTION_MOVING = "steady", "moving"
 local FIRED_CALLED, FIRED_SHAPED, FIRED_ENGINE = "called", "shaped", "engine"
 local VIS_FULL        = 2
@@ -73,6 +75,7 @@ local _move_cfg = {}
 local _all_toggle_keys = {}
 local _backstrike_motions = {}
 local _starts = nil
+local _cooldown_ms = {}
 local _active = false
 local _seams = nil
 local _runaway_id = nil
@@ -198,6 +201,18 @@ end
 
 local function _add_start(bucket)
     _starts:add(bucket)
+end
+
+-- The per-move cooldowns: one [cooldown] row in ms per move name, kept per mutant in rec.ready_at; a move with no row never cools down.
+-- True when the move is ready, the same sense as _check_start; the caller names the block for the trace.
+local function _check_cooldown(rec, move, now)
+    local ready = rec.ready_at[move]
+    return not ready or now >= ready
+end
+
+local function _add_cooldown(rec, move, now)
+    local ms = _cooldown_ms[move]
+    if ms then rec.ready_at[move] = now + ms end
 end
 
 -- The per-species Personality roll for a move, rolled after the beat's Intelligence pass (the at_faction twin); cached per (move, species), absent = 1.0.
@@ -384,13 +399,10 @@ local function _add_mutant(mob, id, now)
         moves = moves,
         memo = {},
         move_buf = {},
-        flee_ok_at = 0,
+        ready_at = {},
         flee_until = 0,
         gravity_release = 0,
-        claw_ok_at = 0,
-        leap_ok_at = 0,
         cloak_until = 0,
-        cloak_ok_at = 0,
         claw = moves.claw,
         low_now = false,
     }
@@ -569,10 +581,11 @@ local function _can_leap(mob, enemy, now)
     return true
 end
 
--- The gates every leap shares after its own premise: the per-mob gap, then the engine-state gate.
+-- The gates every leap shares after its own premise: the leap's own cooldown, the gap between any two leaps, then the engine-state gate.
 -- The mod owns the pacing because the game's own jump cooldown is 0 on the chimera and lurker and absent on the bloodsucker.
-local function _check_leap_block(mob, rec, now)
-    if now < rec.leap_ok_at then return "gap" end
+local function _check_leap_block(mob, rec, move, now)
+    if not _check_cooldown(rec, move, now) then return "cooldown" end
+    if not _check_cooldown(rec, COOLDOWN_LEAP, now) then return "gap" end
     local can_leap, leap_block = _can_leap(mob, rec.memo.enemy, now)
     if not can_leap then return leap_block end
     return nil
@@ -581,26 +594,26 @@ end
 -- Charged leap: an enemy up on a rock or ledge, the 0.8m standard of the game's own dog (dog.cpp:410-422).
 local function _check_charged_leap_block(mob, rec, now)
     if not xcombat.is_enemy_above(rec.memo.enemy, mob, _tun_num.above_m) then return "level" end
-    return _check_leap_block(mob, rec, now)
+    return _check_leap_block(mob, rec, MOVE_CHARGED_LEAP, now)
 end
 
 -- Sudden leap: the enemy aims at the mutant (a wind-up hands them the shot) or cannot answer (reloading, turned away).
 local function _check_sudden_leap_block(mob, rec, now)
     local memo = rec.memo
     if not (memo.aiming or memo.vulnerable) then return "calm" end
-    return _check_leap_block(mob, rec, now)
+    return _check_leap_block(mob, rec, MOVE_SUDDEN_LEAP, now)
 end
 
 -- Adjusting leap: the enemy is moving, so the steering follows it in flight.
 local function _check_adjusting_leap_block(mob, rec, now)
     if not rec.memo.motion then return "still" end
-    return _check_leap_block(mob, rec, now)
+    return _check_leap_block(mob, rec, MOVE_ADJUSTING_LEAP, now)
 end
 
 -- Intercepting leap: the enemy moves steadily, so its path predicts where it will be.
 local function _check_intercepting_leap_block(mob, rec, now)
     if rec.memo.motion ~= MOTION_STEADY then return "unsteady" end
-    return _check_leap_block(mob, rec, now)
+    return _check_leap_block(mob, rec, MOVE_INTERCEPTING_LEAP, now)
 end
 
 -- Closing leap: inside the drawn range (bloodsucker.cpp:590-600), a perched enemy at any distance or the aiming player past the charge band.
@@ -615,7 +628,7 @@ local function _check_closing_leap_block(mob, rec, now)
     else
         return "calm"
     end
-    return _check_leap_block(mob, rec, now)
+    return _check_leap_block(mob, rec, MOVE_CLOSING_LEAP, now)
 end
 
 -- The Intercepting leap aim point: the enemy's position advanced by its velocity over the engine's own flight time, scaled by the lead gain.
@@ -664,7 +677,8 @@ local function _execute_leap(mob, rec, move, now, order)
     end
     if not fired then return false end
     _add_start(memo.bucket)
-    rec.leap_ok_at = now + _tun_num.leap_gap
+    _add_cooldown(rec, COOLDOWN_LEAP, now)
+    _add_cooldown(rec, move, now)
     if at_debug.is_on() then
         local time_s = xmonster.compute_jump_time(mob, target, order.force) or 0
         _start_strike(rec, move, now, order.force, time_s)
@@ -725,16 +739,26 @@ local function _try_closing_leap(mob, rec, _move, now)
     return _execute_leap(mob, rec, MOVE_CLOSING_LEAP, now, _build_order(rec.memo.enemy_pos, force, false, 0))
 end
 
--- Rout out of melee reach: hurt, far enough to disengage, not nose-on to the enemy; a committed fixed-timer window, the caps never deny it.
-local function _try_flee(mob, rec, _move, now)
-    if not rec.low_now then return false end
+-- Flee gates: hurt, far enough to disengage, its cooldown, an escape route, then not nose-on to the enemy.
+local function _check_flee_block(mob, rec, now)
+    if not rec.low_now then return "healthy" end
     local memo = rec.memo
-    if memo.dist < _tun_num.flee_min_m or now < rec.flee_ok_at or not _runaway_id then return false end
-    if xcombat.is_facing(mob, memo.enemy_pos, _tun_num.flee_face_cone) then return false end
+    if memo.dist < _tun_num.flee_min_m then return "near" end
+    if not _check_cooldown(rec, "flee", now) then return "cooldown" end
+    if not _runaway_id then return "no_runaway" end
+    if xcombat.is_facing(mob, memo.enemy_pos, _tun_num.flee_face_cone) then return "facing" end
+    return nil
+end
+
+-- Rout out of melee reach: a committed fixed-timer window, the caps never deny it.
+local function _try_flee(mob, rec, _move, now)
+    local block = _check_flee_block(mob, rec, now)
+    if block then return _log_block(rec, "flee", block) end
+    local memo = rec.memo
     if not _check_personality(rec, "flee") then return false end
     local hold = _select_band(_tun_num.survival_hold_min, _tun_num.survival_hold_max)
     rec.flee_until = now + hold
-    rec.flee_ok_at = now + _tun_num.flee_throttle_ms
+    _add_cooldown(rec, "flee", now)
     _add_start(memo.bucket)
     _log_fire(rec, "flee", memo.dist, (" hold=%dms"):format(hold))
     return true
@@ -749,7 +773,7 @@ end
 -- The claw gates on the contact lane: the cheap record fields first, then the live reach and facing, then the engine-state gate.
 -- It records the live target and distance on rec.contact_pos and rec.contact_dist for the launch.
 local function _check_claw_block(mob, rec, now)
-    if now < rec.claw_ok_at then return "gap" end
+    if not _check_cooldown(rec, MOVE_CLAW, now) then return "cooldown" end
     if not rec.dist or rec.dist > _tun_num.claw_near_m then return "far" end
     if rec.flee_until > now or rec.gravity_release > now then return "window" end
     local enemy = mob:get_enemy()
@@ -768,7 +792,7 @@ end
 -- Checked on every monster update because contact lasts a fraction of a beat; any roll stamps the gap.
 local function _try_claw(mob, rec, now)
     if _check_claw_block(mob, rec, now) then return end
-    rec.claw_ok_at = now + _tun_num.claw_gap
+    _add_cooldown(rec, MOVE_CLAW, now)
     local miss = (not _check_intelligence(rec) and "int") or (not _check_personality(rec, MOVE_CLAW) and "pers") or nil
     if miss then
         if at_debug.is_on() then at_debug.debug("[MUT] CLAW id=%d miss cause=%s", rec.id, miss) end
@@ -802,19 +826,27 @@ local function _try_gravity(mob, rec, _move, now)
     return true
 end
 
--- The bloodsucker cloak: vanish reactively to break a lock or a hit, then re-appear when the window ends.
--- Forces no_visibility over the engine's natural flicker (the vanilla force_visibility_state); rate-limited, released on its window in the upkeep.
-local function _try_cloak(mob, rec, _move, now)
+-- Cloak gates: outside strike reach, aimed at or recently hit, its cooldown, then fully visible; the hit flag rides back for the trace.
+local function _check_cloak_block(mob, rec, now)
     local memo = rec.memo
-    if memo.dist <= _tun_num.cloak_melee_m then return false end
+    if memo.dist <= _tun_num.cloak_melee_m then return "melee" end
     local hit = rec.hit_at and (now - rec.hit_at) < _tun_num.cloak_hit_ms
-    if not (memo.aiming or hit) then return false end
-    if now < rec.cloak_ok_at then return false end
-    if xmonster.get_visibility_state(mob) ~= VIS_FULL then return false end
+    if not (memo.aiming or hit) then return "calm" end
+    if not _check_cooldown(rec, "cloak", now) then return "cooldown" end
+    if xmonster.get_visibility_state(mob) ~= VIS_FULL then return "hidden" end
+    return nil, hit
+end
+
+-- The bloodsucker cloak: vanish reactively to break a lock or a hit, then re-appear when the window ends.
+-- Forces no_visibility over the engine's natural flicker (the vanilla force_visibility_state); released on its window in the upkeep.
+local function _try_cloak(mob, rec, _move, now)
+    local block, hit = _check_cloak_block(mob, rec, now)
+    if block then return _log_block(rec, "cloak", block) end
+    local memo = rec.memo
     if not _check_personality(rec, "cloak") then return false end
     if not xmonster.force_visibility_state(mob, 0) then return false end
     rec.cloak_until = now + _tun_num.cloak_window_ms
-    rec.cloak_ok_at = now + _tun_num.cloak_throttle_ms
+    _add_cooldown(rec, "cloak", now)
     _log_fire(rec, "cloak", memo.dist, hit and " on=hit" or " on=aim")
     return true
 end
@@ -1112,7 +1144,6 @@ local function _load_tunables()
     _tun = xltx.resolve_handle(LTX_PATH)
     _tun_num = {
         candidates = _read_num("select", "candidates") or 3,
-        flee_throttle_ms = (_read_num("throttle", "flee") or 60) * 1000,
         cap_player = _read_num("caps", "vs_player"),
         cap_npc = _read_num("caps", "vs_npc"),
         int_cap = _read_num("intelligence", "cap"),
@@ -1120,7 +1151,6 @@ local function _load_tunables()
         leap_basis = _read_num("leap", "basis"),
         force_min_mult = _read_num("leap", "force_min_mult"),
         force_max_mult = _read_num("leap", "force_max_mult"),
-        leap_gap = _read_num("leap", "gap_ms"),
         leap_sense_ms = _read_num("leap", "sense_ms"),
         stuck_margin_ms = _read_num("leap", "stuck_margin_ms"),
         lead_floor = _read_num("lead", "floor_mult"),
@@ -1141,17 +1171,17 @@ local function _load_tunables()
         claw_range_m = _read_num("claw", "range_m"),
         claw_near_m = _read_num("claw", "near_m"),
         claw_cone = _read_num("claw", "facing_cone_deg"),
-        claw_gap = _read_num("claw", "gap_ms"),
         gravity_cone = _read_num("gravity_attack", "face_cone_deg"),
         gravity_release = _read_num("gravity_attack", "release_ms"),
         cloak_melee_m = _read_num("cloak", "melee_m"),
         cloak_hit_ms = _read_num("cloak", "hit_ms"),
         cloak_window_ms = _read_num("cloak", "window_ms"),
-        cloak_throttle_ms = _read_num("cloak", "throttle_ms"),
         backstrike_arc = _read_num("backstrike", "arc_deg"),
         ability_pct = _read_num("wild", "ability_pct"),
     }
     _starts = xttltable.create_ttl_counter({ ttl = _read_num("caps", "starts_s") or 3 })
+    _cooldown_ms = { [COOLDOWN_LEAP] = _read_num("cooldown", COOLDOWN_LEAP) }
+    for i = 1, #MOVE_KEYS do _cooldown_ms[MOVE_KEYS[i]] = _read_num("cooldown", MOVE_KEYS[i]) end
     _move_species = {}
     for i = 1, #MOVE_KEYS do
         local move = MOVE_KEYS[i]
@@ -1159,6 +1189,11 @@ local function _load_tunables()
         local list = xltx.read_list(_tun, "moves", move)
         for k = 1, #list do set[list[k]] = true end
         _move_species[move] = set
+    end
+    for key in pairs(xltx.read_section(_tun, "cooldown")) do
+        if key ~= COOLDOWN_LEAP and not _move_species[key] then
+            at_debug.warn("[MUT] [cooldown] row %s names no move and is ignored", key)
+        end
     end
     _personality_cache = {}
     _move_cfg = {}

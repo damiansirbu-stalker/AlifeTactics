@@ -790,7 +790,12 @@ It fires at a perched enemy at any distance, or at the player aiming at it from 
 Its jump config never loads (`CAI_Bloodsucker::Load`). It never hits in the air, and its claws strike after the leap.
 THE FORCE is rolled once per mutant at adoption, the species `jump_factor` (`[leap] basis` where none loads) times a Wild-spread band of 2.0-3.0.
 Charged leap and the Closing leap perch case fly at the basis.
-THE TWO SHARED GATES are a per-mob gap of `[leap] gap_ms` between leaps, since the chimera and lurker ship a jump delay of 0.
+THE COOLDOWNS live in one place, `[cooldown]`, with one row in ms per move name, kept per mutant in `rec.ready_at` through `_check_cooldown()` and `_add_cooldown()`.
+A move with no row never cools down. Adjusting and Intercepting leap wait 30s between uses, and claw, flee, and cloak keep their own rows.
+`_check_cooldown()` answers ready or not, like `_check_start()`, and each move's own `_check_<move>_block()` names the block for the `[MUT] BLOCK` trace at DEBUG.
+A leap checks its own cooldown before the shared gates, the sight gate, and Personality, and flee and cloak trace their blocks the same way.
+Claw stays silent, since its check runs on every monster update. A `[cooldown]` row that names no move logs a warning at load.
+THE TWO SHARED GATES are the `leap` row, a per-mob gap of 2500ms between any two leaps, since the chimera and lurker ship a jump delay of 0, traced as `gap`.
 The other is the mutant having sensed its enemy within `[leap] sense_ms` (1000), by its own enemy memory (`xmonster.get_enemy_unseen_ms`).
 The game's own jump checks the instant see bit (`CControlManagerCustom::check_attack_jump`), but mid-fight that bit is false almost all the time, so it refused every leap.
 BODY PLAN IS A SOFT GATE. Every leaper carries Charged, Sudden, Adjusting, and Intercepting leap, and the per-species Personality values decide who leaps how and how often.
