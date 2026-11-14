@@ -23,7 +23,7 @@
         - The final chance is Intelligence times Personality. A sharp read still acts only when the creature's Personality would. The values are grounded in GSC's own per-creature design.
       Wild
         - One dial for how much a mutant's own numbers vary between individuals: the move timings, how hard it leaps and steers, and the ranges, bands, and reach of its abilities.
-            At 0 a kind is identical and learnable, at 100 no two spawns read alike.
+            At 0 a kind is identical and learnable, at 100 no 2 spawns read alike.
       Threat read
         - A mutant reads the weapon in your hands. A gun stowed in your pack no longer counts. Holstering stops a mutant treating you as armed.
         - A mutant reads your aim from where you look, not from where your body points. Strafing with your sights on it now counts as aiming.
@@ -78,7 +78,7 @@
 
   Effectiveness
     - Changed every rank curve to a base slider plus a percent-per-rank slider, the same pair the Intelligence gate uses:
-        accuracy, moving fire, tracking speed, tracking lock, target lead, burst size, fire cadence, and the two vision curves.
+        accuracy, moving fire, tracking speed, tracking lock, target lead, burst size, fire cadence, and the 2 vision curves.
         2 sliders per curve replace 8, refit from the old tables a hair softer at the top. Moved sliders on these pages reset to defaults once.
     - Fixed NPC target lead ignoring the loaded round's bullet speed, dead since a key rename. Stalkers again lead a moving target by the round's real flight time.
 
@@ -278,10 +278,10 @@
       - Added Ballistics Overhaul and Close Quarter Combat compatibility for Gear: their shared grok_bo hit system recomputes a hit you deal an NPC from the weapon and applies it itself.
         That cancelled the NPC's artefact damage resistance.
         AlifeTactics now reapplies the resistance to the damage grok_bo dealt. A geared NPC resists your shots there as it does anywhere.
-        It hooks whichever of the two is live, and is inactive when neither is installed.
+        It hooks whichever of the 2 is live, and is inactive when neither is installed.
 
   Development
-    - Changed the two world recorders into one. The Ballistics toggle is gone, and World behaviour debug now records both the slide watchdog and the shot-outcome tables into alifetactics_world.log.
+    - Changed the 2 world recorders into one. The Ballistics toggle is gone, and World behaviour debug now records both the slide watchdog and the shot-outcome tables into alifetactics_world.log.
     - Added a combat-escape warning: if another combat brain takes a stalker out from under an open maneuver, the log names the foreign owner once.
       A modpack conflict becomes reportable.
     - Added over-speed detection to World behaviour debug: a body moving faster than its own config allows is logged with the measured rate.
