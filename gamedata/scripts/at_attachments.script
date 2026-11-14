@@ -1,14 +1,15 @@
 --- at_attachments: a stalker mounts the scope, silencer or grenade launcher that fits his own pistol or rifle once he is out of a fight
 
-local pairs, IsStalker = pairs, IsStalker
+local pairs, next, IsStalker = pairs, next, IsStalker
 local RegisterScriptCallback = RegisterScriptCallback
-local xinventory, xcombat, xcreature, xobject, xprofiler = xinventory, xcombat, xcreature, xobject, xprofiler
+local xinventory, xcombat, xcreature, xobject, xprofiler, xslice = xinventory, xcombat, xcreature, xobject, xprofiler, xslice
 local at_debug, at_faction = at_debug, at_faction
 
 local cfg = at_mcm.cfg
 
 local MONITOR_PERIOD_SEC = 3
 local EVENT_ID, MONITOR_ID = "at_attachments", "monitor"
+local SLICE_QUEUE = "at_attachments"
 local CAT_ATTACHMENT = "attachment"
 local CAT_SLOT_PISTOL, CAT_SLOT_RIFLE = "attachment_slot_2", "attachment_slot_3"
 local CAT_UNTOUCHABLE = "untouchable"
@@ -91,16 +92,29 @@ local function _update_npc(id)
     if at_debug.is_on() then at_debug.debug("[ATT] DROP id=%d reason=%s [%.3fms]", id, block, timer:get_ms()) end
 end
 
+-- One stalker per frame; a stalker switched off or cleared since the snapshot is skipped and keeps his state.
+local function _run_slice_item(id)
+    if cfg.attachments_enabled and _pending[id] then _update_npc(id) end
+    return true
+end
+
+-- Every 3s, snapshot the pending stalkers and spread them one per frame, so one frame carries one mount (a scope swap is ~1ms).
+-- The batch walks the snapshot array, not _pending, so the cleanup callbacks a mount fires cannot disturb it.
 local function _run_monitor()
     if not _monitor_active then return true end
     ResetTimeEvent(EVENT_ID, MONITOR_ID, MONITOR_PERIOD_SEC)
     if not cfg.attachments_enabled then return end
-    for id in pairs(_pending) do _update_npc(id) end
+    if xslice.is_active(SLICE_QUEUE) then return end
+    if not next(_pending) then return end
+    local ids = {}
+    for id in pairs(_pending) do ids[#ids + 1] = id end
+    xslice.start(SLICE_QUEUE, ids, { step = 1, func = _run_slice_item })
 end
 
 -- Mark a stalker that took an attachment; the mount waits for the monitor, never this callback (xlibs try_add_attachment contract).
+-- Marks while the toggle is off too, so switching it back on mounts at the next pass; the monitor owns the toggle.
 local function _on_item_take(npc, item)
-    if not (cfg.attachments_enabled and npc and item and IsStalker(npc) and npc:alive()) then return end
+    if not (npc and item and IsStalker(npc) and npc:alive()) then return end
     local sec = xinventory.get_section(item)
     if xinventory.get_section_category(sec) ~= CAT_ATTACHMENT then return end
     local id = npc:id()
@@ -116,12 +130,18 @@ local function _on_first_update()
     CreateTimeEvent(EVENT_ID, MONITOR_ID, MONITOR_PERIOD_SEC, _run_monitor)
 end
 
+-- Clears only a key already present, since a nil store to a missing key inserts it and can rehash the table (lj_meta.c:160-173, lj_tab.c:434-436).
+-- The unregister callback fires for every released entity, nearly all of them never pending.
+local function _clear_pending(id)
+    if id and _pending[id] then _pending[id] = nil end
+end
+
 local function _on_net_destroy(npc)
-    if npc then _pending[npc:id()] = nil end
+    if npc then _clear_pending(npc:id()) end
 end
 
 local function _on_entity_unregister(se_obj)
-    if se_obj then _pending[se_obj.id] = nil end
+    if se_obj then _clear_pending(se_obj.id) end
 end
 
 function on_game_start()
