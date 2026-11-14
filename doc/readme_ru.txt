@@ -362,7 +362,7 @@ AlifeTactics собран и настроен против ванильной An
 
 Требования:
 Anomaly 1.5.3
-Modded exes: themrdemonized 20250908 или новее, либо AOEngine v0.55 или новее. Полный набор возможностей требует последней сборки demonized. Возможность, которой нужна более новая сборка, остаётся неактивной на старых exe.
+Modded exes: themrdemonized 20250908 или новее, либо AOEngine v0.5.2 или новее. Полный набор возможностей требует последней сборки demonized. Возможность, которой нужна более новая сборка, остаётся неактивной на старых exe.
 xlibs (https://www.moddb.com/mods/stalker-anomaly/addons/xlibs-1001)
 MCM
 

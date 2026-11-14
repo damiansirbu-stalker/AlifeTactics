@@ -204,17 +204,20 @@ The Sound and Danger reactions are a runtime patch laid onto whichever danger sc
 Detection distances stay owned by your setup's danger config, and AlifeTactics adds only the reactions.
 
 Sound:
-In vanilla, sound barely works as a combat signal. The engine raises an attack-sound danger when a stalker hears a shot he cannot see, yet ships no handler for it.
-A stalker never hears the player move or handle gear. AlifeTactics turns that movement and handling noise into graded danger the engine's own scheme already runs.
+In vanilla a stalker hears a shot anywhere inside its reach and answers it with the engine's own cover, look-out, detour and search.
+Everything quieter barely reaches him: a running step only inside about 6 m, a reload inside 4 m, a walk never.
+On the multi-thread exes none of those count at all from a player he has not seen or heard in the last two minutes.
+AlifeTactics turns that movement and handling noise into graded danger the engine's own scheme already runs, from the first step, with no earlier sighting needed.
 Each footstep and handling sound stamps the scheme at the source, and the scheme owns the reaction and its cleanup for whatever evidence grade the stamp carries.
 A faint stamp turns a standing stalker weapon-ready toward its source, and solid evidence sends him over to check the spot himself.
 A moving stalker ignores a faint stamp, and no sound alone ever drives a run.
 Nearby creature cries draw a lighter response, a head-turn a standing stalker gives out of combat that leaves him in place and outside the danger scheme.
 Mutant cries always earn that glance, another stalker's only when the two are hostile.
-AlifeTactics also supplies the gunfire handler vanilla lacks. A stalker who hears an enemy shot without sight faces it in a threat stance until the shooter shows.
+On an enemy shot without sight AlifeTactics replaces the engine's own cover and search with a threat stance toward the sound until the shooter shows.
 Neutral or friendly shots within 30m put him on alert without turning him hostile.
 A step's noise scales with stance, surface, and weather, and a crouch makes none at all.
-Footsteps never enter the engine's own sound space. They cannot flood its bounded sound memory, and the whole channel stays inside the scripts.
+Footsteps reach the engine's ear as well, where it drops them as too quiet or as coming from someone it has not perceived yet.
+This channel stays inside the scripts and never writes the engine's bounded sound memory.
 Sound never touches vision, seen-memory, or the sight test. It reads the config's own hearing sensitivity. A setup that deafens the AI quiets this too.
 
 Vision:
@@ -314,7 +317,7 @@ Danger scheme:
 - A mutant corpse no longer crashes the danger time check.
 - A torn-down NPC reference no longer crashes the evaluator.
 - A bad danger time value no longer crashes the evaluator.
-- The hit callback no longer corrupts danger memory with a missing shooter.
+- A stalker hit by a bullet knows who shot him. He looks at where the shooter is now and takes cover from him.
 - A stalker is no longer evaluated for danger after he dies.
 - A stalker who held fire because a friend crossed his line no longer freezes in a combat stance after the fight. He returns to normal when his enemy is gone.
 - A stalker held fire for any visible non-enemy standing close in any direction, or standing on his aim line beyond the target, and the hold re-armed endlessly in a crowd.
@@ -366,7 +369,7 @@ It coexists with other combat AI mods, but vanilla plus AlifeTactics is the inte
 
 Requirements:
 Anomaly 1.5.3
-Modded exes: themrdemonized 20250908 or newer, or AOEngine v0.55 or newer. The full feature set needs the latest demonized build. A feature that needs a newer one stays inactive on older exes.
+Modded exes: themrdemonized 20250908 or newer, or AOEngine v0.5.2 or newer. The full feature set needs the latest demonized build. A feature that needs a newer one stays inactive on older exes.
 xlibs (https://www.moddb.com/mods/stalker-anomaly/addons/xlibs-1001)
 MCM
 
