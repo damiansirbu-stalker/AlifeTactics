@@ -532,34 +532,47 @@ Danger owns the reaction scheme both stamp into.
 
 ### Sound
 
-Does: lets hostile stalkers hear the player's movement and handling noise, and standing stalkers glance at heard creatures.
-Changes: the actor's signals stamp `xr_danger.set_script_danger`, which makes their reaction, decay, and cleanup the danger scheme's. A creature sound only refreshes the hearer's look target.
-Stops: crouched movement is silent, neutral NPCs never react to the player's noise, no sound-only stamp produces a run state, and a creature sound never enters the danger scheme.
+Does: makes a stalker's sound memory store the player's sounds before first contact, stamps the danger scheme for the noise it still drops, and lets a standing stalker glance at a heard creature.
+Changes: `on_enemy_eval` answers yes for the actor for 500 ms after a keep-worthy actor sound at a hostile hearer, so the engine's sound store keeps the sound and its own danger plan runs.
+The quieter signals stamp `xr_danger.set_script_danger`, which makes their reaction, decay, and cleanup the danger scheme's. A creature sound only refreshes the hearer's look target.
+Stops: crouched movement is silent, a neutral hearer never gets the answer or a stamp from the player's noise, no sound-only stamp produces a run state.
+A creature sound never enters the danger scheme, and a heard shot stays the engine's.
 
 ```
-actor_on_footstep / actor_on_land -> accumulate a noise radius (at_sound.script)
+npc_on_hear_callback -> _on_hear (at_sound.script), hostile hearer, actor source:
+  _set_store_window: power x type factor >= the config keep floor -> _store_open_at[id] = now
+  the actor's reload/empty/item types stamp at the sound position (the stamp channel)
+on_enemy_eval -> _on_enemy_eval: a live window for this stalker and enemy == actor -> flags.override, flags.result = true
+  the engine asks it inside the store (CSoundMemoryManager::add -> CEnemyManager::useful -> xr_combat_ignore.is_enemy)
+actor_on_footstep / actor_on_land -> accumulate a noise radius
   BASE_RADIUS_M (5m) x stance (crouch 0, sprint 1.6) x surface material x MCM mult x install-hearing scale
 _run_pass (500ms) -> mask by rain, walk db.OnlineStalkers, stamp every hostile inside the radius (per-NPC throttle 4s)
-npc_on_hear_callback -> _on_hear: the actor's reload/empty/item types stamp at the sound position;
-  a creature MST_* sound (mutant always, a stalker source only when hostile to the hearer) -> _try_glance
+a creature MST_* sound (mutant always, a stalker source only when hostile to the hearer) -> _try_glance
 _try_glance: standing, out of combat, throttled 8s -> a same-state look refresh at the sound position - no stamp, no scheme entry
 ```
 
+The chain from a played sound to a stored record is `doc/library/xray/internals/npc-hearing.md`: the keep floor, the store gate, the one memory per group.
+On the multi-thread exes the store asks `is_enemy` before keeping a sound, and a stalker with no memory of the player inside the window answers no.
+The window is 60 s on plain Anomaly, 120 s where the installed combat-ignore script brackets the test as its author meant.
+The window answer is the override at the top of `is_enemy`. It fires only for the actor, only on a hostile hearer, only inside 500 ms of a sound the keep floor would pass.
+It yields to any subscriber that already set the flags.
+Proven 2026-11-14 04:08, same bandit, same reload one second apart: dropped without the answer, stored with it, `enemy_sound`, the engine's `take_cover` (`npc-hearing.md`, Measured).
+The hear callback runs before the store (`CSoundMemoryManager::feel_sound_new`), so the window is open when the store asks, and the table is empty whenever no window is live.
 The install-hearing scale reads the winning config's own stalker hearing sensitivity. A setup that deafens NPC hearing quiets these sounds with it.
 A stamp carries an evidence grade the danger scheme runs at.
 FAINT turns a standing NPC weapon-ready toward the position, SOLID walks him over, and an unexpired stronger stamp survives a weaker one.
 The glance is a state_mgr look refresh consumed before the same-state early-out. It never preempts a scheme, never moves anyone, and skips a walking body entirely.
-Footsteps are never typed into the engine sound space.
-A typed hostile footstep would flood the bounded sound-danger memory (`sound_memory_manager.cpp`), and the reaction is script-scoped.
+Footsteps are typed `MONSTER_STEP` and reach the sound memory, where the 0.5 keep floor drops a walk always and a run past about 6 m (`CSoundMemoryManager::feel_sound_new`).
+Those are what the stamp channel still covers.
+The stamp channel is script-scoped and never writes the engine's bounded sound memory.
 Stealth in Anomaly is a vision system.
 Sound never touches vision, seen-memory, or the sight test.
 
-The Sound page also carries two gunfire reactions the patched danger scheme runs.
-Enemy gunfire (`danger_attack_sound`) routes an attack_sound danger the NPC heard but cannot see to a face-the-sound threat stance (`at_danger.script`).
-He moves to cover once he sees the shooter.
-The engine raises the attack_sound danger and vanilla ships no handler, and AT supplies the missing reaction.
-Neutral gunfire (`danger_neutral_gunfire`) puts a neutral or friendly stalker on alert to the player's shots within NEUTRAL_GUNFIRE_RADIUS_SQR (30m, `at_danger.script`).
-The reaction is alert only and never turns hostile, scoped to the actor. NPC-vs-NPC neutral fire stays ignored.
+The Sound page also carries Neutral gunfire alert (`danger_neutral_gunfire`), which governs a stamp the danger scheme admits, not a gunfire danger.
+The engine discards a neutral's shot in the store (`CSoundMemoryManager::add`), so no `attack_sound` danger exists for a neutral hearer on the multi-thread exes, measured 115 of 115 shots.
+Vanilla stamps a stalker whose feet the player's bullet lands near, relation unchecked (`xr_danger.npc_on_hear_callback`), then ignores the stamp without an engine danger (`xr_danger.eval_danger`).
+`_has_admitted_stamp` (`at_danger.script`) admits that stamp for a neutral or friendly hearer while the toggle is on, and drops it to vanilla behaviour when off.
+Measured 2026-11-14 04:42: 68 impact stamps, 162 reactions, toggle on and off alike, none from an `attack_sound` danger.
 
 ### Vision
 
@@ -590,9 +603,10 @@ on_game_start -> _install_patches (at_danger.script): points 7 entry points at A
 bind time: add_to_binder (now AT's) binds at_evaluator_danger + at_action_danger into every stalker's motivation manager
 per plan solve:
   eval_danger -> eval_danger_raw verdict, then npc_on_eval_danger only on a would-be-true verdict (a subscriber veto clears the inertion latch)
-    live script_danger stamp = TRUE outright (the stamp is an activator)
+    live admitted script_danger stamp = TRUE outright (the stamp is an activator; _has_admitted_stamp drops only the player's impact stamp on a non-hostile hearer with Neutral gunfire alert off)
     else best_danger type -> inertion and ignore tables (the winner's xr_danger.ltx) -> danger_flag
-  at_action_danger:execute -> script_danger first, else per-type response (grenade / corpse / attacked / attack_sound alert)
+  at_evaluator_check_danger claims attacked, corpse and grenade for the script; every sound danger stays with the engine planner (cover, look-out, hold, detour, search)
+  at_action_danger:execute -> script_danger first, else per-type response (grenade / corpse / attacked)
   combat-safe by GOAP: the action requires property_enemy == false
 ```
 
@@ -604,13 +618,10 @@ per plan solve:
 - the install registers the monolith sub-scheme's four actions in `state_mgr.combat_action_ids`, which vanilla omits, and the omitted actions no longer cause the crouch-aim shuffle
 - it patches three rx_ff members to fix the friendly-fire freeze, the over-hold, and the blocked-shot test that held fire for bodies in any direction or beyond the target
 
-Two Perception/Danger toggles add improvements over the patched scheme, both default on:
+One Perception/Danger toggle adds an improvement over the patched scheme, default on:
 
-- Distant hits (`danger_hit_bypass`) returns a hit-perceive danger true at any range, past the relation and combat-ignore gates.
-  A hit that strikes home is proof of range, and a stalker sniped from beyond the ignore distance still ducks.
-- Player ranges (`danger_actor_tables`) reads the actor-specific inertion and ignore tables when the danger source is the actor.
-  A liveness probe gates it (`_actor_tables_live`), and it stays inert unless the winning xr_danger carries its own DangerIgnoreActor rows.
-  Some overhauls differentiate those rows, and vanilla ships identical copies.
+- Distant hits (`danger_hit_bypass`) returns a hit-perceive danger true past the ignore distance only, after the relation, alive and combat-ignore checks have passed.
+  A hit that strikes home is proof of range, and a stalker sniped from beyond the ignore distance still ducks. A neutral's accidental hit is no attack.
 
 The paired DLTX (`mod_xr_danger_at.ltx`) is delete-lines only.
 It drops the dead perceive keys of the `danger_object` enum name collision (`danger_object.h`), where the perceive-type names hit/sound/visual share values 0/1/2 with danger types.
@@ -676,8 +687,9 @@ Stops: it never mounts in a fight, on a busy body, in a smart cover, or on a gun
 Companions mount what they loot or buy. Anything the player hands a companion is a gift (`axr_companions.script:1470-1477`), read as untouchable, and stays as given.
 
 ```
-npc_on_item_take (pickup, trade, barter, gift, and every item at net_spawn): an attachment marks the stalker pending, nothing mounts here
-_run_monitor (3s, pending stalkers only) -> _try_mount (at_attachments.script):
+npc_on_item_take (pickup, trade, barter, gift, corpse loot, and every item at net_spawn): an attachment marks the stalker pending, toggle off included, nothing mounts here
+_run_monitor (3s): snapshot the pending stalkers, xslice them one per frame (at_attachments.script)
+_run_slice_item -> _try_mount, per stalker:
   _check_mount_block: toggle, participant, no fixed identity (xcreature.is_unscriptable_se; companions pass), no best enemy, then _can_mount (alive, body free, no smart cover)
   combat / busy / smart cover -> stays pending; any other block -> dropped
   one walk finds the first loose item classified attachment_slot_2 / _3 (xinventory, pistol first like ammo), then xinventory.try_add_attachment
@@ -690,6 +702,9 @@ A mount in the callback would put vanilla's same item on a second gun.
 Vanilla mounts a fitting engine addon on `best_weapon()` during the take (`xr_gather_items.script:55-57`). The next pass no longer finds that item, and mounts only one still loose.
 The scope swap empties the rifle slot until the new gun spawns, which spawn antifreeze can defer past one frame (`Level.cpp:748-845`). One mount per pass keeps a second swap off a gun still in flight.
 The mount acts on state like Ammo and Healing, and takes no Personality roll, since it is not a combat decision.
+The take callback marks while the toggle is off and the pass checks the toggle, so switching it back on mounts at the next pass.
+A scope swap costs about 1ms (measured up to 1.15ms), and one pass once mounted 5 stalkers in a single frame. The pass spreads the pending stalkers one per frame through xslice, so a frame carries at most one mount.
+The batch walks a snapshot array, so the cleanup callbacks a mount fires cannot disturb it. Those handlers clear only a stalker already pending, since a nil store to a missing key inserts it (`lj_meta.c:160-173`).
 The feature saves nothing. The pending set and the timer live in the session and re-arm on the first update after a load.
 
 Effects in a fight, engine-owned (AT changes no number):
@@ -699,7 +714,7 @@ Effects in a fight, engine-owned (AT changes no number):
   A shot is a layered collection, and every layer loads with the shot's own `SOUND_TYPE_WEAPON_SHOOTING` (`CWeaponMagazined::Load`, `HUD_SOUND_COLLECTION_LAYERED::LoadSound`).
   Each layer is its own AI sound event. It reaches `min(max_ai_dist, max_ai_dist x volume)` (`CSoundRender_Emitter::Event_Propagade`).
   `max_ai_dist` comes from that ogg's own blob (`SoundRender_Emitter_StartStop.cpp`).
-  A heard shooting event becomes the attack_sound danger (`CDangerManager::add`), which AT handles. The farthest layer therefore decides who reacts, an echo tail included.
+  A heard shooting event becomes the attack_sound danger (`CDangerManager::add`), which the engine's danger planner answers. The farthest layer therefore decides who reacts, an echo tail included.
   Vanilla carries the close shot 200 m, its distant layers 50 m, and the silenced shot 7-20 m (blobs read 2026-11-12).
 - Grenade launcher: visual only. No engine path or script makes an NPC fire it.
 
@@ -870,10 +885,13 @@ before-hit seams: damage dealt (victim-side, keyed on shit.draftsman) and damage
 Every fix repairs a crash, misread, or dropped behaviour in the winning xr_danger or stock Anomaly.
 Each appears as a locked or toggled entry on the MCM Fixes tab and reuses one quoted name across the readme, the changelog, and the MCM.
 
-- Danger scheme crashes: the mutant-corpse time crash, the torn-down and nil-return evaluator crashes, the undefined-shooter hit corruption, the post-death evaluation.
+- Danger scheme crashes: the mutant-corpse time crash, the torn-down and nil-return evaluator crashes, the post-death evaluation.
 - Danger scheme reads: the bd_types enum collision (three categories read the wrong range), the meters-vs-squared grenade gate, the per-evaluation condlist re-parse.
 - Danger scheme state: the friendly-fire combat-stance freeze, the any-direction blocked-shot hold, the stale danger-transition animation.
   Also the cover-reservation wipe on finalize and the re-attack stale position.
+  Also the hit stamp's missing shooter: vanilla stamps with an undefined `who_id` (xr_danger.script:132).
+  `_resolve_hit_source()` fills it from the same-frame at_core hit record when the reaction runs, after the whole hit dispatch.
+  Callback order and the winning xr_danger copy do not matter.
 - Corpse investigation: the despawn crash, the wrong-investigator selection, the cleared-vertex target, the pre-stage crash, the reused-id danger linger.
 - Target selection: the shot-at stalker turns on his shooter, and NPCs no longer converge on the player far harder than on each other.
 - Accuracy: a real per-rank curve replaces the flat clamp.
@@ -888,6 +906,7 @@ It measures outputs, because an intent field reads as frozen whenever an animati
 Code tracing goes to `alifetactics.log`, world tracing to `alifetactics_world.log`.
 
 - at_debug: one logger and the `is_on()` gate (one integer compare against DEBUG_LEVEL 5), the shared formatters, and the mod-wide log-level refresh. Every gameplay module traces at its own sites.
+  - A `[STAMP]` line carries `dist`, the distance from the NPC to the stamped position. A hit stamp sits at the shooter, a hear stamp at the impact, and `from` names which.
 - at_world_trace: an outcome recorder over the shot and impact feeds, off until the toggle registers its callbacks.
   - The slide watchdog reports a body travelling while its movement type is not locomotion (SLIDE), or faster than the fastest stalker speed (FAST).
   - The naturalness checks flag combat that reads wrong (idle, glued, reload loop, ghost, blindfire, aim-off, blindspot).
@@ -895,6 +914,12 @@ Code tracing goes to `alifetactics.log`, world tracing to `alifetactics_world.lo
     GESTURE is a script animation locking a locomoting body into a glide.
   - The minute report carries the out-of-combat danger-scheme occupancy (OCC), the jumpiness of the calm population as one number.
   - The ballistics recorder writes per-minute per-tier hit tables split still and moving, per-driver hit rates, and the burst-length histogram.
+  - The hit-reply record answers whether a stalker the player hits fights back, at any distance.
+    A player hit opens it, and the 150ms monitor keeps the first time the NPC saw the player and the first time it selected him, because the engine's visible bit lasts one frame.
+    Past 70m the edge-only POSE line gives the hit NPC's timeline.
+    It closes on the first shot with the player selected, on death, offline, or after 10s, with one `[WORLD] reply` line.
+    The line holds the distance, relation, planner branch and combat action at the hit and at the close, whether firing makes sense, the combat-ignore flag, the hour and the rain.
+    It reads engine state only and reads the same on any install, whichever `xr_combat_ignore` or sight script wins.
   - The mutant-lethality meter accumulates the damage mutants deal the actor on the existing hit feed and writes it per minute (`[MUT] incoming damage`).
     It is the measure for a moves-on against moves-off comparison, and the per-window reset keeps each minute to its own regime.
   - The monster-movement read uses the `get_monster_movement_info` bind as the stall truth.

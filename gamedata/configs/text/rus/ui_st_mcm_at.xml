@@ -892,10 +892,10 @@
   <string id="ui_mcm_at_danger_fix_cover_scope_desc">
     <text>Выход из состояния опасности снимает только своё резервирование укрытия, а не стирает его у всех сталкеров.</text>
   </string>
-  <string id="ui_mcm_at_danger_fix_hit_memory">
+  <string id="ui_mcm_at_danger_fix_hit_shooter">
     <text>Целостность памяти о попадании</text>
   </string>
-  <string id="ui_mcm_at_danger_fix_hit_memory_desc">
+  <string id="ui_mcm_at_danger_fix_hit_shooter_desc">
     <text>Колбэк попадания больше не портит память об опасности отсутствующим стрелком при каждом попадании.</text>
   </string>
   <string id="ui_mcm_at_danger_fix_id_reuse">

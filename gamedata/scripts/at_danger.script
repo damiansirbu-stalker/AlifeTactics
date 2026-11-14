@@ -7,16 +7,11 @@ local math_random, tonumber = math.random, tonumber
 local time_global = time_global
 local IsStalker, IsMonster, IsWounded = IsStalker, IsMonster, IsWounded
 
-local _enabled = { hit_bypass = true, attack_sound = true, actor_tables = true, neutral_gunfire = true }
-local _actor_tables_live = false
-
-local NEUTRAL_GUNFIRE_RADIUS_SQR = 30 * 30
+local _enabled = { hit_bypass = true, neutral_gunfire = true }
 
 local danger_ini = ini_file("ai_tweaks\\xr_danger.ltx")
 DangerInertion = utils_data.collect_section(danger_ini,"danger_inertion",true)
 DangerIgnore = utils_data.collect_section(danger_ini,"danger_object",true)
-DangerInertionActor = utils_data.collect_section(danger_ini,"danger_inertion_actor",true)
-DangerIgnoreActor = utils_data.collect_section(danger_ini,"danger_object_actor",true)
 
 local CORPSE_STALE_SEC = 12000
 local EVAL_BUDGET = 200
@@ -64,8 +59,9 @@ function set_script_danger(npc,time,who_id,pos,strength)
 	if at_debug.is_on() then
 		local info = debug.getinfo(2, "Sl")
 		local src = info and info.short_src and string.match(info.short_src, "[^\\/]+$") or "?"
-		at_debug.debug("[STAMP] npc=%s who=%s strength=%s ms=%s from=%s:%s",
-			npc:name(), tostring(who_id), strength, tostring(time), src, tostring(info and info.currentline))
+		local dist = pos and npc:position():distance_to(pos) or -1
+		at_debug.debug("[STAMP] npc=%s who=%s strength=%s ms=%s dist=%.0f from=%s:%s",
+			npc:name(), tostring(who_id), strength, tostring(time), dist, src, tostring(info and info.currentline))
 	end
 	local id = npc:id()
 	local live = script_danger[id]
@@ -108,10 +104,7 @@ end
 
 local function danger_in_radius(npc,best_danger,bd_type)
 	local bd_name = bd_types[bd_type]
-	local bdo = best_danger:object()
-	local from_actor = _actor_tables_live and _enabled.actor_tables
-		and bdo and bdo:id() == AC_ID
-	local src = (from_actor and DangerIgnoreActor[bd_name]) or DangerIgnore[bd_name]
+	local src = DangerIgnore[bd_name]
 	local condlist = _parse_cached(npc, bd_name, "danger_object", src)
 	local ignore_distance = condlist and tonumber(xr_logic.pick_section_from_condlist(db.actor,npc,condlist)) or 0
 
@@ -202,18 +195,6 @@ local function is_danger(npc,best_danger,script)
 		best_danger_object = best_danger:dependent_object()
 	end
 
-	if _enabled.neutral_gunfire and (bd_type == danger_object.attack_sound)
-		and best_danger_object and best_danger_object:id() == AC_ID
-		and npc:relation(db.actor) < game_object.enemy then
-		return (best_danger:position():distance_to_sqr(npc:position()) <= NEUTRAL_GUNFIRE_RADIUS_SQR)
-	end
-
-	if _enabled.hit_bypass and best_danger_object and (best_danger:perceive_type() == danger_object.hit)
-		and not xr_combat_ignore.ignore_enemy_by_overrides(npc, best_danger_object) then
-		if at_debug.is_on() then at_debug.debug("hit-type bypass npc=%s src=%s", npc:name(), best_danger_object:name()) end
-		return true
-	end
-
 	if not (best_danger_object and (IsMonster(best_danger_object) or IsStalker(best_danger_object)) and npc:relation(best_danger_object) >= 2) then
 		return false
 	end
@@ -230,6 +211,12 @@ local function is_danger(npc,best_danger,script)
 	if dbg then _seg_enemy_us = timer:get_us() end
 	if not enemy_ok then
 		return false
+	end
+
+	-- A hit that struck home is proof of range: an enemy's hit counts past the ignore distance, and only past that.
+	if _enabled.hit_bypass and best_danger:perceive_type() == danger_object.hit then
+		if dbg then at_debug.debug("hit-type bypass npc=%s src=%s", npc:name(), best_danger_object:name()) end
+		return true
 	end
 
 	timer = xprofiler.new_if(dbg):start()
@@ -254,6 +241,19 @@ end
 function get_script_danger(id)
 	if not check_script_danger(id) then return nil end
 	return script_danger[id].strength
+end
+
+--- A live stamp activates the scheme, with one exception the Neutral gunfire toggle governs.
+-- Vanilla stamps every stalker whose feet your bullet lands near, relation unchecked (xr_danger.script:97-113), then does nothing
+-- with the stamp alone (xr_danger.script:271-273). With the toggle on, the stamp alerts a stalker neutral or friendly to you;
+-- off, he ignores it as vanilla does. Enemies, mutants and every stamp with another source are untouched.
+local function _has_admitted_stamp(npc)
+	local id = npc:id()
+	if not check_script_danger(id) then return false end
+	if _enabled.neutral_gunfire then return true end
+	local stamp = script_danger[id]
+	if stamp.id ~= AC_ID or not db.actor then return true end
+	return npc:relation(db.actor) >= game_object.enemy
 end
 
 -- The active-theater window per sound-fed episode: the alert machine's own stage-2 give-up band.
@@ -327,7 +327,7 @@ local function eval_danger_raw(self)
 
 	local danger = npc:best_danger()
 
-	if check_script_danger(npc:id()) then
+	if _has_admitted_stamp(npc) then
 		return true
 	end
 
@@ -352,9 +352,7 @@ local function eval_danger_raw(self)
 		end
 	end
 
-	local danger_obj = danger:object()
-	local from_actor = _enabled.actor_tables and danger_obj and danger_obj:id() == AC_ID
-	local src = (from_actor and DangerInertionActor[bd_name]) or DangerInertion[bd_name]
+	local src = DangerInertion[bd_name]
 	local inertion = tonumber(xr_logic.pick_section_from_condlist(db.actor, npc, _parse_cached(npc, bd_name, "danger_inertion_time", src))) or 0
 	local danger_time = cur_danger_time
 
@@ -447,8 +445,17 @@ function at_action_danger:initialize()
 	self.a.last_state = state_mgr.get_state(self.object)
 end
 
+-- The vanilla hit stamp passes an undefined who_id (xr_danger.script:132); the same-frame at_core hit record names the shooter.
+-- A stamp without a position never takes an id, since the source read below measures from it.
+local function _resolve_hit_source(stamp, id)
+	if stamp.id or not stamp.position then return end
+	local rec = at_core.get_combat_record(id)
+	if rec and rec.hit_at == stamp.danger_time then stamp.id = rec.hit_by end
+end
+
 local function script_action_danger_scripted(npc,st)
 	local id = npc:id()
+	_resolve_hit_source(script_danger[id], id)
 	local bdo = script_danger[id].id and db.storage[script_danger[id].id] and db.storage[script_danger[id].id].object
 
 	local bdo_pos = script_danger[id].position
@@ -456,7 +463,7 @@ local function script_action_danger_scripted(npc,st)
 	local who_dist = bdo and bdo:position():distance_to_sqr(bdo_pos)
 
 	local strength = script_danger[id].strength
-	if at_debug.is_on() then at_debug.debug("scripted danger reaction npc=%s strength=%s", npc:name(), tostring(strength)) end
+	if at_debug.is_on() then at_debug.debug("scripted danger reaction npc=%s strength=%s src=%s", npc:name(), tostring(strength), tostring(script_danger[id].id)) end
 	local look_pos = who_dist and who_dist < 22500 and bdo and bdo:position() or bdo_pos
 
 	if (strength == "faint") then
@@ -732,88 +739,6 @@ local function script_action_danger_attacked(npc,st,bd,best_danger_object,depend
 	end
 end
 
-local ALERT_CLOSE_DIST_SQR = 120
-
-local function script_action_danger_alert(npc, st, bd, best_danger_object, dependent_object, bd_type)
-	local bdo = dependent_object or best_danger_object
-	if not bdo or not bdo:alive() then return end
-
-	local npc_pos = npc:position()
-	local bdo_pos = bdo:position()
-	local dist = npc_pos:distance_to_sqr(bdo_pos)
-	local be = npc:best_enemy() or best_danger_object
-	local tg = time_global()
-
-	if bdo:id() == db.actor:id() and npc:relation(db.actor) < game_object.enemy then
-		if not _enabled.neutral_gunfire then return end
-		_set_state_once(npc, "threat_na", {look_position = bdo_pos})
-		return
-	end
-	if not _enabled.attack_sound then return end
-
-	if not st.active_until then
-		st.active_until = tg + math_random(WINDOW_MIN_MS, WINDOW_MAX_MS)
-	end
-	if (tg > st.active_until) then
-		_set_state_once(npc, "threat_na", {look_position = bdo_pos})
-		return
-	end
-
-	if dist <= ALERT_CLOSE_DIST_SQR then
-		if be and npc:see(be) then
-			_set_state_once(npc, "hide_na", {look_object = be})
-			if not utils_obj.squad_in_los(npc, be) then
-				local wpn = npc:best_weapon()
-				if wpn then
-					local look_pos = vector():set(be:position())
-					look_pos.y = look_pos.y + 1.5
-					npc:set_sight(look.fire_point, look_pos)
-				end
-			end
-		else
-			_set_state_once(npc, "threat_danger", {look_position = bdo_pos})
-		end
-
-		st.lvid = utils_obj.send_to_nearest_accessible_vertex(npc, npc:level_vertex_id())
-		return
-	end
-
-	if be and npc:see(be) and npc:relation(be) >= 2 then
-		if not st.stage or st.stage < 1 then st.stage = 1 end
-	else
-		st.stage = 2
-	end
-
-	if st.stage == 1 then
-		local new_vid = random_choice(
-			utils_obj.try_to_strafe(npc),
-			utils_obj.try_go_cover(npc, bdo_pos),
-			utils_obj.try_go_backward(npc, 6)
-		)
-
-		if new_vid and new_vid ~= npc:level_vertex_id() then
-			st.lvid = utils_obj.send_to_nearest_accessible_vertex(npc, new_vid)
-			st.stage = 2
-			_set_state_once(npc, "raid", {look_position = bdo_pos})
-			return
-		end
-
-		_set_state_once(npc, "threat_danger", {look_position = bdo_pos})
-		return
-	end
-
-	if st.stage == 2 then
-		st.__dtimer = st.__dtimer or tg + math_random(8500, 12500)
-		if tg > st.__dtimer or (st.lvid and npc:level_vertex_id() == st.lvid) then
-			st.stage = nil
-			st.__dtimer = nil
-			return
-		end
-		_set_state_once(npc, "threat_danger", {look_position = bdo_pos})
-		return
-	end
-end
-
 function at_action_danger:execute()
 	action_base.execute(self)
 
@@ -821,7 +746,7 @@ function at_action_danger:execute()
 
 	if not npc:alive() then return end
 
-	if (check_script_danger(npc:id())) then
+	if _has_admitted_stamp(npc) then
 		local stamp = script_danger[npc:id()]
 		if stamp.strength ~= "rush" and _is_squad_engaged(npc) then
 			if at_debug.is_on() then at_debug.debug("[REACT] npc=%d stand-down=squad_engaged grade=%s", npc:id(), tostring(stamp.strength)) end
@@ -851,14 +776,6 @@ function at_action_danger:execute()
 		script_action_danger_corpse(npc,self.a,best_danger,best_danger_object,dependent_object,bd_type)
 	elseif (bd_type == danger_object.attacked) then
 		script_action_danger_attacked(npc,self.a,best_danger,best_danger_object,dependent_object,bd_type)
-	elseif (_enabled.attack_sound or _enabled.neutral_gunfire) and (bd_type == danger_object.attack_sound) then
-		if at_debug.is_on() then at_debug.debug("attack_sound dispatch npc=%s src=%s", npc:name(), best_danger_object and best_danger_object:name() or "nil") end
-		if _is_squad_engaged(npc) then
-			if at_debug.is_on() then at_debug.debug("[REACT] npc=%d stand-down=squad_engaged bd=attack_sound", npc:id()) end
-			_set_state_once(npc, "threat_na", {look_position = best_danger:position()})
-			return
-		end
-		script_action_danger_alert(npc,self.a,best_danger,best_danger_object,dependent_object,bd_type)
 	end
 end
 
@@ -922,7 +839,7 @@ function at_evaluator_check_danger:evaluate()
 		return false
 	end
 
-	if (check_script_danger(id)) then
+	if _has_admitted_stamp(self.object) then
 		return true
 	end
 
@@ -936,8 +853,7 @@ function at_evaluator_check_danger:evaluate()
 		return false
 	end
 
-	if not (bd_type == danger_object.attacked or bd_type == danger_object.entity_corpse or bd_type == danger_object.grenade
-		or ((_enabled.attack_sound or _enabled.neutral_gunfire) and bd_type == danger_object.attack_sound)) then
+	if not (bd_type == danger_object.attacked or bd_type == danger_object.entity_corpse or bd_type == danger_object.grenade) then
 		return false
 	end
 
@@ -1062,8 +978,6 @@ local function _refresh_log()
 	at_debug.update_config()
 	if at_mcm then
 		_enabled.hit_bypass      = at_mcm.get_config("danger_hit_bypass")      ~= false
-		_enabled.attack_sound    = at_mcm.get_config("danger_attack_sound")    ~= false
-		_enabled.actor_tables    = at_mcm.get_config("danger_actor_tables")    ~= false
 		_enabled.neutral_gunfire = at_mcm.get_config("danger_neutral_gunfire") ~= false
 	end
 end
@@ -1127,7 +1041,6 @@ local function _install_patches()
 	xr_danger.get_danger_time      = get_danger_time
 	xr_danger.set_script_danger    = set_script_danger
 	xr_danger.has_danger           = has_danger
-	_actor_tables_live = xr_danger.DangerIgnoreActor ~= nil
 	-- The monolith combat scheme drives its own body/movement through set_state, but its four actions
 	-- are absent from combat_action_ids, so the idle evaluator forces st.combat false every solve
 	-- (state_mgr.script:93-96) and state_mgr_to_idle_combat preempts the fight - the crouch/idle thrash.

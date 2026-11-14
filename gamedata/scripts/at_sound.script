@@ -1,8 +1,8 @@
---- at_sound: Danger > Sound - hostile stalkers hear your noise; stalkers glance at heard mutants and hostile footsteps
+--- at_sound: Danger > Sound - the sound memory stores your sounds before first contact, hostiles hear your noise, stalkers glance at heard creatures
 
-local time_global, string_find, string_lower = time_global, string.find, string.lower
+local time_global, string_find, string_lower, string_sub = time_global, string.find, string.lower, string.sub
 local IsStalker, IsMonster, IsMoveState = IsStalker, IsMonster, IsMoveState
-local pairs, tostring, move = pairs, tostring, move
+local pairs, next, tostring, move = pairs, next, tostring, move
 local RegisterScriptCallback, ini_sys, ini_file = RegisterScriptCallback, ini_sys, ini_file
 local string_match, tonumber = string.match, tonumber
 
@@ -12,6 +12,12 @@ local LTX_SECTION = "at_sound"
 local VANILLA_SOUND_THRESHOLD = 0.5
 local VANILLA_NPC_FACTOR      = 1.0
 local STRENGTH_SOLID, STRENGTH_FAINT = "solid", "faint"
+
+-- The sound memory's keep floor and type factors from the config, and the half-second window in which a hostile hearer's enemy check says yes for you.
+local STORE_WINDOW_MS = 500
+local KEEP_FAMILY = { WPN = "weapon", ITM = "item", MST = "npc" }
+local _keep = { floor = VANILLA_SOUND_THRESHOLD, weapon = 1.0, item = 0.5, npc = VANILLA_NPC_FACTOR }
+local _store_open_at = {}
 
 local TICK_SEC
 local STEP_FRESH_MS
@@ -170,14 +176,43 @@ local function _try_glance(npc, id, tg, pos, source)
     end
 end
 
-local function _on_hear(npc, who_id, s_type, dist_sqr, _power, pos)
+--- A keep-worthy sound of yours at a hostile stalker opens his half-second window.
+-- The hear callback runs before the store (sound_memory_manager.cpp:157), so the window is open when the store asks.
+local function _set_store_window(npc, s_type, power)
+    local factor = _keep[KEEP_FAMILY[string_sub(s_type or "", 1, 3)] or "npc"]
+    if (power or 0) * factor < _keep.floor then return end
+    local id, tg = npc:id(), time_global()
+    if at_debug.is_on() and not (_store_open_at[id] and (tg - _store_open_at[id]) <= STORE_WINDOW_MS) then
+        at_debug.debug("[SOUND] store id=%d name=%s type=%s power=%.2f", id, npc:name(), tostring(s_type), power or 0)
+    end
+    _store_open_at[id] = tg
+end
+
+--- Inside the window is_enemy(npc, actor) says yes and the engine's sound memory keeps the sound.
+-- Another subscriber's verdict stands, and an empty table makes the idle cost one table check.
+local function _on_enemy_eval(npc, enemy, flags)
+    if flags.override or next(_store_open_at) == nil then return end
+    local id = npc:id()
+    local opened_at = _store_open_at[id]
+    if not opened_at then return end
+    if (time_global() - opened_at) > STORE_WINDOW_MS then
+        _store_open_at[id] = nil
+        return
+    end
+    if enemy:id() ~= AC_ID then return end
+    flags.override, flags.result = true, true
+end
+
+local function _on_hear(npc, who_id, s_type, dist_sqr, power, pos)
     if who_id == AC_ID then
+        if not (_enabled.move or _enabled.actions) then return end
+        if not (npc and IsStalker(npc) and xcreature.is_actor_enemy(npc)) then return end
+        _set_store_window(npc, s_type, power)
         if not _enabled.actions then return end
         local row = ACTIONS[s_type]
         if not row then return end
         local radius = row[1] * _mult
         if dist_sqr > radius * radius then return end
-        if not (npc and IsStalker(npc) and xcreature.is_actor_enemy(npc)) then return end
         _try_alert(npc, AC_ID, pos, s_type, row[2], REALERT_MS)
         return
     end
@@ -202,13 +237,20 @@ local function _on_entity_unregister(se_obj)
         _alert_at[se_obj.id] = nil
         _alert_strength[se_obj.id] = nil
         _glance_at[se_obj.id] = nil
+        _store_open_at[se_obj.id] = nil
     end
 end
 
-local function _compute_hear_scale()
-    local threshold = ini_sys:r_float_ex("stalker", "sound_threshold") or VANILLA_SOUND_THRESHOLD
+local function _read_keep()
+    _keep.floor = ini_sys:r_float_ex("stalker", "sound_threshold") or VANILLA_SOUND_THRESHOLD
     local perceive = ini_sys:r_string_ex("stalker", "sound_perceive_section") or "stalker_sound_perceive"
-    local npc_factor = ini_sys:r_float_ex(perceive, "npc") or VANILLA_NPC_FACTOR
+    _keep.weapon = ini_sys:r_float_ex(perceive, "weapon") or 1.0
+    _keep.item   = ini_sys:r_float_ex(perceive, "item") or 0.5
+    _keep.npc    = ini_sys:r_float_ex(perceive, "npc") or VANILLA_NPC_FACTOR
+end
+
+local function _compute_hear_scale()
+    local threshold, npc_factor = _keep.floor, _keep.npc
     if threshold <= 0 then return 1.0 end
     local scale = (VANILLA_SOUND_THRESHOLD / threshold) * (npc_factor / VANILLA_NPC_FACTOR)
     if scale < HEAR_SCALE_MIN then return HEAR_SCALE_MIN end
@@ -233,6 +275,7 @@ end
 
 local function _on_first_update()
     _update_config()
+    _read_keep()
     _hear_scale = _compute_hear_scale()
     _start_pass()
     at_debug.info("Sound initialized (move=%s actions=%s creature=%s mult=%.2f hear_scale=%.2f)",
@@ -244,6 +287,7 @@ function on_game_start()
     RegisterScriptCallback("actor_on_footstep",           _on_footstep)
     RegisterScriptCallback("actor_on_land",               _on_land)
     RegisterScriptCallback("npc_on_hear_callback",        _on_hear)
+    RegisterScriptCallback("on_enemy_eval",               _on_enemy_eval)
     RegisterScriptCallback("server_entity_on_unregister", _on_entity_unregister)
     RegisterScriptCallback("actor_on_first_update",       _on_first_update)
     RegisterScriptCallback("on_option_change",            _update_config)

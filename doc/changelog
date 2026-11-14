@@ -82,6 +82,20 @@
         2 sliders per curve replace 8, refit from the old tables a hair softer at the top. Moved sliders on these pages reset to defaults once.
     - Fixed NPC target lead ignoring the loaded round's bullet speed, dead since a key rename. Stalkers again lead a moving target by the round's real flight time.
 
+  Perception
+    Sound
+      - A stalker now hears you before first contact. On the multi-thread exes his sound memory kept nothing from a player he had not seen or heard for a minute.
+          For half a second after a sound of yours loud enough to keep, his enemy check now says yes for you. The sound memory stores the sound and the engine runs its own cover, look-out and search.
+          From the first step, no earlier sighting. Measured on one bandit with one reload: dropped, then stored a second later.
+      - A heard shot now runs the engine's full plan, cover, look-out, hold, detour, search, about 10 m in 20 s. The stance watch that stood in for it is gone, with its Enemy gunfire toggle.
+      - Neutral gunfire alert now governs the reaction a neutral actually gives, to your bullet striking within 30 m of him. The engine discards a neutral's shot itself. The impact is what he notices.
+          Off restores vanilla, where he ignores it.
+    Danger
+      - Removed the Player ranges toggle. The actor-specific danger tables it read are identical to the normal ones in every shipped config. It changed nothing.
+      - Distant hits now applies to enemies only. The relation and alive checks run first and the bypass skips the range gate alone. A neutral's accidental hit is no longer answered as an attack.
+      - Fixed vanilla bug "hit shooter identity". A stalker hit by a bullet lost track of who shot him and stared at the spot the shooter fired from.
+          He now looks at where the shooter is and takes cover from him. It is always on and listed on the Fixes tab.
+
   Mechanics
     Attachments
       - Added attachment mounting. A stalker fits the scope, silencer or grenade launcher that suits his own pistol or rifle once he is out of a fight.
@@ -94,6 +108,8 @@
   Development
     - Added the mutant rows to the debug HUD and the world trace: the live move with its gates, the engine state, health, morale, and target.
     - Every mutant move the mod influences, triggers, or blocks traces at DEBUG, naming its pick and gates, free when off.
+    - Added the hit-reply line to the world trace. For each stalker you hit, at any distance, it logs when he first saw you, when he picked you as his target, and when he fired back.
+    - The danger trace now logs how far each danger mark lies from the stalker, and which source his reaction looks at.
 
 1.2.1
   Summary: Combat substrate, maneuvers widened to every nearby fight, Faction flavor, Push and Pull windows, Weapon spacing, Glide stop, targeting fixes, the Disclosure page removed,

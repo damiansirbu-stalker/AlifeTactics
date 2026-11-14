@@ -204,20 +204,19 @@ The Sound and Danger reactions are a runtime patch laid onto whichever danger sc
 Detection distances stay owned by your setup's danger config, and AlifeTactics adds only the reactions.
 
 Sound:
-In vanilla a stalker hears a shot anywhere inside its reach and answers it with the engine's own cover, look-out, detour and search.
+In vanilla a stalker hears a shot anywhere inside its reach and answers it with the engine's own cover, look-out, detour and search. AlifeTactics leaves that plan alone.
 Everything quieter barely reaches him: a running step only inside about 6 m, a reload inside 4 m, a walk never.
-On the multi-thread exes none of those count at all from a player he has not seen or heard in the last two minutes.
-AlifeTactics turns that movement and handling noise into graded danger the engine's own scheme already runs, from the first step, with no earlier sighting needed.
-Each footstep and handling sound stamps the scheme at the source, and the scheme owns the reaction and its cleanup for whatever evidence grade the stamp carries.
+On the multi-thread exes his sound memory also refuses every sound from a player he has not seen or heard for a minute (two on GAMMA). A quiet sound never starts anything.
+AlifeTactics answers that refusal. For half a second after a sound of yours loud enough to keep, the hostile hearer's enemy check says yes for you.
+His sound memory then stores the sound and the engine runs its own reaction, from the first step, with no earlier sighting.
+What the engine still cannot keep, your footsteps and handling noise, stamps the danger scheme at the source with an evidence grade the scheme already runs.
 A faint stamp turns a standing stalker weapon-ready toward its source, and solid evidence sends him over to check the spot himself.
 A moving stalker ignores a faint stamp, and no sound alone ever drives a run.
 Nearby creature cries draw a lighter response, a head-turn a standing stalker gives out of combat that leaves him in place and outside the danger scheme.
 Mutant cries always earn that glance, another stalker's only when the two are hostile.
-On an enemy shot without sight AlifeTactics replaces the engine's own cover and search with a threat stance toward the sound until the shooter shows.
-Neutral or friendly shots within 30m put him on alert without turning him hostile.
+Your bullet landing within 30 m of a neutral or friendly stalker puts him on alert without turning him hostile. Off, he ignores it as vanilla does.
 A step's noise scales with stance, surface, and weather, and a crouch makes none at all.
-Footsteps reach the engine's ear as well, where it drops them as too quiet or as coming from someone it has not perceived yet.
-This channel stays inside the scripts and never writes the engine's bounded sound memory.
+The stamp channel stays inside the scripts and never writes the engine's bounded sound memory.
 Sound never touches vision, seen-memory, or the sight test. It reads the config's own hearing sensitivity. A setup that deafens the AI quiets this too.
 
 Vision:
@@ -231,7 +230,6 @@ Both are base plus percent-per-rank slider pairs under one Vision toggle, on the
 Danger:
 A stalker hit from far off reacts even when vanilla would have him stand still. Sniped at 200m he turns and seeks cover.
 The reaction is the duck, and returning fire at that range is the planned Range page above.
-One tuning toggle lets danger you cause read your setup's separate player-specific ranges where the config provides them.
 A Player target pull dial tunes how strongly NPCs prioritize you over other combatants once you are seen, down to treating you like anyone else.
 A hit victim turns on his shooter through the engine's own target selection, always on: the real "he hit me" signal outweighs a distant visible enemy,
 and he returns fire the moment he has line of sight. Nothing is revealed through walls, and a suppressed kill tells no one.

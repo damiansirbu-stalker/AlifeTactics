@@ -750,10 +750,10 @@
     <text>How a stalker's eyes scale with rank: how fast he turns a glimpse into a confirmed threat (speed), and how far out he begins to notice one (range). Both are reaction and experience, not raw eyesight, and sit in a tight band around your setup's baseline. Range needs a recent engine build with the per-stalker view-distance bind. On older builds only the speed curve applies.</text>
   </string>
   <string id="ui_mcm_at_perception_danger_desc">
-    <text>How stalkers react to being hit. The distant-hit response and the player-range tuning toggle below. The vanilla danger-check and corpse fixes moved to the Fixes tab. AlifeTactics installs as a runtime patch onto whichever danger script your modpack ships.</text>
+    <text>How stalkers react to being hit. The distant-hit response below. The vanilla danger-check and corpse fixes moved to the Fixes tab. AlifeTactics installs as a runtime patch onto whichever danger script your modpack ships.</text>
   </string>
   <string id="ui_mcm_at_danger_sound_desc">
-    <text>How stalkers react to what they hear. Gunfire reactions use your setup's danger config distances, and your own noise (movement, handling) uses short built-in radii. It patches at runtime onto whichever danger script your modpack ships, works with other combat AI, and replaces nothing. It is compatible with stealth mods: stealth is about being seen (light, cover, stance), and the sound system never touches vision or detection. Hearing only adds the short-range sense vanilla lacks, and crouched movement is silent, so a stealth approach plays exactly as your stealth setup intends.</text>
+    <text>How stalkers react to what they hear. A heard shot runs the engine's own cover, look-out and search, untouched. Your own noise (movement, handling) is stored by a stalker's sound memory from the first step, and what it still drops uses short built-in radii. It patches at runtime onto whichever danger script your modpack ships, works with other combat AI, and replaces nothing. It is compatible with stealth mods: stealth is about being seen (light, cover, stance), and the sound system never touches vision or detection. Hearing only adds the short-range sense vanilla lacks, and crouched movement is silent, so a stealth approach plays exactly as your stealth setup intends.</text>
   </string>
   <string id="ui_mcm_at_danger_hdr_gunfire">
     <text>Gunfire</text>
@@ -767,17 +767,11 @@
   <string id="ui_mcm_at_fixes_danger_danger_hit_bypass_desc">
     <text>Vanilla stalkers ignore distant shooters because a distance gate caps the response. With this on a direct hit always registers, so a sniped stalker at 200m turns and seeks cover instead of standing still.</text>
   </string>
-  <string id="ui_mcm_at_fixes_danger_danger_attack_sound">
-    <text>Enemy gunfire</text>
-  </string>
-  <string id="ui_mcm_at_fixes_danger_danger_attack_sound_desc">
-    <text>Vanilla NPCs ignore gunfire they hear but cannot see. This makes a stalker react to an enemy's shots without line of sight: he turns to face the gun and takes a threat stance, and moves to cover once he can see the shooter. He is responding to the sound, not to sight of you. Gunfire from neutral or friendly stalkers, including yours, does not alarm them, which is the engine's relation rule, same as vanilla. Reaction distance follows your setup's danger config.</text>
-  </string>
   <string id="ui_mcm_at_danger_danger_neutral_gunfire">
     <text>Neutral gunfire alert</text>
   </string>
   <string id="ui_mcm_at_danger_danger_neutral_gunfire_desc">
-    <text>Neutral and friendly stalkers go on alert when you fire close to them, taking a weapon-ready stance and facing your shots, instead of ignoring gunfire next to their heads. Alert is all it is: they do not turn hostile, do not reposition, and settle down when the shooting stops. Short reach, nowhere near combat detection ranges.</text>
+    <text>A neutral or friendly stalker goes on alert when your bullet lands within 30 m of him: he takes a weapon-ready stance facing the impact, moves a step to cover, and settles when the shooting stops. The engine itself discards a neutral's shot before it counts, so the bang alone never alarms him. Vanilla stamps the impact on him and then ignores it. Off, he ignores it too. He never turns hostile.</text>
   </string>
   <string id="ui_mcm_at_danger_danger_move_noise">
     <text>Movement noise</text>
@@ -802,12 +796,6 @@
   </string>
   <string id="ui_mcm_at_danger_danger_noise_mult_desc">
     <text>Scales how far your movement and handling noise carries. Below 1 makes stealth more forgiving, above 1 lets stalkers hear you from farther off.</text>
-  </string>
-  <string id="ui_mcm_at_fixes_danger_danger_actor_tables">
-    <text>Player ranges</text>
-  </string>
-  <string id="ui_mcm_at_fixes_danger_danger_actor_tables_desc">
-    <text>Danger caused by you reads the separate actor tables where your setup's danger config differentiates them (some combat AI mods do). Applies only when your installed danger script itself uses those tables. A config that ships the section unused, or with identical tables, keeps its own tuning.</text>
   </string>
   <string id="ui_mcm_at_danger_hdr_targeting">
     <text>Target priority</text>
@@ -842,11 +830,11 @@
   <string id="ui_mcm_at_danger_fix_time_value_desc">
     <text>A bad danger time value no longer crashes the evaluator.</text>
   </string>
-  <string id="ui_mcm_at_danger_fix_hit_memory">
-    <text>Hit memory integrity</text>
+  <string id="ui_mcm_at_danger_fix_hit_shooter">
+    <text>Hit shooter identity</text>
   </string>
-  <string id="ui_mcm_at_danger_fix_hit_memory_desc">
-    <text>The hit callback no longer corrupts danger memory with a missing shooter on every hit.</text>
+  <string id="ui_mcm_at_danger_fix_hit_shooter_desc">
+    <text>A stalker hit by a bullet knows who shot him. He looks at the shooter's live position and takes cover from it, where vanilla loses the shooter on every hit.</text>
   </string>
   <string id="ui_mcm_at_danger_fix_anim_cleanup">
     <text>Danger animation cleanup</text>
