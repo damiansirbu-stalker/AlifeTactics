@@ -44,6 +44,8 @@ local NAT_BLINDFIRE_MS    = 1000
 local NAT_DECOUPLE_DEG    = 75
 local NAT_DECOUPLE_MS     = 600
 local NAT_GESTURE_MS      = 450
+-- How long a player-hit NPC is watched for sight, selection and return fire, at any distance.
+local REPLY_MS            = 10000
 local MOB_SAMPLE_MS       = 500
 local MOB_CONTACT_ENTER_M = 3.5
 local MOB_CONTACT_EXIT_M  = 4.5
@@ -88,6 +90,7 @@ local _nat = {}
 local _shot_at = {}
 local _hit_at = {}
 local _hit_by = {}
+local _reply = {}
 local _mob = {}
 local _orig_set_state
 local _MOVE
@@ -514,6 +517,62 @@ local function _update_npc(npc, ap, tg)
     _nat_ms, _nat_n = _nat_ms + timer:get_ms(), _nat_n + 1
 end
 
+-- The first shot while the player is the selected enemy; a shot implies the selection.
+local function _update_reply_shot(obj)
+    local rec = _reply[obj:id()]
+    if not rec or rec.fired_ms then return end
+    local be = xcombat.get_best_enemy(obj)
+    if not (be and be:id() == AC_ID) then return end
+    rec.fired_ms = time_global() - rec.t0
+    rec.enemy_ms = rec.enemy_ms or rec.fired_ms
+end
+
+-- One close line; live is nil when the NPC died or went offline, and the close-time fields read "-".
+local function _log_reply(live, id, rec, ending)
+    local ac = db.actor
+    local dist, rel, op, sub, fms, ci = -1, "-", "-", "-", "-", "-"
+    if live then
+        dist = live:position():distance_to(ac:position())
+        rel = xcreature.get_actor_relation(live) or "-"
+        op = xcombat.get_operator(live)
+        sub = xcombat.get_combat_action(live) or "-"
+        ci = tostring(load_var(live, "xr_combat_ignore_enabled"))
+        if rec.enemy_ms and not rec.fired_ms then fms = xcombat.fire_make_sense(live, ac) and "y" or "n" end
+    end
+    log.info("[WORLD] reply id=%d %s end=%s dist0=%.0f dist=%.0f rel0=%s rel=%s op0=%s sub0=%s op=%s sub=%s" ..
+        " seen_ms=%d enemy_ms=%d fired_ms=%d fms=%s ci=%s hits=%d hour=%d rain=%.2f",
+        id, rec.name, ending, rec.dist0, dist, rec.rel0, rel, rec.op0, rec.sub0, op, sub,
+        rec.seen_ms or -1, rec.enemy_ms or -1, rec.fired_ms or -1, fms, ci, rec.hits,
+        level.get_time_hours(), level.rain_factor())
+end
+
+-- Why the record closes now, or nil while the window is still open.
+local function _get_reply_ending(npc, live, rec, tg)
+    if not npc then return "offline" end
+    if not live then return "dead" end
+    if rec.fired_ms then return "fired" end
+    if tg - rec.t0 >= REPLY_MS then return "timeout" end
+    return nil
+end
+
+-- One record per monitor tick: sticky first times while live, since the visible bit lasts one frame.
+-- Past 70m the edge-only POSE line gives the timeline, and the close line prints once an ending holds.
+local function _update_reply(id, rec, tg)
+    local npc = xobject.get_go(id)
+    local live = npc and npc:alive() and npc or nil
+    if live then
+        local since = tg - rec.t0
+        if not rec.seen_ms and xcombat.can_see(live, db.actor) then rec.seen_ms = since end
+        local be = not rec.enemy_ms and xcombat.get_best_enemy(live)
+        if be and be:id() == AC_ID then rec.enemy_ms = since end
+        if not _near_ids[id] then _log_pose(live, id, tg) end
+    end
+    local ending = _get_reply_ending(npc, live, rec, tg)
+    if not ending then return end
+    _log_reply(live, id, rec, ending)
+    _reply[id] = nil
+end
+
 local function _run_monitor()
     if not _enabled then return true end
     ResetTimeEvent("at_world_trace", "monitor", SAMPLE_SEC)
@@ -524,14 +583,24 @@ local function _run_monitor()
     for i = 1, #db.OnlineStalkers do
         _update_npc(xobject.get_go(db.OnlineStalkers[i]), ap, tg)
     end
+    for id, rec in pairs(_reply) do _update_reply(id, rec, tg) end
     return false
 end
 
+-- The first player hit opens the reply record; a later hit only counts, and the window keeps its start.
 local function _on_hit(npc, amount, _local_direction, who, bone_index)
     if not (npc and IsStalker(npc) and npc:alive() and db.actor) then return end
     local id = npc:id()
     _hit_at[id] = time_global()
     _hit_by[id] = who and who:id() or nil
+    local rec = who and who:id() == AC_ID and _reply[id]
+    if rec then
+        rec.hits = rec.hits + 1
+    elseif who and who:id() == AC_ID then
+        _reply[id] = { t0 = _hit_at[id], hits = 1, name = npc:name() or "?",
+                       dist0 = npc:position():distance_to(who:position()), rel0 = xcreature.get_actor_relation(npc) or "-",
+                       op0 = xcombat.get_operator(npc), sub0 = xcombat.get_combat_action(npc) or "-" }
+    end
     if _watch[id] then return end
     local pos = npc:position()
     _watch[id] = { t0 = time_global(), x = pos.x, z = pos.z, anims0 = npc:animation_count(), drv0 = _get_driver(id),
@@ -590,6 +659,7 @@ local function _on_unregister(se_obj)
     _mob[id] = nil
     _hit_at[id] = nil
     _hit_by[id] = nil
+    _reply[id] = nil
 end
 
 -- CLASH names the two scripts flipping one near NPC's state against each other.
@@ -669,6 +739,7 @@ end
 
 local function _on_shot(obj, wpn, body_state, move_type, temp_disp)
     if not (obj and db and db.actor) then return end
+    _update_reply_shot(obj)
     if obj:position():distance_to_sqr(db.actor:position()) > SHOOTER_RADIUS_SQR then return end
 
     local id = obj:id()
@@ -1082,7 +1153,7 @@ local function _apply_enabled()
     _enabled = want
     if _enabled then
         _slide, _watch, _speed = {}, {}, {}
-        _clash, _near_ids, _mob = {}, {}, {}
+        _clash, _near_ids, _mob, _reply = {}, {}, {}, {}
         _speed_ceiling = _speed_ceiling or _compute_ceiling()
         _reset()
         if not _orig_set_state then
