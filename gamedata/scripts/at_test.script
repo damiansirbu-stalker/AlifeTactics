@@ -372,7 +372,9 @@ end
 local function _on_manifest_mob_update(mob)
     if not (_manifest and mob and mob:alive()) then return end
     local rec = at_mutants.get_mutant_record(mob:id())
-    if not (rec and rec.fired_at) then return end
+    if not rec then return end
+    _manifest.records[mob:id()] = rec
+    if not rec.fired_at then return end
     if _manifest.seen[mob:id()] ~= rec.fired_at then
         _manifest.seen[mob:id()] = rec.fired_at
         local move = rec.fired_move or "?"
@@ -381,14 +383,22 @@ local function _on_manifest_mob_update(mob)
     end
 end
 
---- Write the species coverage line: which of its decided moves fired, which did not.
+--- Write the species coverage line: which of the decided moves the spawned pair carried fired, which did not.
+--- Expected is the union of the pair's repertoires, since a move outside every repertoire can never fire.
 local function _log_manifest_coverage()
     local expected = at_mutants.get_species_moves(_manifest.species)
-    local fired, missed = {}, {}
+    local fired, missed, absent = {}, {}, {}
     for move in pairs(expected) do
-        if _manifest.fired[move] then fired[#fired + 1] = move else missed[#missed + 1] = move end
+        local carried = false
+        for _, rec in pairs(_manifest.records) do
+            if rec.repertoire and rec.repertoire[move] then carried = true break end
+        end
+        if not carried then absent[#absent + 1] = move
+        elseif _manifest.fired[move] then fired[#fired + 1] = move
+        else missed[#missed + 1] = move end
     end
-    _manifest_log.info("%-12s fired=[%s] missed=[%s]", _manifest.species, table_concat(fired, " "), table_concat(missed, " "))
+    _manifest_log.info("%-12s fired=[%s] missed=[%s] absent=[%s]", _manifest.species,
+        table_concat(fired, " "), table_concat(missed, " "), table_concat(absent, " "))
 end
 
 --- Clear, spawn a pair of the next species, reset the per-species fire tally.
@@ -397,6 +407,7 @@ local function _start_manifest_species(i)
     _manifest.species = MANIFEST_ROSTER[i]
     _manifest.fired = {}
     _manifest.seen = {}
+    _manifest.records = {}
     _manifest.at = time_global()
     _manifest.next_announce = 0
     _manifest.phase = 1
@@ -548,7 +559,7 @@ function run_manifest(start_species)
         return _show_tip("AT.MANIFEST: TestZone not loaded (needs tz_commands)")
     end
     _manifest_log = xlog.get_logger("manifest_at", { outfile = "manifest_at.log", buffer_size = 1, level = "INFO" })
-    _manifest = { tz = tz, snap = _get_eff_cfg(), fired = {}, seen = {}, next_announce = 0 }
+    _manifest = { tz = tz, snap = _get_eff_cfg(), fired = {}, seen = {}, records = {}, next_announce = 0 }
     at_mcm.cfg.mut_int_base = MANIFEST_INT
     _manifest_log.info("========== MANIFEST RUN int=%d count=%d dist=%dm window=%ds ==========", MANIFEST_INT, MANIFEST_COUNT, MANIFEST_DIST, MANIFEST_SEC)
     tz.start_lifepump(1.0, 0.02)

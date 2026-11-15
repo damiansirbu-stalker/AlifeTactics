@@ -140,7 +140,11 @@ local function _on_net_spawn(npc)
     if cfg.combat_ignore_companions and xcreature.is_companion(npc) then return end
     local id = npc:id()
     if _npc_states[id] then return end
-    _npc_states[id] = { id = id, ran_at = {} }
+    local repertoire, faction = at_faction.build_repertoire(npc)
+    _npc_states[id] = { id = id, ran_at = {}, repertoire = repertoire }
+    if at_debug.is_on() then
+        at_debug.debug("[CMB] repertoire id=%d faction=%s actions=%s", id, faction, at_faction.format_repertoire(repertoire))
+    end
 end
 
 local function _on_hit(npc, amount, _local_direction, who, bone_index)

@@ -298,9 +298,13 @@ At 0 a kind is identical and learnable. At 100 no two spawns read alike.
 Species:
 Each species gets its own page carrying only the moves its body has. First come the managed moves, the creature's own attacks and the values AlifeTactics varies.
 Then come the new moves the vanilla game never fires for it.
-The leap family reads your aim, your movement, and your perch. Sudden leap strikes at once, with no wind-up, when you aim at it, reload, or turn your back.
-Adjusting leap steers mid-air to follow you while you move. Intercepting leap aims at where you will be when you run in a line.
-Charged leap, the one leap with a wind-up, springs up at a shooter above it. Climbing a rock or a ledge stops being safe. The bloodsucker closes the gap with its own Closing leap, then claws.
+The leap family reads your aim, your movement, and your perch. Punishing leap strikes at once, with no wind-up, when you aim at it, reload, or turn your back.
+Hunting leap crouches, then steers mid-air to follow you while you move. Feral leap does the same with no warning.
+Catching leap crouches, then leaps at where you will be when you run in a line. Cutoff leap does the same with no warning.
+High leap springs up at a shooter above it, with a wind-up. Climbing a rock or a ledge stops being safe. The bloodsucker closes the gap with its own Closing leap, then claws.
+Every leaping species except the bloodsucker can take each of the six shared leaps. Its Personality, rolled once per individual, decides which ones it carries.
+A chimera rarely telegraphs, a dog jumps straight and open, a snork steers, a cat strikes from your blind side.
+Ten seconds pass between any two of a mutant's own leaps, and twenty before it repeats the same one.
 Backstrike arms a spin strike on an enemy circling behind, once per individual, on the four species whose models carry the motions. Claw gives the chimera the point-blank pounce vanilla never gave it.
 Flee breaks a dying mutant out of the fight, rarely, and only when it is far enough to escape. A mutant with no escape fights to the end.
 Cloak sends a bloodsucker invisible when you aim at it or hit it while it is still closing. It re-appears a beat later, and never vanishes once it is already at strike range.

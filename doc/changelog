@@ -19,9 +19,12 @@
           Intelligence, a base plus a bonus per map rank, decides whether it reads the moment right.
         - A missed roll lets the opening pass. A Cordon dog wastes most of its chances, a deep-Zone chimera takes them. A cap on how many driven moves run at once holds a pack to waves.
       Personality
-        - Each mutant kind takes each of its moves at its own chance, the way a faction has its doctrine.
+        - Each mutant kind carries each of its moves at its own chance, the way a faction has its doctrine.
           A chimera leaps and claws without pause and never routs, a flesh bolts early, a cat darts and circles.
-        - The final chance is Intelligence times Personality. A sharp read still acts only when the creature's Personality would. The values are grounded in GSC's own per-creature design.
+        - Personality is rolled once, when the mutant enters the fight, and decides which moves this individual carries for the whole fight. Two chimeras of one pack fight differently.
+          Stalkers roll the same way when they come into view. A faction's chance on an action is now the share of its men who ever take it.
+        - A mutant or stalker spends its three condition checks per beat only on moves it carries and has ready. A creature with a favourite move tries it almost every beat.
+        - The values are grounded in GSC's own per-creature design. Each species prefers one or two leaps and dislikes others, never a certainty.
       Wild
         - One dial for how much a mutant's own numbers vary between individuals: the move timings, how hard it leaps and steers, and the ranges, bands, and reach of its abilities.
             At 0 a kind is identical and learnable, at 100 no 2 spawns read alike.
@@ -30,19 +33,20 @@
         - A mutant reads your aim from where you look, not from where your body points. Strafing with your sights on it now counts as aiming.
 
     Power
-      Damage
-        - A mutant hits harder as the Zone deepens, a percent per rank over your install's own balance.
       Resistance
         - A mutant takes less damage as the Zone deepens, a percent per rank over your install's own balance.
 
     Moves
       Leap family
-        - Charged leap springs up at you when you take high ground, the one leap with a wind-up, the crouch a perched player sees coming. Camping a rock or a ledge is no longer safe.
-        - Sudden leap strikes at once, with no wind-up, when you aim at it, reload, sprint, or turn your back.
-        - Adjusting leap steers in the air to follow you while you move. Intercepting leap aims at where you will be when you run in a line, a smarter mutant leading you further.
-            Both are signature moves. A mutant uses each at most once every 30 seconds, and each lands once or twice in a fight.
+        - Seven leaps. Every leaping species except the bloodsucker can take each of the six shared ones, and its Personality, rolled once per individual, decides which it carries.
+            A chimera rarely telegraphs, a dog jumps straight and open, a snork steers, a cat strikes from your blind side, a lurker and a pseudodog leap ahead of you.
+        - High leap springs up at you when you take high ground, with a wind-up, the crouch a perched player sees coming. Camping a rock or a ledge is no longer safe.
+        - Punishing leap strikes at once, with no wind-up, when you aim at it, reload, sprint, or turn your back.
+        - Hunting leap crouches, then steers in the air to follow you while you move. Feral leap does the same with no warning, the most lethal leap.
+        - Catching leap crouches, then leaps at where you will be when you run in a line. Cutoff leap does the same with no warning, a smarter mutant leading you further.
         - Closing leap gives the bloodsucker its own gap-closer: it flies to you on a perch or under your aim, then strikes with its claws. It never hits in the air.
-        - The instant leaps fly at full strength, each mutant with its own. They reach you fast and flat instead of lobbing over your head.
+        - Ten seconds pass between any two of a mutant's own leaps, and twenty before it repeats the same one. Its vanilla jumps stay outside that pacing.
+        - The leaps fly at full strength, each mutant with its own. They reach you fast and flat instead of lobbing over your head.
         - A leap it cannot make, out of range, at a bad angle, over its height, or out of its allowed area, does not fire. Neither does a leap at an enemy it cannot see.
       Gravity
         - A burer forces its gravity throw when you cannot answer it, caught reloading or with your back turned, the moment its own shield is not needed.
@@ -96,11 +100,11 @@
       - Attempted murder: a knife swing that misses is now noticed. Vanilla registers nothing until a hit lands, and a failed stealth kill left the victim idle.
           The stalker in front of you within 3 m gets up, raises his weapon and faces you. A hostile who sees you fights.
           A neutral or friend reacts under Neutral gunfire alert and never turns hostile for a miss. Works with the quick melee. Its own toggle, default on.
+      - Fixed a seated stalker who heard your reload, steps or bullet impact getting up and walking off facing away. He now faces you while he moves, takes position and watches.
       - Removed the Player ranges toggle. The actor-specific danger tables it read are identical to the normal ones in every shipped config. It changed nothing.
       - Distant hits now applies to enemies only. The relation and alive checks run first and the bypass skips the range gate alone. A neutral's accidental hit is no longer answered as an attack.
       - Fixed vanilla bug "hit shooter identity". A stalker hit by a bullet lost track of who shot him and stared at the spot the shooter fired from.
           He now looks at where the shooter is and takes cover from him. It is always on and listed on the Fixes tab.
-      - Fixed a seated stalker who heard your reload, steps or bullet impact getting up and walking off facing away. He now faces you while he moves, takes position and watches.
 
   Mechanics
     Attachments

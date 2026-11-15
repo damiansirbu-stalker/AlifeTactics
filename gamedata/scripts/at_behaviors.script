@@ -154,8 +154,9 @@ local function _apply_push_writes(npc, state, target, cause)
     end
 end
 
+-- Repertoire first (a non-presser never reads the opening), then the gate, the press cooldown and the participant filter.
 local function _can_open_push(npc, state, tg)
-    return at_core.is_in_gate(state) and tg >= (state.push_until or 0)
+    return state.repertoire.push == true and at_core.is_in_gate(state) and tg >= (state.push_until or 0)
         and at_faction.is_participant(npc)
 end
 
@@ -168,9 +169,9 @@ local function _get_stop_cause(state, human, joined, tg)
     return nil
 end
 
--- The open roll: a miss spends the opening for the press cooldown.
+-- The open roll, Intelligence per opening: a miss spends the opening for the press cooldown.
 local function _check_push_roll(npc, state, tg, cause)
-    if at_faction.check_intelligence(npc) and at_faction.check_personality(npc, "push") then return true end
+    if at_faction.check_intelligence(npc) then return true end
     state.push_until = tg + PUSH_PRESS_COOLDOWN_MS
     if at_debug.is_on() then
         at_debug.debug("[PUSH] PASS id=%s cause=%s", show(state.id), cause)
@@ -227,7 +228,9 @@ local function _clear_pull_npc(npc, state, why, tg)
     state.pull, state.pull_at, state.pull_dist = nil, nil, nil
 end
 
+-- Repertoire first (a non-puller never reads the opening), then the cooldown, the target, the opening and one Intelligence roll.
 local function _try_open_pull(npc, state, tg)
+    if not state.repertoire.pull then return end
     if not at_faction.is_participant(npc) then return end
     if tg < (state.pull_until or 0) then return end
     local target = _get_target(state)
@@ -238,7 +241,7 @@ local function _try_open_pull(npc, state, tg)
     local cause = _get_pull_cause(npc, state, tg, false)
     if not cause then return end
     if not _check_start(state, "[PULL]") then return end
-    if not (at_faction.check_intelligence(npc) and at_faction.check_personality(npc, "pull")) then
+    if not at_faction.check_intelligence(npc) then
         state.pull_until = tg + PULL_COOLDOWN_MS
         if at_debug.is_on() then
             at_debug.debug("[PULL] PASS id=%s cause=%s", show(state.id), cause)

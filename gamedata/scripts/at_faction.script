@@ -1,6 +1,6 @@
 --- at_faction: the stalker decision gates - the faction maneuver lists and Intelligence (base + rank), from at_faction_config.ltx
 
-local math_random, math_min = math.random, math.min
+local math_random, math_min, table_concat = math.random, math.min, table.concat
 
 local LTX_PATH   = "alifetactics\\at_faction_config.ltx"
 local ZOMBIED    = "zombied"
@@ -9,6 +9,9 @@ local cfg = at_mcm.cfg
 
 local _ini = xltx.resolve_handle(LTX_PATH)
 local _intelligence_cap = xltx.read_num(_ini, "caps", "intelligence") or 0.75
+-- The actions a stalker's repertoire covers: every per-opening action with a faction section; conduct stays the lifelong trait at_conduct rolls.
+local ACTIONS = { "counterflank", "reload_cover", "flee", "retreat", "kite", "pickoff", "push", "pull", "liquidate" }
+
 local _chances = {}
 local _tier_index = nil
 
@@ -23,9 +26,8 @@ local function _compute_intelligence(npc)
     return math_min((cfg.int_base + cfg.int_rank_pct * index) / 100, _intelligence_cap)
 end
 
--- The per-action Personality chance for this faction, cached; a missing action or faction = 1.0 (universal).
-local function _get_personality(npc, action)
-    local faction = xcreature.get_community(npc)
+-- The per-action Personality chance for a faction, cached; a missing action or faction = 1.0 (universal).
+local function _get_chance(faction, action)
     local ck = action .. "/" .. faction
     local chance = _chances[ck]
     if chance == nil then
@@ -45,12 +47,28 @@ function check_intelligence(npc)
     return math_random() < _compute_intelligence(npc)
 end
 
---- Does this faction ever take the action - Personality above zero, the cheap early membership gate.
-function has_action(npc, action)
-    return _get_personality(npc, action) > 0
+--- The repertoire: the faction's Personality rolled ONCE per action when the combat record is created, the actions this stalker carries while online.
+--- The community is read once, and the faction comes back with the set for the trace.
+function build_repertoire(npc)
+    local faction = xcreature.get_community(npc) or "default"
+    local repertoire = {}
+    for i = 1, #ACTIONS do
+        local action = ACTIONS[i]
+        if at_core.check_chance(_get_chance(faction, action)) then repertoire[action] = true end
+    end
+    return repertoire, faction
 end
 
---- Roll the action's Personality for this faction, per opening; >= 1 always, 0 never, between rolls.
+--- A repertoire as one string in ACTIONS order, for the trace.
+function format_repertoire(repertoire)
+    local parts = {}
+    for i = 1, #ACTIONS do
+        if repertoire[ACTIONS[i]] then parts[#parts + 1] = ACTIONS[i] end
+    end
+    return #parts > 0 and table_concat(parts, " ") or "-"
+end
+
+--- Roll the action's Personality for this faction per opening; >= 1 always, 0 never, between rolls (the lifelong conduct trait).
 function check_personality(npc, action)
-    return at_core.check_chance(_get_personality(npc, action))
+    return at_core.check_chance(_get_chance(xcreature.get_community(npc) or "default", action))
 end

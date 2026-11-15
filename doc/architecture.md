@@ -77,23 +77,30 @@ Commitment runs on the action-switch and cover-repick vetoes, Conduct on the bod
 ## Decision model
 
 Every lever decides the same way. An objective premise, a read of the fight, gates a chance, and only a passed roll acts.
-The chance is Intelligence then Personality. Intelligence is a base plus a per-rank term, capped. Personality is the proclivity to take that one move.
+The chance is Personality then Intelligence. Personality is the proclivity to carry a move at all. Intelligence is a base plus a per-rank term, capped, the chance of reading the opening right.
 
 - Faction per-action chance: the `[<action>]` sections of `at_faction_config.ltx`.
 - Species per-move chance: the `[personality_*]` sections of `at_mutants_config.ltx`. The `[moves]` envelope gates whether a species carries a move at all. 0 never, 1 always, absent universal.
 - Two Intelligence controls: the stalker's on the Combat General page keyed to his own rank, the mutant's on the Mutants General page keyed to the map tier (`xlevel.get_danger_tier`, 0-5).
 
-Each decision moment takes one Intelligence roll over its atomic checks, weighed in one pass. Each atomic check then carries its own Personality roll.
+PERSONALITY IS A REPERTOIRE. It rolls once per combat record, over every move the individual's kind carries, and the record holds the set for its life.
+A 0.8 move sits in 8 of 10 individuals, who take every opening their Intelligence passes; the other 2 never try it. The average rate per opening is unchanged, and individuals differ.
+The stalker record is born at `npc_on_net_spawn` (`at_core._on_net_spawn`, `at_faction.build_repertoire`), the mutant record at adoption (`at_mutants._build_repertoire`), and each dies with its record,
+so a later encounter rolls again (the backstrike precedent). The faction or species is read at roll time. One DEBUG line per record prints the set: `[CMB] repertoire`, `[MUT] repertoire`.
 
-- A selection weighs its checks in one pass, Intelligence rolling once at the top for every candidate: the maneuver walk (`_select_maneuver`), the mutant beat (`_select_move`).
-- The single roll per selection stops N candidates from becoming N Intelligence chances.
-- Independent openings fire on their own triggers, each rolling Intelligence at its own opening: Push on the target's weakness, Pull on the NPC's own.
-- A single-check decision is one moment, one roll: the Liquidate deferral.
+Each decision moment takes one Intelligence roll, weighed in one pass.
+
+- A selection filters, shuffles, then checks conditions. The filter is table reads only, the repertoire, the MCM toggle, the mutant cooldown keys, the stalker scope and weapon palette, and a filtered move spends no slot.
+  The survivors shuffle (`xmath.shuffle_back`), and the walk checks the conditions of at most `candidates` of them (`[select]` for mutants, `[at_maneuvers]` for stalkers, 3 each); the first that fires wins.
+  The cap counts condition checks only, so no slot goes to a move the individual would refuse or cannot fire yet: the maneuver walk (`_select_maneuver`), the mutant beat (`_select_move`).
+- The single Intelligence roll per selection stops N candidates from becoming N Intelligence chances.
+- Independent openings check the repertoire first, then their opening, then roll Intelligence at that opening: Push on the target's weakness, Pull on the NPC's own, claw on contact, the Liquidate deferral.
+  A missed Intelligence roll still stamps the move's cooldown (Push, Pull, claw), since the opening was spent; repertoire membership stamps nothing.
 
 A lever takes one of three shapes, told apart by who owns the trigger.
 
-- Per-opening action: AlifeTactics fires it. Intelligence and Personality roll at each opening - the leaps, flee, claw, gravity, cloak, Push, Pull, the Liquidate deferral, the maneuvers.
-- Persistent trait: the engine or a vanilla loop fires it, no opening to see. The roll is once per life and caches - backstrike, the charge press, Conduct discipline.
+- Per-opening action: AlifeTactics fires it. Repertoire, then Intelligence at each opening - the leaps, flee, claw, gravity, cloak, Push, Pull, the Liquidate deferral, the maneuvers.
+- Persistent trait: the engine or a vanilla loop fires it, no opening to see. The roll is once and caches - backstrike (repertoire then Intelligence at adoption, armed into the engine), Conduct discipline (its own lifelong cache, it needs no record).
 - Wild: no roll, a standalone value spread on a bounded band - the ability numbers, the charge no-advantage delay.
 
 Correctness and skill scaling sit outside the three shapes.
@@ -203,8 +210,8 @@ The rule is stalker-code.md, xlibs wrapper criteria. Where a guarded wrapper exi
 - Gates are named, never inline. Every action an AlifeTactics system fires passes through named gates, in this shape:
   - `_can_<action>(obj)` is the engine-state gate. It returns a boolean and a reason, and calls only xlibs predicates (example: `_can_seize`).
   - `_check_<action>_block(...)` is the business gate. It holds the premises, calls `_can_<action>`, and returns nil or a reason string for the trace (example: `_check_seize_block`).
-  - Intelligence and Personality are named rolls: `at_faction.check_intelligence` and `at_faction.check_personality` for stalkers, `_check_intelligence` and `_check_personality` in at_mutants.
-  - `_try_<action>` is one block check, then Personality, then the act. It writes no check inline.
+  - Intelligence is a named roll: `at_faction.check_intelligence` for stalkers, `_check_intelligence` in at_mutants. Personality is the repertoire the record holds, `at_faction.build_repertoire` and `_build_repertoire`; `at_faction.check_personality` remains for the Conduct trait alone.
+  - `_try_<action>` is one block check, then the act. It writes no check inline; the repertoire and the cooldowns are filtered before it runs.
 - Debug is free when off. Every trace gates on one integer compare (`at_debug.is_on()`), and the timers are null objects. Measurement costs nothing live.
 - Every vanilla or xray fix appears on three surfaces: readme.txt under Fixes to Vanilla, the changelog as a Fixed vanilla bug line, and the MCM Fixes tab.
 
@@ -216,14 +223,17 @@ Faction gates, the effects resolver, the xcombat boundary, and the GOAP graft fo
 
 ### Faction gates
 
-Does: answers a faction's per-action Personality chance - the proclivity it takes an action - and owns the stalker Intelligence roll.
+Does: rolls a stalker's repertoire from his faction's per-action Personality chances - the proclivity to carry an action - and owns the stalker Intelligence roll.
 Changes: nothing in the world - only a lookup and a roll the decision systems consume.
 Stops: a zombied NPC never participates in anything - `is_participant` is the one universal filter, and the skill and correctness systems read it alone, no rolls.
 
 ```
 at_faction.script:
   is_participant(npc)       community ~= zombied, the universal filter
-  check_personality(npc, action)  the [<action>] chance for the NPC's faction, else default, else 1.0; rolled per opening
+  build_repertoire(npc)     the set of ACTIONS (counterflank, reload_cover, flee, retreat, kite, pickoff, push, pull, liquidate) whose [<action>] chance
+                            for the NPC's faction (else default, else 1.0) passed one roll; the community read once; returns the set and the faction
+  format_repertoire(set)    the set as one string in ACTIONS order, for the [CMB] repertoire trace
+  check_personality(npc, action)  the per-opening roll, kept for the conduct trait at_conduct caches for life
   check_intelligence(npc)   one roll against min((int_base + int_rank_pct * rank index) / 100, intelligence cap)
 ```
 
@@ -337,9 +347,9 @@ Stops: at most one open maneuver per NPC, bounded by the start budget, ended on 
 begin check (600ms, _try_begin_maneuver at_maneuvers.script):
   fighting? (live best_enemy or a hit within hit_fight_ms), enemy is actor or stalker
   _check_seize_block: armed, outside smart cover, no playing animation, budget left
-  _select_maneuver: roll Intelligence ONCE (a miss ends the beat, zero walk), then shuffle the catalog (xmath.shuffle_back) and walk it
-    per row: scope -> toggle -> faction -> palette -> check_need -> Personality -> find_destination
-    a premise or Personality miss falls through to the next shuffled row; the first that finds a destination
+  _select_maneuver: roll Intelligence ONCE (a miss ends the beat, zero walk), then _filter_rows (scope -> toggle -> repertoire -> palette, table reads,
+    a filtered row prints its stage in the rows trace and spends no slot), shuffle the survivors (xmath.shuffle_back) and check up to [at_maneuvers] candidates (3)
+    per row: check_need -> find_destination; a premise miss falls through to the next shuffled row; the first that finds a destination
     (the one geometry probe) wins and ends the walk
   _try_seize: spend a start, apply_takeover_block, raise the gate, stamp row + dest + committed target
 update check (200ms, _update_maneuver): re-apply the row's state, skip while reloading or a hit reaction plays
@@ -394,7 +404,7 @@ npc_on_best_cover_repick (PR #607, via xcombat.on_cover_repick) -> _on_cover_rep
 - `kill_enemy` (`stalker_combat_planner.cpp`) requires `InCover`, and a best-cover re-pick clears it before the exit is proposed. Holding the cover keeps the exit unselectable
 - the cap (`commitment_hold_s`) is a time-to-live on one continuous refusal, and an allowed switch resets it
 - at the relent moment the veto consults `at_core.is_enemy_vulnerable` and defers up to VULNERABLE_EXTEND_MS (4000ms) while the enemy cannot answer, the Liquidate deferral (`_try_extend_hold`).
-  The first deferral takes the Intelligence then Personality roll (the `[liquidate]` faction chance) and spends a start from the compose window budget (`at_core.check_start`).
+  Liquidate must sit in the NPC's repertoire (the at_core record; a stalker without a record never liquidates), and the first deferral takes the Intelligence roll and spends a start from the compose window budget (`at_core.check_start`).
   A failed roll or a dry bucket relents exactly as without the feature
 - a seized NPC never reaches this seam, because his blocked planner runs no combat action
 
@@ -430,8 +440,8 @@ at_core.update_npc -> at_behaviors.update_npc per record per pass (no seam of it
 Push (_update_push_npc at_behaviors.script): open in-gate on a human target
   press cause polled from the target: is_enemy_vulnerable under push_reload, or standing weak with hysteresis under push_finisher
   FIRE bump range-gated by the burst-tail law. BAND bump gated by target-facing advantage (bleeding, back turned, self healthy)
-  the open takes the Intelligence then Personality roll (the [push] faction chance), a miss stamps the press cooldown; the first write spends one start, caps at push_window_max_ms
-Pull (_try_open_pull / _update_pull_npc): my record shows reloading or hurt with a recent hit, my target strong, the Intelligence then Personality roll (the [pull] faction chance) opens it (a miss stamps the pull cooldown)
+  push in my repertoire first (_can_open_push), then the open takes the Intelligence roll, a miss stamps the press cooldown; the first write spends one start, caps at push_window_max_ms
+Pull (_try_open_pull / _update_pull_npc): pull in my repertoire first, my record shows reloading or hurt with a recent hit, my target strong, the Intelligence roll opens it (a miss stamps the pull cooldown)
   set_pull_band raises my accepted cover minimum so my re-picks land farther, held then cooled down
 ```
 
@@ -617,6 +627,11 @@ Attempted murder (at_sound.script, the stamp channel):
 - a heard sound buys attention in proportion to its evidence. FAINT turns a standing NPC (a walking one ignores it), SOLID walks over (raid), rush runs (companions only).
   WATCH, the knife grade, is a stand in `threat_na` looking at the source, the engine turning the body past the torso limits, ranked with solid so it replaces a live noise walk.
   The weaker stamp never overwrites a live stronger one
+- every grade but faint aims him with a look direction to the source, never a position (`_get_look_target`).
+  The state manager counts a position as reached while the sight still carries an animpoint's animation direction (`state_mgr_direction.script`).
+  A man who was sitting kept facing where he sat.
+  The vector lives on the stalker's stamp record, one per man, since the state manager keeps a reference to it.
+  Faint keeps the position. It refreshes the look of the state he is in, seated included
 - the active theatre is time-boxed per episode to the alert machine's own stage-2 give-up band, then the NPC settles into a standing watch until the config inertion decays
 - the squad stand-down gate (`_is_squad_engaged`) skips the theatre while any squadmate holds a live enemy, memoized 500ms per squad
 - mid-battle bystanders no longer run noise choreography inside a live fight
@@ -627,11 +642,6 @@ Two Perception/Danger toggles add improvements over the patched scheme, default 
 
 - Distant hits (`danger_hit_bypass`) returns a hit-perceive danger true past the ignore distance only, after the relation, alive and combat-ignore checks have passed.
   A hit that strikes home is proof of range, and a stalker sniped from beyond the ignore distance still ducks. A neutral's accidental hit is no attack.
-- every grade but faint aims him with a look direction to the source, never a position (`_get_look_target`).
-  The state manager counts a position as reached while the sight still carries an animpoint's animation direction (`state_mgr_direction.script`).
-  A man who was sitting kept facing where he sat.
-  The vector lives on the stalker's stamp record, one per man, since the state manager keeps a reference to it.
-  Faint keeps the position. It refreshes the look of the state he is in, seated included
 - Attempted murder (`danger_knife_miss`) stamps the stalker a knife swing of yours was meant for and missed, the one actor stamp with no relation check.
   The knife strikes on the hud fire states (`CWeaponKnife::OnMotionMark`), by a 1.5 m object ray or a 0.5 m sphere at 1.5 m, with no geometry test.
   A hit that connects reaches `npc_on_before_hit` through the game-event pass two or three frames later (`Level_bullet_manager_firetrace.cpp`, `CLevel::OnFrame`). A miss fires nothing.
@@ -776,33 +786,39 @@ The charge recharge delay is a re-eligibility timer, outside path and animation.
 Wild may spread it too - but only on the charge's no-advantage path (below), never as the charge's primary shape.
 CAPS bound the spice. At most 3 driven moves assumed running per bucket (vs_player, vs_npc) on 3s slots - an offensive fire checks then adds, flee adds unchecked, claw sits outside.
 The `[select]` walk cap is the per-beat budget.
-THE LEAP FAMILY is five independent handlers, one per move, each with its own premise and its own Personality, and they share nothing but two gates.
+THE LEAP FAMILY is seven independent handlers, one per move, each with its own premise, its own Personality row and its own cooldown row, and they share nothing but the launch path and one sight gate.
 Every leap is the species' own jump, launched through `xmonster.try_monster_jump`, and its damage is the jump's own hit test (`CControlJump::hit_test`).
-Charged leap is the one leap with a wind-up, at an enemy 0.8m or more above the mutant (`xcombat.is_enemy_above`, the game's own dog standard).
+Three leaps wind up (the `LAUNCH` table: High, Hunting, Catching), the species crouch the enemy sees coming; the other four launch straight into the glide (`ePrepareSkip`).
+Every leaping species except the bloodsucker and psysucker can take each of the six shared leaps; its Personality, rolled once per individual, decides which it carries, so species and individuals differ widely.
+High leap is the jump up at an enemy 0.8m or more above the mutant (`xcombat.is_enemy_above`, the game's own dog standard), with a wind-up.
 The crouch is the warning a perched player sees, and it flies at the species force so the arc clears a ledge lip.
-Sudden leap is the instant pounce at where the enemy stands, when the enemy aims at the mutant or is vulnerable.
+Punishing leap is the instant pounce at where the enemy stands, when the enemy aims at the mutant or is vulnerable.
 The aim read is `xcombat.is_enemy_watching` at the tight `[threat] aim_cone_deg`: a weapon in hand, and the player's camera or a stalker's head on the mutant.
-The Adjusting leap is the instant pounce that steers in flight toward an enemy moving more than `[motion] move_min_m` per beat.
-It drives `set_monster_jump_flags` auto-aim, the gain rolled inside the vanilla envelope and the species' own basis restored on touchdown.
-The Intercepting leap is the instant pounce at where an enemy moving steadily (two moving beats, a turn of at most `steady_deg`) will be.
-The lead is the enemy's velocity over the engine's own flight time (`xmonster.compute_jump_time`), scaled by an Intelligence-only gain and capped at 1m.
+Hunting leap and Feral leap are the twin pounces that steer in flight toward an enemy moving more than `[motion] move_min_m` per beat (`_check_moving_leap_block`); Hunting winds up first, Feral launches at once.
+Both drive `set_monster_jump_flags` auto-aim, the gain rolled inside the vanilla envelope and the species' own basis restored on touchdown.
+The steering engages once the glide starts (`CControlJump::in_auto_aim`), so Hunting leap's target is a crouch stale at launch and the air control must close the gap; the field run judges it.
+Catching leap and Cutoff leap are the twin pounces at where an enemy moving steadily (two moving beats, a turn of at most `steady_deg`) will be (`_check_steady_leap_block`); Catching winds up first, Cutoff launches at once.
+The lead is the enemy's velocity over the engine's own flight time (`xmonster.compute_jump_time`), scaled by an Intelligence-only gain and capped at `[lead] max_m` (1m).
+It counts the flight only, so Catching leap lands short of a fast runner by its crouch; the crouch probe and a cap ruling are open (m35).
 A lead point off the navmesh (`xcombat.is_point_off_navmesh`) falls back to the unled point, and so does a refused launch.
-It does not steer, because the steering homes on the live position and would undo the lead.
+Neither steers, because the steering homes on the live position and would undo the lead.
 The Closing leap is the bloodsucker and psysucker gap-closer, inside the range where it is drawn (`partial_visibility_radius`).
 It fires at a perched enemy at any distance, or at the player aiming at it from outside its charge band.
 Its jump config never loads (`CAI_Bloodsucker::Load`). It never hits in the air, and its claws strike after the leap.
 THE FORCE is rolled once per mutant at adoption, the species `jump_factor` (`[leap] basis` where none loads) times a Wild-spread band of 2.0-3.0.
-Charged leap and the Closing leap perch case fly at the basis.
-THE COOLDOWNS live in one place, `[cooldown]`, with one row in ms per move name, kept per mutant in `rec.ready_at` through `_check_cooldown()` and `_add_cooldown()`.
-A move with no row never cools down. Adjusting and Intercepting leap wait 30s between uses, and claw, flee, and cloak keep their own rows.
-`_check_cooldown()` answers ready or not, like `_check_start()`, and each move's own `_check_<move>_block()` names the block for the `[MUT] BLOCK` trace at DEBUG.
-A leap checks its own cooldown before the shared gates, the sight gate, and Personality, and flee and cloak trace their blocks the same way.
-Claw stays silent, since its check runs on every monster update. A `[cooldown]` row that names no move logs a warning at load.
-THE TWO SHARED GATES are the `leap` row, a per-mob gap of 10000ms between any two of our leaps, traced as `gap`.
-Our instant leaps launch with no wind-up and home on the player, so two in a row cannot be dodged; the chimera and lurker ship a jump delay of 0, and the mutant's own telegraphed jumps stay outside this gap.
-The other is the mutant having sensed its enemy within `[leap] sense_ms` (1000), by its own enemy memory (`xmonster.get_enemy_unseen_ms`).
+High leap and the Closing leap perch case fly at the basis; every other leap, the two wind-up twins included, at the Wild force (`MOVE_GATES` prints `wild`).
+THE STRIKE OUTCOME line (`[MUT] LEAP ... end=land|abort|stuck`) times from the fire, while the engine times the flight from the glide start (`CControlJump::update_frame`, `m_time_started`).
+A wind-up leap therefore reads `land` for an abort after its crouch and `stuck` early by the crouch; the crouch probe fixes the T of the three wind-up leaps (m35).
+THE COOLDOWNS live in one place, `[cooldown]`, with one row in ms per key, kept per mutant in `rec.ready_at` through `_check_cooldown()` and `_add_cooldown()`.
+A key with no row never cools down. A leap waits on two keys, its own name (20000, the same leap again) and the shared `leap` row (10000, any two of our leaps), and `_check_ready()` names the blocking key.
+Our instant leaps home on the player, so two in a row cannot be dodged; the chimera and lurker ship a jump delay of 0, and the mutant's own telegraphed jumps stay outside these keys.
+Claw (2000, stamped on every roll), flee, cloak and gravity (8000) keep one key each. The gravity relay stamps the same key on an engine-fired throw, so ours never chains onto one.
+The cooldowns of the walked moves are filtered before the shuffle in `_filter_moves()` and traced `[MUT] BLOCK ... cause=cooldown key=<key>`; claw checks its own on the contact lane.
+Every other refusal has its `_check_<move>_block()` reason in the `[MUT] BLOCK` trace at DEBUG, gravity included, and a start-cap refusal prints `caps`. A `[cooldown]` row that names no move logs a warning at load.
+THE SIGHT GATE every leap shares is the mutant having sensed its enemy within `[leap] sense_ms` (1000), by its own enemy memory (`xmonster.get_enemy_unseen_ms`).
 The game's own jump checks the instant see bit (`CControlManagerCustom::check_attack_jump`), but mid-fight that bit is false almost all the time, so it refused every leap.
-BODY PLAN IS A SOFT GATE. Every leaper carries Charged, Sudden, Adjusting, and Intercepting leap, and the per-species Personality values decide who leaps how and how often.
+BODY PLAN IS A SOFT GATE. Every leaper carries all six shared leaps in `[moves]`, and the per-species Personality rows decide which an individual carries: preferences at 0.7-0.8, dislikes at 0.3-0.4, never a certainty.
+The chimera is the instant killer that rarely telegraphs, the lurker leaps ahead of its enemy, the dog jumps straight and open, the snork steers, the cat strikes from the blind side, the pseudodog leads, the psy_dog leaps little.
 A species that should never take a move gets Personality 0 there.
 THE JUMP FEASIBILITY lives in `xmonster.try_monster_jump`.
 Because the engine's `script_try_jump` bypasses `can_jump`, the interim mirror runs the restrictor test, the distance band, the angle and the height there.
@@ -855,7 +871,7 @@ monster_on_update (binder scheduler, 100ms near to 625ms far) -> the one lane, g
   the gate: the actor within gate_radius_m (is_in_gate) -> else skip the beat
   else Intelligence rolls ONCE -> a miss does zero premise or feasibility work
   on a pass: shuffle the toggled decision moves, walk up to [select] candidates, the first FIRE breaks -
-         charged leap (elevated) / sudden leap (aiming or vulnerable) / adjusting leap (moving) / intercepting leap (moving steadily)
+         high leap (elevated) / punishing leap (aiming or vulnerable) / hunting or feral leap (moving) / catching or cutoff leap (moving steadily)
          / closing leap (bloodsucker: perch, or the player aiming from 4.5m), the gap and sight gates, feasibility in xmonster
          flee (low health, actor 20m+, not nose-on)
          gravity (burer: vulnerable or back-turned)

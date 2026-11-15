@@ -18,7 +18,7 @@ local KITE_KINDS = { "w_melee", "w_shotgun", "w_pistol", "w_smg", "w_rifle", "w_
 local REPEAT_MOVE_M   = 2
 local REPEAT_MOVE_SQR = REPEAT_MOVE_M * REPEAT_MOVE_M
 local INVALID_LEVEL_VERTEX_ID = 4294967295
-local STAGE_PICKED, STAGE_CHANCE = "picked", "chance"
+local STAGE_PICKED = "picked"
 local MANEUVER_PICKOFF, RANGE_TOO_CLOSE, ENDS_ON_ARRIVAL = "pickoff", "too_close", "arrival"
 
 local BEGIN_PERIOD_MS, UPDATE_PERIOD_MS, END_PERIOD_MS, HIT_FIGHT_MS
@@ -27,9 +27,11 @@ local KITE_ARC_DEG, KITE_SPREAD_DEG, KITE_DISTANCE_M
 local FLEE_MIN_DIST_M, FLEE_BASE_MIN_DIST_M, UNDER_FIRE_MS
 local RETREAT_COVER_NEAR_M, RETREAT_COVER_FAR_M, RETREAT_COVER_MAX_M, RETREAT_LANE_M, RELOAD_COVER_NEAR_M, RELOAD_COVER_FAR_M
 local COUNTERFLANK_ACTOR_DIST_SQR, PICKOFF_TARGETED_DEG, PICKOFF_ENTER_FACTOR
-local REPEAT_LIMIT, RELOAD_STALE_MS, RELOAD_COVER_CONE_DEG
+local REPEAT_LIMIT, RELOAD_STALE_MS, RELOAD_COVER_CONE_DEG, CANDIDATES
 
 local _queue_band_by_kind = {}
+-- The shared catalog-order scratch the filter fills and the selection shuffles (the walk is synchronous, one NPC at a time).
+local _order = {}
 local _pickoff_band
 local _orig_get_queue_params
 local BEGIN_CHECK, UPDATE_CHECK, END_CHECK
@@ -381,18 +383,10 @@ local function _check_palette(row, npc, memo)
     return true
 end
 
+-- The condition check of one row, the step the [at_maneuvers] candidates cap counts: the need, then the destination search.
 local function _check_row(row, npc, enemy, state, tg, memo)
-    if row.vs_actor then
-        if memo.actor_fight then return nil, nil, "scope" end
-    elseif not memo.in_gate then
-        return nil, nil, "scope"
-    end
-    if cfg[row.toggle] == false then return nil, nil, "off" end
-    if not at_faction.has_action(npc, row.name) then return nil, nil, "faction" end
-    if not _check_palette(row, npc, memo) then return nil, nil, "palette" end
     local situation = row.check_need(npc, enemy, state, tg, memo)
     if not situation then return nil, nil, "-" end
-    if not at_faction.check_personality(npc, row.name) then return nil, situation, STAGE_CHANCE end
     local dest = row.find_destination(npc, enemy, state, tg, memo)
     if dest then return dest, situation, "picked" end
     return nil, situation, "declined"
@@ -441,15 +435,36 @@ local function _check_repeat_limit(state, situation, npc_pos)
     return true
 end
 
--- The shared catalog-order scratch, shuffled per selection (the walk is synchronous, one NPC at a time).
-local _order = {}
+-- The filter before the walk, the stalker twin of at_mutants _filter_moves: scope, the MCM toggle, the repertoire and the weapon palette.
+-- All table or memo reads, so a filtered row spends no candidate slot; each filtered row names its stage in the rows trace.
+local function _filter_rows(npc, state, memo, rows_trace)
+    local wanted = 0
+    for i = 1, #CATALOG do
+        local row = CATALOG[i]
+        local stage
+        if row.vs_actor then
+            if memo.actor_fight then stage = "scope" end
+        elseif not memo.in_gate then
+            stage = "scope"
+        end
+        if not stage and cfg[row.toggle] == false then stage = "off" end
+        if not stage and not state.repertoire[row.name] then stage = "repertoire" end
+        if not stage and not _check_palette(row, npc, memo) then stage = "palette" end
+        if not stage then
+            wanted = wanted + 1
+            _order[wanted] = i
+        elseif rows_trace then
+            rows_trace[#rows_trace + 1] = row.name .. ":" .. stage
+        end
+    end
+    return wanted
+end
 
 -- The move selection, identical in shape to the mutant side: Intelligence rolls ONCE at the top and a miss lets the opening go.
--- Then shuffle the catalog (xmath.shuffle_back) and walk it, each row self-gating premise then Personality, the first that picks winning.
+-- Then filter, shuffle the survivors (xmath.shuffle_back) and check the conditions of up to [at_maneuvers] candidates rows, the first that picks winning.
 local function _select_maneuver(npc, enemy, state, tg)
     if not at_faction.is_participant(npc) then return nil end
-    local count = #CATALOG
-    if count == 0 then return nil end
+    if #CATALOG == 0 then return nil end
     local memo = _reset_memo(state, npc, enemy)
     local tracing = at_debug.is_on()
     if not at_faction.check_intelligence(npc) then
@@ -458,11 +473,13 @@ local function _select_maneuver(npc, enemy, state, tg)
     end
     local walk_timer = xprofiler.new_if(tracing)
     walk_timer:start()
-    for i = 1, count do _order[i] = i end
-    xmath.shuffle_back(_order, count)
     local rows_trace = tracing and {} or nil
+    local wanted = _filter_rows(npc, state, memo, rows_trace)
+    xmath.shuffle_back(_order, wanted)
+    local limit = CANDIDATES
+    if limit > wanted then limit = wanted end
     local spent_row, spent_vid, spent_situation
-    for i = 1, count do
+    for i = 1, limit do
         local row = CATALOG[_order[i]]
         local vid, situation, stage = _check_row(row, npc, enemy, state, tg, memo)
         if tracing then rows_trace[#rows_trace + 1] = _format_row_trace(row, situation, stage) end
@@ -820,6 +837,7 @@ local function _load_config()
     PICKOFF_ENTER_FACTOR = read_float("pickoff_enter_factor", 1.2)
     RELOAD_COVER_CONE_DEG = read_float("reload_cover_cone_deg", 60)
     REPEAT_LIMIT        = read_int("repeat_limit", 3)
+    CANDIDATES          = read_int("candidates", 3)
     RELOAD_STALE_MS      = read_int("reload_stale_ms", 6000)
     KITE_DISTANCE_M = { w_melee = 4, w_shotgun = 4, w_pistol = 5, w_smg = 6, w_rifle = 8, w_sniper = 15, w_explosive = 8 }
     for i = 1, #KITE_KINDS do

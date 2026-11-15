@@ -79,10 +79,13 @@ Every faction fights its own way, across every choice it makes, not only when it
 Monolith presses and holds its ground to the end. Duty holds the line and gives ground in order. Bandits finish a downed man and rout when the fight turns. Ecologists fight poorly and pull back early.
 Each faction carries its own chance on every one of its actions, the rout, the give-ground, the press, the finish, the hold. One opening draws a different answer from a merc than from a renegade.
 This is GSC's own design, its documents rate every character by type and every creature for courage, the attack and defence profile left out of the shipped game.
-Every mutant fights to its body, and takes each of its moves at its own chance.
+Every mutant fights to its body, and carries each of its moves at its own chance.
 A chimera circles to the flank, leaps and claws without pause, and never routs.
 A burer hurls debris with its mind, a bloodsucker turns invisible and strikes from cover, a flesh bolts the moment it is hurt.
 Each carries the moves its frame allows and the character to spend them, the mutant twin of a faction's doctrine.
+A stalker or a mutant rolls its character once, when it enters your fight, not at every opening.
+The chimeras of one pack fight differently. Each carries its own set of the moves its kind favours and keeps it for the whole fight.
+A species prefers its leaps without owning them all. The chimera rarely telegraphs, the dog jumps straight and open, the snork steers, the cat strikes from your blind side.
 
 ---
 
@@ -242,6 +245,7 @@ The leap family reads your perch, your aim, and your movement.
 Climb to high ground and it leaps up after you.
 Against a raised weapon it drops the wind-up and lunges before the shot. Against a reload or a turned back it strikes inside that opening.
 Keep moving and it steers in the air to follow you. Run in a line and it leaps at where you will be.
+Some leaps crouch first and warn you, others come with no warning at all, and the species decides which it favours. Two of its leaps never come within ten seconds of each other.
 A bloodsucker closes the gap with a leap of its own, then claws.
 A burer answers a reloading or turned-away player with its Gravity throw.
 Charge, Backstrike, Claw, Cloak, and Flee round out the set, each the creature's own.

@@ -211,7 +211,7 @@
     <text>How often mutants act on an opening, and how much their moves vary. Each species page lists its moves: MANAGED MOVES are the creature's own attacks whose timing this mod decides, NEW MOVES are attacks the vanilla game never fires for that species. Every move's tooltip names its gates: int (Intelligence decides when), pers (the creature's own leaning toward it), and wild (the values vary).</text>
   </string>
   <string id="ui_mcm_at_mutants_power_desc">
-    <text>A mutant's raw hit and toughness, scaled by the map rank (rookie maps rank 0 up to endgame maps rank 5): damage dealt and damage resistance each grow by their slider's percent per rank. Multiplies the installed balance, so other mutant overhauls keep their numbers.</text>
+    <text>A mutant's toughness, scaled by the map rank (rookie maps rank 0 up to endgame maps rank 5): damage resistance grows by the slider's percent per rank. Multiplies the installed balance, so other mutant overhauls keep their numbers.</text>
   </string>
   <string id="ui_mcm_at_mutants_chimera_desc">
     <text>Chimera and lurker.</text>
@@ -294,28 +294,40 @@
   <string id="ui_mcm_at_mutants_mut_resist_pct_desc">
     <text>Damage a mutant receives shrinks by this percent for each map rank, so a deep-Zone mutant shrugs off fire a Cordon one would feel.</text>
   </string>
-  <string id="ui_mcm_at_mutants_charged_leap">
-    <text>Charged leap</text>
+  <string id="ui_mcm_at_mutants_high_leap">
+    <text>High leap</text>
   </string>
-  <string id="ui_mcm_at_mutants_charged_leap_desc">
-    <text>The one leap with a wind-up, at an enemy up on a rock or ledge. The crouch is the warning a perched player sees, and the leap flies at the game's own force so it clears the edge. (int, pers)</text>
+  <string id="ui_mcm_at_mutants_high_leap_desc">
+    <text>The jump up at an enemy on a rock or ledge, with a wind-up. The crouch is the warning a perched player sees, and the leap flies at the game's own force so it clears the edge. Every leaping species can take each leap; its Personality, rolled once per individual, decides which ones it carries. (int, pers)</text>
   </string>
-  <string id="ui_mcm_at_mutants_sudden_leap">
-    <text>Sudden leap</text>
+  <string id="ui_mcm_at_mutants_punishing_leap">
+    <text>Punishing leap</text>
   </string>
-  <string id="ui_mcm_at_mutants_sudden_leap_desc">
+  <string id="ui_mcm_at_mutants_punishing_leap_desc">
     <text>An instant pounce with no wind-up, at where the enemy stands, when the enemy aims at it or is reloading or turned away. Each mutant leaps with its own strength. (int, pers, wild)</text>
   </string>
-  <string id="ui_mcm_at_mutants_adjusting_leap">
-    <text>Adjusting leap</text>
+  <string id="ui_mcm_at_mutants_hunting_leap">
+    <text>Hunting leap</text>
   </string>
-  <string id="ui_mcm_at_mutants_adjusting_leap_desc">
-    <text>An instant pounce that steers in mid-air toward a moving enemy. The steering stays inside the game's own range. (int, pers, wild)</text>
+  <string id="ui_mcm_at_mutants_hunting_leap_desc">
+    <text>A pounce with a wind-up that steers in mid-air toward a moving enemy. The crouch warns you, then the steering follows you. (int, pers, wild)</text>
   </string>
-  <string id="ui_mcm_at_mutants_intercepting_leap">
-    <text>Intercepting leap</text>
+  <string id="ui_mcm_at_mutants_feral_leap">
+    <text>Feral leap</text>
   </string>
-  <string id="ui_mcm_at_mutants_intercepting_leap_desc">
+  <string id="ui_mcm_at_mutants_feral_leap_desc">
+    <text>An instant pounce that steers in mid-air toward a moving enemy. The steering stays inside the game's own range. The most lethal leap. (int, pers, wild)</text>
+  </string>
+  <string id="ui_mcm_at_mutants_catching_leap">
+    <text>Catching leap</text>
+  </string>
+  <string id="ui_mcm_at_mutants_catching_leap_desc">
+    <text>A pounce with a wind-up at where a steadily running enemy will be when it lands. The crouch warns you, then it leaps at your path. (int, pers, wild)</text>
+  </string>
+  <string id="ui_mcm_at_mutants_cutoff_leap">
+    <text>Cutoff leap</text>
+  </string>
+  <string id="ui_mcm_at_mutants_cutoff_leap_desc">
     <text>An instant pounce at where a steadily running enemy will be when it lands. A smarter mutant leads its target more. (int, pers, wild)</text>
   </string>
   <string id="ui_mcm_at_mutants_closing_leap">

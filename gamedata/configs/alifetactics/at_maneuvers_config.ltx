@@ -15,6 +15,7 @@ stall_ms      = 4000       ; held position with the enemy not closing this long 
 stall_move_m  = 2          ; movement under this counts as "held position"
 stall_close_m = 2          ; enemy gaining more than this much ground resets the stall timer
 repeat_limit = 3          ; consecutive same-situation picks with the NPC still within 2m before the takeover stops trying (0 = off)
+candidates   = 3          ; the walk checks the conditions (need, then destination) of up to this many shuffled rows per selection; scope, toggle, repertoire and palette filter before the shuffle and never spend a slot (the mutant [select] twin)
 counterflank_actor_dist_m = 5  ; counterflank fires when an enemy actor is inside this range while the NPC's committed target is farther
 
 ; Scheme fire discipline - uncommenting a queue_w_* key PINS that kind to fixed "size, interval ms" (no roll).

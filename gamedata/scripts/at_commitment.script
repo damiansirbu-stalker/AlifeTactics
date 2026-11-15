@@ -80,13 +80,16 @@ local function _log_refused(hold, to_op)
     hold.refused[to_op] = (hold.refused[to_op] or 0) + 1
 end
 
+-- Repertoire first, from the at_core record: a stalker without one (a companion under "ignore companions") never liquidates (user ruling 2026-11-15).
 local function _try_extend_hold(hold, npc, enemy, tg, id, label)
     if not cfg.commitment_liquidate then return false end
+    local record = at_core.get_combat_record(id)
+    if not (record and record.repertoire.liquidate) then return false end
     if tg - hold.since > _hold_cap_ms + VULNERABLE_EXTEND_MS then return false end
     local vuln, why = at_core.is_enemy_vulnerable(enemy, npc)
     if not vuln then return false end
     if not hold.vuln then
-        if not (at_faction.check_intelligence(npc) and at_faction.check_personality(npc, "liquidate")) then
+        if not at_faction.check_intelligence(npc) then
             if at_debug.is_on() then at_debug.debug("[CMT] %s id=%d declined cause=roll", label, id) end
             return false
         end
