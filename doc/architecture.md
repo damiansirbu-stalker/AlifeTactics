@@ -611,7 +611,7 @@ per plan solve:
 Attempted murder (at_sound.script, the stamp channel):
   actor_on_hud_animation_mark (hud state 5 or 6, a knife-class item) -> _find_swing_target: the nearest living stalker inside knife_miss_m and the camera cone
   -> a 0.3 s time event; npc_on_before_hit from the actor on that stalker clears it
-  -> _try_swing_alert: a solid stamp through _try_alert; relation unchecked, _has_admitted_stamp admits
+  -> _try_swing_alert: a watch stamp through _try_alert; relation unchecked, _has_admitted_stamp admits
 ```
 
 - a heard sound buys attention in proportion to its evidence. FAINT turns a standing NPC (a walking one ignores it), SOLID walks over (raid), rush runs (companions only).
