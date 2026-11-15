@@ -795,7 +795,8 @@ A move with no row never cools down. Adjusting and Intercepting leap wait 30s be
 `_check_cooldown()` answers ready or not, like `_check_start()`, and each move's own `_check_<move>_block()` names the block for the `[MUT] BLOCK` trace at DEBUG.
 A leap checks its own cooldown before the shared gates, the sight gate, and Personality, and flee and cloak trace their blocks the same way.
 Claw stays silent, since its check runs on every monster update. A `[cooldown]` row that names no move logs a warning at load.
-THE TWO SHARED GATES are the `leap` row, a per-mob gap of 2500ms between any two leaps, since the chimera and lurker ship a jump delay of 0, traced as `gap`.
+THE TWO SHARED GATES are the `leap` row, a per-mob gap of 10000ms between any two of our leaps, traced as `gap`.
+Our instant leaps launch with no wind-up and home on the player, so two in a row cannot be dodged; the chimera and lurker ship a jump delay of 0, and the mutant's own telegraphed jumps stay outside this gap.
 The other is the mutant having sensed its enemy within `[leap] sense_ms` (1000), by its own enemy memory (`xmonster.get_enemy_unseen_ms`).
 The game's own jump checks the instant see bit (`CControlManagerCustom::check_attack_jump`), but mid-fight that bit is false almost all the time, so it refused every leap.
 BODY PLAN IS A SOFT GATE. Every leaper carries Charged, Sudden, Adjusting, and Intercepting leap, and the per-species Personality values decide who leaps how and how often.

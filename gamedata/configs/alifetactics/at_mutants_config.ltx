@@ -38,7 +38,7 @@ backstrike     = chimera, lurker, burer, controller
 candidates = 3
 
 [cooldown] ; per-mutant re-fire gaps in ms, one row per move name; leap is the shared gap between any two leaps; a move with no row never cools down
-leap              = 2500   ; the cat's jump_delay, the shortest nonzero one among the leapers (the chimera and lurker ship 0)
+leap              = 10000  ; the gap between two of our leaps: they launch with no wind-up and home on the player, so two in a row cannot be dodged (user ruling)
 claw              = 2000   ; stamped on every claw roll, fired or not (user ruling)
 flee              = 120000 ; a routed mutant does not re-rout as soon as its committed window closes
 cloak             = 5000   ; re-cloak gap, so it cannot flicker-spam
