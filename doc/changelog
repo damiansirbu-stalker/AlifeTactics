@@ -100,6 +100,7 @@
       - Distant hits now applies to enemies only. The relation and alive checks run first and the bypass skips the range gate alone. A neutral's accidental hit is no longer answered as an attack.
       - Fixed vanilla bug "hit shooter identity". A stalker hit by a bullet lost track of who shot him and stared at the spot the shooter fired from.
           He now looks at where the shooter is and takes cover from him. It is always on and listed on the Fixes tab.
+      - Fixed a seated stalker who heard your reload, steps or bullet impact getting up and walking off facing away. He now faces you while he moves, takes position and watches.
 
   Mechanics
     Attachments

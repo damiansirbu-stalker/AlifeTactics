@@ -454,7 +454,8 @@ local function _resolve_hit_source(stamp, id)
 end
 
 -- A look direction, not a position: the state manager skips a position while the sight still carries an animpoint's animation direction.
-local function _get_watch_target(stamp, npc, look_pos)
+-- One vector per stamp, since the state manager keeps a reference; nil keeps his last look.
+local function _get_look_target(stamp, npc, look_pos)
 	if not look_pos then return nil end
 	stamp.look_dir = stamp.look_dir or vector()
 	stamp.look_dir:set(look_pos):sub(npc:position())
@@ -476,7 +477,7 @@ local function script_action_danger_scripted(npc,st)
 	local look_pos = who_dist and who_dist < 22500 and bdo and bdo:position() or bdo_pos
 
 	if (strength == "watch") then
-		_set_state_once(npc, "threat_na", _get_watch_target(script_danger[id], npc, look_pos))
+		_set_state_once(npc, "threat_na", _get_look_target(script_danger[id], npc, look_pos))
 		return
 	end
 
@@ -497,7 +498,7 @@ local function script_action_danger_scripted(npc,st)
 		end
 	end
 	if (tg > st.active_until) then
-		_set_state_once(npc, "threat_na", {look_position = look_pos})
+		_set_state_once(npc, "threat_na", _get_look_target(script_danger[id], npc, look_pos))
 		return
 	end
 
@@ -527,11 +528,11 @@ local function script_action_danger_scripted(npc,st)
 		if (st.lvid and st.lvid ~= npc:level_vertex_id()) then
 			st.lvid = utils_obj.send_to_nearest_accessible_vertex(npc,st.lvid)
 			st.stage = 2
-			_set_state_once(npc, move_state, {look_position = look_pos})
+			_set_state_once(npc, move_state, _get_look_target(script_danger[id], npc, look_pos))
 			return
 		end
 
-		_set_state_once(npc, "threat_na", {look_position = look_pos})
+		_set_state_once(npc, "threat_na", _get_look_target(script_danger[id], npc, look_pos))
 	elseif (st.stage == 2) then
 		if (npc:level_vertex_id() == st.lvid) then
 			st.__dtimer = not st.__dtimer and tg + math_random(5000,15000) or st.__dtimer
@@ -539,10 +540,10 @@ local function script_action_danger_scripted(npc,st)
 				st.stage = 1
 				return
 			end
-			_set_state_once(npc, "threat_danger", {look_position = look_pos})
+			_set_state_once(npc, "threat_danger", _get_look_target(script_danger[id], npc, look_pos))
 			return
 		end
-		_set_state_once(npc, move_state, {look_position = look_pos})
+		_set_state_once(npc, move_state, _get_look_target(script_danger[id], npc, look_pos))
 		utils_obj.send_to_nearest_accessible_vertex(npc,st.lvid)
 	end
 end
@@ -764,7 +765,7 @@ function at_action_danger:execute()
 		local stamp = script_danger[npc:id()]
 		if stamp.strength ~= "rush" and _is_squad_engaged(npc) then
 			if at_debug.is_on() then at_debug.debug("[REACT] npc=%d stand-down=squad_engaged grade=%s", npc:id(), tostring(stamp.strength)) end
-			_set_state_once(npc, "threat_na", {look_position = stamp.position})
+			_set_state_once(npc, "threat_na", _get_look_target(stamp, npc, stamp.position))
 			return
 		end
 		script_action_danger_scripted(npc,self.a)

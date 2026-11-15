@@ -627,6 +627,11 @@ Two Perception/Danger toggles add improvements over the patched scheme, default 
 
 - Distant hits (`danger_hit_bypass`) returns a hit-perceive danger true past the ignore distance only, after the relation, alive and combat-ignore checks have passed.
   A hit that strikes home is proof of range, and a stalker sniped from beyond the ignore distance still ducks. A neutral's accidental hit is no attack.
+- every grade but faint aims him with a look direction to the source, never a position (`_get_look_target`).
+  The state manager counts a position as reached while the sight still carries an animpoint's animation direction (`state_mgr_direction.script`).
+  A man who was sitting kept facing where he sat.
+  The vector lives on the stalker's stamp record, one per man, since the state manager keeps a reference to it.
+  Faint keeps the position. It refreshes the look of the state he is in, seated included
 - Attempted murder (`danger_knife_miss`) stamps the stalker a knife swing of yours was meant for and missed, the one actor stamp with no relation check.
   The knife strikes on the hud fire states (`CWeaponKnife::OnMotionMark`), by a 1.5 m object ray or a 0.5 m sphere at 1.5 m, with no geometry test.
   A hit that connects reaches `npc_on_before_hit` through the game-event pass two or three frames later (`Level_bullet_manager_firetrace.cpp`, `CLevel::OnFrame`). A miss fires nothing.
@@ -634,8 +639,6 @@ Two Perception/Danger toggles add improvements over the patched scheme, default 
   On plain Anomaly the swing is a shot the sound memory also keeps. A modpack that plays the swing from script with no sound type makes it AI-silent. The stamp claims the scheme in both cases.
   The reaction is the watch grade: one flip to `threat_na`, weapon up, with a look direction to your live position for the stamp's 5 s, and the engine turns his body in place past the torso limits.
   It is `threat_na` because the `bloodsucker_search` animation of `threat_danger` owns the look and scans the area. Faint leaves a seated man seated, and solid runs the noise theatre.
-  It is a direction, not a position, because the state manager's direction evaluator counts a position as reached while the sight still carries an animpoint's animation direction (`state_mgr_direction.script`).
-  The direction vector lives on the stalker's stamp record, one per man, since the state manager keeps a reference to it.
   A neutral or friend takes the impact-stamp admission of Neutral gunfire alert. The knife stamp skips the 4 s per-stalker throttle, one swing being one stamp.
   A stalker on the camper job never reaches this action: the camper scheme bars the danger action and answers the flag with its own handler, aimed at his engine danger (`xr_camper.script`).
 
