@@ -1,7 +1,10 @@
 --- at_mcm: MCM configuration for AlifeTactics
 
---- The mutant damage increase stays out of the release: false hides the mut_damage_pct row and at_mutants reads the slider as 0; the key stays in defaults.
-MUT_DAMAGE_ENABLED = false
+--- The mutant Power page (damage, resistance) stays out of the release: false drops the page and at_mutants reads both sliders as 0; the keys stay in defaults.
+MUT_POWER_ENABLED = false
+
+local table_insert = table.insert
+local MUTANTS_ID = "mutants"
 
 local defaults = {
     selection_actor_bias      = 900,
@@ -126,7 +129,6 @@ local defaults = {
     mut_chimera_backstrike        = true,
     mut_bloodsucker_cloak        = true,
     mut_bloodsucker_closing_leap = true,
-    mut_bloodsucker_flee         = true,
     mut_burer_gravity_attack  = true,
     mut_burer_backstrike      = true,
     mut_burer_gravity_numbers = true,
@@ -300,7 +302,6 @@ local _key_to_tab = {
     mut_chimera_backstrike        = "mutants/chimera",
     mut_bloodsucker_cloak        = "mutants/bloodsucker",
     mut_bloodsucker_closing_leap = "mutants/bloodsucker",
-    mut_bloodsucker_flee         = "mutants/bloodsucker",
     mut_burer_gravity_attack  = "mutants/burer",
     mut_burer_backstrike      = "mutants/burer",
     mut_burer_gravity_numbers = "mutants/burer",
@@ -414,9 +415,17 @@ end
 
 --- Build the option tree (the canonical six-category structure; paths and hints per the architecture).
 function on_mcm_load()
-    local power_damage_row = MUT_DAMAGE_ENABLED
-        and { id = "mut_damage_pct", type = "track", val = 2, min = 0, max = 25, step = 1, def = 2, hint = "at_mutants_mut_damage_pct" }
-        or { id = "div_power", type = "line" }
+    local power_page = {
+        id = "power",
+        sh = true,
+        gr = {
+            { id = "title", type = "slide", link = "at_mcm_banner",
+                text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
+            { id = "desc", type = "desc", text = "ui_mcm_at_mutants_power_desc" },
+            { id = "mut_damage_pct", type = "track", val = 2, min = 0, max = 25, step = 1, def = 2, hint = "at_mutants_mut_damage_pct" },
+            { id = "mut_resist_pct", type = "track", val = 2, min = 0, max = 15, step = 1, def = 2, hint = "at_mutants_mut_resist_pct" },
+        },
+    }
     local rct_fb = {
         aim_base = 0.24, aim_rank_pct = 63,
         track_base = 0.196, track_rank_pct = 12,
@@ -442,7 +451,7 @@ function on_mcm_load()
                 { id = "desc", type = "desc", text = "ui_mcm_at_" .. id .. "_desc" },            },
         }
     end
-    return {
+    local tree = {
         id = "at",
         gr = {
             {
@@ -758,7 +767,7 @@ function on_mcm_load()
                 },
             },
             {
-                id = "mutants",
+                id = MUTANTS_ID,
                 gr = {
                     {
                         id = "general",
@@ -773,34 +782,22 @@ function on_mcm_load()
                         },
                     },
                     {
-                        id = "power",
-                        sh = true,
-                        gr = {
-                            { id = "title", type = "slide", link = "at_mcm_banner",
-                                text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
-                            { id = "desc", type = "desc", text = "ui_mcm_at_mutants_power_desc" },
-                            power_damage_row,
-                            { id = "mut_resist_pct", type = "track", val = 2, min = 0, max = 15, step = 1, def = 2, hint = "at_mutants_mut_resist_pct" },
-                        },
-                    },
-                    {
                         id = "chimera",
                         sh = true,
                         gr = {
                             { id = "title", type = "slide", link = "at_mcm_banner",
                                 text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
                             { id = "desc", type = "desc", text = "ui_mcm_at_mutants_chimera_desc" },
-                            { id = "hdr_managed", type = "desc", text = "ui_mcm_at_mutants_managed" },
-                            { id = "mut_chimera_high_leap",      type = "check", val = 1, def = true, hint = "at_mutants_high_leap" },
-                            { id = "div_new", type = "line" },
                             { id = "hdr_new", type = "desc", text = "ui_mcm_at_mutants_new" },
-                            { id = "mut_chimera_claw",              type = "check", val = 1, def = true, hint = "at_mutants_claw" },
-                            { id = "mut_chimera_backstrike",        type = "check", val = 1, def = true, hint = "at_mutants_backstrike" },
+                            { id = "desc_new", type = "desc", text = "ui_mcm_at_mutants_new_desc" },
+                            { id = "mut_chimera_high_leap",      type = "check", val = 1, def = true, hint = "at_mutants_high_leap" },
                             { id = "mut_chimera_punishing_leap",       type = "check", val = 1, def = true, hint = "at_mutants_punishing_leap" },
                             { id = "mut_chimera_hunting_leap",  type = "check", val = 1, def = true, hint = "at_mutants_hunting_leap" },
                             { id = "mut_chimera_feral_leap",    type = "check", val = 1, def = true, hint = "at_mutants_feral_leap" },
                             { id = "mut_chimera_catching_leap", type = "check", val = 1, def = true, hint = "at_mutants_catching_leap" },
                             { id = "mut_chimera_cutoff_leap",   type = "check", val = 1, def = true, hint = "at_mutants_cutoff_leap" },
+                            { id = "mut_chimera_claw",              type = "check", val = 1, def = true, hint = "at_mutants_claw" },
+                            { id = "mut_chimera_backstrike",        type = "check", val = 1, def = true, hint = "at_mutants_backstrike" },
                         },
                     },
                     {
@@ -810,12 +807,13 @@ function on_mcm_load()
                             { id = "title", type = "slide", link = "at_mcm_banner",
                                 text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
                             { id = "desc", type = "desc", text = "ui_mcm_at_mutants_bloodsucker_desc" },
-                            { id = "hdr_managed", type = "desc", text = "ui_mcm_at_mutants_managed" },
-                            { id = "mut_bloodsucker_cloak",      type = "check", val = 1, def = true, hint = "at_mutants_cloak" },
-                            { id = "div_new", type = "line" },
                             { id = "hdr_new", type = "desc", text = "ui_mcm_at_mutants_new" },
+                            { id = "desc_new", type = "desc", text = "ui_mcm_at_mutants_new_desc" },
                             { id = "mut_bloodsucker_closing_leap", type = "check", val = 1, def = true, hint = "at_mutants_closing_leap" },
-                            { id = "mut_bloodsucker_flee",         type = "check", val = 1, def = true, hint = "at_mutants_flee" },
+                            { id = "div_managed", type = "line" },
+                            { id = "hdr_managed", type = "desc", text = "ui_mcm_at_mutants_managed" },
+                            { id = "desc_managed", type = "desc", text = "ui_mcm_at_mutants_managed_desc" },
+                            { id = "mut_bloodsucker_cloak",      type = "check", val = 1, def = true, hint = "at_mutants_cloak" },
                         },
                     },
                     {
@@ -825,13 +823,18 @@ function on_mcm_load()
                             { id = "title", type = "slide", link = "at_mcm_banner",
                                 text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
                             { id = "desc", type = "desc", text = "ui_mcm_at_mutants_burer_desc" },
+                            { id = "hdr_new", type = "desc", text = "ui_mcm_at_mutants_new" },
+                            { id = "desc_new", type = "desc", text = "ui_mcm_at_mutants_new_desc" },
+                            { id = "mut_burer_backstrike", type = "check", val = 1, def = true, hint = "at_mutants_backstrike" },
+                            { id = "div_managed", type = "line" },
                             { id = "hdr_managed", type = "desc", text = "ui_mcm_at_mutants_managed" },
+                            { id = "desc_managed", type = "desc", text = "ui_mcm_at_mutants_managed_desc" },
                             { id = "mut_burer_gravity_attack",  type = "check", val = 1, def = true, hint = "at_mutants_gravity_attack" },
+                            { id = "div_influenced", type = "line" },
+                            { id = "hdr_influenced", type = "desc", text = "ui_mcm_at_mutants_influenced" },
+                            { id = "desc_influenced", type = "desc", text = "ui_mcm_at_mutants_influenced_desc" },
                             { id = "mut_burer_gravity_numbers", type = "check", val = 1, def = true, hint = "at_mutants_gravity_numbers" },
                             { id = "mut_burer_telekinesis",     type = "check", val = 1, def = true, hint = "at_mutants_telekinesis" },
-                            { id = "div_new", type = "line" },
-                            { id = "hdr_new", type = "desc", text = "ui_mcm_at_mutants_new" },
-                            { id = "mut_burer_backstrike", type = "check", val = 1, def = true, hint = "at_mutants_backstrike" },
                         },
                     },
                     {
@@ -841,13 +844,15 @@ function on_mcm_load()
                             { id = "title", type = "slide", link = "at_mcm_banner",
                                 text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
                             { id = "desc", type = "desc", text = "ui_mcm_at_mutants_controller_desc" },
-                            { id = "hdr_managed", type = "desc", text = "ui_mcm_at_mutants_managed" },
+                            { id = "hdr_new", type = "desc", text = "ui_mcm_at_mutants_new" },
+                            { id = "desc_new", type = "desc", text = "ui_mcm_at_mutants_new_desc" },
+                            { id = "mut_controller_backstrike", type = "check", val = 1, def = true, hint = "at_mutants_backstrike" },
+                            { id = "div_influenced", type = "line" },
+                            { id = "hdr_influenced", type = "desc", text = "ui_mcm_at_mutants_influenced" },
+                            { id = "desc_influenced", type = "desc", text = "ui_mcm_at_mutants_influenced_desc" },
                             { id = "mut_controller_psi_tube", type = "check", val = 1, def = true, hint = "at_mutants_psi_tube" },
                             { id = "mut_controller_stamina",  type = "check", val = 1, def = true, hint = "at_mutants_stamina" },
                             { id = "mut_controller_aura",     type = "check", val = 1, def = true, hint = "at_mutants_aura" },
-                            { id = "div_new", type = "line" },
-                            { id = "hdr_new", type = "desc", text = "ui_mcm_at_mutants_new" },
-                            { id = "mut_controller_backstrike", type = "check", val = 1, def = true, hint = "at_mutants_backstrike" },
                         },
                     },
                     {
@@ -857,7 +862,8 @@ function on_mcm_load()
                             { id = "title", type = "slide", link = "at_mcm_banner",
                                 text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
                             { id = "desc", type = "desc", text = "ui_mcm_at_mutants_poltergeist_desc" },
-                            { id = "hdr_managed", type = "desc", text = "ui_mcm_at_mutants_managed" },
+                            { id = "hdr_influenced", type = "desc", text = "ui_mcm_at_mutants_influenced" },
+                            { id = "desc_influenced", type = "desc", text = "ui_mcm_at_mutants_influenced_desc" },
                             { id = "mut_poltergeist_detection", type = "check", val = 1, def = true, hint = "at_mutants_detection" },
                         },
                     },
@@ -868,16 +874,15 @@ function on_mcm_load()
                             { id = "title", type = "slide", link = "at_mcm_banner",
                                 text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
                             { id = "desc", type = "desc", text = "ui_mcm_at_mutants_dog_desc" },
-                            { id = "hdr_managed", type = "desc", text = "ui_mcm_at_mutants_managed" },
-                            { id = "mut_dog_high_leap",      type = "check", val = 1, def = true, hint = "at_mutants_high_leap" },
-                            { id = "div_new", type = "line" },
                             { id = "hdr_new", type = "desc", text = "ui_mcm_at_mutants_new" },
-                            { id = "mut_dog_flee",              type = "check", val = 1, def = true, hint = "at_mutants_flee" },
+                            { id = "desc_new", type = "desc", text = "ui_mcm_at_mutants_new_desc" },
+                            { id = "mut_dog_high_leap",      type = "check", val = 1, def = true, hint = "at_mutants_high_leap" },
                             { id = "mut_dog_punishing_leap",       type = "check", val = 1, def = true, hint = "at_mutants_punishing_leap" },
                             { id = "mut_dog_hunting_leap",  type = "check", val = 1, def = true, hint = "at_mutants_hunting_leap" },
                             { id = "mut_dog_feral_leap",    type = "check", val = 1, def = true, hint = "at_mutants_feral_leap" },
                             { id = "mut_dog_catching_leap", type = "check", val = 1, def = true, hint = "at_mutants_catching_leap" },
                             { id = "mut_dog_cutoff_leap",   type = "check", val = 1, def = true, hint = "at_mutants_cutoff_leap" },
+                            { id = "mut_dog_flee",              type = "check", val = 1, def = true, hint = "at_mutants_flee" },
                         },
                     },
                     {
@@ -887,6 +892,8 @@ function on_mcm_load()
                             { id = "title", type = "slide", link = "at_mcm_banner",
                                 text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
                             { id = "desc", type = "desc", text = "ui_mcm_at_mutants_boar_desc" },
+                            { id = "hdr_new", type = "desc", text = "ui_mcm_at_mutants_new" },
+                            { id = "desc_new", type = "desc", text = "ui_mcm_at_mutants_new_desc" },
                             { id = "mut_boar_flee",  type = "check", val = 1, def = true, hint = "at_mutants_flee" },
                         },
                     },
@@ -897,16 +904,15 @@ function on_mcm_load()
                             { id = "title", type = "slide", link = "at_mcm_banner",
                                 text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
                             { id = "desc", type = "desc", text = "ui_mcm_at_mutants_snork_desc" },
-                            { id = "hdr_managed", type = "desc", text = "ui_mcm_at_mutants_managed" },
-                            { id = "mut_snork_high_leap",      type = "check", val = 1, def = true, hint = "at_mutants_high_leap" },
-                            { id = "div_new", type = "line" },
                             { id = "hdr_new", type = "desc", text = "ui_mcm_at_mutants_new" },
-                            { id = "mut_snork_flee",              type = "check", val = 1, def = true, hint = "at_mutants_flee" },
+                            { id = "desc_new", type = "desc", text = "ui_mcm_at_mutants_new_desc" },
+                            { id = "mut_snork_high_leap",      type = "check", val = 1, def = true, hint = "at_mutants_high_leap" },
                             { id = "mut_snork_punishing_leap",       type = "check", val = 1, def = true, hint = "at_mutants_punishing_leap" },
                             { id = "mut_snork_hunting_leap",  type = "check", val = 1, def = true, hint = "at_mutants_hunting_leap" },
                             { id = "mut_snork_feral_leap",    type = "check", val = 1, def = true, hint = "at_mutants_feral_leap" },
                             { id = "mut_snork_catching_leap", type = "check", val = 1, def = true, hint = "at_mutants_catching_leap" },
                             { id = "mut_snork_cutoff_leap",   type = "check", val = 1, def = true, hint = "at_mutants_cutoff_leap" },
+                            { id = "mut_snork_flee",              type = "check", val = 1, def = true, hint = "at_mutants_flee" },
                         },
                     },
                     {
@@ -916,16 +922,15 @@ function on_mcm_load()
                             { id = "title", type = "slide", link = "at_mcm_banner",
                                 text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
                             { id = "desc", type = "desc", text = "ui_mcm_at_mutants_pseudodog_desc" },
-                            { id = "hdr_managed", type = "desc", text = "ui_mcm_at_mutants_managed" },
-                            { id = "mut_pseudodog_high_leap",      type = "check", val = 1, def = true, hint = "at_mutants_high_leap" },
-                            { id = "div_new", type = "line" },
                             { id = "hdr_new", type = "desc", text = "ui_mcm_at_mutants_new" },
-                            { id = "mut_pseudodog_flee",              type = "check", val = 1, def = true, hint = "at_mutants_flee" },
+                            { id = "desc_new", type = "desc", text = "ui_mcm_at_mutants_new_desc" },
+                            { id = "mut_pseudodog_high_leap",      type = "check", val = 1, def = true, hint = "at_mutants_high_leap" },
                             { id = "mut_pseudodog_punishing_leap",       type = "check", val = 1, def = true, hint = "at_mutants_punishing_leap" },
                             { id = "mut_pseudodog_hunting_leap",  type = "check", val = 1, def = true, hint = "at_mutants_hunting_leap" },
                             { id = "mut_pseudodog_feral_leap",    type = "check", val = 1, def = true, hint = "at_mutants_feral_leap" },
                             { id = "mut_pseudodog_catching_leap", type = "check", val = 1, def = true, hint = "at_mutants_catching_leap" },
                             { id = "mut_pseudodog_cutoff_leap",   type = "check", val = 1, def = true, hint = "at_mutants_cutoff_leap" },
+                            { id = "mut_pseudodog_flee",              type = "check", val = 1, def = true, hint = "at_mutants_flee" },
                         },
                     },
                     {
@@ -935,6 +940,8 @@ function on_mcm_load()
                             { id = "title", type = "slide", link = "at_mcm_banner",
                                 text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
                             { id = "desc", type = "desc", text = "ui_mcm_at_mutants_gigant_desc" },
+                            { id = "hdr_new", type = "desc", text = "ui_mcm_at_mutants_new" },
+                            { id = "desc_new", type = "desc", text = "ui_mcm_at_mutants_new_desc" },
                             { id = "mut_gigant_flee",  type = "check", val = 1, def = true, hint = "at_mutants_flee" },
                         },
                     },
@@ -945,16 +952,15 @@ function on_mcm_load()
                             { id = "title", type = "slide", link = "at_mcm_banner",
                                 text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
                             { id = "desc", type = "desc", text = "ui_mcm_at_mutants_cat_desc" },
-                            { id = "hdr_managed", type = "desc", text = "ui_mcm_at_mutants_managed" },
-                            { id = "mut_cat_high_leap",      type = "check", val = 1, def = true, hint = "at_mutants_high_leap" },
-                            { id = "div_new", type = "line" },
                             { id = "hdr_new", type = "desc", text = "ui_mcm_at_mutants_new" },
-                            { id = "mut_cat_flee",              type = "check", val = 1, def = true, hint = "at_mutants_flee" },
+                            { id = "desc_new", type = "desc", text = "ui_mcm_at_mutants_new_desc" },
+                            { id = "mut_cat_high_leap",      type = "check", val = 1, def = true, hint = "at_mutants_high_leap" },
                             { id = "mut_cat_punishing_leap",       type = "check", val = 1, def = true, hint = "at_mutants_punishing_leap" },
                             { id = "mut_cat_hunting_leap",  type = "check", val = 1, def = true, hint = "at_mutants_hunting_leap" },
                             { id = "mut_cat_feral_leap",    type = "check", val = 1, def = true, hint = "at_mutants_feral_leap" },
                             { id = "mut_cat_catching_leap", type = "check", val = 1, def = true, hint = "at_mutants_catching_leap" },
                             { id = "mut_cat_cutoff_leap",   type = "check", val = 1, def = true, hint = "at_mutants_cutoff_leap" },
+                            { id = "mut_cat_flee",              type = "check", val = 1, def = true, hint = "at_mutants_flee" },
                         },
                     },
                     {
@@ -964,6 +970,8 @@ function on_mcm_load()
                             { id = "title", type = "slide", link = "at_mcm_banner",
                                 text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
                             { id = "desc", type = "desc", text = "ui_mcm_at_mutants_flesh_desc" },
+                            { id = "hdr_new", type = "desc", text = "ui_mcm_at_mutants_new" },
+                            { id = "desc_new", type = "desc", text = "ui_mcm_at_mutants_new_desc" },
                             { id = "mut_flesh_flee", type = "check", val = 1, def = true, hint = "at_mutants_flee" },
                         },
                     },
@@ -974,6 +982,8 @@ function on_mcm_load()
                             { id = "title", type = "slide", link = "at_mcm_banner",
                                 text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
                             { id = "desc", type = "desc", text = "ui_mcm_at_mutants_fracture_desc" },
+                            { id = "hdr_new", type = "desc", text = "ui_mcm_at_mutants_new" },
+                            { id = "desc_new", type = "desc", text = "ui_mcm_at_mutants_new_desc" },
                             { id = "mut_fracture_flee", type = "check", val = 1, def = true, hint = "at_mutants_flee" },
                         },
                     },
@@ -984,6 +994,8 @@ function on_mcm_load()
                             { id = "title", type = "slide", link = "at_mcm_banner",
                                 text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
                             { id = "desc", type = "desc", text = "ui_mcm_at_mutants_karlik_desc" },
+                            { id = "hdr_new", type = "desc", text = "ui_mcm_at_mutants_new" },
+                            { id = "desc_new", type = "desc", text = "ui_mcm_at_mutants_new_desc" },
                             { id = "mut_karlik_flee", type = "check", val = 1, def = true, hint = "at_mutants_flee" },
                         },
                     },
@@ -994,6 +1006,8 @@ function on_mcm_load()
                             { id = "title", type = "slide", link = "at_mcm_banner",
                                 text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
                             { id = "desc", type = "desc", text = "ui_mcm_at_mutants_tushkano_desc" },
+                            { id = "hdr_new", type = "desc", text = "ui_mcm_at_mutants_new" },
+                            { id = "desc_new", type = "desc", text = "ui_mcm_at_mutants_new_desc" },
                             { id = "mut_tushkano_flee", type = "check", val = 1, def = true, hint = "at_mutants_flee" },
                         },
                     },
@@ -1097,6 +1111,12 @@ function on_mcm_load()
             },
         },
     }
+    if MUT_POWER_ENABLED then
+        for i = 1, #tree.gr do
+            if tree.gr[i].id == MUTANTS_ID then table_insert(tree.gr[i].gr, 2, power_page) end
+        end
+    end
+    return tree
 end
 
 function on_game_start()

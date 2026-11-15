@@ -1,7 +1,6 @@
 --- at_mutants: the mutant combat driver - tier stat scaling, innate Wild, the decision model over the engine FSM
 
 local math_random, math_min, math_sqrt, math_floor = math.random, math.min, math.sqrt, math.floor
-local math_acos, math_deg = math.acos, math.deg
 local time_global, pairs, next, rawget, tostring = time_global, pairs, next, rawget, tostring
 local table_concat = table.concat
 local RegisterScriptCallback, UnregisterScriptCallback = RegisterScriptCallback, UnregisterScriptCallback
@@ -20,6 +19,8 @@ local POLTERGEIST     = "poltergeist"
 local AURA_NAMES      = { "psy", "radiation", "fire" }
 local GATE            = "int, pers"
 local GATE_WILD       = "int, pers, wild"
+-- The inverse gate: a move taken on an Intelligence MISS (panic). inv_ is the AlifePlus trait prefix for 1 - value (ap_ext_const.script INV_).
+local GATE_PANIC      = "inv_int, pers, wild"
 local VS_PLAYER, VS_NPC = "vs_player", "vs_npc"
 local MOVE_HIGH_LEAP      = "high_leap"
 local MOVE_PUNISHING_LEAP = "punishing_leap"
@@ -34,7 +35,6 @@ local MOVE_RUN_ATTACK = "run_attack"
 local MOVE_BACKSTRIKE = "backstrike"
 -- The [cooldown] row all leaps share, beside each leap's own row.
 local COOLDOWN_LEAP   = "leap"
-local MOTION_STEADY, MOTION_MOVING = "steady", "moving"
 local FIRED_CALLED, FIRED_SHAPED, FIRED_ENGINE = "called", "shaped", "engine"
 local VIS_FULL        = 2
 
@@ -53,11 +53,14 @@ local MOVE_KEYS = {
     "cloak", "gravity_attack", "claw", "backstrike",
 }
 
--- The per-beat decision chain the selection shuffles and walks; backstrike/auras arm at adoption and claw checks on contact, not here.
+-- The per-beat decision chain the selection shuffles and walks on an Intelligence PASS; backstrike arms at adoption and claw checks on contact, not here.
 local DECISION_MOVES = {
     "high_leap", "punishing_leap", "hunting_leap", "feral_leap", "catching_leap", "cutoff_leap", "closing_leap",
-    "flee", "gravity_attack", "cloak",
+    "gravity_attack", "cloak",
 }
+
+-- The moves checked on an Intelligence MISS instead: panic is the failure to read the fight (user 2026-11-15), so a smart mutant never flees.
+local PANIC_MOVES = { "flee" }
 
 -- The leaps a species may carry; any one of them makes the mutant a leaper that rolls its leap numbers at adoption.
 local LEAP_MOVES = { "high_leap", "punishing_leap", "hunting_leap", "feral_leap", "catching_leap", "cutoff_leap", "closing_leap" }
@@ -66,6 +69,7 @@ local LEAP_MOVES = { "high_leap", "punishing_leap", "hunting_leap", "feral_leap"
 local MOVE_GATES = {
     high_leap = GATE, punishing_leap = GATE_WILD, hunting_leap = GATE_WILD, feral_leap = GATE_WILD,
     catching_leap = GATE_WILD, cutoff_leap = GATE_WILD, closing_leap = GATE_WILD,
+    flee = GATE_PANIC,
 }
 
 local _states = {}
@@ -176,18 +180,18 @@ local function _get_tier()
     return tier
 end
 
--- The damage slider as the module reads it: 0 while the at_mcm flag keeps the damage increase out of the release (the row is hidden with it).
-local function _get_damage_pct()
-    if not at_mcm.MUT_DAMAGE_ENABLED then return 0 end
-    return cfg.mut_damage_pct or 0
+-- A Power slider as the module reads it: 0 while the at_mcm flag keeps the Power page out of the release.
+local function _get_power_pct(key)
+    if not at_mcm.MUT_POWER_ENABLED then return 0 end
+    return cfg[key] or 0
 end
 
 -- Rebuild the per-tier damage and resistance multipliers from the formula sliders.
 local function _build_tracks()
-    local damage_pct = _get_damage_pct()
+    local damage_pct, resist_pct = _get_power_pct("mut_damage_pct"), _get_power_pct("mut_resist_pct")
     for tier = TIER_MIN, TIER_MAX do
         _tracks.damage[tier] = 1 + damage_pct / 100 * tier
-        _tracks.taken[tier] = 1 - (cfg.mut_resist_pct or 0) / 100 * tier
+        _tracks.taken[tier] = 1 - resist_pct / 100 * tier
     end
 end
 
@@ -436,7 +440,6 @@ local function _add_mutant(mob, id, now)
         flee_until = 0,
         gravity_release = 0,
         cloak_until = 0,
-        low_now = false,
     }
     _states[id] = rec
     _build_repertoire(rec)
@@ -517,11 +520,10 @@ local function _update_strike(mob, rec, now)
     _stop_strike(rec, now, finish)
 end
 
--- The per-beat motion sample: the enemy's horizontal velocity over the real elapsed time, and the previous beat's for the turn angle.
+-- The per-beat motion sample: the enemy's horizontal velocity over the real elapsed time, and whether it covered [motion] move_min_m.
 local function _update_samples(rec, enemy_pos, now)
     local px, pz, sampled_ms = rec.enemy_px, rec.enemy_pz, rec.sampled_ms
     rec.enemy_px, rec.enemy_pz, rec.sampled_ms = enemy_pos.x, enemy_pos.z, now
-    rec.prev_vx, rec.prev_vz, rec.prev_moved = rec.enemy_vx, rec.enemy_vz, rec.moved
     if not px or now <= sampled_ms then
         rec.enemy_vx, rec.enemy_vz, rec.moved = nil, nil, false
         return
@@ -537,19 +539,6 @@ local function _get_enemy_velocity(rec, enemy, is_actor)
     local velocity = is_actor and xcombat.get_actor_velocity(enemy)
     if velocity then return velocity.x, velocity.z end
     return rec.enemy_vx, rec.enemy_vz
-end
-
--- The enemy's motion over the last beats: moving when it covered more than [motion] move_min_m since the last beat.
--- Steady when it also moved the beat before and turned at most [motion] steady_deg between the two.
-local function _compute_motion(rec)
-    local vx, vz, wx, wz = rec.enemy_vx, rec.enemy_vz, rec.prev_vx, rec.prev_vz
-    if not (vx and rec.moved) then return nil end
-    if not (wx and rec.prev_moved) then return MOTION_MOVING end
-    local speed, prev_speed = math_sqrt(vx * vx + vz * vz), math_sqrt(wx * wx + wz * wz)
-    local cos_turn = (vx * wx + vz * wz) / (speed * prev_speed)
-    if cos_turn < -1 then cos_turn = -1 elseif cos_turn > 1 then cos_turn = 1 end
-    if math_deg(math_acos(cos_turn)) <= _tun_num.steady_deg then return MOTION_STEADY end
-    return MOTION_MOVING
 end
 
 -- Stamp the driver label, the move's gate, and the fire time; the HUD reads them.
@@ -640,15 +629,10 @@ local function _check_punishing_leap_block(mob, rec, now)
     return _check_leap_block(mob, rec, now)
 end
 
--- Hunting leap and Feral leap: the enemy is moving, so the steering follows it in flight; Hunting winds up first, Feral launches at once.
+-- The four moving-enemy leaps share one premise, the enemy moved over [motion] move_min_m since the last beat (Personality tells them apart, user 2026-11-15).
+-- Hunting and Feral steer toward it in flight, Catching and Cutoff aim ahead of it; Hunting and Catching wind up first.
 local function _check_moving_leap_block(mob, rec, now)
-    if not rec.memo.motion then return "still" end
-    return _check_leap_block(mob, rec, now)
-end
-
--- Catching leap and Cutoff leap: the enemy moves steadily, so its path predicts where it will be; Catching winds up first, Cutoff launches at once.
-local function _check_steady_leap_block(mob, rec, now)
-    if rec.memo.motion ~= MOTION_STEADY then return "unsteady" end
+    if not rec.memo.moving then return "still" end
     return _check_leap_block(mob, rec, now)
 end
 
@@ -763,7 +747,7 @@ end
 
 -- Catching leap: the wind-up pounce at where the enemy will be, with no steering; the lead counts the flight only, not the crouch (m35, the wind-up probe).
 local function _try_catching_leap(mob, rec, _move, now)
-    local block = _check_steady_leap_block(mob, rec, now)
+    local block = _check_moving_leap_block(mob, rec, now)
     if block then return _log_block(rec, MOVE_CATCHING_LEAP, block) end
     local target, lead_m = _compute_lead_point(mob, rec, rec.memo, rec.leap_force)
     return _execute_leap(mob, rec, MOVE_CATCHING_LEAP, now, _build_order(target, rec.leap_force, false, lead_m))
@@ -771,7 +755,7 @@ end
 
 -- Cutoff leap: the instant pounce at where the enemy will be, with no steering (steering homes on the live position and undoes the lead).
 local function _try_cutoff_leap(mob, rec, _move, now)
-    local block = _check_steady_leap_block(mob, rec, now)
+    local block = _check_moving_leap_block(mob, rec, now)
     if block then return _log_block(rec, MOVE_CUTOFF_LEAP, block) end
     local target, lead_m = _compute_lead_point(mob, rec, rec.memo, rec.leap_force)
     return _execute_leap(mob, rec, MOVE_CUTOFF_LEAP, now, _build_order(target, rec.leap_force, false, lead_m))
@@ -788,7 +772,7 @@ end
 
 -- Flee gates: hurt, far enough to disengage, an escape route, then not nose-on to the enemy (its cooldown is filtered before the walk).
 local function _check_flee_block(mob, rec, _now)
-    if not rec.low_now then return "healthy" end
+    if xmonster.get_monster_health(mob) > _tun_num.survival_frac then return "healthy" end
     local memo = rec.memo
     if memo.dist < _tun_num.flee_min_m then return "near" end
     if not _runaway_id then return "no_runaway" end
@@ -934,7 +918,25 @@ local function _filter_moves(rec, now)
     return count
 end
 
--- The selection: filter, shuffle the survivors in place (xmath.shuffle_back), then check the conditions of up to [select] candidates.
+-- One panic move on an Intelligence MISS: repertoire, toggle and cooldown as table reads, then its own premise. True when it fired.
+local function _try_panic_move(mob, rec, move, now)
+    if not (rec.repertoire[move] and _check_toggle(rec, move)) then return false end
+    local key = _check_ready(rec, move, now)
+    if key then
+        _log_cooldown(rec, move, key)
+        return false
+    end
+    return TRY[move](mob, rec, move, now)
+end
+
+-- The panic walk on an Intelligence MISS over PANIC_MOVES; the first that fires ends the beat.
+local function _select_panic(mob, rec, now)
+    for i = 1, #PANIC_MOVES do
+        if _try_panic_move(mob, rec, PANIC_MOVES[i], now) then return end
+    end
+end
+
+-- The selection on an Intelligence PASS: filter, shuffle the survivors in place (xmath.shuffle_back), then check the conditions of up to [select] candidates.
 -- The FIRST that fires consumes the beat and breaks; the cap counts condition checks only.
 local function _select_move(mob, rec, now)
     local count = _filter_moves(rec, now)
@@ -962,14 +964,14 @@ local function _reset_fight(mob, rec)
     rec.gate = nil
     rec.dist = nil
     rec.enemy_px, rec.enemy_pz, rec.sampled_ms = nil, nil, nil
-    rec.enemy_vx, rec.enemy_vz, rec.prev_vx, rec.prev_vz = nil, nil, nil, nil
-    rec.moved, rec.prev_moved = false, false
+    rec.enemy_vx, rec.enemy_vz = nil, nil
+    rec.moved = false
 end
 
 local _gate_probe = {}
 
 -- The one 600ms lane runs upkeep and samples every beat, then (if no committed window holds) rolls Intelligence once.
--- Only on a pass does it build the decision memo and run the move selection; a miss does zero premise or feasibility work.
+-- A pass builds the full memo and runs the move selection; a miss runs only the panic walk (flee), the inverse gate.
 local function _update_mutant(mob, rec, now)
     rec.tick_now = now
     rec.seen_ms = now
@@ -997,10 +999,6 @@ local function _update_mutant(mob, rec, now)
     if not ac then return end
     _gate_probe.actor_dist_sqr = mob_pos:distance_to_sqr(ac:position())
     if not at_core.is_in_gate(_gate_probe) then return end
-    if not _check_intelligence(rec) then
-        if at_debug.is_on() then at_debug.debug("[MUT] PASS id=%d int", rec.id) end
-        return
-    end
     local is_actor = enemy:id() == AC_ID
     local memo = rec.memo
     memo.enemy = enemy
@@ -1010,13 +1008,17 @@ local function _update_mutant(mob, rec, now)
     memo.dist_sqr = dist_sqr
     memo.is_actor = is_actor
     memo.bucket = is_actor and VS_PLAYER or VS_NPC
+    if not _check_intelligence(rec) then
+        if at_debug.is_on() then at_debug.debug("[MUT] PASS id=%d int", rec.id) end
+        _select_panic(mob, rec, now)
+        return
+    end
     memo.aiming = xcombat.is_enemy_watching(enemy, mob, _tun_num.aim_cone)
     memo.vulnerable = _check_enemy_vulnerable(mob, enemy, is_actor, now)
     if rec.leaper then
         memo.vel_x, memo.vel_z = _get_enemy_velocity(rec, enemy, is_actor)
-        memo.motion = _compute_motion(rec)
+        memo.moving = rec.moved
     end
-    rec.low_now = xmonster.get_monster_health(mob) <= _tun_num.survival_frac
     _select_move(mob, rec, now)
 end
 
@@ -1160,7 +1162,7 @@ end
 -- Any nonzero stat slider, any species move toggle, or any vary row keeps the module live.
 local function _check_wanted()
     if _seams == false then return false end
-    if _get_damage_pct() > 0 or (cfg.mut_resist_pct or 0) > 0 then
+    if _get_power_pct("mut_damage_pct") > 0 or _get_power_pct("mut_resist_pct") > 0 then
         return true
     end
     for i = 1, #_all_toggle_keys do
@@ -1231,7 +1233,6 @@ local function _load_tunables()
         lead_max_m = _read_num("lead", "max_m"),
         lead_gap_m = _read_num("lead", "navmesh_gap_m"),
         move_min_m = _read_num("motion", "move_min_m"),
-        steady_deg = _read_num("motion", "steady_deg"),
         see_radius = _read_num("closing_leap", "see_radius"),
         closing_min_m = _read_num("closing_leap", "aim_min_m"),
         flee_min_m = _read_num("survival", "min_dist_m"),
@@ -1305,12 +1306,16 @@ function get_mutant_record(id)
     return _states[id]
 end
 
---- The species' per-beat decided moves as a set (the DECISION_MOVES the species carries), for the manifestation coverage harness.
+--- The species' per-beat decided moves as a set (the DECISION_MOVES and PANIC_MOVES the species carries), for the manifestation coverage harness.
 function get_species_moves(species)
     local set = {}
     if not species then return set end
     for i = 1, #DECISION_MOVES do
         local move = DECISION_MOVES[i]
+        if _move_species[move] and _move_species[move][species] then set[move] = true end
+    end
+    for i = 1, #PANIC_MOVES do
+        local move = PANIC_MOVES[i]
         if _move_species[move] and _move_species[move][species] then set[move] = true end
     end
     return set

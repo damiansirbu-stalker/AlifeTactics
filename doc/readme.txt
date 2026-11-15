@@ -110,6 +110,7 @@ Faction Personality and Intelligence:
 Intelligence is how sharply a stalker reads a fight, and it scales with his rank, a base plus a bonus per rank, two sliders on the General page.
 A novice fumbles the openings a veteran takes. His judgment emerges from his rank, where vanilla clamps every NPC to one flat setting.
 It caps short of certain, and even a legend is never guaranteed the right call.
+Flee runs on the inverse: the roll he fails is the one that makes him rout, so a sharp stalker holds where a dull one breaks.
 Then the faction's Personality decides whether his kind takes that action at all, every action carrying a per-faction chance from 0 (never) to 1 (always).
 Monolith presses relentlessly, Duty holds the line and gives ground in order, bandits finish a downed man and rout when the fight turns, ecologists pull back early.
 One opening draws a different answer by faction.
@@ -283,10 +284,6 @@ The engine drives every mutant as it always has. AlifeTactics scales a mutant's 
 Rank is the map tier, from 0 on the starting maps to 5 at the endgame. A Cordon dog barely changes while a deep-Zone chimera is far deadlier.
 The whole system needs the latest demonized build and stays inactive on older exes and on AOEngine.
 
-Power:
-A mutant hits harder and takes less as the Zone deepens. Damage dealt and damage resistance each grow by a percent-per-rank slider.
-Rank 0 stays vanilla, and every value multiplies the installed balance. A mutant overhaul keeps its numbers.
-
 General:
 Observing is free, deciding is hard. Every mutant sees your reload from the first fight, and Intelligence is the chance it answers with the RIGHT move, a base plus a bonus per map rank.
 Personality then sets which moves its species favours, a chimera leaping and clawing without pause where a flesh bolts early. The final chance is Intelligence times Personality.
@@ -296,17 +293,17 @@ Wild is how much a mutant's own ability numbers vary between spawns, the gravity
 At 0 a kind is identical and learnable. At 100 no two spawns read alike.
 
 Species:
-Each species gets its own page carrying only the moves its body has. First come the managed moves, the creature's own attacks and the values AlifeTactics varies.
-Then come the new moves the vanilla game never fires for it.
+Each species gets its own page carrying only the moves its body has, in three groups. New moves are the attacks the vanilla game never fires for it.
+Managed moves are its own attacks AlifeTactics decides when to fire. Influenced moves are its own abilities whose numbers Wild spreads between individuals.
 The leap family reads your aim, your movement, and your perch. Punishing leap strikes at once, with no wind-up, when you aim at it, reload, or turn your back.
 Hunting leap crouches, then steers mid-air to follow you while you move. Feral leap does the same with no warning.
-Catching leap crouches, then leaps at where you will be when you run in a line. Cutoff leap does the same with no warning.
+Catching leap crouches, then leaps at where you will be while you move. Cutoff leap does the same with no warning.
 High leap springs up at a shooter above it, with a wind-up. Climbing a rock or a ledge stops being safe. The bloodsucker closes the gap with its own Closing leap, then claws.
 Every leaping species except the bloodsucker can take each of the six shared leaps. Its Personality, rolled once per individual, decides which ones it carries.
 A chimera rarely telegraphs, a dog jumps straight and open, a snork steers, a cat strikes from your blind side.
 Ten seconds pass between any two of a mutant's own leaps, and twenty before it repeats the same one.
 Backstrike arms a spin strike on an enemy circling behind, once per individual, on the four species whose models carry the motions. Claw gives the chimera the point-blank pounce vanilla never gave it.
-Flee breaks a dying mutant out of the fight, rarely, and only when it is far enough to escape. A mutant with no escape fights to the end.
+Flee breaks a dying mutant out of the fight when it is far enough to escape. It runs on the inverse of Intelligence: the dull mutant panics, the sharp one presses on. A mutant with no escape fights to the end.
 Cloak sends a bloodsucker invisible when you aim at it or hit it while it is still closing. It re-appears a beat later, and never vanishes once it is already at strike range.
 Beyond the moves, each species' own ability numbers breathe: the burer's gravity and telekinesis, the controller's psi tube and stamina and auras, the poltergeist's detection,
 each behind its own row, each a bounded variation over the installed balance.

@@ -90,7 +90,7 @@
     <text>Intelligence</text>
   </string>
   <string id="ui_mcm_at_general_int_base_desc">
-    <text>The base chance a stalker acts on an opening, before rank. Higher means more stalkers act on their reads.</text>
+    <text>The base chance a stalker acts on an opening, before rank. Higher means more stalkers act on their reads, and fewer break and flee.</text>
   </string>
   <string id="ui_mcm_at_general_int_rank_pct">
     <text>Intelligence per rank (%)</text>
@@ -208,7 +208,7 @@
     <text>Tushkano</text>
   </string>
   <string id="ui_mcm_at_mutants_general_desc">
-    <text>How often mutants act on an opening, and how much their moves vary. Each species page lists its moves: MANAGED MOVES are the creature's own attacks whose timing this mod decides, NEW MOVES are attacks the vanilla game never fires for that species. Every move's tooltip names its gates: int (Intelligence decides when), pers (the creature's own leaning toward it), and wild (the values vary).</text>
+    <text>How often mutants act on an opening, and how much their moves vary. Each species page lists its moves in three groups: NEW MOVES are attacks the vanilla game never fires for that species, MANAGED MOVES are the creature's own attacks this mod decides when to fire, INFLUENCED MOVES are the creature's own abilities whose numbers Wild spreads between individuals. Every move's tooltip names its gates: int (Intelligence decides when), pers (the creature's own leaning toward it), and wild (the values vary).</text>
   </string>
   <string id="ui_mcm_at_mutants_power_desc">
     <text>A mutant's toughness, scaled by the map rank (rookie maps rank 0 up to endgame maps rank 5): damage resistance grows by the slider's percent per rank. Multiplies the installed balance, so other mutant overhauls keep their numbers.</text>
@@ -264,11 +264,23 @@
   <string id="ui_mcm_at_mutants_new">
     <text>NEW MOVES</text>
   </string>
+  <string id="ui_mcm_at_mutants_influenced">
+    <text>INFLUENCED MOVES</text>
+  </string>
+  <string id="ui_mcm_at_mutants_new_desc">
+    <text>Attacks the vanilla game never fires for this creature. Intelligence and Personality decide, Wild spreads the force.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_managed_desc">
+    <text>This creature already has these attacks. AlifeTactics decides when, by Intelligence and Personality.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_influenced_desc">
+    <text>This creature already has these abilities. Wild spreads their numbers between individuals.</text>
+  </string>
   <string id="ui_mcm_at_mutants_mut_int_base">
     <text>Intelligence (%)</text>
   </string>
   <string id="ui_mcm_at_mutants_mut_int_base_desc">
-    <text>The chance a mutant answers an opening with the right move, before the rank bonus. Observing is free, deciding is hard. Every mutant sees your reload, but only a passed roll turns it into the right answer, and a missed roll lets the opening go. One decision every few seconds.</text>
+    <text>The chance a mutant answers an opening with the right move, before the rank bonus. Observing is free, deciding is hard. Every mutant sees your reload, but only a passed roll turns it into the right answer, and a missed roll lets the opening go, or panics into a flee. One decision every few seconds.</text>
   </string>
   <string id="ui_mcm_at_mutants_mut_int_rank_pct">
     <text>Per rank (%)</text>
@@ -322,13 +334,13 @@
     <text>Catching leap</text>
   </string>
   <string id="ui_mcm_at_mutants_catching_leap_desc">
-    <text>A pounce with a wind-up at where a steadily running enemy will be when it lands. The crouch warns you, then it leaps at your path. (int, pers, wild)</text>
+    <text>A pounce with a wind-up at where a moving enemy will be when it lands. The crouch warns you, then it leaps at your path. (int, pers, wild)</text>
   </string>
   <string id="ui_mcm_at_mutants_cutoff_leap">
     <text>Cutoff leap</text>
   </string>
   <string id="ui_mcm_at_mutants_cutoff_leap_desc">
-    <text>An instant pounce at where a steadily running enemy will be when it lands. A smarter mutant leads its target more. (int, pers, wild)</text>
+    <text>An instant pounce at where a moving enemy will be when it lands. A smarter mutant leads its target more. (int, pers, wild)</text>
   </string>
   <string id="ui_mcm_at_mutants_closing_leap">
     <text>Closing leap</text>
@@ -400,7 +412,7 @@
     <text>Flee</text>
   </string>
   <string id="ui_mcm_at_mutants_flee_desc">
-    <text>Breaks off and runs when near death and far enough to reach safety. A cornered mutant has no room to run and fights to the end. (int, pers, wild)</text>
+    <text>Breaks off and runs when near death and far enough to reach safety. A cornered mutant has no room to run and fights to the end. Runs on the inverse of Intelligence: the dull mutant panics. (inv_int, pers, wild)</text>
   </string>
   <!-- ==================== SHARED ==================== -->
   <string id="ui_mcm_at_title">
@@ -733,7 +745,7 @@
     <text>Flee</text>
   </string>
   <string id="ui_mcm_at_combat_maneuver_flee_desc">
-    <text>The last man of a broken squad routs to a distant friendly base, weapon slung. He waits for a lull in the shooting first. Cautious factions only, fanatics never break. (int, pers)</text>
+    <text>The last man of a broken squad routs to a distant friendly base, weapon slung. He waits for a lull in the shooting first. Cautious factions only, fanatics never break. Runs on the inverse of Intelligence: the dull stalker breaks. (inv_int, pers)</text>
   </string>
   <string id="ui_mcm_at_combat_maneuver_pickoff">
     <text>Pickoff</text>

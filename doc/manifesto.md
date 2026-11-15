@@ -244,7 +244,7 @@ Wild varies each ability value inside the species' own envelope. No two spawns r
 The leap family reads your perch, your aim, and your movement.
 Climb to high ground and it leaps up after you.
 Against a raised weapon it drops the wind-up and lunges before the shot. Against a reload or a turned back it strikes inside that opening.
-Keep moving and it steers in the air to follow you. Run in a line and it leaps at where you will be.
+Keep moving and it steers in the air to follow you, or leaps at where you will be.
 Some leaps crouch first and warn you, others come with no warning at all, and the species decides which it favours. Two of its leaps never come within ten seconds of each other.
 A bloodsucker closes the gap with a leap of its own, then claws.
 A burer answers a reloading or turned-away player with its Gravity throw.
