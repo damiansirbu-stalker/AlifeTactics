@@ -71,6 +71,7 @@ basis           = 2.0  ; the force basis for a species with no jump_factor (the 
 force_min_mult  = 1.0  ; every leap but High and the Closing perch flies at basis x [min, max] spread by Wild, so 2.0-3.0 and 2.5 with Wild off (the field-tested 10-01 probe band, narrowed by the user)
 force_max_mult  = 1.5
 sense_ms        = 1000 ; a leap needs the mutant to have sensed its enemy this recently (its enemy memory): one 600ms beat plus vision-update slack
+min_m           = 3    ; no leap but High and the Closing perch inside this: field 2026-11-15, every leap at 0.6-2.2 m stranded or flew through the player in 0.2s, every one from 2.7 m landed clean; claw owns point-blank
 stuck_margin_ms = 1000 ; a jump still holding the body past its flight time plus this is logged as stuck, the freeze check
 
 [lead] ; the Catching and Cutoff leap lead over the enemy's current velocity: Intelligence scales it, capped at a full intercept; it counts the flight only, so a Catching leap lands short of a fast runner by its crouch (m35)
@@ -83,7 +84,7 @@ move_min_m = 0.5 ; moving: the enemy covered more than this since the last beat,
 ; A steady-direction read (two beats, a turn under 30 deg) gated Catching and Cutoff until 2026-11-15: it passed 1 in 1869 checks against a player, so Personality alone tells the four apart (user ruling).
 
 [closing_leap] ; the bloodsucker gap-closer
-see_radius = 10  ; the reach when the section has no partial_visibility_radius: the engine default (bloodsucker.cpp:46); the vanilla section ships 9
+aim_max_m  = 15  ; the aim case ends here, the chimera's own jump reach (m_chimera.ltx:137); was the 9-10 m draw radius, too tight in the field (user 2026-11-15); a perch fires at any distance
 aim_min_m  = 4.5 ; the aim case starts outside the bloodsucker's own charge band (Run_Attack_Dist 3.5-4.5, m_bloodsucker.ltx:146)
 
 [survival] ; the flee trigger: health below this fraction while far enough to disengage and not nose-on to the enemy

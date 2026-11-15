@@ -30,12 +30,18 @@ local MOB_LINGER_MS = 3000
 local MOB_STALE_MS  = 2000
 local DRIVER_HOLD, DRIVER_PUSH, DRIVER_PULL, DRIVER_CONDUCT = "HOLD", "PUSH", "PULL", "CONDUCT"
 local OP_COMBAT = "combat"
--- Inline %c escapes for the mutant move: green when AT fired it, gold when the engine fired a move AT shaped, grey for the engine alone.
-local ESC_INT  = "%c[240,170,220,170]"
-local ESC_WILD = "%c[240,235,190,140]"
-local ESC_DIM  = "%c[150,150,150,150]"
-local ESC_END  = "%c[default]"
-local FIRED_ESC = { called = ESC_INT, shaped = ESC_WILD, engine = ESC_DIM }
+-- Inline %c escapes for the mutant move, one per MCM group: NEW green, MANAGED blue, INFLUENCED amber, the engine alone grey.
+local ESC_NEW        = "%c[240,170,220,170]"
+local ESC_MANAGED    = "%c[240,150,190,235]"
+local ESC_INFLUENCED = "%c[240,235,190,140]"
+local ESC_DIM        = "%c[150,150,150,150]"
+local ESC_END        = "%c[default]"
+-- The fired kinds at_mutants stamps on the record: AT fired it, or the engine fired a move AT armed or varied.
+local KIND_CALLED, KIND_SHAPED = "called", "shaped"
+-- The MANAGED moves: the creature's own attacks AT fires (at_mcm, the MANAGED MOVES section). Every other move AT fires is NEW.
+local MANAGED_MOVES  = { gravity_attack = true, cloak = true }
+-- The engine-fired moves AT revived and armed, NEW though the engine pulls the trigger.
+local REVIVED_MOVES  = { backstrike = true }
 local MOVE_LABEL_PREFIX = "ui_mcm_at_mutants_"
 
 local CLR_AT, CLR_HOLD, CLR_PUSH, CLR_CONDUCT, CLR_NORMAL, CLR_DIM = nil, nil, nil, nil, nil, nil
@@ -168,12 +174,19 @@ local function _get_move_label(move)
     return label
 end
 
--- Mutant systems cell: the running or just-fired move under its MCM name, coloured by who fired it; the grey FSM state otherwise.
+-- The colour of a fired move by its MCM group: called by AT is NEW or MANAGED, shaped by AT is NEW when revived else INFLUENCED, engine-only is grey.
+local function _get_fired_esc(move, kind)
+    if kind == KIND_CALLED then return MANAGED_MOVES[move] and ESC_MANAGED or ESC_NEW end
+    if kind == KIND_SHAPED then return REVIVED_MOVES[move] and ESC_NEW or ESC_INFLUENCED end
+    return ESC_DIM
+end
+
+-- Mutant systems cell: the running or just-fired move under its MCM name, coloured by its MCM group; the grey FSM state otherwise.
 local function _format_mob_systems(rec, tg, state)
     local move, kind
-    if rec.flee_until > rec.tick_now then move, kind = "flee", "called"
+    if rec.flee_until > rec.tick_now then move, kind = "flee", KIND_CALLED
     elseif rec.fired_at and tg - rec.fired_at < MOB_LINGER_MS then move, kind = rec.fired_move, rec.fired_kind end
-    if move then return (FIRED_ESC[kind] or ESC_DIM) .. _get_move_label(move) .. ESC_END end
+    if move then return _get_fired_esc(move, kind) .. _get_move_label(move) .. ESC_END end
     return ESC_DIM .. at_core.get_mob_state_name(state) .. ESC_END
 end
 

@@ -276,10 +276,9 @@ local function _apply_leap(_mob, rec, section)
     rec.leap_force = basis * _select_band(_tun_num.force_min_mult, _tun_num.force_max_mult)
     rec.aim_basis = _read_basis(section, "jump_auto_aim_factor") or 0
     rec.lead_gain = _tun_num.lead_floor + (1 - _tun_num.lead_floor) * _compute_intelligence(rec) / _tun_num.int_cap
-    rec.see_radius = _read_basis(section, "partial_visibility_radius") or _tun_num.see_radius
     if at_debug.is_on() then
-        at_debug.debug("[MUT] vary id=%d force=%.2f basis=%.2f lead_gain=%.2f reach=%.1f",
-            rec.id, rec.leap_force, basis, rec.lead_gain, rec.see_radius)
+        at_debug.debug("[MUT] vary id=%d force=%.2f basis=%.2f lead_gain=%.2f",
+            rec.id, rec.leap_force, basis, rec.lead_gain)
     end
 end
 
@@ -608,9 +607,10 @@ local function _can_leap(mob, enemy, now)
     return true
 end
 
--- The engine-state gate every leap shares after its own premise; the cooldowns are filtered before the walk (_select_move).
--- The mod owns the pacing because the game's own jump cooldown is 0 on the chimera and lurker and absent on the bloodsucker.
-local function _check_leap_block(mob, rec, now)
+-- The gate every leap shares after its premise: the [leap] min_m floor (a perch leap passes near_ok), then the sight gate.
+-- Cooldowns are filtered before the walk; the mod owns the pacing because the game's own jump cooldown is 0 on the chimera and lurker.
+local function _check_leap_block(mob, rec, now, near_ok)
+    if not near_ok and rec.memo.dist < _tun_num.leap_min_m then return "near" end
     local can_leap, leap_block = _can_leap(mob, rec.memo.enemy, now)
     if not can_leap then return leap_block end
     return nil
@@ -619,7 +619,7 @@ end
 -- High leap: the jump up at an enemy on a rock or ledge, 0.8m or more above the mutant, the standard of the game's own dog (dog.cpp:410-422).
 local function _check_high_leap_block(mob, rec, now)
     if not xcombat.is_enemy_above(rec.memo.enemy, mob, _tun_num.above_m) then return "level" end
-    return _check_leap_block(mob, rec, now)
+    return _check_leap_block(mob, rec, now, true)
 end
 
 -- Punishing leap: the enemy aims at the mutant (a wind-up hands them the shot) or cannot answer (reloading, turned away).
@@ -636,19 +636,20 @@ local function _check_moving_leap_block(mob, rec, now)
     return _check_leap_block(mob, rec, now)
 end
 
--- Closing leap: inside the drawn range (bloodsucker.cpp:590-600), a perched enemy at any distance or the aiming player past the charge band.
+-- Closing leap: a perched enemy at any distance, or the aiming player between the charge band and [closing_leap] aim_max_m.
 -- Only the player counts as aiming, since a stalker cannot see it beyond full visibility; it sets memo.perch for the force.
 local function _check_closing_leap_block(mob, rec, now)
     local memo = rec.memo
-    if memo.dist > rec.see_radius then return "far" end
     if xcombat.is_enemy_above(memo.enemy, mob, _tun_num.above_m) then
         memo.perch = true
+    elseif memo.dist > _tun_num.closing_max_m then
+        return "far"
     elseif memo.is_actor and memo.aiming and memo.dist >= _tun_num.closing_min_m then
         memo.perch = false
     else
         return "calm"
     end
-    return _check_leap_block(mob, rec, now)
+    return _check_leap_block(mob, rec, now, memo.perch)
 end
 
 -- The Cutoff leap aim point: the enemy's position advanced by its velocity over the engine's own flight time, scaled by the lead gain.
@@ -1072,6 +1073,7 @@ local function _on_mob_update(mob)
     end
     if not rec then
         if cfg.combat_ignore_companions and xsquad.is_companion(get_object_squad(mob)) then return end
+        if not xcreature.get_mutant_species(id) then return end
         rec = _add_mutant(mob, id, now)
     end
     rec.next_ms = now + BEAT_MS
@@ -1228,13 +1230,14 @@ local function _load_tunables()
         force_min_mult = _read_num("leap", "force_min_mult"),
         force_max_mult = _read_num("leap", "force_max_mult"),
         leap_sense_ms = _read_num("leap", "sense_ms"),
+        leap_min_m = _read_num("leap", "min_m") or 0,
         stuck_margin_ms = _read_num("leap", "stuck_margin_ms"),
         lead_floor = _read_num("lead", "floor_mult"),
         lead_max_m = _read_num("lead", "max_m"),
         lead_gap_m = _read_num("lead", "navmesh_gap_m"),
         move_min_m = _read_num("motion", "move_min_m"),
-        see_radius = _read_num("closing_leap", "see_radius"),
         closing_min_m = _read_num("closing_leap", "aim_min_m"),
+        closing_max_m = _read_num("closing_leap", "aim_max_m"),
         flee_min_m = _read_num("survival", "min_dist_m"),
         flee_face_cone = _read_num("survival", "face_cone_deg"),
         survival_frac = _read_num("survival", "health_frac"),

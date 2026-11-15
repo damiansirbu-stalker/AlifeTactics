@@ -209,6 +209,10 @@ A scheduler-cadence callback is itself a discrete engine event. monster_on_updat
 - Engine truth. Every mechanism claim carries an engine source cite. Where the engine had no seam, the seam was added upstream first.
 - The xlibs boundary. An engine call goes through xlibs (xcombat for stalkers, xmonster for mutants) when it needs a guard, carries a hidden meaning, or needs a probe.
 The rule is stalker-code.md, xlibs wrapper criteria. Where a guarded wrapper exists, the raw call is a defect.
+- A maneuver ends the condition that started it (user ruling, restated 2026-11-15). The row's need (`check_need`) must read false once the maneuver has done its job: a retreat to cover clears "hurt and exposed", a reload in cover clears "reloading".
+  A need the maneuver cannot clear re-picks the same row the moment it ends, and that loop reads as a blocked or glitched stalker. The `[CMB] end ... need_cleared=` trace is the check, and a row that mostly ends `need_cleared=n` breaks this invariant.
+  Measured 2026-11-15 in the arena: retreat cleared its need 26 times in 241 (its need is "hurt with an enemy in gun range", with no cover term), flee 29 in 99; counterflank, kite and reload_cover clear about three in four.
+  Every row must also pass a per-stalker safety window, a cap on starts of the same row in a sliding time window, so a stalker blocked by geometry cannot loop any maneuver. Not built yet: the retreat need and the window are task t255.
 - Gates are named, never inline. Every action an AlifeTactics system fires passes through named gates, in this shape:
   - `_can_<action>(obj)` is the engine-state gate. It returns a boolean and a reason, and calls only xlibs predicates (example: `_can_seize`).
   - `_check_<action>_block(...)` is the business gate. It holds the premises, calls `_can_<action>`, and returns nil or a reason string for the trace (example: `_check_seize_block`).
@@ -803,8 +807,9 @@ The lead is the enemy's velocity over the engine's own flight time (`xmonster.co
 It counts the flight only, so Catching leap lands short of a fast runner by its crouch; the crouch probe and a cap ruling are open (m35).
 A lead point off the navmesh (`xcombat.is_point_off_navmesh`) falls back to the unled point, and so does a refused launch.
 Neither steers, because the steering homes on the live position and would undo the lead.
-The Closing leap is the bloodsucker and psysucker gap-closer, inside the range where it is drawn (`partial_visibility_radius`).
-It fires at a perched enemy at any distance, or at the player aiming at it from outside its charge band.
+The Closing leap is the bloodsucker and psysucker gap-closer.
+It fires at a perched enemy at any distance, or at the player aiming at it from 4.5 to 15 m (`[closing_leap] aim_min_m`, `aim_max_m`).
+Until 2026-11-15 the 9-10 m draw radius gated both cases, so a bloodsucker waiting at 10-11 m below a perched player never leapt (field fix).
 Its jump config never loads (`CAI_Bloodsucker::Load`). It never hits in the air, and its claws strike after the leap.
 THE FORCE is rolled once per mutant at adoption, the species `jump_factor` (`[leap] basis` where none loads) times a Wild-spread band of 2.0-3.0.
 High leap and the Closing leap perch case fly at the basis; every other leap, the two wind-up twins included, at the Wild force (`MOVE_GATES` prints `wild`).
@@ -910,7 +915,7 @@ before-hit seams: damage dealt (victim-side, keyed on shit.draftsman) and damage
   The DLTX row giving `jump_attack_0` its own numbers stays for Backstrike, which arms that motion.
 - The HUD mob rows follow the stalker rules (the same gate radius, fighting mutants only) and speak plain words.
   The systems cell names the one live action now in our move vocabulary, with the raw FSM state as the fallback label.
-  It is gate-colored (Intelligence green, Wild gold) when AT governs or commands the action, and neutral grey when it is the creature's own engine behaviour.
+  It is coloured by the move's MCM group (user ruling 2026-11-15): NEW green (the leaps, claw, flee, and backstrike, which the engine fires once AT arms it), MANAGED blue (the gravity throw and cloak AT fires), INFLUENCED amber (an engine throw whose numbers Wild varied), and neutral grey for the creature's own engine behaviour.
   An AT-commanded move shows its exact name (the five leaps distinct), and an engine-timed move AT governs reads its generic class (leap, melee, charge) colored by governance.
   Two labels stay approximate until their demonized getters merge.
   The engine leap's exact variant waits on the jump-flags getter (todo-demonized-exes.md n066).
