@@ -9,12 +9,14 @@ end_period_ms    = 200     ; end_maneuver check: watch for arrival / the time ca
 hit_fight_ms      = 5000    ; a recent hit counts as "fighting" this long (far-shooter entry, best_enemy still nil)
 
 ; Needs (when AT seizes - only where vanilla is weak).
-hurt_frac     = 0.40       ; flee/retreat need below this HP fraction, with a threat whose weapon reach covers the NPC (0.25 fired too late, 2026-07-11 playtest)
-flee_inside_chance = 0.3   ; the inside chance: a passed flee decision still fires only this often (flavor, does not help the NPC); 1.0 = always
+hurt_frac     = 0.40       ; flee/retreat need below this HP fraction, with a threat whose weapon reach covers the NPC (0.25 fired too late, 2026-07-11 playtest); retreat also needs his spot not concealed from that threat
 stall_ms      = 4000       ; held position with the enemy not closing this long fires the stalled need (measured SINCE the last maneuver)
 stall_move_m  = 2          ; movement under this counts as "held position"
 stall_close_m = 2          ; enemy gaining more than this much ground resets the stall timer
 repeat_limit = 3          ; consecutive same-situation picks with the NPC still within 2m before the takeover stops trying (0 = off)
+window_limit = 4          ; starts of one row per stalker inside window_limit_sec, then the row is skipped (0 = off); a <row>_window_limit key overrides it per row
+window_limit_sec = 60     ; the sliding window the per-row starts count over (arena 2026-11-15: at 4 only looping retreats and back-to-back kites refuse)
+kite_window_limit = 6     ; kite chains legitimately under a chasing player (arena 2026-11-15: 3 refusals at 6 against 18 at 4)
 candidates   = 3          ; the walk checks the conditions (need, then destination) of up to this many shuffled rows per selection; scope, toggle, repertoire and palette filter before the shuffle and never spend a slot (the mutant [select] twin)
 counterflank_actor_dist_m = 5  ; counterflank fires when an enemy actor is inside this range while the NPC's committed target is farther
 

@@ -28,8 +28,11 @@ local FLEE_MIN_DIST_M, FLEE_BASE_MIN_DIST_M, UNDER_FIRE_MS
 local RETREAT_COVER_NEAR_M, RETREAT_COVER_FAR_M, RETREAT_COVER_MAX_M, RETREAT_LANE_M, RELOAD_COVER_NEAR_M, RELOAD_COVER_FAR_M
 local COUNTERFLANK_ACTOR_DIST_SQR, PICKOFF_TARGETED_DEG, PICKOFF_ENTER_FACTOR
 local REPEAT_LIMIT, RELOAD_STALE_MS, RELOAD_COVER_CONE_DEG, CANDIDATES
+local WINDOW_LIMIT, WINDOW_LIMIT_SEC
 
 local _queue_band_by_kind = {}
+-- The per-row window_limit, the [at_maneuvers] default or the row's own <row>_window_limit, built at load after the catalog.
+local _window_limit_by_row = {}
 -- The shared catalog-order scratch the filter fills and the selection shuffles (the walk is synchronous, one NPC at a time).
 local _order = {}
 local _pickoff_band
@@ -339,15 +342,33 @@ local function _check_reloading(_npc, _enemy, state, tg, _memo)
     return "reloading"
 end
 
+local function _is_threat_in_reach(threat, dist)
+    return xcombat.get_range_band(dist, xcombat.get_weapon_kind(threat) or "w_rifle") ~= "out"
+end
+
 local function _check_hurt(npc, _enemy, state, _tg, memo)
     if memo.hurt == nil then memo.hurt = xcombat.get_health_frac(npc) < HURT_FRAC end
     if not memo.hurt then return nil end
-    local member, member_dist = _find_closest_threat(npc, state, memo, function(threat, dist)
-        return xcombat.get_range_band(dist, xcombat.get_weapon_kind(threat) or "w_rifle") ~= "out"
-    end)
+    local member, member_dist = _find_closest_threat(npc, state, memo, _is_threat_in_reach)
     if not member then return nil end
     _set_staged_threat(memo, member, member_dist)
     return "hurt"
+end
+
+-- Retreat's need: hurt, with an in-reach threat his vertex is not concealed from at the STRICT floor get_best_cover picks by.
+-- Arriving at the cover the search chose clears it; still exposed after a hop, he re-picks.
+local function _check_hurt_exposed(npc, _enemy, state, _tg, memo)
+    if memo.hurt == nil then memo.hurt = xcombat.get_health_frac(npc) < HURT_FRAC end
+    if not memo.hurt then return nil end
+    local np, lvid, dir = memo.npc_pos, npc:level_vertex_id(), vector()
+    local member, member_dist = _find_closest_threat(npc, state, memo, function(threat, dist)
+        if not _is_threat_in_reach(threat, dist) then return false end
+        local tp = threat:position()
+        return not xcombat.is_concealed(lvid, dir:set(tp.x - np.x, tp.y - np.y, tp.z - np.z), xcombat.COVER_FLOOR.STRICT)
+    end)
+    if not member then return nil end
+    _set_staged_threat(memo, member, member_dist)
+    return "hurt_exposed"
 end
 
 local function _check_stalled(npc, _enemy, state, tg, memo)
@@ -417,6 +438,7 @@ local function _format_row_trace(row, situation, stage)
     return row.name .. ":" .. (situation and (situation .. "/" .. stage) or stage)
 end
 
+-- Stuck guard: the same situation picked repeat_limit times within 2 m means the last maneuver changed nothing; vanilla keeps him until the world changes.
 local function _check_repeat_limit(state, situation, npc_pos)
     if REPEAT_LIMIT <= 0 then return false end
     local stuck = state.repeat_situation == situation and state.repeat_pos ~= nil
@@ -435,7 +457,20 @@ local function _check_repeat_limit(state, situation, npc_pos)
     return true
 end
 
--- The filter before the walk, the twin of at_mutants _filter_moves: the die side (a panic row walks only on a miss), scope, toggle, repertoire, palette.
+-- Loop guard: at most window_limit starts of one row per stalker in window_limit_sec; one who moves but never clears the need cannot loop it.
+local function _check_window_limit(state, row)
+    local limit = _window_limit_by_row[row.name] or WINDOW_LIMIT
+    if limit <= 0 then return false end
+    local starts = state.window_starts
+    return starts ~= nil and starts:get_count(row.name) >= limit
+end
+
+local function _add_window_start(state, row)
+    if not state.window_starts then state.window_starts = xttltable.create_ttl_counter({ ttl = WINDOW_LIMIT_SEC }) end
+    state.window_starts:add(row.name)
+end
+
+-- The filter before the walk, the at_mutants _filter_moves twin: the die side (a panic row walks only on a miss), scope, toggle, repertoire, palette, window.
 -- All table or memo reads, so a filtered row spends no candidate slot; each filtered row names its stage in the rows trace.
 local function _filter_rows(npc, state, memo, rows_trace, panic)
     local wanted = 0
@@ -452,6 +487,7 @@ local function _filter_rows(npc, state, memo, rows_trace, panic)
         if not stage and cfg[row.toggle] == false then stage = "off" end
         if not stage and not state.repertoire[row.name] then stage = "repertoire" end
         if not stage and not _check_palette(row, npc, memo) then stage = "palette" end
+        if not stage and _check_window_limit(state, row) then stage = "window" end
         if not stage then
             wanted = wanted + 1
             _order[wanted] = i
@@ -646,6 +682,7 @@ local function _try_seize(npc, state, maneuver, dest, tg)
         return false
     end
     at_core.add_start(bucket)
+    _add_window_start(state, maneuver)
     xgraft.apply_takeover_block(npc)
     state.gate = true
     state.maneuver = maneuver
@@ -836,6 +873,8 @@ local function _load_config()
     PICKOFF_ENTER_FACTOR = read_float("pickoff_enter_factor", 1.2)
     RELOAD_COVER_CONE_DEG = read_float("reload_cover_cone_deg", 60)
     REPEAT_LIMIT        = read_int("repeat_limit", 3)
+    WINDOW_LIMIT        = read_int("window_limit", 4)
+    WINDOW_LIMIT_SEC    = read_int("window_limit_sec", 60)
     CANDIDATES          = read_int("candidates", 3)
     RELOAD_STALE_MS      = read_int("reload_stale_ms", 6000)
     KITE_DISTANCE_M = { w_melee = 4, w_shotgun = 4, w_pistol = 5, w_smg = 6, w_rifle = 8, w_sniper = 15, w_explosive = 8 }
@@ -862,6 +901,7 @@ local function _load_config()
         check_actor_close      = _check_actor_close,
         check_reloading        = _check_reloading,
         check_hurt             = _check_hurt,
+        check_hurt_exposed     = _check_hurt_exposed,
         check_too_close        = _check_too_close,
         check_stalled          = _check_stalled,
         find_counterflank_spot = _find_counterflank_spot,
@@ -874,6 +914,11 @@ local function _load_config()
         check_end_pickoff      = _check_end_pickoff,
         apply_state            = _apply_state,
     }, read_int)
+    _window_limit_by_row = {}
+    for i = 1, #CATALOG do
+        local name = CATALOG[i].name
+        _window_limit_by_row[name] = read_int(name .. "_window_limit", WINDOW_LIMIT)
+    end
     _build_checks()
 end
 

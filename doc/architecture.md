@@ -124,6 +124,7 @@ reloading, reload_at          at_core (reload edges)    the PR #611 reload windo
 actor_dist_sqr                the loop                  squared distance to the player, once per pass
 best_enemy_id, best_enemy_at  the loop                  the engine selection fact, refreshed per 600ms
 gate, maneuver, dest, enemy_id  at_maneuvers            the takeover gate, open row, destination, committed target
+window_starts                 at_maneuvers (start)      per-row starts in window_limit_sec, an xttltable counter keyed by row name
 push_*, pull*                 at_behaviors              the open press and pull windows
 ```
 
@@ -211,8 +212,10 @@ A scheduler-cadence callback is itself a discrete engine event. monster_on_updat
 The rule is stalker-code.md, xlibs wrapper criteria. Where a guarded wrapper exists, the raw call is a defect.
 - A maneuver ends the condition that started it (user ruling, restated 2026-11-15). The row's need (`check_need`) must read false once the maneuver has done its job: a retreat to cover clears "hurt and exposed", a reload in cover clears "reloading".
   A need the maneuver cannot clear re-picks the same row the moment it ends, and that loop reads as a blocked or glitched stalker. The `[CMB] end ... need_cleared=` trace is the check, and a row that mostly ends `need_cleared=n` breaks this invariant.
-  Measured 2026-11-15 in the arena: retreat cleared its need 26 times in 241 (its need is "hurt with an enemy in gun range", with no cover term), flee 29 in 99; counterflank, kite and reload_cover clear about three in four.
-  Every row must also pass a per-stalker safety window, a cap on starts of the same row in a sliding time window, so a stalker blocked by geometry cannot loop any maneuver. Not built yet: the retreat need and the window are task t255.
+  Measured 2026-11-15 in the arena: retreat cleared its need 26 times in 241 when its need had no cover term. Counterflank, kite and reload_cover clear about three in four.
+  Flee cleared 29 in 99. Death or a wound ended 44 flees on the way, and no flee reached its base inside the 20 s cap.
+  Retreat now needs "hurt and exposed" (`_check_hurt_exposed`). Its cover test is `xcombat.is_concealed` at the STRICT floor `get_best_cover` picks by.
+  Reaching the chosen cover clears the need by construction. Every row also passes the per-stalker loop guard (`_check_window_limit`, Maneuvers, the two guards).
 - Gates are named, never inline. Every action an AlifeTactics system fires passes through named gates, in this shape:
   - `_can_<action>(obj)` is the engine-state gate. It returns a boolean and a reason, and calls only xlibs predicates (example: `_can_seize`).
   - `_check_<action>_block(...)` is the business gate. It holds the premises, calls `_can_<action>`, and returns nil or a reason string for the trace (example: `_check_seize_block`).
@@ -353,7 +356,7 @@ Stops: at most one open maneuver per NPC, bounded by the start budget, ended on 
 begin check (600ms, _try_begin_maneuver at_maneuvers.script):
   fighting? (live best_enemy or a hit within hit_fight_ms), enemy is actor or stalker
   _check_seize_block: armed, outside smart cover, no playing animation, budget left
-  _select_maneuver: roll Intelligence ONCE (a pass walks the fighting rows, a miss walks the panic row, flee), then _filter_rows (die side -> scope -> toggle -> repertoire -> palette, table reads,
+  _select_maneuver: roll Intelligence ONCE (a pass walks the fighting rows, a miss the panic row, flee), then _filter_rows (die side -> scope -> toggle -> repertoire -> palette -> window, table reads,
     a filtered row prints its stage in the rows trace and spends no slot), shuffle the survivors (xmath.shuffle_back) and check up to [at_maneuvers] candidates (3)
     per row: check_need -> find_destination; a premise miss falls through to the next shuffled row; the first that finds a destination
     (the one geometry probe) wins and ends the walk
@@ -381,16 +384,25 @@ counterflank  actor within 5m while the committed        any NPC fighting       
 reload_cover  reloading, a watcher has him in sight      per-faction              nearest cover hiding him         READY; RUN        arrival, reload done, or 8s
 flee          hurt, threat in reach, last man,           the [flee] factions,     a friendly base 100m+ away,      STOW; RUN         arrival or 20s
               once the shooting pauses (check_hurt)      on the Intelligence miss rear-biased
-retreat       hurt, threat in reach (check_hurt)         the [retreat] factions   cover behind, farther from enemy FIRE; WALK        arrival or 8s
+retreat       hurt, a threat in reach his spot is not    the [retreat] factions   cover behind, farther from enemy FIRE; WALK        arrival or 8s
+              concealed from (check_hurt_exposed)
 kite          nearest threat inside MY weapon minimum    per-faction              a clear back-lane, weapon-set    FIRE; WALK        arrival or 8s
               (check_too_close)                                                   distance to the rear
 pickoff       stalled ~4s, past the enemy's effective    per-faction              holds its spot                   single shots; STILL  8s or premise broken
               range, unbothered (check_stalled)
 ```
 
-The discriminator is displacement.
-A pick of the same situation with the NPC still within 2m past `repeat_limit` (3) means the last transaction changed nothing. The takeover refuses and vanilla owns him (`_check_repeat_limit`).
-A legitimate chain under a sprinting player re-fires at once, and each transaction moved him, which resets the count.
+Two guards stop a maneuver loop, and each catches the case the other misses:
+
+- The stuck guard (`_check_repeat_limit`, `repeat_limit` 3) counts picks of the same situation with the NPC still within 2m.
+  Past the limit the last transaction left him in place. The takeover refuses and vanilla owns him.
+  It has no clock. A legitimate chain under a sprinting player re-fires at once, and each transaction moved him, which resets the count.
+- The loop guard (`_check_window_limit`, `window_limit` 4 per `window_limit_sec` 60) counts starts of one row per stalker, wherever he stands.
+  The record's `window_starts` counter holds them, and a full row filters out as `window`.
+  It catches the stalker who moves each time and still never clears the need, the 2026-11-15 renegade with 22 retreats in 4 minutes, whom the stuck guard missed.
+  Only a `_try_seize` start counts, and the guard never cuts a running maneuver. A `<row>_window_limit` key overrides the count per row, read by name.
+  A new catalog row needs no code. Kite carries 6 because back-off chains under a chaser are legitimate.
+  Replay of the 2026-11-15 arena (1104 starts): at 4 no row but retreat and kite refuses a start, retreat refuses 36 (almost all after an uncleared run), kite at 6 refuses 3.
 
 ### Commitment
 
@@ -1055,7 +1067,7 @@ Each system pairs its files.
 `at_<system>.script` holds the logic and `at_<system>_config.ltx` holds the numbers.
 A `_config.script` exists only where LTX cannot hold the shape, as the maneuver catalog references methods.
 The MCM defaults in `at_mcm.script` are the one source for the per-tier tables, and no LTX or script copy of those tables exists to drift.
-The compatibility floor (`_at_init.script`) requires xlibs >= 1.9.0 and modded exes (demonized >= 20250908, or AOEngine), asserted at boot.
+The compatibility floor (`_at_init.script`) requires xlibs >= 1.9.2 and modded exes (demonized >= 20250908, or AOEngine), asserted at boot.
 A feature that needs a post-baseline symbol probes for it and goes inert with an INACTIVE line when absent.
 
 ## See also

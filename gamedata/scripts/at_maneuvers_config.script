@@ -42,7 +42,7 @@ function get_catalog(fn, read_int)
         {
             name             = "retreat",
             toggle           = "maneuver_retreat",
-            check_need       = fn.check_hurt,
+            check_need       = fn.check_hurt_exposed,
             weapons          = nil,
             find_destination = fn.find_retreat_cover,
             update           = fn.apply_state,
