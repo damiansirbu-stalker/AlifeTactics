@@ -98,6 +98,11 @@ local function _run_record(npc, state, now, actor_pos)
         at_behaviors.clear_npc(npc, state, "died", now)
         return
     end
+    if xcreature.is_wounded(npc, state.id) then
+        at_maneuvers.clear_npc(npc, state, "wounded", now)
+        at_behaviors.clear_npc(npc, state, "wounded", now)
+        return
+    end
     state.actor_dist_sqr = actor_pos and actor_pos:distance_to_sqr(npc:position()) or nil
     _update_best_enemy(npc, state, now)
     if state.gate == true then

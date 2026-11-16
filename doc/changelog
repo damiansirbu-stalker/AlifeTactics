@@ -8,6 +8,8 @@
       - Changed the takeover so a stalker that comes online without a job, as at a full Warfare base, picks up maneuvers once he enters combat.
       - Fixed the retreat loop. A hurt stalker retreated, reached cover, and retreated again, up to 22 times in 4 minutes.
           Retreat now fires only while his spot leaves him exposed to a threat in reach. Arriving at the cover he chose ends it, and he fights from there.
+      - Fixed maneuvers picking a stalker who lies wounded. A third of all retreats went to a man on the ground, never ran, and spent the start budget.
+          A downed stalker now gets no maneuver, Push or Pull, and drops the one he had. He picks up again the moment he stands.
       - Added a loop guard to every maneuver: a stalker starts one maneuver at most 4 times a minute, kite 6. A stalker blocked by walls or caught between two enemies can no longer loop one.
 
   Mutants

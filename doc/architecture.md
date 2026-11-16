@@ -51,6 +51,7 @@ _run_monitor every 200ms (at_core.script):
   re-arm first (_reset_monitor)          ProcessEventQueue has no error guard, so a re-armed pass costs one aborted tick
   for each record in _npc_states:
     dead      -> at_maneuvers.clear_npc + at_behaviors.clear_npc, next
+    wounded   -> the same clear, next        xcreature.is_wounded, asked fresh each pass: getting up resumes him, nothing stored
     write actor_dist_sqr
     refresh best_enemy_id (per 600ms) and the _best_enemy_of reverse index
     gate up   -> at_maneuvers.run_maneuver   (update + end checks, 200ms)
@@ -210,7 +211,7 @@ A scheduler-cadence callback is itself a discrete engine event. monster_on_updat
 - Engine truth. Every mechanism claim carries an engine source cite. Where the engine had no seam, the seam was added upstream first.
 - The xlibs boundary. An engine call goes through xlibs (xcombat for stalkers, xmonster for mutants) when it needs a guard, carries a hidden meaning, or needs a probe.
 The rule is stalker-code.md, xlibs wrapper criteria. Where a guarded wrapper exists, the raw call is a defect.
-- A maneuver ends the condition that started it (user ruling, restated 2026-11-15). The row's need (`check_need`) must read false once the maneuver has done its job: a retreat to cover clears "hurt and exposed", a reload in cover clears "reloading".
+- A maneuver ends the condition that started it (user ruling, restated 2026-11-15). The row's need (`check_need`) must read false once the maneuver has done its job: a retreat to cover clears "hurt and exposed", a reload in cover clears "reloading and watched".
   A need the maneuver cannot clear re-picks the same row the moment it ends, and that loop reads as a blocked or glitched stalker. The `[CMB] end ... need_cleared=` trace is the check, and a row that mostly ends `need_cleared=n` breaks this invariant.
   Measured 2026-11-15 in the arena: retreat cleared its need 26 times in 241 when its need had no cover term. Counterflank, kite and reload_cover clear about three in four.
   Flee cleared 29 in 99. Death or a wound ended 44 flees on the way, and no flee reached its base inside the 20 s cap.
@@ -362,7 +363,7 @@ begin check (600ms, _try_begin_maneuver at_maneuvers.script):
     (the one geometry probe) wins and ends the walk
   _try_seize: spend a start, apply_takeover_block, raise the gate, stamp row + dest + committed target
 update check (200ms, _update_maneuver): re-apply the row's state, skip while reloading or a hit reaction plays
-end check   (200ms, _try_end_maneuver): wounded, the row's check_end, arrival, or the cap, target_lost ends at once
+end check   (200ms, _try_end_maneuver): the row's check_end, arrival, or the cap, target_lost ends at once (wounded ends in the loop)
 ```
 
 From staging on, the maneuver is committed to that target:
@@ -382,6 +383,7 @@ maneuver      fires on                                   applies to             
 counterflank  actor within 5m while the committed        any NPC fighting         holds its spot, aims at actor    FIRE; STILL       3s
               target is farther (check_actor_close)      someone else, never the actor (vs_actor)
 reload_cover  reloading, a watcher has him in sight      per-faction              nearest cover hiding him         READY; RUN        arrival, reload done, or 8s
+              (check_reloading_watched)
 flee          hurt, threat in reach, last man,           the [flee] factions,     a friendly base 100m+ away,      STOW; RUN         arrival or 20s
               once the shooting pauses (check_hurt)      on the Intelligence miss rear-biased
 retreat       hurt, a threat in reach his spot is not    the [retreat] factions   cover behind, farther from enemy FIRE; WALK        arrival or 8s

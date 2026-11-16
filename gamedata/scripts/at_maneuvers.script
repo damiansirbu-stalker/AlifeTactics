@@ -1,6 +1,6 @@
 --- at_maneuvers: the intermittent takeover - seize one NPC for one committed maneuver, hand back; catalog rows in at_maneuvers_config
 
-local IsStalker, IsWounded, time_global, tostring, pairs = IsStalker, IsWounded, time_global, tostring, pairs
+local IsStalker, time_global, tostring, pairs = IsStalker, time_global, tostring, pairs
 local math_floor, math_random, RegisterScriptCallback, AC_ID = math.floor, math.random, RegisterScriptCallback, AC_ID
 local string_match, string_find, tonumber = string.match, string.find, tonumber
 local math_sqrt, vector, table_concat = math.sqrt, vector, table.concat
@@ -216,14 +216,6 @@ local function _find_reload_cover(npc, _enemy, state, _tg, memo)
         if at_debug.is_on() then at_debug.debug("[CMB] can_reload_cover id=%s name=%s path=not_reloading cover=-", show(state.id), show(state.name)) end
         return nil
     end
-    local watcher, watcher_dist = _find_closest_threat(npc, state, memo, function(member, _dist)
-        return xcombat.is_in_sight(member, npc, RELOAD_COVER_CONE_DEG)
-    end)
-    if not watcher then
-        if at_debug.is_on() then at_debug.debug("[CMB] can_reload_cover id=%s name=%s path=not_in_sight cover=-", show(state.id), show(state.name)) end
-        return nil
-    end
-    _set_staged_threat(memo, watcher, watcher_dist)
     local vid = xcombat.get_quick_cover(npc, memo.staged_pos, { radius = RELOAD_COVER_NEAR_M, radius_far = RELOAD_COVER_FAR_M, owner_id = state.id })
     if not vid then
         if at_debug.is_on() then at_debug.debug("[CMB] can_reload_cover id=%s name=%s path=no_cover cover=-", show(state.id), show(state.name)) end
@@ -336,10 +328,16 @@ local function _check_too_close(npc, _enemy, state, _tg, memo)
     return "too_close"
 end
 
-local function _check_reloading(_npc, _enemy, state, tg, _memo)
+-- Reload cover's need: a fresh reload edge and a threat with him in its sight cone; reaching cover breaks the sight and clears it.
+local function _check_reloading_watched(npc, _enemy, state, tg, memo)
     if not state.reloading then return nil end
     if (tg - (state.reload_at or 0)) > RELOAD_STALE_MS then return nil end
-    return "reloading"
+    local watcher, watcher_dist = _find_closest_threat(npc, state, memo, function(member, _dist)
+        return xcombat.is_in_sight(member, npc, RELOAD_COVER_CONE_DEG)
+    end)
+    if not watcher then return nil end
+    _set_staged_threat(memo, watcher, watcher_dist)
+    return "reloading_watched"
 end
 
 local function _is_threat_in_reach(threat, dist)
@@ -583,6 +581,7 @@ local function _stop_maneuver(state, tg, reason)
     state.target_seen, state.target_at, state.sent = nil, nil, nil
     state.escape_warned = nil
     state.sight_warned, state.sight_lost_count = nil, nil
+    state.fire_seen = nil
     _clear_gate(state)
     state.maneuver = nil
     state.dest = nil
@@ -627,6 +626,7 @@ local function _start_maneuver(npc)
     if not enemy then _stop_maneuver(state, tg, "target_lost") return end
     state.sent = xcombat.set_destination(npc, state.dest)
     local fire = _apply_state(npc, maneuver, enemy)
+    state.fire_seen = fire
     state.maneuver_at = tg
     _trace_begin(npc, state, fire)
 end
@@ -729,11 +729,20 @@ local function _check_sight_lost(state, maneuver, sight_id)
         state.id, maneuver.name, state.enemy_id, sight_id)
 end
 
+-- One line per change of the resolved fire mid-maneuver (hold -> fire and back), so a log shows whether a walk ever shoots.
+local function _trace_fire(state, maneuver, fire, fire_gate, tg)
+    if fire == state.fire_seen then return end
+    at_debug.debug("[CMB] fire id=%s maneuver=%s from=%s to=%s gate=%s since_begin=%dms",
+        show(state.id), show(maneuver.name), show(state.fire_seen), show(fire), show(fire_gate),
+        math_floor(tg - (state.begin_at or tg)))
+    state.fire_seen = fire
+end
+
 local function _update_maneuver(npc, state, tg)
     local maneuver = state.maneuver
     if not maneuver or not state.maneuver_at then return end
     if not state.escape_warned and not xgraft.is_takeover_current(npc)
-        and not (IsWounded(npc) or xcombat.is_staggering(npc)) then
+        and not xcombat.is_staggering(npc) then
         state.escape_warned = true
         at_debug.warn("[CMB] escape id=%d maneuver=%s op=%s - an unblocked action holds the slot under an open maneuver (denylist gap, t148)",
             state.id, maneuver.name, xcombat.get_operator(npc))
@@ -750,8 +759,9 @@ local function _update_maneuver(npc, state, tg)
         local sight_id = xcombat.get_sight_target(npc)
         if enemy then _check_sight_lost(state, maneuver, sight_id) end
     end
-    maneuver.update(npc, maneuver, enemy)
+    local fire, fire_gate = maneuver.update(npc, maneuver, enemy)
     if not at_debug.is_on() then return end
+    _trace_fire(state, maneuver, fire, fire_gate, tg)
     local target = _get_state_mgr_target(state.id)
     if target ~= state.target_seen then
         at_debug.debug("[CMB] target_change id=%s maneuver=%s from=%s to=%s held=%dms",
@@ -762,7 +772,6 @@ local function _update_maneuver(npc, state, tg)
 end
 
 local function _get_end_reason(npc, enemy, state, tg)
-    if IsWounded(npc) then return "wounded" end
     local maneuver = state.maneuver
     local begun = maneuver ~= nil and state.maneuver_at ~= nil
     local broken = begun and maneuver.check_end and maneuver.check_end(npc, enemy, state, tg)
@@ -899,7 +908,7 @@ local function _load_config()
         read_int("pickoff_interval_max_ms", 2000) }
     CATALOG = at_maneuvers_config.get_catalog({
         check_actor_close      = _check_actor_close,
-        check_reloading        = _check_reloading,
+        check_reloading_watched = _check_reloading_watched,
         check_hurt             = _check_hurt,
         check_hurt_exposed     = _check_hurt_exposed,
         check_too_close        = _check_too_close,

@@ -18,7 +18,7 @@ function get_catalog(fn, read_int)
         {
             name             = "reload_cover",
             toggle           = "maneuver_reload_cover",
-            check_need       = fn.check_reloading,
+            check_need       = fn.check_reloading_watched,
             weapons          = nil,
             find_destination = fn.find_reload_cover,
             update           = fn.apply_state,
