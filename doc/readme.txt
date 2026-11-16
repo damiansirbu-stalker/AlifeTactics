@@ -49,123 +49,59 @@ After every update, use Reset ALL to Defaults in MCM under Development.
 
 Everyone wants to live.
 
-AlifeTactics rebuilds how creatures behave and fight in STALKER Anomaly.
-The engine is strong mechanically, but its enemies fight stereotypically, their actions shuffled and settled by a die roll.
-AlifeTactics adds the intelligence to choose the action, and a Personality for each faction and each mutant species over which action it takes at all.
-Sections marked (planned) are not built yet.
+AlifeTactics is a complete combat system for S.T.A.L.K.E.R. Anomaly. It covers the whole fight for stalkers and mutants, from what they hear and see to how they decide, move, shoot and heal.
 
-It rebuilds the combat mind GSC designed and shelved, the intelligence their own AI documents lay out.
-GSC built it first and cut it. The AI grew so sharp that stalkers won the firefights before the player could, and the studio reined it in.
-Much of it only ever lived as stubs and commented-out code in the engine source, revived here on the current engine.
-AlifeTactics is engine-first. Where the engine could not decide, dozens of changes went into X-Ray itself and shipped in the official modded exes.
-Every behaviour then runs on the engine's own machinery.
+Vanilla enemies all fight the same way, because X-Ray picks their moves with no logic behind them. AlifeTactics gives them the brain the engine never had.
+It is a light, reactive layer that works with X-Ray, through its own hooks in the engine itself.
+The core of every decision is Intelligence and Personality, from GSC's own design documents.
+Intelligence is the difficulty and rises with rank and map level. Personality is the character of each faction and species, how aggressive or cowardly, and the moves it favours.
+It also revives what GSC built and shelved, moves and mechanics the shipped game never ran.
 
-Every system reads the real state of the game, then decides in the combatant's favor rather than by script or die roll.
-It weighs combat events, NPC and player stats, the world, squad, faction, weapons, range, angle, and cover.
-Maneuvers take a stalker over for an action the vanilla engine has no mechanism for.
-Commitment holds a stalker to a decision while it still makes sense.
-Mutants run the same decision model, reading your weak moments and answering with their own body's moves.
-Threat, accuracy, and the rest read state and decide the same way.
+- Combat: stalkers reload behind cover, fall back when hurt, turn on a player who closes in, and pick off an outranged enemy. They hold a plan while it works and press an enemy who can't answer.
+- Effectiveness: rank finally shows in aim, tracking, target lead and fire discipline, where the engine clamped every NPC to one setting. Allies stop killing each other in a crossfire.
+- Perception: stalkers hear your steps and your reload before they see you, duck when sniped, turn on the man who hit them, and notice a missed knife swing.
+- Mechanics: they heal with their own medkits, veterans fire their own armour-piercing rounds, they mount the scopes they loot, and full-condition guns stop jamming.
+- Gear: an artefact gives its carrier a real combat edge by its class, binoculars and night vision widen his sight, and a carrier warps the air around him.
+- Mutants: they think like stalkers, with their own Intelligence, Personality and Wild variation.
+  They punish your reload, your strafe and your perch with leaps, gravity throws, claws and backstrikes from their own bodies, moves vanilla never fires.
+- Fixes: vanilla AI bugs repaired in danger, corpse search, targeting, cover fire and healing.
+- Engine-native and fast: it runs on X-Ray's own planner and the Anomaly schemes, replaces no vanilla file, and does no per-frame work, whatever the NPC count.
 
-One formula runs every decision in the mod, stalker or mutant.
-A premise, the read of the fight, opens the decision. Intelligence, rising with rank, is how sharply he reads it.
-Personality is whether his kind takes that action at all. Both must pass, and a passed decision commits to its window.
-A bandit and an ecologist do not carry the same instincts.
-Each faction carries its own chance on every action, and each mutant species its own chance on every move it has, from 0 (never) to 1 (always).
-Rank buys the correct answer more often. The ability set stays fixed across ranks. A novice and a legend both act, and the legend is the one who gets it right.
-
-Effects:
-- Creatures make emergent decisions from environment, own state, enemy state, squad state, weapons, and faction doctrine.
-- Every faction fights its own way: who routs, who presses your weak moment, who plants for deliberate shots, who crouches on the line, who never backs down.
-- Mutants answer your weak moments and punish the cheese: reload and a leap comes, perch on a rock and the jumpers come up after you, move and they steer in the air to follow.
-- Every mutant ability value varies inside its species' own envelope. No two spawns read alike. Movement stays the game's own tuning. The variation is one dial.
-- Nothing is player-centric, and no side gets an advantage or a handicap.
-- Creatures use the items they acquired themselves: medkits, ammo, props.
-- Rank scales accuracy, weapon spread, aim speed, and how tightly a stalker tracks you, which vanilla clamps flat.
-- AP ammo is fired from its owner's inventory and consumed, where vanilla gives NPCs infinite cheap rounds and modpacks give infinite AP by rank and map.
-- Bugs disguised as features are gone, like fake weapon jamming and random tactical reloading.
-
-
-Every system in this mod is a behaviour GSC designed, or one the engine left unfinished in code. The manifesto documents the source behind each.
-
-
-Everything is canon, engine-native, safe, and fast:
-- Every behavior is built from pure X-Ray and Anomaly primitives:
-  the GOAP action planner (the planner family F.E.A.R. made famous), the xr_logic scheme system, state_mgr, smart terrains and the gulag job system, condlists, and DLTX/DXML for data.
-- Nothing is faked and nothing is simulated beside the engine.
-- Where the engine had no seam, the seam was added upstream first: per-NPC hooks created in xray-monolith specifically for this mod, merged into the official modded exes.
-- It never replaces a vanilla script file. Takeovers block the planner only for their seconds and then hand back, and patches lay onto whichever script your setup ships.
-- Every value ships as a formula over the engine's own constants, never an invented number.
-- No per-frame Lua. Everything runs on engine callbacks and scheduled passes, and the whole mod costs 5 timer compares per frame, whatever the NPC count.
-- AlifeTactics never wraps the engine's visibility function. No sight test gains a cost or a behavior it did not already have. Your stealth setup computes being seen exactly as before.
-- Perception is written as a per-stalker engine field once at spawn. It multiplies onto whatever detection system is installed instead of replacing it.
-- It fixes dozens of vanilla Anomaly bugs: dead branches, wrong calculations, and plain crashes in original code.
-
-
-Every system below has its own MCM page in this order, where it is toggled and tuned.
+Every system below has its own MCM page, where it is toggled and tuned. The design behind them reaches much further, and each release builds more of it.
 
 Combat
 
-Faction Personality and Intelligence:
-Intelligence is how sharply a stalker reads a fight, and it scales with his rank, a base plus a bonus per rank, two sliders on the General page.
-A novice fumbles the openings a veteran takes. His judgment emerges from his rank, where vanilla clamps every NPC to one flat setting.
-It caps short of certain, and even a legend is never guaranteed the right call.
-Flee runs on the inverse: the roll he fails is the one that makes him rout, so a sharp stalker holds where a dull one breaks.
-Then the faction's Personality decides whether his kind takes that action at all, every action carrying a per-faction chance from 0 (never) to 1 (always).
-Monolith presses relentlessly, Duty holds the line and gives ground in order, bandits finish a downed man and rout when the fight turns, ecologists pull back early.
-One opening draws a different answer by faction.
-The per-action faction table is the faction config, yours to tune. Zombied stalkers never participate in anything.
+Every move below is a decision. Intelligence decides whether a stalker reads the moment, and his faction's Personality decides whether his kind takes that move.
+A hurt Duty trooper falls back to cover still firing, a hurt bandit is quick to break and run for home, and a Monolith fighter holds his ground to the end.
 
 Maneuvers:
-A maneuver takes one stalker over completely to perform what the vanilla engine cannot, either a mechanic it lacks or a decision it never makes.
-Planned: whole squads coordinating their movement and fire, each faction favoring the maneuvers that suit it.
-
-These maneuvers cover the moments vanilla fumbles:
-  Counterflank snaps a stalker around when a hostile player stands at contact range while he shoots someone far away.
-  Reload Cover sends a stalker caught reloading in a watching enemy's line of fire, yours included, to the cover that hides him from that watcher, and his weapon finishes reloading on the way.
-  Flee routs a flee-prone faction to a distant friendly base, because a coward runs before he fights.
-  Retreat pulls a steadier one to cover under pressure, and a coward whose escape is cut off does the same.
-  Kite backs a stalker out of an enemy that closed too near, still firing.
-  Pickoff plants a stalker who has his enemy outranged and picks him off with deliberate single shots, breaking off the moment the threat returns.
-
-Maneuvers run in every stalker fight within 150 meters of you, tunable, whether or not you are the target.
-Fights against mutants and fights beyond that range stay vanilla.
-One shared allowance bounds everything AlifeTactics starts, against you and against NPCs separately. A mass battle never drowns either side.
-A maneuver fires when its problem is real and ends when it is solved. Keep creating the problem, such as pressing a shotgunner's minimum range, and the answer keeps coming.
-The decisions come out looking human. Nobody turns his back on a shooter, two men never take the same cover, nobody plants in his enemy's sight.
-Maneuver fire bursts by weapon and by skill: burst length and pauses vary shot to shot inside the game's own per-weapon ranges and tighten with rank.
-That replaces the uniform burst the game's script machinery applies to every weapon it drives.
-Stalkers keep their footing under fire. A hit mid reaction no longer slides a standing stalker across the ground. He stays planted while the animation plays, and moves the moment it ends.
-The footing hold ships ahead of its engine half and needs a modded exes build carrying engine PR 645. Older builds keep vanilla movement.
-The takeover overrides no combat scripts. It fights side by side with vanilla and works with other combat AI. Companions are excluded by default.
+A maneuver takes a stalker over from X-Ray's GOAP planner for a move the engine can't make, one he never had, one vanilla never decides on, or one that depends on his squad.
+Before he moves, he reads the whole fight, every enemy watching him, his wounds, his weapon's range and his squad. The move ends when its problem is solved.
+  Counterflank: a stalker fighting a distant enemy turns to the immediate threat when you close in.
+  Reload Cover: caught reloading in an enemy's sights, he runs to the nearest cover that hides him from that enemy and finishes the reload on the way there.
+  Retreat: hurt and exposed to a shooter in reach, he falls back to farther cover, still firing.
+  Flee: badly hurt and the last of his squad, he breaks contact and heads for a friendly base. It is the panic move, and a sharper stalker is less likely to take it.
+  Kite: an enemy inside his weapon's minimum range sends him back down a clear lane, still firing.
+  Pickoff: outranging an enemy who isn't pressing him, he plants and picks him off with single shots.
+Maneuver fire follows his weapon and rank, with bursts that vary inside the weapon's own range.
 
 Commitment:
-Vanilla stalkers re-plan the fight every moment. Any small change makes a stalker drop what he is doing and choose again.
-Better cover, a flicker of lost sight, or a teammate crossing the line sets him off, which is the twitchy strafing and cover-hopping you see in a firefight.
-Many mods answer this by switching the stalker to a camper scheme that holds him in place, muting most of Anomaly's combat variety.
-AlifeTactics keeps the engine's full combat AI and instead stops a stalker throwing away a decision that still makes sense.
-While what he is doing still works he stays with it. He switches the moment it stops working, on a lost sight line, a blocked shot, or a vanished enemy.
-It also holds his cover. A stalker firing with a clear shot keeps his spot. He no longer slides to a marginally better one, and the mid-fight strafe stops at its source.
-When his enemy is caught reloading, out of ammo, staggered, sprinting weapon-down, or with no weapon up, he liquidates.
-He keeps firing through the window and repositions once the enemy can answer again.
-He sees a decision through without second-guessing himself every frame.
+Vanilla stalkers drop a good plan at the smallest change, when a teammate crosses the line, sight flickers for a moment or a slightly better cover spot appears.
+That is the strafing and cover-hopping of every firefight.
+Commitment answers the engine's own "switch now?" with no while the plan still works, through hooks built for AlifeTactics and merged into X-Ray. When it stops working, he switches at once.
+  Cover pinning: with a clear shot he keeps his cover and no longer slides to a slightly better spot.
+  Liquidate: when his enemy is vulnerable, he holds his spot and fires until the enemy can answer.
 
 Conduct:
-Conduct makes better choices at moments the engine already decides, with no takeover, for stalkers the vanilla engine drives.
-Whether a fighter holds the discipline is his training, settled once in his life and weighed by faction. Militarized stalkers keep it and scavengers slouch.
-Cover posture: experienced riflemen and snipers crouch to steady the shot when the line to the enemy is clear, and stand to fire over low cover that would block a crouched shot.
-It replaces vanilla's blind posture picks, such as a crouch behind a random bump, or standing tall where a crouch would steady the aim.
-They crouch only past close range and only while holding a position. They stay mobile in a knife fight and while moving to cover.
-It reads the game's own cover map toward the enemy, and short-weapon carriers and green ranks keep vanilla behavior.
-Weapon spacing: a stalker's cover choices respect what his weapon is good at, submachine gunners accept closer cover so their fire stays effective, and skilled snipers hold extra distance.
+Conduct improves choices the engine already makes, with no takeover.
+Discipline is personal. Military factions mostly keep it and scavengers mostly don't.
+  Cover posture: a trained rifleman crouches for a clear shot and stands to fire over a low wall.
+  Weapon spacing: an SMG gunner takes closer cover, and a skilled sniper keeps his distance.
 
 Behaviors:
-Stalkers act on weak moments in the fight, in both directions and against any enemy, you or another combatant.
-The Push: a stalker whose enemy cannot answer presses him.
-Caught reloading, out of ammo, or badly hurt, the target's attackers thicken their fire at close range.
-With a clear upper hand (the target hurt or turned away) they move to closer cover.
-The Pull is the mirror. A stalker caught reloading or badly hurt while his enemy is strong falls back, his cover choices moving farther out until he recovers.
-Everything reverts the moment the target can answer, each attacker presses briefly with a cooldown before pressing again, and each cause has its own switch.
+Push and Pull read who is vulnerable in a fight and work against any enemy, you or another stalker.
+  Push: when the target is vulnerable or dying, his attackers press him with heavier fire and move to closer cover once they clearly hold the upper hand.
+  Pull: caught weak against a strong enemy, he gives ground to farther cover until he recovers.
 
 Effectiveness
 
