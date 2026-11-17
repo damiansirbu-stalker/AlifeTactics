@@ -3,7 +3,7 @@
     Mutants now read your weak moments and answer with the moves of their species. Reload in front of a dog and the dog may pounce. Turn your back on a burer and he may throw.
     Climb a rock and a chimera may spring up after you. Stand too close to one and you may meet the claw.
     Stalkers share the decision model. Intelligence rises with rank, Personality comes from the faction. A rookie misreads the opening a veteran takes, and a bandit runs where a Monolith man holds.
-    Other things you will notice. Stalkers hear you before they see you. A missed knife swing gets noticed. Looted scopes end up on rifles. Retreats stop looping.
+    Other things you will notice. Stalkers hear you before they see you. A missed knife swing gets noticed. Looted scopes end up on rifles. A hurt stalker retreats to real cover.
 
   Combat
     General
@@ -15,16 +15,10 @@
       - Changed flee to run on a failed Intelligence roll. A stalker who reads the fight right keeps fighting. A dull one is more likely to break.
     Maneuvers
       - Changed the takeover. If a stalker comes online without a job, as he does at a full Warfare base, he now picks up maneuvers as soon as he enters combat.
-      - Changed retreat and reload cover to use real cover. A hurt stalker gives ground to the best hiding spot behind him.
-          A reloading stalker ducks behind the nearest cover that breaks the watcher's line.
-      - Fixed the retreat loop. A hurt stalker would retreat, reach cover, then retreat again, up to 22 times in 4 minutes.
-          Retreat now starts only while his spot is exposed to a threat that can reach him. Once he reaches the cover he chose, the retreat is over. He fights from there.
-      - Added a loop guard to every maneuver. A stalker can start a given maneuver up to 4 times a minute, kite 6.
-          A stalker blocked by walls or caught between 2 enemies used to loop one for minutes.
-      - Fixed maneuvers picking a stalker who lies wounded. About a third of all retreats went to a man on the ground, who stayed down yet still spent the start budget.
-          A downed stalker drops his maneuver when he falls. He can take a maneuver, a Push or a Pull again once he stands.
+      - Changed retreat and reload cover to use real cover. A hurt stalker gives ground to the best hiding spot behind him, retreating only while his spot is exposed to a threat that can reach him.
+          Once he reaches the cover he chose, he fights from there. A reloading stalker ducks behind the nearest cover that breaks the watcher's line.
       - Fixed a downed enemy counting as a threat. A stalker would back away from a man lying wounded, which kept the vanilla finisher from reaching him.
-          The wounded man is out of the fight until he stands. His killer can then finish him.
+          A wounded man is now out of the fight on both sides until he stands. He takes no maneuver, and his killer can finish him.
     Commitment
       - Changed Liquidate to draw from the start budget the maneuvers, Push and Pull share. A crowd will be limited in how many fire through your reload at once.
       - Added a turned back as an opening for Liquidate and the Push, the same way as a reload.
@@ -87,21 +81,21 @@
             Set to 0, every member of a kind is identical and you can learn them. Set to 100, each spawn will read differently.
       Pacing
         - A mutant waits 10 seconds between any 2 of its moves, 20 before a repeat of a leap. Against you, the mutants together have a limit of 1 attack every 2 seconds.
-            A pack comes at you in turns. 2 chimeras used to hit you with a leap, a claw and a rear strike in a single second.
+            A pack comes at you in turns, and 2 chimeras cannot stack their moves on you in a single second.
       Threat read
         - A mutant reads the weapon in your hands. A stowed gun is not a threat to the mutant.
         - A mutant reads your aim from where you look. Strafing with sights on the mutant counts as aiming.
     New moves
       - Added the leap family, 7 leaps by situation. The chimera, lurker, cat, dog, snork and pseudodogs can take each of the first 6. Personality decides which an individual carries.
-          High leap, Hunting leap, Catching leap crouch first, the warning you will see coming. The other leaps launch straight away.
-          Each mutant rolls a leap force when it comes online. Its leaps fly fast and flat with that force, where they used to lob over your head.
+          High leap, Hunting leap, Catching leap crouch first, the warning you will see coming. The other leaps launch straight away. A chimera or a lurker has no crouch, so all its leaps come without warning.
+          Each mutant rolls a leap force when it comes online, and its leaps fly fast and flat with that force.
       - High leap springs up toward you when you stand on a rock or a ledge above the mutant, within jump reach. Camping a rock is now dangerous.
       - Punishing leap strikes instantly when you aim at the mutant, reload, sprint, climb or turn your back.
       - Hunting leap and Feral leap steer in the air to follow you while you move. Feral leap launches without a warning. It is the most lethal leap.
       - Catching leap and Cutoff leap jump to where you will be while you move, up to 1 m ahead. Cutoff leap is the instant one of the pair.
       - Closing leap gives the bloodsucker a gap-closer. The bloodsucker flies toward an enemy on a perch within 15 m, or toward a player aiming at him from 4.5 to 15 m, then strikes with his claws.
       - A leap fires only when the mutant can make it: in range, within a fair angle and height, inside the area it is allowed in, toward an enemy it has sensed in the last second.
-          Leaps hold off inside 3 m, where a jump stranded or flew through you. High leap and Closing leap toward a perch are the exception.
+          Inside 3 m the claw takes over, and only High leap and Closing leap toward a perch still fire.
       - Added the claw for the chimera and lurker, which vanilla walks into melee without an attack. The claw is a point-blank pounce without a wind-up. It stops where it touches down.
       - Added Backstrike, a spin-strike when you work around to the back of a chimera, lurker, burer or controller, whose models carry the motion.
           The mutant arms it when you come within 4 m. The engine then strikes once or twice.
