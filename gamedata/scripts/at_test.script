@@ -12,6 +12,8 @@ local math_floor, math_max, math_random = math.floor, math.max, math.random
 local DEFAULT_SECTION  = "bandit_sim_squad_novice"
 local DEFAULT_DISTANCE = 50
 local INVALID_VERTEX   = 4294967295
+-- The at_mutants fired_kind of a move AT called itself; the engine relays (run attack, backstrike, gravi) stamp the other kinds and never count as fires.
+local KIND_CALLED      = "called"
 
 local EFFECT_GEAR = { "af_gravi", "af_soul", "af_fireball", "af_electra_sparkler", "af_compass", "af_kevlar", "wpn_binoc", "device_torch_nv_1" }
 
@@ -50,6 +52,18 @@ local MANIFEST_INT = 95
 local MANIFEST_ANNOUNCE_SEC = 5
 local DRIVE_STAND = "stand"
 local DRIVE_STRAFE = "strafe"
+local DRIVE_PERCH = "perch"
+-- The manifest cycle, repeated through the window: each step holds MANIFEST_STEP_SEC, and the aim rotates across the group so every mutant is faced.
+local MANIFEST_STEPS = {
+    { away = false, drive = DRIVE_STAND }, { away = true, drive = DRIVE_STAND },
+    { away = false, drive = DRIVE_STRAFE }, { away = true, drive = DRIVE_STRAFE },
+    { away = false, drive = DRIVE_PERCH },
+}
+local MANIFEST_STEP_SEC = 5
+local MANIFEST_PROVOKE_POWER = 0.001
+-- Under the [survival] health_frac 0.40 flee reads, set on one flee carrier halfway through the window.
+local MANIFEST_WOUND_HEALTH = 0.35
+local MANIFEST_AIM_SWITCH_SEC = 2.5
 local _manifest = nil
 local _manifest_log = nil
 
@@ -281,7 +295,7 @@ end
 local function _on_eff_mob_update(mob)
     if not (_eff and mob and mob:alive()) then return end
     local rec = at_mutants.get_mutant_record(mob:id())
-    if not (rec and rec.fired_at) then return end
+    if not (rec and rec.fired_at and rec.fired_kind == KIND_CALLED) then return end
     if _eff.seen[mob:id()] ~= rec.fired_at then
         _eff.seen[mob:id()] = rec.fired_at
         local move = rec.fired_move or "?"
@@ -368,13 +382,45 @@ local function _find_roster_index(species)
     return 1
 end
 
+-- One token hit from the player, so a calm species resting out of sight takes him as its enemy and the window measures a fight.
+-- No bone name: the engine then keeps the hit's default bone (script_game_object2.cpp:193-198 mt).
+local function _apply_provoke_hit(mob)
+    local actor, hit_class = db.actor, rawget(_G, "hit")
+    if not (actor and hit_class) then return end
+    local provoke_hit = hit_class()
+    provoke_hit.draftsman = actor
+    provoke_hit.type = hit_class.wound
+    provoke_hit.direction = mob:position():sub(actor:position())
+    provoke_hit.power = MANIFEST_PROVOKE_POWER
+    provoke_hit.impulse = 0
+    mob:hit(provoke_hit)
+end
+
+-- Drop one flee carrier of the group to MANIFEST_WOUND_HEALTH so the hurt-gated flee can fire; the log says when no mutant rolled flee.
+local function _apply_flee_wound()
+    for id, rec in pairs(_manifest.records) do
+        local mob = rec.repertoire and rec.repertoire.flee and level.object_by_id(id)
+        if mob and mob:alive() then
+            mob:set_health_ex(MANIFEST_WOUND_HEALTH)
+            _manifest_log.info("[wound] %s id=%d health=%.2f", _manifest.species, id, MANIFEST_WOUND_HEALTH)
+            return
+        end
+    end
+    _manifest_log.info("[wound] %s flee not rolled", _manifest.species)
+end
+
 --- Record each fired decided move per species (the manifestation detector, mirrors the efficiency fire read).
 local function _on_manifest_mob_update(mob)
     if not (_manifest and mob and mob:alive()) then return end
+    if not _manifest.tz.is_spawned_mutant(mob:id()) then return end
+    if not _manifest.provoked[mob:id()] then
+        _manifest.provoked[mob:id()] = true
+        _apply_provoke_hit(mob)
+    end
     local rec = at_mutants.get_mutant_record(mob:id())
     if not rec then return end
     _manifest.records[mob:id()] = rec
-    if not rec.fired_at then return end
+    if not (rec.fired_at and rec.fired_kind == KIND_CALLED) then return end
     if _manifest.seen[mob:id()] ~= rec.fired_at then
         _manifest.seen[mob:id()] = rec.fired_at
         local move = rec.fired_move or "?"
@@ -408,12 +454,12 @@ local function _start_manifest_species(i)
     _manifest.fired = {}
     _manifest.seen = {}
     _manifest.records = {}
+    _manifest.provoked = {}
+    _manifest.wounded = false
     _manifest.at = time_global()
     _manifest.next_announce = 0
-    _manifest.phase = 1
+    _manifest.phase = 0
     _manifest.tz.clear_mutants()
-    _manifest.tz.start_actor_aim()
-    _manifest.tz.start_actor_drive(DRIVE_STAND)
     _manifest.tz.spawn_mutant(_manifest.species, MANIFEST_COUNT, MANIFEST_DIST)
     _manifest_log.info("[species %d/%d] %s spawn=%d int=%d", i, #MANIFEST_ROSTER, _manifest.species, MANIFEST_COUNT, MANIFEST_INT)
 end
@@ -438,14 +484,15 @@ local function _update_manifest()
     ResetTimeEvent("at_manifest", "tick", 1)
     local now = time_global()
     local into = (now - _manifest.at) / 1000
-    local third = MANIFEST_SEC / 3
-    if _manifest.phase == 1 and into >= third then
-        _manifest.phase = 2
-        _manifest.tz.start_actor_aim(true)
-    elseif _manifest.phase == 2 and into >= third * 2 then
-        _manifest.phase = 3
-        _manifest.tz.start_actor_aim()
-        _manifest.tz.start_actor_drive(DRIVE_STRAFE)
+    local step = math_floor(into / MANIFEST_STEP_SEC) % #MANIFEST_STEPS + 1
+    if step ~= _manifest.phase then
+        _manifest.phase = step
+        _manifest.tz.start_actor_aim(MANIFEST_STEPS[step].away, MANIFEST_AIM_SWITCH_SEC)
+        _manifest.tz.start_actor_drive(MANIFEST_STEPS[step].drive)
+    end
+    if not _manifest.wounded and into >= MANIFEST_SEC / 2 then
+        _manifest.wounded = true
+        _apply_flee_wound()
     end
     if now >= _manifest.next_announce then
         _manifest.next_announce = now + MANIFEST_ANNOUNCE_SEC * 1000
@@ -555,7 +602,8 @@ function run_manifest(start_species)
     if not db.actor then return _show_tip("AT.MANIFEST: need in-game") end
     local tz = rawget(_G, "tz_commands")
     if not (type(tz) == "table" and type(tz.spawn_mutant) == "function" and type(tz.start_actor_aim) == "function"
-        and type(tz.start_actor_drive) == "function" and type(tz.start_lifepump) == "function") then
+        and type(tz.start_actor_drive) == "function" and type(tz.start_lifepump) == "function"
+        and type(tz.is_spawned_mutant) == "function") then
         return _show_tip("AT.MANIFEST: TestZone not loaded (needs tz_commands)")
     end
     _manifest_log = xlog.get_logger("manifest_at", { outfile = "manifest_at.log", buffer_size = 1, level = "INFO" })
