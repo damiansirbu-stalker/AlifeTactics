@@ -223,7 +223,7 @@ local _key_to_tab = {
     commitment_hold_s  = "combat/commitment",
     combat_enabled = "combat/maneuvers",
     combat_ignore_companions = "combat/maneuvers",
-    combat_hit_hold = "combat/maneuvers",
+    combat_hit_hold = "combat/general",
     maneuver_counterflank    = "combat/maneuvers",
     maneuver_reload_cover    = "combat/maneuvers",
     maneuver_kite    = "combat/maneuvers",
@@ -466,6 +466,7 @@ function on_mcm_load()
                             { id = "desc", type = "desc", text = "ui_mcm_at_combat_general_desc" },
                             { id = "int_base",     type = "track", val = 2, min = 0, max = 100, step = 5, def = 40, hint = "at_general_int_base" },
                             { id = "int_rank_pct", type = "track", val = 2, min = 0, max = 20, step = 1, def = 6, hint = "at_general_int_rank_pct" },
+                            { id = "combat_hit_hold", type = "check", val = 1, def = true, hint = "at_combat_combat_hit_hold" },
                         },
                     },
                     {
@@ -477,7 +478,6 @@ function on_mcm_load()
                             { id = "desc", type = "desc", text = "ui_mcm_at_combat_desc" },
                             { id = "combat_enabled", type = "check", val = 1, def = true, hint = "at_combat_combat_enabled" },
                             { id = "combat_ignore_companions", type = "check", val = 1, def = true, hint = "at_combat_combat_ignore_companions" },
-                            { id = "combat_hit_hold", type = "check", val = 1, def = true, hint = "at_combat_combat_hit_hold" },
 
                             { id = "div_maneuvers", type = "line" },
                             { id = "hdr_maneuvers", type = "desc", text = "ui_mcm_at_combat_hdr_maneuvers", clr = {255, 200, 200, 200} },

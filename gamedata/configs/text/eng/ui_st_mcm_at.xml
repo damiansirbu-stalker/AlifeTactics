@@ -700,7 +700,7 @@
     <text>Enable combat takeover</text>
   </string>
   <string id="ui_mcm_at_combat_combat_enabled_desc">
-    <text>When off, AlifeTactics never touches combat and every fight runs on your existing AI. When on, it may briefly borrow a stalker from any fight near you (his enemy can be you or another combatant) for one committed maneuver, then hand him back. Covers fights within 150 m of you by default.</text>
+    <text>When off, AlifeTactics takes over no stalker for a maneuver, and the other Combat pages keep their own switches. When on, it may briefly borrow a stalker from any fight near you (his enemy can be you or another combatant) for one committed maneuver, then hand him back. Covers fights within 150 m of you by default.</text>
   </string>
   <string id="ui_mcm_at_combat_combat_ignore_companions">
     <text>Ignore companions</text>
@@ -712,7 +712,7 @@
     <text>Hit reaction hold</text>
   </string>
   <string id="ui_mcm_at_combat_combat_hit_hold_desc">
-    <text>A standing stalker hit mid reaction is held planted while the hit animation plays, instead of sliding across the ground with his feet still, and moves again the moment it ends. Needs a modded exes build carrying engine PR 645. Older builds keep vanilla movement.</text>
+    <text>A standing stalker who is hit stays in place while the hit animation plays, instead of sliding across the ground, and moves again the moment it ends. It covers every stalker, in a maneuver or not. Needs a modded exes build carrying engine PR 645. Older builds keep vanilla movement.</text>
   </string>
   <string id="ui_mcm_at_combat_hdr_maneuvers">
     <text>Maneuvers</text>
@@ -994,7 +994,7 @@
     <text>Hit-reaction slide</text>
   </string>
   <string id="ui_mcm_at_vf_hit_hold_desc">
-    <text>A hit no longer slides a standing stalker across the ground while the animation plays. Needs the Hit reaction hold toggle on Maneuvers and PR #645.</text>
+    <text>A hit no longer slides a standing stalker across the ground while the animation plays. Needs the Hit reaction hold toggle on Combat, General and PR #645.</text>
   </string>
   <string id="ui_mcm_at_vf_anim_body">
     <text>Maneuver on an animating body</text>

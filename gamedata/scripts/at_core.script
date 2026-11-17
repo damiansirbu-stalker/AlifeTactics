@@ -225,10 +225,10 @@ local function _apply_enabled()
             at_behaviors.apply_enabled_npc(xobject.get_go(state.id), state, now)
         end
     end
-    if not cfg.combat_enabled then
+    if not (cfg.combat_enabled and cfg.combat_hit_hold) then
         for _, state in pairs(_npc_states) do at_maneuvers.apply_enabled_npc(state, now) end
     end
-    if cfg.combat_enabled or cfg.push_enabled or cfg.pull_enabled then
+    if cfg.combat_enabled or cfg.push_enabled or cfg.pull_enabled or cfg.combat_hit_hold then
         _start_monitor()
     else
         for _, state in pairs(_npc_states) do state.actor_dist_sqr = nil end

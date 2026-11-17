@@ -845,7 +845,7 @@ end
 
 local function _on_hit(npc, amount)
     if not npc or not amount or amount <= 0 then return end
-    if not (cfg.combat_enabled and cfg.combat_hit_hold) then return end
+    if not cfg.combat_hit_hold then return end
     local state = at_core.get_combat_record(npc:id())
     if not state then return end
     local hold, why = _check_hold(npc)
@@ -968,10 +968,10 @@ function clear_npc(npc, state, why, now)
     _release_cover(state)
 end
 
---- Toggle-off restore for one record when the Combat master goes off (at_core's option-change sweep).
+--- Toggle-off restore for one record (at_core's option-change sweep): the maneuver when Combat goes off, the hold when Hit reaction hold goes off.
 function apply_enabled_npc(state, now)
-    if state.maneuver then _stop_maneuver(state, now, "disabled") end
-    if not state.move_hold then return end
+    if not cfg.combat_enabled and state.maneuver then _stop_maneuver(state, now, "disabled") end
+    if cfg.combat_hit_hold or not state.move_hold then return end
     local npc = xobject.get_go(state.id)
     if npc then _apply_hold(npc, state, false, "disabled") else state.move_hold = nil end
 end
