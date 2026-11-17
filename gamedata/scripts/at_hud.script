@@ -193,15 +193,16 @@ end
 -- Mutant rows obey the stalker rules: the same gate radius, and fighting mutants only.
 local function _on_mob_update(obj)
     if not _tick_active then return end
-    if not (obj and obj:alive()) then return end
+    local id = obj and obj:id()
+    if not id then return end
+    local tg = time_global()
+    local mob = _mob[id]
+    if mob and tg < mob.next_ms then return end
+    if not obj:alive() then return end
     local state = xmonster.get_monster_state(obj)
     if state == nil then return end
     local ac = db.actor
     if not ac then return end
-    local id = obj:id()
-    local tg = time_global()
-    local mob = _mob[id]
-    if mob and tg < mob.next_ms then return end
     local dist_sqr = obj:position():distance_to_sqr(ac:position())
     _gate_probe.actor_dist_sqr = dist_sqr
     if not at_core.is_in_gate(_gate_probe) then
@@ -215,22 +216,24 @@ local function _on_mob_update(obj)
         return
     end
     local rec = at_mutants.get_mutant_record(id)
-    local jumping = xmonster.is_monster_jumping(obj)
-    _mob[id] = {
-        id = id,
-        next_ms = tg, seen_ms = tg, dist_sqr = dist_sqr,
-        name = obj:name(), hp = xmonster.get_monster_health(obj),
-        state = state,
-        scheme = db.storage[id] and db.storage[id].active_scheme or nil,
-        morale = xmonster.get_monster_morale(obj),
-        jumping = jumping,
-        systems = rec and _format_mob_systems(rec, tg, state) or nil,
-        gate = rec and rec.gate or nil,
-        enemy = fighting and string_format("%s %dm",
-            _format_label(xcreature.get_name(enemy:id()), TARGET_NAME_MAX),
-            math_floor(obj:position():distance_to(enemy:position()))) or nil,
-    }
-    _mob[id].next_ms = tg + MOB_SAMPLE_MS
+    if not mob then
+        mob = { id = id }
+        _mob[id] = mob
+    end
+    mob.next_ms = tg + MOB_SAMPLE_MS
+    mob.seen_ms = tg
+    mob.dist_sqr = dist_sqr
+    mob.name = obj:name()
+    mob.hp = xmonster.get_monster_health(obj)
+    mob.state = state
+    mob.scheme = db.storage[id] and db.storage[id].active_scheme or nil
+    mob.morale = xmonster.get_monster_morale(obj)
+    mob.jumping = xmonster.is_monster_jumping(obj)
+    mob.systems = rec and _format_mob_systems(rec, tg, state) or nil
+    mob.gate = rec and rec.gate or nil
+    mob.enemy = fighting and string_format("%s %dm",
+        _format_label(xcreature.get_name(enemy:id()), TARGET_NAME_MAX),
+        math_floor(obj:position():distance_to(enemy:position()))) or nil
 end
 
 local function _build_mob_row(mob)
