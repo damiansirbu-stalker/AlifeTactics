@@ -110,6 +110,8 @@
       - Distant hits now applies to enemies only. The relation and alive checks run first and the bypass skips the range gate alone. A neutral's accidental hit is no longer answered as an attack.
       - Fixed vanilla bug "hit shooter identity". A stalker hit by a bullet lost track of who shot him and stared at the spot the shooter fired from.
           He now looks at where the shooter is and takes cover from him. It is always on and listed on the Fixes tab.
+      - Fixed vanilla bug "player bias" out of the box. Player target pull now starts at 300, the weight the engine gives any NPC enemy, where it shipped at the vanilla 900.
+          Stalkers fighting each other no longer turn on you first because you have them in sight. 900 restores the vanilla magnet.
 
   Mechanics
     Attachments

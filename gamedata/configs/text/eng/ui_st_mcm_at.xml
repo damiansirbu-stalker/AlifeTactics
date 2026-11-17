@@ -834,7 +834,7 @@
     <text>Player target pull</text>
   </string>
   <string id="ui_mcm_at_danger_selection_actor_bias_desc">
-    <text>How strongly an NPC prioritizes you as a target once you can see him, against the weaker pull other NPCs get. Lower values treat you like any other combatant, and 0 removes the pull entirely. Needs a recent engine build, and is inactive on older ones.</text>
+    <text>How strongly an NPC prioritizes you as a target once you can see him, against the pull other NPCs get. The default 300 weighs you the same as any other combatant, 900 is the vanilla player magnet, and 0 removes the pull entirely. Needs a recent engine build, and is inactive on older ones.</text>
   </string>
   <string id="ui_mcm_at_danger_fix_config_isolation">
     <text>Danger config isolation</text>

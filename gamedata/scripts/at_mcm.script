@@ -7,7 +7,7 @@ local table_insert = table.insert
 local MUTANTS_ID = "mutants"
 
 local defaults = {
-    selection_actor_bias      = 900,
+    selection_actor_bias      = 300,
     healing_enabled           = true,
     heal_rate_multiplier      = 1.0,
     charge_chance_novice      = 50,
@@ -673,7 +673,7 @@ function on_mcm_load()
 
                             { id = "div_targeting", type = "line" },
                             { id = "hdr_targeting", type = "desc", text = "ui_mcm_at_danger_hdr_targeting", clr = {255, 200, 200, 200} },
-                            { id = "selection_actor_bias", type = "track", val = 2, min = 0, max = 900, step = 50, def = 900, hint = "at_danger_selection_actor_bias" },
+                            { id = "selection_actor_bias", type = "track", val = 2, min = 0, max = 900, step = 50, def = 300, hint = "at_danger_selection_actor_bias" },
                         },
                     },
                 },
