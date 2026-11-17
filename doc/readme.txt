@@ -234,55 +234,13 @@ The creature's own abilities, whose numbers Wild spreads between individuals.
 The burer's gravity and telekinesis, the controller's psi attack and stamina, and the poltergeist's detection all differ between individuals of a kind.
 
 Fixes to Vanilla:
-AlifeTactics corrects dozens of vanilla Anomaly and xray defects, grouped below by the system each repairs.
-Each shows as a locked toggle on the Fixes tab. The always-on ones cannot be turned off. The rest are switched on their own pages.
-
-Danger scheme:
-- A name collision made three danger categories read the wrong range. A ricochet read at 150m, not its own 4m. Each now reads its own range.
-- A mutant corpse no longer crashes the danger time check.
-- A torn-down NPC reference no longer crashes the evaluator.
-- A bad danger time value no longer crashes the evaluator.
-- A stalker hit by a bullet knows who shot him. He looks at where the shooter is now and takes cover from him.
-- A stalker is no longer evaluated for danger after he dies.
-- A stalker who held fire because a friend crossed his line no longer freezes in a combat stance after the fight. He returns to normal when his enemy is gone.
-- A stalker held fire for any visible non-enemy standing close in any direction, or standing on his aim line beyond the target, and the hold re-armed endlessly in a crowd.
-  He now holds and steps aside only for a friend actually between him and his target.
-  The false holds also silenced campers, wounded-finishing, mounted guns and anti-helicopter fire. Those behaviors now run again.
-- A danger transition no longer leaves a stale lower-body animation playing.
-- Leaving danger clears only its own cover reservation, not every stalker's.
-- A stalker attacked again later reacts to the new attacker, not his first attacker's old position, and the corpse search plays for every corpse, not only his first.
-- The grenade dodge distance read on the wrong scale. A stalker now dodges within the intended radius and faces distant grenades.
-- The danger check parses its config once and caches the result.
-- A stalker sniped from far off reacts and seeks cover, where vanilla left him standing.
-
-Corpse investigation:
-- A despawning corpse no longer crashes the investigator.
-- The squad member who found the body investigates it, not the wrong one.
-- The investigator walks to the cover it found, not a cleared spot.
-- The corpse reaction survives firing before its stage is set.
-- A dead stalker's danger no longer lingers on a reused id.
-
-Target selection:
-- A shot-at stalker turns on the man who hit him, not a distant target he can see.
-- NPCs no longer converge on you far harder than on each other.
-
-Accuracy:
-- A real per-rank accuracy curve replaces vanilla's flat clamp.
-
-Combat:
-- A stalker no longer fires into the low cover he ducks behind.
-- A stalker fires over low cover he can shoot across. The shot check reads eye height, not chest height.
-
-Movement and animation:
-- A hit no longer slides a standing stalker across the ground.
-- A maneuver never starts on a stalker still playing an animation.
-
-Healing:
-- The medkit and bandage lists the engine dropped are restored.
-- The bandage gesture waits until the stalker stands still.
-- A hurt stalker drops his limp in a fight.
-- A healing stalker no longer freezes or ignores an enemy that appears mid-gesture.
-- The save-load charge re-roll is suppressed.
+AlifeTactics repairs bugs across many vanilla systems, each listed on the MCM Fixes tab: the danger scheme, the corpse search, target choice, cover posture and healing.
+Behaviours that were unfinished or not working now work.
+Stalkers heal with the medkits and bandages they carry, search every corpse they find, and dodge a grenade at the full distance the game intended for it.
+A stalker holds fire only for a friend standing between him and his target, and campers and mounted gunners shoot again when other stalkers stand near them.
+Stalkers also react to the right threat. One who is shot knows who shot him and turns on him, answers the newest attacker, and stops healing to fight an enemy who appears.
+Animation bugs are fixed. A stalker no longer slides across the ground when he is hit or while he bandages, stops limping when a fight starts, and leaves the combat stance after it.
+Stability and speed improve too. Vanilla's crashes in the danger checks and the corpse search are fixed, a dead body stops spamming engine errors, and the danger check parses its config once.
 
 Effects (planned):
 Player-facing combat feedback, starting with concussion: tinnitus and blur.
