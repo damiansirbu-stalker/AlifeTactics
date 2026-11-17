@@ -41,11 +41,10 @@ local VIS_FULL        = 2
 -- The wind-up leaps (High, Hunting, Catching) keep the species crouch the enemy sees coming; every other leap launches straight into the glide (ePrepareSkip).
 local LAUNCH_WINDUP  = { skip_prepare = false }
 local LAUNCH_INSTANT = { skip_prepare = true }
+-- xmonster.try_monster_jump's refusal when its own gates pass and the engine's launch says no.
+local REFUSED_ENGINE = "engine"
 local LAUNCH = { high_leap = LAUNCH_WINDUP, hunting_leap = LAUNCH_WINDUP, catching_leap = LAUNCH_WINDUP }
 
--- Claw stops where it lands (eGroundSkip, control_jump.cpp:393); the mask carries into every later jump (:73-79), so it clears at once.
-local CLAW_FLAGS     = { ground_skip = true }
-local CLAW_FLAGS_OFF = {}
 
 -- Every move the adopt line and the MCM tree key on; backstrike arms at adoption, claw checks on contact, the rest decide per beat.
 local MOVE_KEYS = {
@@ -53,10 +52,10 @@ local MOVE_KEYS = {
     "cloak", "gravity_attack", "claw", "backstrike",
 }
 
--- The per-beat decision chain the selection shuffles and walks on an Intelligence PASS; backstrike arms at adoption and claw checks on contact, not here.
+-- The per-beat decision chain the selection shuffles and walks on an Intelligence PASS; claw checks on contact, not here.
 local DECISION_MOVES = {
     "high_leap", "punishing_leap", "hunting_leap", "feral_leap", "catching_leap", "cutoff_leap", "closing_leap",
-    "gravity_attack", "cloak",
+    "gravity_attack", "cloak", "backstrike",
 }
 
 -- The moves checked on an Intelligence MISS instead: panic is the failure to read the fight (user 2026-11-15), so a smart mutant never flees.
@@ -69,10 +68,15 @@ local LEAP_MOVES = { "high_leap", "punishing_leap", "hunting_leap", "feral_leap"
 local MOVE_GATES = {
     high_leap = GATE, punishing_leap = GATE_WILD, hunting_leap = GATE_WILD, feral_leap = GATE_WILD,
     catching_leap = GATE_WILD, cutoff_leap = GATE_WILD, closing_leap = GATE_WILD,
-    flee = GATE_PANIC,
+    flee = GATE_PANIC, backstrike = GATE,
 }
 
 local _states = {}
+-- The records whose flee window is open, the pure-Lua gate of the per-frame proposal relay; a record leaves both tables together.
+local _flee_recs = {}
+-- Ids rejected at adoption (a companion, an unresolved species), re-tested after STALE_MS instead of on every update.
+local _skip_until = {}
+local _combat_action_bound = false
 local _tracks = { damage = {}, taken = {} }
 local _tun = nil
 local _tun_num = nil
@@ -273,6 +277,7 @@ local function _apply_leap(_mob, rec, section)
     if not rec.leaper then return end
     local basis = _read_basis(section, "jump_factor") or _tun_num.leap_basis
     rec.leap_basis = basis
+    rec.reach_m = _read_basis(section, "jump_max_distance") or _tun_num.closing_max_m
     rec.leap_force = basis * _select_band(_tun_num.force_min_mult, _tun_num.force_max_mult)
     rec.aim_basis = _read_basis(section, "jump_auto_aim_factor") or 0
     rec.lead_gain = _tun_num.lead_floor + (1 - _tun_num.lead_floor) * _compute_intelligence(rec) / _tun_num.int_cap
@@ -339,12 +344,13 @@ local function _apply_burer_params(mob, rec, section)
             _read_basis(section, "Gravi_MaxDist"), pct)
         local cooldown = _compute_offset(_read_basis(section, "Gravi_Cooldown"), pct)
         local speed = _compute_offset(_read_basis(section, "Gravi_Speed"), pct)
-        xmonster.set_burer_gravi_params(mob, {
+        local applied = xmonster.set_burer_gravi_params(mob, {
             cooldown_ms = cooldown,
             min_dist = gravi_min, max_dist = gravi_max,
             speed = speed,
             radius = _compute_offset(_read_basis(section, "Gravi_Radius"), pct),
         })
+        if applied then rec.gravi_min, rec.gravi_max = gravi_min, gravi_max end
         if at_debug.is_on() then
             at_debug.debug("[MUT] vary id=%d gravi=%.1f-%.1f cd=%.0f speed=%.1f",
                 rec.id, gravi_min or 0, gravi_max or 0, cooldown or 0, speed or 0)
@@ -391,16 +397,13 @@ local function _apply_auras(mob, rec, section)
     end
 end
 
--- The rear spin-strike arms once at adoption, repertoire then one Intelligence roll (no opening exists, the engine self-fires it after).
-local function _try_arm_backstrike(mob, rec)
-    local motions = rec.repertoire.backstrike and _check_toggle(rec, "backstrike")
-        and _backstrike_motions[rec.species] or nil
-    if not motions or not _check_intelligence(rec) then return end
-    xmonster.set_monster_melee_strike(mob, motions[1], motions[2], _tun_num.backstrike_arc)
-    rec.armed_backstrike = true
-    if at_debug.is_on() then
-        at_debug.debug("[MUT] arm id=%d backstrike arc=%.0f gate=%s", rec.id, _tun_num.backstrike_arc, GATE)
-    end
+-- The rear strike is the engine's dormant melee jump: armed, it strikes on its own every 0.5-1 s while the enemy stands off its front inside 4 m.
+-- Empty motion names leave it inert (control_manager_custom.cpp:738-739), so an arm is a window and this closes it.
+local function _clear_backstrike(mob, rec)
+    if not rec.armed_backstrike then return end
+    xmonster.set_monster_melee_strike(mob, "", "", _tun_num.backstrike_arc)
+    rec.armed_backstrike = false
+    rec.backstrike_until = 0
 end
 
 -- A species carries a leap when any leap's [moves] envelope lists it.
@@ -409,6 +412,13 @@ local function _is_leaper(moves)
         if moves[LEAP_MOVES[i]] then return true end
     end
     return false
+end
+
+-- A claw species lands where it strikes: the engine keeps a script jump flag for the monster's life (control_jump.cpp:73-79, a respawn clears it).
+-- So ground_skip rides on every flag write of a claw species, never on a per-claw set and clear.
+local function _set_jump_flags(mob, rec, opts)
+    opts.ground_skip = rec.claw
+    return xmonster.set_monster_jump_flags(mob, opts)
 end
 
 local function _add_mutant(mob, id, now)
@@ -439,16 +449,18 @@ local function _add_mutant(mob, id, now)
         flee_until = 0,
         gravity_release = 0,
         cloak_until = 0,
+        backstrike_until = 0,
     }
     _states[id] = rec
     _build_repertoire(rec)
     rec.claw = rec.repertoire.claw == true
+    if rec.claw then _set_jump_flags(mob, rec, {}) end
+    if _backstrike_motions[species] then xmonster.set_monster_melee_strike(mob, "", "", _tun_num.backstrike_arc) end
     local section = mob:section()
     _apply_leap(mob, rec, section)
     _apply_pacing(mob, rec, section)
     _apply_burer_params(mob, rec, section)
     _apply_auras(mob, rec, section)
-    _try_arm_backstrike(mob, rec)
     tmr:stop()
     if dbg then
         local ms = tmr:get_ms()
@@ -458,6 +470,11 @@ local function _add_mutant(mob, id, now)
             id, tostring(species), tier, _format_moves(moves), ms)
     end
     return rec
+end
+
+local function _remove_record(id)
+    _states[id] = nil
+    _flee_recs[id] = nil
 end
 
 local function _remove_stale(now)
@@ -471,7 +488,7 @@ local function _remove_stale(now)
         end
     end
     for i = 1, found do
-        _states[_stale_ids[i]] = nil
+        _remove_record(_stale_ids[i])
         _stale_ids[i] = nil
     end
 end
@@ -520,10 +537,11 @@ local function _update_strike(mob, rec, now)
 end
 
 -- The per-beat motion sample: the enemy's horizontal velocity over the real elapsed time, and whether it covered [motion] move_min_m.
-local function _update_samples(rec, enemy_pos, now)
-    local px, pz, sampled_ms = rec.enemy_px, rec.enemy_pz, rec.sampled_ms
-    rec.enemy_px, rec.enemy_pz, rec.sampled_ms = enemy_pos.x, enemy_pos.z, now
-    if not px or now <= sampled_ms then
+-- A new enemy restarts the sample, so the jump from the old enemy's spot to the new one never reads as movement.
+local function _update_samples(rec, enemy_id, enemy_pos, now)
+    local px, pz, sampled_ms, same_enemy = rec.enemy_px, rec.enemy_pz, rec.sampled_ms, rec.sampled_id == enemy_id
+    rec.enemy_px, rec.enemy_pz, rec.sampled_ms, rec.sampled_id = enemy_pos.x, enemy_pos.z, now, enemy_id
+    if not px or not same_enemy or now <= sampled_ms then
         rec.enemy_vx, rec.enemy_vz, rec.moved = nil, nil, false
         return
     end
@@ -586,7 +604,11 @@ end
 local function _on_run_attack_end(mob) _log_engine_fire(mob, MOVE_RUN_ATTACK) end
 
 --- The engine melee-jump (rear backstrike) completion relay.
-local function _on_melee_jump_end(mob) _log_engine_fire(mob, MOVE_BACKSTRIKE) end
+local function _on_melee_jump_end(mob)
+    _log_engine_fire(mob, MOVE_BACKSTRIKE)
+    local rec = mob and _states[mob:id()]
+    if rec then _clear_backstrike(mob, rec) end
+end
 
 --- A burer gravi blast, autonomous or forced; an engine throw stamps the same cooldown key as ours, so the two never chain.
 local function _on_burer_gravi(burer)
@@ -607,18 +629,28 @@ local function _can_leap(mob, enemy, now)
     return true
 end
 
--- The gate every leap shares after its premise: the [leap] min_m floor (a perch leap passes near_ok), then the sight gate.
+-- The gate every leap shares after its premise: the [leap] min_m floor (a perch leap passes near_ok), a body free of a jump, then the sight gate.
 -- Cooldowns are filtered before the walk; the mod owns the pacing because the game's own jump cooldown is 0 on the chimera and lurker.
 local function _check_leap_block(mob, rec, now, near_ok)
     if not near_ok and rec.memo.dist < _tun_num.leap_min_m then return "near" end
+    if xmonster.is_monster_jumping(mob) then return "jumping" end
     local can_leap, leap_block = _can_leap(mob, rec.memo.enemy, now)
     if not can_leap then return leap_block end
     return nil
 end
 
--- High leap: the jump up at an enemy on a rock or ledge, 0.8m or more above the mutant, the standard of the game's own dog (dog.cpp:410-422).
+-- Perched: the enemy above the mutant and inside its jump reach, standing [premises] above_m higher (the dog standard) or off the navmesh past perch_gap_m.
+-- Below the mutant or past the reach is never a perch, however the mesh reads there (field 2026-11-17: leaps at 26 and 40 m, at a player 1.2 m lower).
+local function _is_enemy_perched(rec, memo)
+    if memo.dist > rec.reach_m then return false end
+    local dy = memo.enemy_pos.y - memo.mob_pos.y
+    if dy <= 0 then return false end
+    return dy > _tun_num.above_m or xcombat.is_off_navmesh(memo.enemy, _tun_num.perch_gap_sqr)
+end
+
+-- High leap: the jump up at a perched enemy on a rock or ledge, the standard of the game's own dog (dog.cpp:410-422).
 local function _check_high_leap_block(mob, rec, now)
-    if not xcombat.is_enemy_above(rec.memo.enemy, mob, _tun_num.above_m) then return "level" end
+    if not _is_enemy_perched(rec, rec.memo) then return "level" end
     return _check_leap_block(mob, rec, now, true)
 end
 
@@ -636,20 +668,25 @@ local function _check_moving_leap_block(mob, rec, now)
     return _check_leap_block(mob, rec, now)
 end
 
--- Closing leap: a perched enemy at any distance, or the aiming player between the charge band and [closing_leap] aim_max_m.
--- Only the player counts as aiming, since a stalker cannot see it beyond full visibility; it sets memo.perch for the force.
+-- Closing leap: a perched enemy inside the reach ([closing_leap] aim_max_m, the sucker has no band), or the aiming player past the charge band.
+-- Only the player counts as aiming, since a stalker cannot see it beyond full visibility.
 local function _check_closing_leap_block(mob, rec, now)
     local memo = rec.memo
-    if xcombat.is_enemy_above(memo.enemy, mob, _tun_num.above_m) then
-        memo.perch = true
-    elseif memo.dist > _tun_num.closing_max_m then
-        return "far"
-    elseif memo.is_actor and memo.aiming and memo.dist >= _tun_num.closing_min_m then
-        memo.perch = false
-    else
-        return "calm"
-    end
-    return _check_leap_block(mob, rec, now, memo.perch)
+    if _is_enemy_perched(rec, memo) then return _check_leap_block(mob, rec, now, true) end
+    if memo.dist > _tun_num.closing_max_m then return "far" end
+    if not (memo.is_actor and memo.aiming) then return "calm" end
+    if memo.dist < _tun_num.closing_min_m then return "near" end
+    return _check_leap_block(mob, rec, now, false)
+end
+
+-- The Closing leap gate's inputs beside its block line: who the enemy is, its height over the mob, the distance and the aim read.
+local function _trace_closing_inputs(mob, rec)
+    local memo = rec.memo
+    local enemy = memo.enemy
+    local dy = enemy and (enemy:position().y - mob:position().y) or -99
+    at_debug.debug("[MUT] closing id=%d enemy=%s actor=%s dy=%.2f offmesh=%s d=%.1f aim=%s",
+        rec.id, tostring(enemy and enemy:id()), tostring(memo.is_actor), dy,
+        tostring(xcombat.is_off_navmesh(enemy, _tun_num.perch_gap_sqr)), memo.dist or -1, tostring(memo.aiming))
 end
 
 -- The Cutoff leap aim point: the enemy's position advanced by its velocity over the engine's own flight time, scaled by the lead gain.
@@ -683,20 +720,28 @@ local function _execute_leap(mob, rec, move, now, order)
     local aim
     if order.steered then
         aim = _select_band(_tun_num.adapt_min, _tun_num.adapt_max)
-        xmonster.set_monster_jump_flags(mob, { auto_aim = true, auto_aim_factor = aim })
+        _set_jump_flags(mob, rec, { auto_aim = true, auto_aim_factor = aim })
     end
     local launch = LAUNCH[move] or LAUNCH_INSTANT
     local target, lead_m = order.target, order.lead_m
-    local fired = xmonster.try_monster_jump(mob, target, order.force, launch)
+    local fired, refusal = xmonster.try_monster_jump(mob, target, order.force, launch)
     if not fired and lead_m > 0 then
         target, lead_m = memo.enemy_pos, 0
-        fired = xmonster.try_monster_jump(mob, target, order.force, launch)
+        fired, refusal = xmonster.try_monster_jump(mob, target, order.force, launch)
     end
     if aim then
         rec.aim_restore = fired or nil
-        xmonster.set_monster_jump_flags(mob, fired and {} or { auto_aim_factor = rec.aim_basis })
+        _set_jump_flags(mob, rec, fired and {} or { auto_aim_factor = rec.aim_basis })
     end
-    if not fired then return false end
+    if not fired then
+        if not at_debug.is_on() then return false end
+        if refusal == REFUSED_ENGINE then
+            local info = xmonster.get_monster_movement_info(mob)
+            refusal = ("engine script=%s jmp=%s cap=%s state=%s"):format(tostring(mob:get_script()), tostring(xmonster.is_monster_jumping(mob)),
+                tostring(info and info.path_capturer), tostring(xmonster.get_monster_state(mob)))
+        end
+        return _log_block(rec, move, ("refused_%s d=%.1f dy=%.2f"):format(tostring(refusal), memo.dist, memo.enemy_pos.y - memo.mob_pos.y))
+    end
     _add_start(memo.bucket)
     _add_cooldown(rec, COOLDOWN_LEAP, now)
     _add_cooldown(rec, move, now)
@@ -718,11 +763,11 @@ local function _build_order(target, force, steered, lead_m)
 end
 
 -- High leap: the jump up at an enemy above the mutant, the one leap the vanilla dog test aims at a perch (dog.cpp:410-422).
--- It keeps the species wind-up and flies at the species force, so the arc clears the ledge lip a flat fast arc would clip (control_jump.cpp:462-472).
+-- It keeps the species wind-up and flies at the mutant's own force, like every leap (field 2026-11-17: pinned at the basis it lobbed, 1.5 s for 8 m).
 local function _try_high_leap(mob, rec, _move, now)
     local block = _check_high_leap_block(mob, rec, now)
     if block then return _log_block(rec, MOVE_HIGH_LEAP, block) end
-    return _execute_leap(mob, rec, MOVE_HIGH_LEAP, now, _build_order(rec.memo.enemy_pos, rec.leap_basis, false, 0))
+    return _execute_leap(mob, rec, MOVE_HIGH_LEAP, now, _build_order(rec.memo.enemy_pos, rec.leap_force, false, 0))
 end
 
 -- Punishing leap: the instant pounce at where the enemy stands.
@@ -763,12 +808,13 @@ local function _try_cutoff_leap(mob, rec, _move, now)
 end
 
 -- Closing leap: the bloodsucker's gap-closer, which never hits in the air (its jump hit range never loads); its claws strike after it lands.
--- A perch takes the species force for the ledge lip, the aim case the Wild-spread force.
 local function _try_closing_leap(mob, rec, _move, now)
     local block = _check_closing_leap_block(mob, rec, now)
-    if block then return _log_block(rec, MOVE_CLOSING_LEAP, block) end
-    local force = rec.memo.perch and rec.leap_basis or rec.leap_force
-    return _execute_leap(mob, rec, MOVE_CLOSING_LEAP, now, _build_order(rec.memo.enemy_pos, force, false, 0))
+    if block then
+        if at_debug.is_on() then _trace_closing_inputs(mob, rec) end
+        return _log_block(rec, MOVE_CLOSING_LEAP, block)
+    end
+    return _execute_leap(mob, rec, MOVE_CLOSING_LEAP, now, _build_order(rec.memo.enemy_pos, rec.leap_force, false, 0))
 end
 
 -- Flee gates: hurt, far enough to disengage, an escape route, then not nose-on to the enemy (its cooldown is filtered before the walk).
@@ -788,6 +834,7 @@ local function _try_flee(mob, rec, _move, now)
     local memo = rec.memo
     local hold = _select_band(_tun_num.survival_hold_min, _tun_num.survival_hold_max)
     rec.flee_until = now + hold
+    _flee_recs[rec.id] = rec
     _add_cooldown(rec, "flee", now)
     _add_start(memo.bucket)
     _log_fire(rec, "flee", memo.dist, (" hold=%dms"):format(hold))
@@ -828,9 +875,7 @@ local function _try_claw(mob, rec, now)
         if at_debug.is_on() then at_debug.debug("[MUT] CLAW id=%d miss cause=int", rec.id) end
         return
     end
-    xmonster.set_monster_jump_flags(mob, CLAW_FLAGS)
     local fired = xmonster.try_monster_jump(mob, rec.contact_pos, rec.leap_basis, LAUNCH_INSTANT)
-    xmonster.set_monster_jump_flags(mob, CLAW_FLAGS_OFF)
     if not fired then return end
     rec.tick_now = now
     if at_debug.is_on() then
@@ -888,11 +933,30 @@ local function _try_cloak(mob, rec, _move, now)
     return true
 end
 
+-- Backstrike: arm the rear strike for [backstrike] window_ms once the enemy is inside the engine's reach; the engine picks the moment and the side.
+local function _try_backstrike(mob, rec, _move, now)
+    local memo = rec.memo
+    if memo.dist > _tun_num.backstrike_near_m then return _log_block(rec, MOVE_BACKSTRIKE, "far") end
+    if not _check_start(memo.bucket) then return _log_block(rec, MOVE_BACKSTRIKE, "caps") end
+    local motions = _backstrike_motions[rec.species]
+    if not motions then return _log_block(rec, MOVE_BACKSTRIKE, "no_motions") end
+    if not xmonster.set_monster_melee_strike(mob, motions[1], motions[2], _tun_num.backstrike_arc) then
+        return _log_block(rec, MOVE_BACKSTRIKE, "unbound")
+    end
+    rec.armed_backstrike = true
+    rec.backstrike_until = now + _tun_num.backstrike_window_ms
+    _add_start(memo.bucket)
+    _add_cooldown(rec, MOVE_BACKSTRIKE, now)
+    _log_fire(rec, MOVE_BACKSTRIKE, memo.dist, " arm")
+    return true
+end
+
 -- The move -> handler dispatch for the per-beat decision chain; each leap is its own atomic handler with its own gates.
 local TRY = {
     high_leap = _try_high_leap, punishing_leap = _try_punishing_leap, hunting_leap = _try_hunting_leap,
     feral_leap = _try_feral_leap, catching_leap = _try_catching_leap, cutoff_leap = _try_cutoff_leap,
     closing_leap = _try_closing_leap, flee = _try_flee, gravity_attack = _try_gravity, cloak = _try_cloak,
+    backstrike = _try_backstrike,
 }
 
 -- A move filtered by its cooldown names the blocking key in the trace.
@@ -937,11 +1001,9 @@ local function _select_panic(mob, rec, now)
     end
 end
 
--- The selection on an Intelligence PASS: filter, shuffle the survivors in place (xmath.shuffle_back), then check the conditions of up to [select] candidates.
+-- The PASS selection over the count survivors of _filter_moves: shuffle them in place (xmath.shuffle_back), then check up to [select] candidates.
 -- The FIRST that fires consumes the beat and breaks; the cap counts condition checks only.
-local function _select_move(mob, rec, now)
-    local count = _filter_moves(rec, now)
-    if count == 0 then return end
+local function _select_move(mob, rec, now, count)
     local buf = rec.move_buf
     xmath.shuffle_back(buf, count)
     local limit = _tun_num.candidates
@@ -964,7 +1026,7 @@ local function _reset_fight(mob, rec)
     rec.driver = "-"
     rec.gate = nil
     rec.dist = nil
-    rec.enemy_px, rec.enemy_pz, rec.sampled_ms = nil, nil, nil
+    rec.enemy_px, rec.enemy_pz, rec.sampled_ms, rec.sampled_id = nil, nil, nil, nil
     rec.enemy_vx, rec.enemy_vz = nil, nil
     rec.moved = false
 end
@@ -984,23 +1046,29 @@ local function _update_mutant(mob, rec, now)
         xmonster.force_visibility_state(mob, -1)
         rec.cloak_until = 0
     end
+    if rec.flee_until > 0 and now >= rec.flee_until then
+        rec.flee_until = 0
+        _flee_recs[rec.id] = nil
+    end
+    if rec.backstrike_until > 0 and now >= rec.backstrike_until then _clear_backstrike(mob, rec) end
     local enemy = mob:get_enemy()
     if not enemy or not enemy:alive() then
         _reset_fight(mob, rec)
         return
     end
+    local enemy_id = enemy:id()
     local enemy_pos = enemy:position()
     local mob_pos = mob:position()
     local dist_sqr = mob_pos:distance_to_sqr(enemy_pos)
     local dist = math_sqrt(dist_sqr)
     rec.dist = dist
-    _update_samples(rec, enemy_pos, now)
+    _update_samples(rec, enemy_id, enemy_pos, now)
     if rec.flee_until > now or rec.gravity_release > now then return end
     local ac = db.actor
     if not ac then return end
     _gate_probe.actor_dist_sqr = mob_pos:distance_to_sqr(ac:position())
     if not at_core.is_in_gate(_gate_probe) then return end
-    local is_actor = enemy:id() == AC_ID
+    local is_actor = enemy_id == AC_ID
     local memo = rec.memo
     memo.enemy = enemy
     memo.enemy_pos = enemy_pos
@@ -1014,13 +1082,15 @@ local function _update_mutant(mob, rec, now)
         _select_panic(mob, rec, now)
         return
     end
+    local count = _filter_moves(rec, now)
+    if count == 0 then return end
     memo.aiming = xcombat.is_enemy_watching(enemy, mob, _tun_num.aim_cone)
     memo.vulnerable = _check_enemy_vulnerable(mob, enemy, is_actor, now)
     if rec.leaper then
         memo.vel_x, memo.vel_z = _get_enemy_velocity(rec, enemy, is_actor)
         memo.moving = rec.moved
     end
-    _select_move(mob, rec, now)
+    _select_move(mob, rec, now, count)
 end
 
 -- The per-update lane ahead of the beat throttle: the leap outcome, the steering restore and the claw contact check.
@@ -1028,7 +1098,7 @@ end
 local function _update_contact(mob, rec, now)
     if rec.strike then _update_strike(mob, rec, now) end
     if rec.aim_restore and not xmonster.is_monster_jumping(mob) then
-        xmonster.set_monster_jump_flags(mob, { auto_aim_factor = rec.aim_basis })
+        _set_jump_flags(mob, rec, { auto_aim_factor = rec.aim_basis })
         rec.aim_restore = nil
     end
     if rec.claw then _try_claw(mob, rec, now) end
@@ -1042,7 +1112,7 @@ local function _on_mob_update(mob)
     local id = mob:id()
     local rec = _states[id]
     if rec and now - rec.seen_ms > STALE_MS then
-        _states[id] = nil
+        _remove_record(id)
         rec = nil
     end
     if rec then
@@ -1072,8 +1142,11 @@ local function _on_mob_update(mob)
         end
     end
     if not rec then
-        if cfg.combat_ignore_companions and xsquad.is_companion(get_object_squad(mob)) then return end
-        if not xcreature.get_mutant_species(id) then return end
+        if (_skip_until[id] or 0) > now then return end
+        if (cfg.combat_ignore_companions and xsquad.is_companion(get_object_squad(mob))) or not xcreature.get_mutant_species(id) then
+            _skip_until[id] = now + STALE_MS
+            return
+        end
         rec = _add_mutant(mob, id, now)
     end
     rec.next_ms = now + BEAT_MS
@@ -1086,7 +1159,7 @@ end
 
 -- Re-propose eStateAttack_RunAway while a flee window holds; the silent path stays pure Lua.
 local function _on_combat_action(monster, _enemy, _dist, _enemy_strength, _can_jump, flags)
-    local rec = _states[monster:id()]
+    local rec = next(_flee_recs) ~= nil and _flee_recs[monster:id()] or nil
     if not rec or rec.flee_until <= rec.tick_now then
         if at_debug.is_on() then _prop_silent = _prop_silent + 1 end
         return
@@ -1148,7 +1221,8 @@ end
 -- Drop the record on server-entity unregister; freed ids are pooled.
 local function _on_entity_unregister(se_obj)
     if not se_obj then return end
-    _states[se_obj.id] = nil
+    _remove_record(se_obj.id)
+    _skip_until[se_obj.id] = nil
 end
 
 -- Release what a dropped record pushed and still owns live: the animation override, a pending gravi force, or a gain restore.
@@ -1158,7 +1232,8 @@ local function _release_mutant(rec)
     if not mob then return end
     if rec.gravity_release > 0 then xmonster.set_burer_gravi_force(mob, false) end
     if rec.cloak_until > 0 then xmonster.force_visibility_state(mob, -1) end
-    if rec.aim_restore then xmonster.set_monster_jump_flags(mob, { auto_aim_factor = rec.aim_basis }) end
+    if rec.aim_restore then _set_jump_flags(mob, rec, { auto_aim_factor = rec.aim_basis }) end
+    _clear_backstrike(mob, rec)
 end
 
 -- Any nonzero stat slider, any species move toggle, or any vary row keeps the module live.
@@ -1182,15 +1257,18 @@ _apply_enabled = function()
         RegisterScriptCallback("actor_on_before_hit", _apply_dealt)
         RegisterScriptCallback("npc_on_before_hit", _on_npc_before_hit)
         RegisterScriptCallback("monster_on_before_hit", _on_monster_before_hit)
-        xmonster.on_monster_combat_action(_on_combat_action)
+        _combat_action_bound = xmonster.on_monster_combat_action(_on_combat_action)
     else
         UnregisterScriptCallback("monster_on_update", _on_mob_update)
         UnregisterScriptCallback("actor_on_before_hit", _apply_dealt)
         UnregisterScriptCallback("npc_on_before_hit", _on_npc_before_hit)
         UnregisterScriptCallback("monster_on_before_hit", _on_monster_before_hit)
-        UnregisterScriptCallback("monster_on_combat_action", _on_combat_action)
+        if _combat_action_bound then
+            UnregisterScriptCallback("monster_on_combat_action", _on_combat_action)
+            _combat_action_bound = false
+        end
         for _, rec in pairs(_states) do _release_mutant(rec) end
-        _states = {}
+        _states, _flee_recs, _skip_until = {}, {}, {}
     end
 end
 
@@ -1226,6 +1304,7 @@ local function _load_tunables()
         cap_npc = _read_num("caps", "vs_npc"),
         int_cap = _read_num("intelligence", "cap"),
         above_m = _read_num("premises", "above_m"),
+        perch_gap_sqr = (_read_num("premises", "perch_gap_m") or 1.0) ^ 2,
         leap_basis = _read_num("leap", "basis"),
         force_min_mult = _read_num("leap", "force_min_mult"),
         force_max_mult = _read_num("leap", "force_max_mult"),
@@ -1255,6 +1334,8 @@ local function _load_tunables()
         cloak_hit_ms = _read_num("cloak", "hit_ms"),
         cloak_window_ms = _read_num("cloak", "window_ms"),
         backstrike_arc = _read_num("backstrike", "arc_deg"),
+        backstrike_window_ms = _read_num("backstrike", "window_ms"),
+        backstrike_near_m = _read_num("backstrike", "near_m"),
         ability_pct = _read_num("wild", "ability_pct"),
     }
     _starts = xttltable.create_ttl_counter({ ttl = _read_num("caps", "starts_s") or 3 })
@@ -1294,6 +1375,7 @@ local function _load_tunables()
 end
 
 local function _on_option_change()
+    _skip_until = {}
     _build_tracks()
     _apply_enabled()
 end

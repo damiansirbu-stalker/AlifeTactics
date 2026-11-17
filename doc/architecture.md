@@ -103,7 +103,8 @@ A lever takes one of three shapes, told apart by who owns the trigger.
 - Per-opening action: AlifeTactics fires it. Repertoire, then Intelligence at each opening - the leaps, claw, gravity, cloak, Push, Pull, the Liquidate deferral, the maneuvers.
 - Panic: the inverse gate, taken on the Intelligence MISS of the same beat. Flee on both sides (`PANIC_MOVES` in at_mutants, the `panic` catalog rows in at_maneuvers) walks only when the roll fails, so a smart individual never routs and a dull one routs more.
   The gate token is `inv_int`, the AlifePlus prefix for a trait read as 1 minus its value (`ap_ext_const.script` INV_). Pass and miss are exclusive, so a beat never takes two decisions (user ruling 2026-11-15).
-- Persistent trait: the engine or a vanilla loop fires it, no opening to see. The roll is once and caches - backstrike (repertoire then Intelligence at adoption, armed into the engine), Conduct discipline (its own lifelong cache, it needs no record).
+- Persistent trait: the engine or a vanilla loop fires it, no opening to see. The roll is once and caches - Conduct discipline (its own lifelong cache, it needs no record).
+  Backstrike left this class on 2026-11-17: armed once, the engine's melee jump struck every 0.5-1 s on its own (`control_melee_jump.cpp:7-9`, 22 strikes in 90 s from one Jupiter chimera), so it is now a decided move that arms the strike for `[backstrike] window_ms` and clears it, with its own `[cooldown]` row.
 - Wild: no roll, a standalone value spread on a bounded band - the ability numbers, the leap force and steering gain.
 
 Correctness and skill scaling sit outside the three shapes.
@@ -807,9 +808,11 @@ The `[select]` walk cap is the per-beat budget.
 THE LEAP FAMILY is seven independent handlers, one per move, each with its own premise, its own Personality row and its own cooldown row, and they share nothing but the launch path and one sight gate.
 Every leap is the species' own jump, launched through `xmonster.try_monster_jump`, and its damage is the jump's own hit test (`CControlJump::hit_test`).
 Three leaps wind up (the `LAUNCH` table: High, Hunting, Catching), the species crouch the enemy sees coming; the other four launch straight into the glide (`ePrepareSkip`).
-Every leaping species except the bloodsucker and psysucker can take each of the six shared leaps; its Personality, rolled once per individual, decides which it carries, so species and individuals differ widely.
-High leap is the jump up at an enemy 0.8m or more above the mutant (`xcombat.is_enemy_above`, the game's own dog standard), with a wind-up.
-The crouch is the warning a perched player sees, and it flies at the species force so the arc clears a ledge lip.
+Every leaping species except the bloodsucker and psysucker can take each of the six shared leaps; its Personality, rolled once per record, decides which it carries, so species and individuals differ widely.
+A record lives one online stretch: an offline trip past `STALE_MS`, a save load or a module toggle drops it, and the next adoption rolls afresh.
+High leap is the jump up at a perched enemy, with a wind-up. Perched (`_is_enemy_perched`) is an enemy above the mutant and inside its jump reach (`jump_max_distance`, or `[closing_leap] aim_max_m` 15 m for a species without one), standing 0.8m or more higher (`[premises] above_m`, the game's own dog standard) or off the navmesh by more than `[premises] perch_gap_m` 1.0 (`xcombat.is_off_navmesh`).
+The navmesh term catches a low rock a mutant cannot climb: field 2026-11-16 read the player 0.5-0.7m above a bloodsucker that could not reach him. An enemy below the mutant or past the reach is never a perch: field 2026-11-17 had the unbounded term launch a bloodsucker from 26 and 40 m at a player 1.2 m lower.
+The crouch is the warning a perched player sees. It flies at the mutant's own force like every leap: pinned at the basis it lobbed, 1.5 s for 8 m (field 2026-11-17).
 Punishing leap is the instant pounce at where the enemy stands, when the enemy aims at the mutant or is vulnerable.
 The aim read is `xcombat.is_enemy_watching` at the tight `[threat] aim_cone_deg`: a weapon in hand, and the player's camera or a stalker's head on the mutant.
 Hunting leap and Feral leap are the twin pounces that steer in flight toward an enemy moving more than `[motion] move_min_m` per beat (`_check_moving_leap_block`); Hunting winds up first, Feral launches at once.
@@ -822,11 +825,11 @@ It counts the flight only, so Catching leap lands short of a fast runner by its 
 A lead point off the navmesh (`xcombat.is_point_off_navmesh`) falls back to the unled point, and so does a refused launch.
 Neither steers, because the steering homes on the live position and would undo the lead.
 The Closing leap is the bloodsucker and psysucker gap-closer.
-It fires at a perched enemy at any distance, or at the player aiming at it from 4.5 to 15 m (`[closing_leap] aim_min_m`, `aim_max_m`).
+It fires at a perched enemy inside 15 m, or at the player aiming at it from 4.5 to 15 m (`[closing_leap] aim_min_m`, `aim_max_m`, the one reach for both cases).
 Until 2026-11-15 the 9-10 m draw radius gated both cases, so a bloodsucker waiting at 10-11 m below a perched player never leapt (field fix).
 Its jump config never loads (`CAI_Bloodsucker::Load`). It never hits in the air, and its claws strike after the leap.
 THE FORCE is rolled once per mutant at adoption, the species `jump_factor` (`[leap] basis` where none loads) times a Wild-spread band of 2.0-3.0.
-High leap and the Closing leap perch case fly at the basis; every other leap, the two wind-up twins included, at the Wild force (`MOVE_GATES` prints `wild`).
+Every leap flies at that force, the two wind-up twins and the perch cases included; the basis alone drives the claw.
 THE STRIKE OUTCOME line (`[MUT] LEAP ... end=land|abort|stuck`) times from the fire, while the engine times the flight from the glide start (`CControlJump::update_frame`, `m_time_started`).
 A wind-up leap therefore reads `land` for an abort after its crouch and `stuck` early by the crouch; the crouch probe fixes the T of the three wind-up leaps (m35).
 THE COOLDOWNS live in one place, `[cooldown]`, with one row in ms per key, kept per mutant in `rec.ready_at` through `_check_cooldown()` and `_add_cooldown()`.
@@ -844,7 +847,7 @@ The chimera is the instant killer with three instant leaps and the claw, the lur
 No row is 0: a species that should almost never take a move sits at 0.1, so every individual keeps a chance (user ruling 2026-11-15).
 THE JUMP FEASIBILITY lives in `xmonster.try_monster_jump`.
 Because the engine's `script_try_jump` bypasses `can_jump`, the interim mirror runs the restrictor test, the distance band, the angle and the height there.
-A species with no jump keys takes the chimera's angle and height, and a force of 0 or less is refused there.
+A species with no jump keys skips the facing gate and takes the chimera's height; the distance band applies only where the species ships `jump_max_distance`, and a force of 0 or less is refused there.
 The handler then believes the return, uniform with the other invokes.
 It retires when the jump PR (n070) makes the engine run `can_jump` itself.
 Every leap logs its launch (`[MUT] FIRE ... force= lead= T=`) and its outcome (`[MUT] LEAP ... dur= hit= dealt= end=land|abort|stuck`), the stuck line the freeze check.
@@ -884,9 +887,8 @@ monster_on_update (binder scheduler, 100ms near to 625ms far) -> the one lane, g
          the jump auto-aim basis (the steered leap) and the burer gravi band, bounded wild
          offsets over ini_sys basis values behind the ability vary rows (the burer gravity numbers
          and telekinesis with its lifted-object count, the controller tube and stamina, the
-         poltergeist detection, the aura row),
-         the backstrike arm roll (re-decided each adoption)
-  every beat: upkeep (the gravi-force clear at its window end, the cloak release), the distance and the motion sample
+         poltergeist detection, the aura row)
+  every beat: upkeep (the gravi-force clear at its window end, the cloak release, the backstrike window end), the distance and the motion sample
          (the enemy's velocity over the real elapsed time, moving above move_min_m)
   a held window (flee / gravity) -> skip the beat
   the gate: the actor within gate_radius_m (is_in_gate) -> else skip the beat
@@ -926,6 +928,8 @@ before-hit seams: damage dealt (victim-side, keyed on shit.draftsman) and damage
   Every armed motion carries its own `attack_params` row (the damage law) - the chimera-class DLTX rows, the burer's `stand_attack_0`, the controller's `stand_attack_0`/`stand_attack_1`.
 - Claw is the chimera's own jump at point-blank range, and its damage is the jump hit. `jump_attack_0` is the chimera's leap wind-up, not a strike (`ChimeraAttackState`, the prepare-jump state).
   Played as an animation it never raised a hit (field 2026-11-11, 9 clean windows, 0 hits). Claw does not play it.
+- A claw species lands where it strikes. The engine keeps a script jump flag for the monster's life (`control_jump.cpp:73-79` ORs it into the jump data, and only a respawn clears it),
+  so `_set_jump_flags` carries `ground_skip` on every flag write for a chimera or lurker, and every jump of that life, the engine's own included, ends at touchdown without the landing run-on.
   The DLTX row giving `jump_attack_0` its own numbers stays for Backstrike, which arms that motion.
 - The HUD mob rows follow the stalker rules (the same gate radius, fighting mutants only) and speak plain words.
   The systems cell names the one live action now in our move vocabulary, with the raw FSM state as the fallback label.

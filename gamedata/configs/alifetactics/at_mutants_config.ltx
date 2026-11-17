@@ -51,6 +51,7 @@ catching_leap  = 20000
 cutoff_leap    = 20000
 closing_leap   = 20000
 claw           = 2000   ; stamped on every claw roll, fired or not (user ruling)
+backstrike     = 10000  ; between two arms of the rear strike (user 2026-11-17): armed, the engine strikes every 0.5-1 s on its own (control_melee_jump.cpp:7-8), the Jupiter chimera blender
 flee           = 120000 ; a routed mutant does not re-rout as soon as its committed window closes
 cloak          = 5000   ; re-cloak gap, so it cannot flicker-spam
 gravity_attack = 8000   ; a little over one throw-and-release cycle; the engine's own throws stamp it too, so ours never chains onto one
@@ -65,13 +66,14 @@ cap = 0.75
 
 [premises] ; the reads the move handlers share through the pass memo
 above_m    = 0.8      ; object-position height delta that counts as the enemy being elevated (the game's own dog standard, dog.cpp:410-422) - the High leap and Closing leap perch trigger
+perch_gap_m = 1.0     ; the enemy off the navmesh by more than this also counts as perched: a low rock a sucker cannot reach read 0.5-0.7m above it (field 2026-11-16)
 
 [leap] ; the numbers every leap shares; the force is rolled once per mutant at adoption
 basis           = 2.0  ; the force basis for a species with no jump_factor (the bloodsucker's jump config never loads); every leaper ships 2.0
-force_min_mult  = 1.0  ; every leap but High and the Closing perch flies at basis x [min, max] spread by Wild, so 2.0-3.0 and 2.5 with Wild off (the field-tested 10-01 probe band, narrowed by the user)
+force_min_mult  = 1.0  ; every leap flies at basis x [min, max] spread by Wild, so 2.0-3.0 and 2.5 with Wild off (the field-tested 10-01 probe band, narrowed by the user)
 force_max_mult  = 1.5
 sense_ms        = 1000 ; a leap needs the mutant to have sensed its enemy this recently (its enemy memory): one 600ms beat plus vision-update slack
-min_m           = 3    ; no leap but High and the Closing perch inside this: field 2026-11-15, every leap at 0.6-2.2 m stranded or flew through the player in 0.2s, every one from 2.7 m landed clean; claw owns point-blank
+min_m           = 3    ; no leap but a perch leap inside this: field 2026-11-15, every leap at 0.6-2.2 m stranded or flew through the player in 0.2s, every one from 2.7 m landed clean; claw owns point-blank
 stuck_margin_ms = 1000 ; a jump still holding the body past its flight time plus this is logged as stuck, the freeze check
 
 [lead] ; the Catching and Cutoff leap lead over the enemy's current velocity: Intelligence scales it, capped at a full intercept; it counts the flight only, so a Catching leap lands short of a fast runner by its crouch (m35)
@@ -120,8 +122,10 @@ window_ms   = 2500  ; hold the forced invisibility this long, then release to th
 
 [backstrike] ; per-species motion pair for the rear spin-strike; motions must carry attack_params rows
 arc_deg    = 120
-chimera    = jump_attack_0, jump_attack_1
-lurker     = jump_attack_0, jump_attack_1
+window_ms  = 1000 ; the arm stays open this long: the engine's own gap is 500-1000 ms, so one strike, two at most; the end relay closes it on the strike where the exe has it
+near_m     = 4    ; the engine strikes inside this (MAX_DISTANCE_TO_ENEMY, control_melee_jump.cpp:9), so the arm waits for it
+chimera    = jump_attack_0, jump_attack_0 ; both sides the 1.2 row below, not the leap's 1.75 (jump_attack_1): user 2026-11-17
+lurker     = jump_attack_0, jump_attack_0
 burer      = stand_attack_0, stand_attack_0
 controller = stand_attack_0, stand_attack_1
 

@@ -53,7 +53,7 @@
         - A burer forces its gravity throw when you cannot answer it, caught reloading or with your back turned, the moment its own shield is not needed.
           It never throws into your fire. It keeps its defense.
       Backstrike
-        - A spin-strike when the enemy works around to a mutant's back, on the chimera, lurker, burer, and controller whose models carry the motion.
+        - A spin-strike when the enemy works around to a mutant's back, on the chimera, lurker, burer, and controller whose models carry the motion. One strike per opening, 10 s before the next.
       Claw
         - A point-blank pounce with no wind-up for the chimera and lurker, which vanilla walks into melee with no attack to use. It stops where it touches down, every 2 seconds at most.
       Flee
@@ -61,7 +61,7 @@
         - Flee runs on the inverse of Intelligence, for mutants and stalkers alike: the dull one panics, the sharp one keeps fighting.
       Leap reach
         - No leap but High leap fires from point-blank range, where a jump stranded or flew straight through you. Claw owns that range.
-        - A bloodsucker leaps at you on a perch from any distance, and at you aiming from up to 15 m.
+        - A bloodsucker leaps at you on a perch or at you aiming from up to 15 m.
       Cloak
         - A bloodsucker you aim at or hit while it is still closing vanishes to break the moment, then re-appears a beat later. It never vanishes once at strike range, and it cannot flicker-spam.
       Ability variation
