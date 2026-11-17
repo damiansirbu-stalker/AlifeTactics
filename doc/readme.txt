@@ -161,74 +161,77 @@ Danger is the vanilla scheme that makes a stalker react to a hit, a corpse or a 
 
 Mechanics
 
+AlifePlus fills the Zone with a living economy of trade and loot, and AlifeTactics makes everything a stalker has gathered count once the shooting begins.
+Mechanics are the game rules behind a stalker's kit, from his medkits and the jams in his gun to the ammunition he loads and the artefacts in his pockets.
+In vanilla many of these rules don't run for NPCs, and AlifeTactics makes them work.
+
 Healing:
-Wounded NPCs heal with the items they carry.
-Vanilla's medkit heal fires unreliably and bandages do nothing. Bleeding stalkers die that should not.
-AlifeTactics has them spend real medkits when injured and real bandages when bleeding, falling back to a per-rank charge only when empty.
-The heal rate is tunable. Fixed limp and heal animations show it, out of combat only.
+A hurt stalker heals with the medkits and bandages he carries, and pauses while an enemy is on him.
+In vanilla the healing script reads empty item lists, and a bleeding man died with full pockets.
+  Heal Rate: how fast a medkit brings him back.
+  Healing Charge: with empty pockets, some stalkers of every rank still carry one spare heal.
+  Animations: out of combat a hurt man limps, and a healing one plays the medkit or bandage gesture.
 
 Jamming:
-Eliminates the fake NPC jams and the tactical-reload loop they cause.
-On modded exes an NPC rolls a per-rank jam from ammo spent. Even a full-condition rifle chokes and reloads every few rounds.
-AlifeTactics turns that roll off for NPCs. They now jam only for real and reload only once the magazine is spent, which you can confirm in the debug log.
-Your own weapon still jams normally when worn.
+In X-Ray every NPC rolls a fake jam from the ammo he spends, and that per-rank roll has nothing to do with the real condition of the weapon in his hands.
+Even a full-condition rifle chokes every few rounds and he reloads a half-full magazine. AlifeTactics removes the fake jam, and a stalker reloads only when his magazine is spent.
 
 Ammo:
-NPCs fire the ammunition they actually carry.
-Veteran-rank and higher stalkers use armor-piercing rounds from their own inventory, with real ballistics, and fall back to standard rounds once it runs out.
-That AP comes from trade and looting through the Alife Collection. What an NPC scavenged shapes how dangerous he is. NPCs drop no AP as loot.
-Rank threshold and consumption rate are tunable in the ammo config under configs/alifetactics/.
+A veteran loads the armour-piercing rounds he carries, with their real ballistics, and the ammunition he has scavenged decides how dangerous he is to you.
+Once his own supply runs out, he goes back to the standard rounds every stalker fires.
 
 Attachments:
-Stalkers fit the scopes, silencers and grenade launchers they carry onto their own guns.
-Vanilla mounts only a fitting silencer or launcher, and only on an NPC's main gun.
-AlifeTactics adds scopes and the second gun. A stalker mounts them once he is out of a fight and his hands are free, and a looted or bought scope shows on his rifle at the next quiet moment.
-Companions mount what they loot. What you hand a companion stays exactly as you gave it.
-A mounted scope tightens a stalker's aim by about a third when he shoots from a stop, as the base game does for scoped NPCs. It does not let him see farther on most rifles.
+A stalker fits the scopes, silencers and grenade launchers he carries onto his own guns once the fight is over and his hands are free, at the next quiet moment.
+With a scope mounted he shoots tighter once he stops to aim.
+Your companion mounts what he loots, and whatever you hand him stays exactly as you gave it.
 
 Gear:
-Items a stalker carries give him combat advantages, each read from its own game data. An artefact from any mod works the same way.
-An artefact grants one advantage chosen by its anomaly class, scaled by its own tier. Gravity and armour-plate artefacts cut the damage he takes.
-Thermal artefacts tighten his fire, and electric and quest artefacts raise the damage he deals.
-Any single artefact tops out at 10 percent, and only the strongest applies. Gear tilts a fight without deciding it.
-A chemical artefact heals its carrier slowly over time.
-Any artefact carrier warps the air around his body. A distorting stalker is a real, huntable artefact drop.
-Binoculars extend his sight range by day and night-vision by night.
-Effect strengths and the artefact class tables are tunable in the gear config under configs/alifetactics/.
+An NPC has no use for most artefact properties, like carry weight or stamina. AlifeTactics translates every artefact the same way, by its class and tier.
+The anomaly class picks one combat edge and the tier sets its strength. Only the strongest counts, and a cap keeps any one artefact from deciding a fight.
+  Damage Resistance: gravity artefacts and armour plates cut the damage he takes.
+  Outgoing Damage: electric and quest artefacts make his shots hit harder.
+  Aim Steadiness: thermal artefacts tighten his grouping.
+  Health Regeneration: chemical artefacts heal him slowly over time.
+  Artefact Distortion: the air warps around a carrier, and killing him gets you the artefact.
+  Binocular Spotters: binoculars let him see farther by day.
+  Night-vision at Night: a night-vision lamp lets him see farther after dark.
 
 Mutants
 
-Vanilla mutants are a straight line. They run at you, they swing, and they die to anyone who stands on a rock or strafes on cooldown.
-AlifeTactics gives every mutant the decision model stalkers run. It reads your reload, your aim, your high ground, and your strafe, and it answers with moves its own body already has,
-the ones vanilla fires blindly and the ones vanilla never fires at all.
-The engine drives every mutant as it always has. AlifeTactics scales a mutant's stats. It commands moves the engine itself validates and runs. It never takes a mutant over.
-Rank is the map tier, from 0 on the starting maps to 5 at the endgame. A Cordon dog barely changes while a deep-Zone chimera is far deadlier.
-The whole system needs the latest demonized build and stays inactive on older exes and on AOEngine.
+Vanilla mutants run an engine state machine that shuffles their moves at random.
+They charge straight at you, and anyone on a rock or strafing in time beats them.
+AlifeTactics gives mutants the stalkers' decision model, the same Intelligence and Personality.
+It answers a vulnerable enemy with moves its own body carries.
 
 General:
-Observing is free, deciding is hard. Every mutant sees your reload from the first fight, and Intelligence is the chance it answers with the RIGHT move, a base plus a bonus per map rank.
-Personality then sets which moves its species favours, a chimera leaping and clawing without pause where a flesh bolts early. The final chance is Intelligence times Personality.
-A missed roll lets the opening go. A dull mutant wastes chance after chance while a sharp one punishes each.
-Every move you see has a real cause behind it, and a cap holds a pack to waves.
-Wild is how much a mutant's own ability numbers vary between spawns, the gravity, telekinesis, aura, tube, stamina, and detection values.
-At 0 a kind is identical and learnable. At 100 no two spawns read alike.
+Every mutant reads when its enemy, you or a stalker, is reloading, empty or turned away. It also reads where that enemy stands and how he moves around it.
+  Intelligence: whether it answers with the right move, rising with the danger of the map.
+  Personality: each species leans toward its own moves. Each individual rolls its set once as it enters the fight, and two chimeras from one pack fight differently.
+  Wild: how much a mutant's numbers vary, from every spawn the same to each one different.
+A pack takes turns on you, and its moves come one after another.
 
 Species:
-Each species gets its own page carrying only the moves its body has, in three groups. New moves are the attacks the vanilla game never fires for it.
-Managed moves are its own attacks AlifeTactics decides when to fire. Influenced moves are its own abilities whose numbers Wild spreads between individuals.
-The leap family reads your aim, your movement, and your perch. Punishing leap strikes at once, with no wind-up, when you aim at it, reload, or turn your back.
-Hunting leap crouches, then steers mid-air to follow you while you move. Feral leap does the same with no warning.
-Catching leap crouches, then leaps at where you will be while you move. Cutoff leap does the same with no warning.
-High leap springs up at a shooter above it, with a wind-up. Climbing a rock or a ledge stops being safe. The bloodsucker closes the gap with its own Closing leap, then claws.
-Every leaping species except the bloodsucker can take each of the six shared leaps. Its Personality, rolled once per individual, decides which ones it carries.
-A chimera rarely telegraphs, a dog jumps straight and open, a snork steers, a cat strikes from your blind side.
-Ten seconds pass between any two of a mutant's own leaps, and twenty before it repeats the same one.
-Backstrike arms a spin strike on an enemy circling behind, once per individual, on the four species whose models carry the motions. Claw gives the chimera the point-blank pounce vanilla never gave it.
-Flee breaks a dying mutant out of the fight when it is far enough to escape. It runs on the inverse of Intelligence: the dull mutant panics, the sharp one presses on. A mutant with no escape fights to the end.
-Cloak sends a bloodsucker invisible when you aim at it or hit it while it is still closing. It re-appears a beat later, and never vanishes once it is already at strike range.
-Beyond the moves, each species' own ability numbers breathe: the burer's gravity and telekinesis, the controller's psi tube and stamina and auras, the poltergeist's detection,
-each behind its own row, each a bounded variation over the installed balance.
-Movement stays the game's own, since varying what the engine's path and attack timing depend on only ever made mutants worse.
+Each species has its own page with the moves its body carries, sorted into three groups.
+
+New Moves:
+Completely new moves, built on dead moves the engine carries and leaves unused in vanilla.
+  High Leap (chimera, lurker, cat, dog, snork, pseudodog, psy-dog): a mutant below a perched shooter crouches and springs up after him, and a rock stops being a safe place to shoot from.
+  Punishing Leap (chimera, lurker, cat, dog, snork, pseudodog, psy-dog): if you aim at it, reload or turn your back, it pounces at once, with no wind-up at all.
+  Hunting and Feral Leap (chimera, lurker, cat, dog, snork, pseudodog, psy-dog): it steers in the air after you as you run, and only Hunting crouches first.
+  Catching and Cutoff Leap (chimera, lurker, cat, dog, snork, pseudodog, psy-dog): it leaps at the spot where you will be, and only Catching crouches before it jumps.
+  Closing Leap (bloodsucker, psysucker): it closes the gap with a leap of its own, then claws.
+  Claw (chimera, lurker): a pounce at point-blank range.
+  Backstrike (chimera, lurker, burer, controller): a spin strike at an enemy circling behind it.
+  Flee (dog, boar, snork, pseudodog, psy-dog, pseudogiant, cat, flesh, fracture, karlik, tushkano): a dying mutant breaks off when it can get away, and a cornered one fights on.
+
+Managed Moves:
+The creature's own attacks, which AlifeTactics fires at the moment the fight calls for them.
+  Gravity Throw (burer): it answers your reload or your turned back with its gravity throw.
+  Cloak (bloodsucker, psysucker): a second cloak, on top of the invisibility vanilla times on its own. Aim at it or hit it while it closes in, and it vanishes for a beat.
+
+Influenced Moves:
+The creature's own abilities, whose numbers Wild spreads between individuals.
+The burer's gravity and telekinesis, the controller's psi attack and stamina, and the poltergeist's detection all differ between individuals of a kind.
 
 Fixes to Vanilla:
 AlifeTactics corrects dozens of vanilla Anomaly and xray defects, grouped below by the system each repairs.
