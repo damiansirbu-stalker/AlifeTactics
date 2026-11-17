@@ -8,7 +8,8 @@ local _original
 local _jam_enabled = true
 local _suppressed = 0
 
---- The misfire chance for a jamming roll: 0 while suppression is on, else the original.
+--- The misfire chance for a jamming roll: the engine's own condition chance while suppression is on, else the original.
+-- base_value is the wear misfire Weapon.cpp computes before the functor; the per-rank roll lives in the original's subscriber.
 local function _compute_misfire_chance(weapon, npc, base_value)
     if not _jam_enabled then
         return _original(weapon, npc, base_value)
@@ -17,7 +18,7 @@ local function _compute_misfire_chance(weapon, npc, base_value)
     if _suppressed % SUMMARY_EVERY == 0 then
         at_debug.debug("[JAM] suppressed=%d NPC misfire rolls this session", _suppressed)
     end
-    return 0
+    return base_value or 0
 end
 
 local function _register_patch()
