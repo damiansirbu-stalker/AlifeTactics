@@ -2,7 +2,7 @@
 
 local time_global, string_find, string_lower, string_sub = time_global, string.find, string.lower, string.sub
 local IsStalker, IsMonster, IsMoveState, IsMelee = IsStalker, IsMonster, IsMoveState, IsMelee
-local pairs, next, tostring, move = pairs, next, tostring, move
+local pairs, next, tostring, move, rawget = pairs, next, tostring, move, rawget
 local RegisterScriptCallback, ini_sys, ini_file = RegisterScriptCallback, ini_sys, ini_file
 local string_match, tonumber = string.match, tonumber
 
@@ -23,6 +23,7 @@ local STORE_WINDOW_MS = 500
 local KEEP_FAMILY = { WPN = "weapon", ITM = "item", MST = "npc" }
 local _keep = { floor = VANILLA_SOUND_THRESHOLD, weapon = 1.0, item = 0.5, npc = VANILLA_NPC_FACTOR }
 local _store_open_at = {}
+local _store_stale = {}
 
 local TICK_SEC
 local STEP_FRESH_MS
@@ -195,10 +196,21 @@ local function _set_store_window(npc, s_type, power)
     if at_debug.is_on() and not (_store_open_at[id] and (tg - _store_open_at[id]) <= STORE_WINDOW_MS) then
         at_debug.debug("[SOUND] store id=%d name=%s type=%s power=%.2f", id, npc:name(), tostring(s_type), power or 0)
     end
+    local stale_n = 0
+    for open_id, opened_at in pairs(_store_open_at) do
+        if (tg - opened_at) > STORE_WINDOW_MS then
+            stale_n = stale_n + 1
+            _store_stale[stale_n] = open_id
+        end
+    end
+    for i = 1, stale_n do
+        _store_open_at[_store_stale[i]] = nil
+        _store_stale[i] = nil
+    end
     _store_open_at[id] = tg
 end
 
---- Inside the window is_enemy(npc, actor) says yes and the engine's sound memory keeps the sound.
+--- Inside the window is_enemy(npc, actor) says yes and the engine's sound memory keeps the sound, unless his logic or a bribe tells him to ignore you.
 -- Another subscriber's verdict stands, and an empty table makes the idle cost one table check.
 local function _on_enemy_eval(npc, enemy, flags)
     if flags.override or next(_store_open_at) == nil then return end
@@ -210,6 +222,9 @@ local function _on_enemy_eval(npc, enemy, flags)
         return
     end
     if enemy:id() ~= AC_ID then return end
+    if xr_combat_ignore.ignore_enemy_by_overrides(npc, enemy) then return end
+    local bribe = rawget(_G, "xr_bribe")
+    if bribe and bribe.at_peace(character_community(npc), character_community(enemy), enemy:position():distance_to_sqr(npc:position())) then return end
     flags.override, flags.result = true, true
 end
 
