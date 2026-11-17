@@ -8,6 +8,8 @@ Battle mechanics: per-rank dispersion, aim, lead, burst, sight, sound, healing, 
 
 [![ModDB](https://img.shields.io/badge/ModDB-c8102e)](https://www.moddb.com/mods/stalker-anomaly/addons/alifetactics) [![Nexus Mods](https://img.shields.io/badge/Nexus_Mods-da8e35)](https://www.nexusmods.com/stalkeranomaly/mods/121) [![Releases](https://img.shields.io/badge/Releases-24292f?logo=github&logoColor=white)](https://github.com/damiansirbu-stalker/AlifeTactics/releases)
 
+
+
 [![Bugs, suggestions](https://img.shields.io/badge/Bugs%2C_suggestions-24292f?logo=github&logoColor=white)](https://github.com/damiansirbu-stalker/AlifeTactics/issues) [![Anomaly Discord](https://img.shields.io/badge/Anomaly_Discord-5865f2?logo=discord&logoColor=white)](https://discord.gg/c4RuJNs) [![Ko-fi](https://img.shields.io/badge/Ko--fi-ff5e5b?logo=kofi&logoColor=white)](https://ko-fi.com/damiansirbu)
 
 [![ci](https://github.com/damiansirbu-stalker/AlifeTactics/actions/workflows/ci.yml/badge.svg)](https://github.com/damiansirbu-stalker/AlifeTactics/actions/workflows/ci.yml) [![Project Health](https://img.shields.io/badge/project_health-dashboard-00ced1)](https://damiansirbu-stalker.github.io/AlifeTactics/)
@@ -16,7 +18,7 @@ Requires: Anomaly 1.5.3, modded exes (themrdemonized or AOEngine), [xlibs](https
 
 ## Documentation
 
-- [readme.txt](doc/readme.txt) - every system, compatibility and install
+- [readme.txt](doc/readme.txt) - full description, compatibility and install
 - [changelog](https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/changelog) - version history
 - [manifesto.md](doc/manifesto.md) - the design and its sources
 - [architecture.md](doc/architecture.md) - the system's architecture, for modders and agents
