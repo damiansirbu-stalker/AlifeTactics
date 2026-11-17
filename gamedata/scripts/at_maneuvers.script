@@ -142,7 +142,7 @@ local function _get_threats(npc, state, memo)
         seen[id] = true
         if id == AC_ID and not xcreature.is_actor_enemy(npc) then return end
         local obj = xcombat.resolve_enemy(id)
-        if obj then list[#list + 1] = obj end
+        if obj and not xcreature.is_wounded(obj, id) then list[#list + 1] = obj end
     end
     add(state.best_enemy_id)
     local bucket = at_core.get_threats(state.id)
@@ -697,6 +697,7 @@ local function _try_begin_maneuver(npc, state, tg)
     if not _is_managed(npc) then state.fighting = false return end
 
     local enemy = state.best_enemy_id and xcombat.resolve_enemy(state.best_enemy_id) or nil
+    if enemy and xcreature.is_wounded(enemy, state.best_enemy_id) then enemy = nil end
     state.fighting = _is_fighting(enemy, state, tg)
     if not state.fighting then state.stall_set = false state.repeat_situation = nil return end
     if at_debug.is_on() then state.name = npc:name() end
