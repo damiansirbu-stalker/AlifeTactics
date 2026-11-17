@@ -1,132 +1,124 @@
 1.2.2-snapshot
-  Summary: Mutant combat, the decision model and per-species Personality, the leap family and the burer gravity throw, anti-camping leaps, per-species move pages, Wild variation,
-    the stalker Intelligence gate and per-faction Personality, rank curves as pairs, the cover rebuild for retreat and reload, the takeover on a jobless spawn, NPC attachment mounting,
-    Attempted murder
+  New mutant combat system, harmonized with stalkers
+    Mutants now read your weak moments and answer with the moves of their species. Reload in front of a dog and the dog may pounce. Turn your back on a burer and he may throw.
+    Climb a rock and a chimera may spring up after you. Stand too close to one and you may meet the claw.
+    Stalkers share the decision model. Intelligence rises with rank, Personality comes from the faction. A rookie misreads the opening a veteran takes, and a bandit runs where a Monolith man holds.
+    Other things you will notice. Stalkers hear you before they see you. A missed knife swing gets noticed. Looted scopes end up on rifles. Retreats stop looping.
 
   Combat
-    Maneuvers
-      - Changed the takeover so a stalker that comes online without a job, as at a full Warfare base, picks up maneuvers once he enters combat.
-      - Fixed the retreat loop. A hurt stalker retreated, reached cover, and retreated again, up to 22 times in 4 minutes.
-          Retreat now fires only while his spot leaves him exposed to a threat in reach. Arriving at the cover he chose ends it, and he fights from there.
-      - Fixed maneuvers picking a stalker who lies wounded. A third of all retreats went to a man on the ground, never ran, and spent the start budget.
-          A downed stalker now gets no maneuver, Push or Pull, and drops the one he had. He picks up again the moment he stands.
-      - Added a loop guard to every maneuver: a stalker starts one maneuver at most 4 times a minute, kite 6. A stalker blocked by walls or caught between two enemies can no longer loop one.
-
-  Mutants
-    Mutants now fight you. A mutant reads your weak moments and answers with a move its own body carries.
-    A per-rank Intelligence sets how often it reads the moment right, a per-species Personality which moves its kind favours, and Wild how far the numbers vary.
-    Each mutant kind has an MCM page listing what the mod drives on it. Control is partial this release and grows version by version.
-    It runs on a batch of xray-monolith engine changes and is inactive on older exes and AOEngine. More engine work is in progress, and tracing for some moves is still pending.
-
     General
-      Intelligence
-        - A mutant constantly weighs the fight. A reload, a turned back, a perch, or a strafe opens a chance.
-          Intelligence, a base plus a bonus per map rank, decides whether it reads the moment right.
-        - A missed roll lets the opening pass. A Cordon dog wastes most of its chances, a deep-Zone chimera takes them. A cap on how many driven moves run at once holds a pack to waves.
-      Personality
-        - Each mutant kind carries each of its moves at its own chance, the way a faction has its doctrine.
-          A chimera leaps and claws without pause and never routs, a flesh bolts early, a cat darts and circles.
-        - Personality is rolled once, when the mutant enters the fight, and decides which moves this individual carries for the whole fight. Two chimeras of one pack fight differently.
-          Stalkers roll the same way when they come into view. A faction's chance on an action is now the share of its men who ever take it.
-        - A mutant or stalker spends its three condition checks per beat only on moves it carries and has ready. A creature with a favourite move tries it almost every beat.
-        - The values are grounded in GSC's own per-creature design. Each species prefers one or two leaps and dislikes others, never a certainty.
-      Wild
-        - One dial for how much a mutant's own numbers vary between individuals: the move timings, how hard it leaps and steers, and the ranges, bands, and reach of its abilities.
-            At 0 a kind is identical and learnable, at 100 no 2 spawns read alike.
-      Threat read
-        - A mutant reads the weapon in your hands. A gun stowed in your pack no longer counts. Holstering stops a mutant treating you as armed.
-        - A mutant reads your aim from where you look, not from where your body points. Strafing with your sights on it now counts as aiming.
-
-    Moves
-      Leap family
-        - Seven leaps. Every leaping species except the bloodsucker can take each of the six shared ones, and its Personality, rolled once per individual, decides which it carries.
-            A chimera rarely telegraphs, a dog jumps straight and open, a snork steers, a cat strikes from your blind side, a lurker and a pseudodog leap ahead of you.
-        - High leap springs up at you when you take high ground, with a wind-up, the crouch a perched player sees coming. Camping a rock or a ledge is no longer safe.
-        - Punishing leap strikes at once, with no wind-up, when you aim at it, reload, sprint, or turn your back.
-        - Hunting leap crouches, then steers in the air to follow you while you move. Feral leap does the same with no warning, the most lethal leap.
-        - Catching leap crouches, then leaps at where you will be while you move. Cutoff leap does the same with no warning, a smarter mutant leading you further.
-        - Closing leap gives the bloodsucker its own gap-closer: it flies to you on a perch or under your aim, then strikes with its claws. It never hits in the air.
-        - Ten seconds pass between any two of a mutant's own leaps, and twenty before it repeats the same one. Its vanilla jumps stay outside that pacing.
-        - The leaps fly at full strength, each mutant with its own. They reach you fast and flat instead of lobbing over your head.
-        - A leap it cannot make, out of range, at a bad angle, over its height, or out of its allowed area, does not fire. Neither does a leap at an enemy it cannot see.
-      Gravity
-        - A burer forces its gravity throw when you cannot answer it, caught reloading or with your back turned, the moment its own shield is not needed.
-          It never throws into your fire. It keeps its defense.
-      Backstrike
-        - A spin-strike when the enemy works around to a mutant's back, on the chimera, lurker, burer, and controller whose models carry the motion. One strike per opening, 10 s before the next.
-      Claw
-        - A point-blank pounce with no wind-up for the chimera and lurker, which vanilla walks into melee with no attack to use. It stops where it touches down, every 2 seconds at most.
-      Flee
-        - A mutant near death and far enough to escape takes one long run from the fight. A cornered one fights to the end.
-        - Flee runs on the inverse of Intelligence, for mutants and stalkers alike: the dull one panics, the sharp one keeps fighting.
-      Leap reach
-        - No leap but High leap fires from point-blank range, where a jump stranded or flew straight through you. Claw owns that range.
-        - A bloodsucker leaps at you on a perch or at you aiming from up to 15 m.
-      Cloak
-        - A bloodsucker you aim at or hit while it is still closing vanishes to break the moment, then re-appears a beat later. It never vanishes once at strike range, and it cannot flicker-spam.
-      Ability variation
-        - Each species varies its own ability numbers: burer gravity and telekinesis, controller psi tube, stamina, and auras, poltergeist detection. Movement stays vanilla.
-
-  Combat
-    The stalker side is harmonized to the mutant decision model. It shares one per-rank Intelligence gate, and the effectiveness curves are rebuilt as the same base-plus-per-rank pair.
-    General
-      - Added Intelligence for stalkers: the same per-rank decision formula mutants run, a base plus a bonus per rank, capped short of certain. Every stalker action now gates on it.
-          Rank buys the good decision more often. A rookie misreads the opening a veteran takes.
-      - Added Personality: every action a stalker starts - each maneuver, Push, Pull, and Liquidate - rolls Intelligence, then a per-faction Personality chance (0 never, 1 always).
-          All 9 actions now carry per-faction values, each faction its own doctrine: who routs when hurt, who gives ground in order, who presses a beaten enemy, who finishes a downed one,
-          who holds and never backs off. A zero-Personality action is skipped cleanly without spending the decision.
-          The values are grounded in GSC's own character-type and creature-rating design, the attack, defence, and courage profiles their AI documents lay out.
+      - Added Intelligence for stalkers. Intelligence is the chance of a stalker reading a moment of the fight right, a base plus a bonus for each rank, capped at 75%.
+          Each decision takes a single roll. A rookie will miss most of the openings a veteran takes.
+      - Added Personality for stalkers. Personality is the set of actions a stalker carries, rolled from the chances of his faction when he comes online.
+          A faction's chance on an action is the share of its men who will ever take it. Every renegade may run when hurt, few Duty men will, and a Monolith man holds.
+          All 9 actions have a chance for each faction, grounded in GSC's character-type design.
+      - Changed flee to run on a failed Intelligence roll. A stalker who reads the fight right keeps fighting. A dull one is more likely to break.
     Maneuvers
-      - Retreat and reload now take real cover. Retreat moves to the best hide behind the stalker and gives ground. Reload ducks to the nearest decent cover that breaks a watcher's line.
-          Rebuilt on new engine-grade cover primitives - escalating search, a concealment floor, give-ground, no cover-stacking - load-tested cheap in a 200-NPC battle.
+      - Changed the takeover. If a stalker comes online without a job, as he does at a full Warfare base, he now picks up maneuvers as soon as he enters combat.
+      - Changed retreat and reload cover to use real cover. A hurt stalker gives ground to the best hiding spot behind him.
+          A reloading stalker ducks behind the nearest cover that breaks the watcher's line.
+      - Fixed the retreat loop. A hurt stalker would retreat, reach cover, then retreat again, up to 22 times in 4 minutes.
+          Retreat now starts only while his spot is exposed to a threat that can reach him. Once he reaches the cover he chose, the retreat is over. He fights from there.
+      - Added a loop guard to every maneuver. A stalker can start a given maneuver up to 4 times a minute, kite 6.
+          A stalker blocked by walls or caught between 2 enemies used to loop one for minutes.
+      - Fixed maneuvers picking a stalker who lies wounded. About a third of all retreats went to a man on the ground, who stayed down yet still spent the start budget.
+          A downed stalker drops his maneuver when he falls. He can take a maneuver, a Push or a Pull again once he stands.
+      - Fixed a downed enemy counting as a threat. A stalker would back away from a man lying wounded, which kept the vanilla finisher from reaching him.
+          The wounded man is out of the fight until he stands. His killer can then finish him.
     Commitment
-      - Liquidate now draws from the same per-window budget as every other action AlifeTactics starts. A crowd cannot all extend fire through your one reload at once.
-      - Liquidate and the Push press now also count your back turned on the stalker as an opening, the same as a reload.
-
+      - Changed Liquidate to draw from the start budget the maneuvers, Push and Pull share. A crowd will be limited in how many fire through your reload at once.
+      - Added a turned back as an opening for Liquidate and the Push, the same way as a reload.
     Conduct
-      - Improved cover posture: a stalker holds his tactical crouch or stand longer before re-deciding. He settles into cover and shuffles his stance less under fire.
-      - Cover posture and weapon spacing now weigh a stalker's discipline: militarized factions hold it, scavengers less.
+      - Changed cover posture to hold each crouch or stand decision for 5 seconds. A stalker settles into cover. He shuffles his stance less under fire.
+      - Changed cover posture and weapon spacing to follow a stalker's discipline, rolled for his life. Militarized factions usually have it. Scavengers usually do not.
 
   Effectiveness
-    - Changed every rank curve to a base slider plus a percent-per-rank slider, the same pair the Intelligence gate uses:
-        accuracy, moving fire, tracking speed, tracking lock, target lead, burst size, fire cadence, and the 2 vision curves.
-        2 sliders per curve replace 8, refit from the old tables a hair softer at the top. Moved sliders on these pages reset to defaults once.
-    - Fixed NPC target lead ignoring the loaded round's bullet speed, dead since a key rename. Stalkers again lead a moving target by the round's real flight time.
+    - Changed each rank curve to a base slider plus a percent per rank slider, the pair Intelligence uses.
+        That covers accuracy, moving fire, tracking speed, tracking lock, target lead, burst size, fire cadence, plus the 2 vision curves on the Perception Vision page.
+        2 sliders per curve replace 8, fitted to the old tables, a hair softer at the top. Moved sliders on these pages will be reset to their defaults once.
+    Reaction
+      - Fixed target lead ignoring the loaded round's bullet speed, broken since a key rename. Stalkers again lead a moving target by the round's real flight time.
 
   Perception
     Sound
       - A stalker now hears you before first contact. On the multi-thread exes his sound memory kept nothing from a player he had not seen or heard for a minute.
-          For half a second after a sound of yours loud enough to keep, his enemy check now says yes for you. The sound memory stores the sound and the engine runs its own cover, look-out and search.
-          From the first step, no earlier sighting. Measured on one bandit with one reload: dropped, then stored a second later.
-      - A heard shot now runs the engine's full plan, cover, look-out, hold, detour, search, about 10 m in 20 s. The stance watch that stood in for it is gone, with its Enemy gunfire toggle.
-      - Neutral gunfire alert now governs the reaction a neutral actually gives, to your bullet striking within 30 m of him. The engine discards a neutral's shot itself. The impact is what he notices.
-          Off restores vanilla, where he ignores it.
+          For half a second after a sound of yours loud enough to keep, his enemy check now says yes for you, unless he is bribed or told to ignore you.
+          The sound memory stores the sound. The engine then runs its cover, look-out and search from the first step.
+          Measured on a bandit with a single reload, the sound was dropped without the change. With it, the sound was stored a second later.
+      - Changed a heard shot to run the engine's full plan of cover, look-out, hold, detour, search, about 10 m in 20 s.
+          The stance watch that stood in for it is gone. The Enemy gunfire toggle is gone with it.
+      - Changed Neutral gunfire alert to govern what a neutral really reacts to, a bullet of yours striking within 30 m of him. The engine drops a neutral's heard shot ahead of any danger.
+          Off restores vanilla, where he ignores the impact.
     Danger
-      - Attempted murder: a knife swing that misses is now noticed. Vanilla registers nothing until a hit lands, and a failed stealth kill left the victim idle.
-          The stalker in front of you within 3 m gets up, raises his weapon and faces you. A hostile who sees you fights.
-          A neutral or friend reacts under Neutral gunfire alert and never turns hostile for a miss. Works with the quick melee. Its own toggle, default on.
-      - Fixed a seated stalker who heard your reload, steps or bullet impact getting up and walking off facing away. He now faces you while he moves, takes position and watches.
-      - Removed the Player ranges toggle. The actor-specific danger tables it read are identical to the normal ones in every shipped config. It changed nothing.
-      - Distant hits now applies to enemies only. The relation and alive checks run first and the bypass skips the range gate alone. A neutral's accidental hit is no longer answered as an attack.
-      - Fixed vanilla bug "hit shooter identity". A stalker hit by a bullet lost track of who shot him and stared at the spot the shooter fired from.
-          He now looks at where the shooter is and takes cover from him. It is always on and listed on the Fixes tab.
-      - Fixed vanilla bug "player bias" out of the box. Player target pull now starts at 300, the weight the engine gives any NPC enemy, where it shipped at the vanilla 900.
-          Stalkers fighting each other no longer turn on you first because you have them in sight. 900 restores the vanilla magnet.
+      - Added Attempted murder. If you swing a knife at the stalker in front of you within 3 m and miss, he will notice it. Vanilla registers a knife only when a hit connects.
+          He gets up, raises his weapon to face you. A hostile who sees you will fight. A neutral or a friend follows Neutral gunfire alert, staying friendly after a miss.
+          It works with the quick melee. It has a toggle of its own, default on.
+      - Fixed a seated stalker who heard you reload, step or hit near him walking off facing away. He now faces you while he moves, takes position, then watches.
+      - Changed Distant hits to answer enemies only. The relation and alive checks run first. The bypass skips the range check alone. A neutral's stray hit is now treated as an accident.
+      - Removed the Player ranges toggle. Every shipped config sets the actor danger tables equal to the normal ones.
+      - Fixed vanilla bug "hit shooter identity". A stalker hit by a bullet lost track of who shot him. He stared at the spot the shot came from.
+          He now looks at where the shooter is, then takes cover from him. It is always on, listed on the Fixes tab.
+      - Fixed vanilla bug "player bias" out of the box. Player target pull now has a default of 300, the weight of any NPC enemy to the engine. Vanilla shipped a pull of 900.
+          Stalkers fighting each other will stop turning on you first because you have them in sight. 900 restores the vanilla magnet.
 
   Mechanics
     Attachments
-      - Added attachment mounting. A stalker fits the scope, silencer or grenade launcher that suits his own pistol or rifle once he is out of a fight.
-        Vanilla never fits a scope on an NPC's gun, or anything on his second gun. A looted or bought scope now shows on his rifle at the next quiet moment.
-        Companions mount what they loot. What you hand a companion stays exactly as you gave it.
-        A mounted scope tightens his aim by about a third when he shoots from a stop, the base game's own scope bonus for NPCs.
-    Gear
-      - Fixed gear health regeneration healing a wounded NPC to near full almost instantly. The chem-gear restore now adds at its intended per-second rate.
+      - Added attachment mounting. A stalker fits the scope, silencer or grenade launcher that suits his pistol or rifle once he is out of a fight.
+          Vanilla puts a scope on an NPC's gun only during the pickup, never on his second gun. A looted or bought scope will now be on his rifle in the next quiet moment.
+          Companions mount what they loot. What you hand a companion stays exactly as you gave it.
+          A mounted scope tightens his aim by about a third when he shoots from a stop, which is the base game's scope bonus for NPCs.
+
+  Mutants
+    Mutants now fight you with a mind of their own. Each mutant weighs the fight, takes the openings it sees, then answers with the moves of its species.
+    The system runs on a batch of xray-monolith engine changes. It stays off on older exes or AOEngine. More engine work is in progress, and control will grow with each version.
+    General
+      Intelligence
+        - A mutant constantly weighs the fight. If you reload, turn your back, take a perch or keep moving, the mutant has a chance.
+            Intelligence, a base plus a bonus for the map's danger rank, decides whether the mutant reads the moment right.
+            A Cordon dog will waste most chances. A deep-Zone chimera will take them.
+        - A missed roll lets the opening pass. A badly hurt mutant that misreads the fight may run.
+      Personality
+        - Each mutant kind has a chance for every move it can make, the way a faction has its doctrine.
+            Chimeras favour the instant leaps and never rout. Flesh are the most likely to bolt when hurt. Cats are more likely to pounce on a turned back.
+        - Personality is rolled when the mutant comes online. The roll decides which moves this individual carries while it stays near you.
+            2 chimeras of a pack will fight differently. The values follow GSC's creature ratings. Each species prefers 1 or 2 leaps without ever being certain.
+      Wild
+        - Wild is the dial for how much the numbers of a mutant vary between individuals: how hard it leaps, how well it steers in the air, how long it runs, plus ability numbers.
+            Set to 0, every member of a kind is identical and you can learn them. Set to 100, each spawn will read differently.
+      Pacing
+        - A mutant waits 10 seconds between any 2 of its moves, 20 before a repeat of a leap. Against you, the mutants together have a limit of 1 attack every 2 seconds.
+            A pack comes at you in turns. 2 chimeras used to hit you with a leap, a claw and a rear strike in a single second.
+      Threat read
+        - A mutant reads the weapon in your hands. A stowed gun is not a threat to the mutant.
+        - A mutant reads your aim from where you look. Strafing with sights on the mutant counts as aiming.
+    New moves
+      - Added the leap family, 7 leaps by situation. The chimera, lurker, cat, dog, snork and pseudodogs can take each of the first 6. Personality decides which an individual carries.
+          High leap, Hunting leap, Catching leap crouch first, the warning you will see coming. The other leaps launch straight away.
+          Each mutant rolls a leap force when it comes online. Its leaps fly fast and flat with that force, where they used to lob over your head.
+      - High leap springs up toward you when you stand on a rock or a ledge above the mutant, within jump reach. Camping a rock is now dangerous.
+      - Punishing leap strikes instantly when you aim at the mutant, reload, sprint, climb or turn your back.
+      - Hunting leap and Feral leap steer in the air to follow you while you move. Feral leap launches without a warning. It is the most lethal leap.
+      - Catching leap and Cutoff leap jump to where you will be while you move, up to 1 m ahead. Cutoff leap is the instant one of the pair.
+      - Closing leap gives the bloodsucker a gap-closer. The bloodsucker flies toward an enemy on a perch within 15 m, or toward a player aiming at him from 4.5 to 15 m, then strikes with his claws.
+      - A leap fires only when the mutant can make it: in range, within a fair angle and height, inside the area it is allowed in, toward an enemy it has sensed in the last second.
+          Leaps hold off inside 3 m, where a jump stranded or flew through you. High leap and Closing leap toward a perch are the exception.
+      - Added the claw for the chimera and lurker, which vanilla walks into melee without an attack. The claw is a point-blank pounce without a wind-up. It stops where it touches down.
+      - Added Backstrike, a spin-strike when you work around to the back of a chimera, lurker, burer or controller, whose models carry the motion.
+          The mutant arms it when you come within 4 m. The engine then strikes once or twice.
+      - Added flee. A mutant near death, with you 10 m or more away and not facing you, may take a long run from the fight. A cornered one fights to the end.
+    Managed moves
+      - Changed the burer's gravity throw. A burer now forces it when you look away from him or cannot answer, caught reloading or with your back turned.
+          He holds the throw while you have your sights on him. His shield is kept for that.
+      - Changed the bloodsucker's cloak. A bloodsucker you aim at or hit while he closes in will vanish to break the moment. He comes back a beat later.
+          He stays visible within strike range, and he needs 5 seconds of rest between 2 cloaks.
+    Influenced moves
+      - Added ability variation. Wild spreads the ability numbers of each species: burer gravity, telekinesis, controller psi tube, stamina, auras, poltergeist detection. Movement stays vanilla.
 
   Development
-    - Added the mutant rows to the debug HUD and the world trace: the live move with its gates, the engine state, health, morale, and target.
-    - Every mutant move the mod influences, triggers, or blocks traces at DEBUG, naming its pick and gates, free when off.
-    - Added the hit-reply line to the world trace. For each stalker you hit, at any distance, it logs when he first saw you, when he picked you as his target, and when he fired back.
-    - The danger trace now logs how far each danger mark lies from the stalker, and which source his reaction looks at.
+    - Added the mutant rows to the debug HUD and the world trace: the live move with its gates, the engine state, health, morale, target.
+    - Added a DEBUG trace line for each mutant move the mod influences, triggers or blocks, naming its pick and gates. It is free when off.
+    - Added the hit-reply line to the world trace. For each stalker you hit, whatever the distance, it logs when he first saw you, when he picked you as his target, when he fired back.
+    - Added the distance to each danger mark in the danger trace, plus which source the stalker's reaction looks at.
 
 1.2.1
   Summary: Combat substrate, maneuvers widened to every nearby fight, Faction flavor, Push and Pull windows, Weapon spacing, Glide stop, targeting fixes, the Disclosure page removed,
