@@ -44,64 +44,63 @@ My work is free and open source, ships in most modpacks, and integrates with est
 An organized group copies my work, defames, impersonates and review-bombs me across platforms.
 You can help with a review, a rating, a proper bug report, or a coffee on Ko-fi: https://ko-fi.com/damiansirbu
 
-Every release is stable and whole new systems may appear. Always understand the documentation.
-After every update, use Reset ALL to Defaults in MCM under Development.
+Every release is stable, and a new one can add whole systems or move the settings that drive them.
+After every update, open Development in the mod's MCM and reset every setting to its default.
 
 Everyone wants to live.
 
-AlifeTactics is a complete combat system for S.T.A.L.K.E.R. Anomaly. It covers the whole fight for stalkers and mutants, from what they hear and see to how they decide, move, shoot and heal.
+AlifeTactics is a complete combat system for S.T.A.L.K.E.R. Anomaly, for stalkers and mutants alike, from what they hear and see to how they decide, move, shoot and heal.
+In vanilla the enemies all fight the same way, because X-Ray shuffles its combat moves at random.
+AlifeTactics adds the decision. Each fighter reads the fight in front of him and picks a move, through the engine's combat systems and hooks built for AlifeTactics and merged into the demonized exes.
+It also brings back moves and mechanics that GSC built and the shipped game never ran.
 
-Vanilla enemies all fight the same way, because X-Ray picks their moves with no logic behind them. AlifeTactics gives them the brain the engine never had.
-It is a light, reactive layer that works with X-Ray, through its own hooks in the engine itself.
-The core of every decision is Intelligence and Personality, from GSC's own design documents.
-Intelligence is the difficulty and rises with rank and map level. Personality is the character of each faction and species, how aggressive or cowardly, and the moves it favours.
-It also revives what GSC built and shelved, moves and mechanics the shipped game never ran.
+Summary
 
-- Combat: stalkers reload behind cover, fall back when hurt, turn on a player who closes in, and pick off an outranged enemy. They hold a plan while it works and press an enemy who can't answer.
-- Effectiveness: rank finally shows in aim, tracking, target lead and fire discipline, where the engine clamped every NPC to one setting. Allies stop killing each other in a crossfire.
-- Perception: stalkers hear your steps and your reload before they see you, duck when sniped, turn on the man who hit them, and notice a missed knife swing.
-- Mechanics: they heal with their own medkits, veterans fire their own armour-piercing rounds, they mount the scopes they loot, and full-condition guns stop jamming.
-- Gear: an artefact gives its carrier a real combat edge by its class, binoculars and night vision widen his sight, and a carrier warps the air around him.
-- Mutants: they think like stalkers, with their own Intelligence, Personality and Wild variation.
-  They punish your reload, your strafe and your perch with leaps, gravity throws, claws and backstrikes from their own bodies, moves vanilla never fires.
-- Fixes: vanilla AI bugs repaired in danger, corpse search, targeting, cover fire and healing.
-- Engine-native and fast: it runs on X-Ray's own planner and the Anomaly schemes, replaces no vanilla file, and does no per-frame work, whatever the NPC count.
-
-Every system below has its own MCM page, where it is toggled and tuned. The design behind them reaches much further, and each release builds more of it.
+A stalker decides on Intelligence, which rises with his rank, and on Personality, his faction's character, the two traits that GSC's design documents name.
+Combat makes stalkers reload behind cover, fall back to cover when hurt, turn on a player who closes in, pick off an enemy they outrange and press an enemy who can't answer.
+Effectiveness makes rank show in every shot. A veteran groups tighter, holds a strafer and leads a runner, and allies stop killing each other in a crossfire.
+Perception lets stalkers hear your steps and your reload before they see you, take cover when sniped from far off, turn on the man who shot them and notice a missed knife swing.
+Mechanics lets stalkers heal with the medkits they carry, fire the armour-piercing rounds they scavenged, mount the scopes they loot and jam only from real wear.
+An artefact gives its carrier one combat edge, and the air warps around him.
+Mutants decide on Intelligence by map danger and Personality by species, and Wild varies each one.
+They exploit your vulnerabilities and your bad decisions with new leaps, claws and rear strikes.
+Fixes to Vanilla make the unfinished danger reactions, corpse search, targeting and healing work.
+Each system has its MCM page, and the design behind them reaches much further.
 
 Combat
 
-Every move below is a decision. Intelligence decides whether a stalker reads the moment, and his faction's Personality decides whether his kind takes that move.
-A hurt Duty trooper falls back to cover still firing, a hurt bandit is quick to break and run for home, and a Monolith fighter holds his ground to the end.
+Combat is how a stalker moves in a fight, and his rank and faction shape each decision.
+In vanilla he re-plans every moment, and a fight turns into strafing and cover-hopping.
+
+General:
+Each decision takes one Intelligence roll, and a veteran reads the moment right more often.
+A hurt Duty trooper falls back firing, a hurt bandit runs for home, and a Monolith fighter holds.
 
 Maneuvers:
-A maneuver takes a stalker over from X-Ray's GOAP planner for a move the engine can't make, one he never had, one vanilla never decides on, or one that depends on his squad.
-Before he moves, he reads the whole fight, every enemy watching him, his wounds, his weapon's range and his squad. The move ends when its problem is solved.
-  Counterflank: a stalker fighting a distant enemy turns to the immediate threat when you close in.
-  Reload Cover: caught reloading in an enemy's sights, he runs to the nearest cover that hides him from that enemy and finishes the reload on the way there.
-  Retreat: hurt and exposed to a shooter in reach, he falls back to farther cover, still firing.
-  Flee: badly hurt and the last of his squad, he breaks contact and heads for a friendly base. It is the panic move, and a sharper stalker is less likely to take it.
-  Kite: an enemy inside his weapon's minimum range sends him back down a clear lane, still firing.
+A maneuver takes a stalker over from X-Ray's planner for one move the engine can't make or never decides on, and it hands him back once the move is done.
+  Counterflank: a stalker fighting someone far off turns on a player who walks up on him.
+  Reload Cover: caught reloading in an enemy's sights, he finishes the reload on his way to cover.
+  Flee: the last man of a beaten squad may sling his weapon and run for a friendly base.
+  Retreat: hurt and exposed, he falls back to cover still firing.
+  Kite: an enemy inside his gun's minimum range makes him back off down a clear lane, still firing.
   Pickoff: outranging an enemy who isn't pressing him, he plants and picks him off with single shots.
-Maneuver fire follows his weapon and rank, with bursts that vary inside the weapon's own range.
 
 Commitment:
-Vanilla stalkers drop a good plan at the smallest change, when a teammate crosses the line, sight flickers for a moment or a slightly better cover spot appears.
-That is the strafing and cover-hopping of every firefight.
-Commitment answers the engine's own "switch now?" with no while the plan still works, through hooks built for AlifeTactics and merged into X-Ray. When it stops working, he switches at once.
-  Cover pinning: with a clear shot he keeps his cover and no longer slides to a slightly better spot.
-  Liquidate: when his enemy is vulnerable, he holds his spot and fires until the enemy can answer.
+Commitment holds a stalker to a plan that works, where vanilla drops it at the smallest change, a teammate crossing his line or a better cover spot a step away.
+  Cover pinning: with a clear shot he keeps his cover and stops hopping to the next spot.
+  Liquidate vulnerable targets: he stays in his spot and keeps firing at a vulnerable enemy.
 
 Conduct:
-Conduct improves choices the engine already makes, with no takeover.
-Discipline is personal. Military factions mostly keep it and scavengers mostly don't.
+Conduct improves choices the engine already makes, with no takeover. Military factions mostly keep its discipline, and bandits and other scavengers mostly don't.
   Cover posture: a trained rifleman crouches for a clear shot and stands to fire over a low wall.
   Weapon spacing: an SMG gunner takes closer cover, and a skilled sniper keeps his distance.
 
 Behaviors:
-Push and Pull read who is vulnerable in a fight and work against any enemy, you or another stalker.
-  Push: when the target is vulnerable or dying, his attackers press him with heavier fire and move to closer cover once they clearly hold the upper hand.
-  Pull: caught weak against a strong enemy, he gives ground to farther cover until he recovers.
+Push and Pull read who is caught weak in a fight, you or another stalker.
+  Push vulnerable targets: his attackers press an enemy who can't answer with heavier bursts, and once they clearly hold the upper hand they move to closer cover.
+  Push on reload and empty mag: a reload or an empty magazine starts the press.
+  Push weakened targets: a badly hurt enemy draws the press, and healthy attackers close in.
+  Pull back while vulnerable: caught weak against a strong enemy, he gives ground until he recovers.
 
 Effectiveness
 
