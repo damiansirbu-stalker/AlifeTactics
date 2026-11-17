@@ -105,74 +105,59 @@ Push and Pull read who is vulnerable in a fight and work against any enemy, you 
 
 Effectiveness
 
+Effectiveness is how well a stalker fights, and his rank should decide it.
+The engine has a rank curve for accuracy, but Anomaly's rank values push nearly all NPCs to the same end of it. In vanilla a rookie and a legend shoot alike.
+AlifeTactics drives a real curve through the engine's shot callback, and sets each stalker's aim and bursts through hooks built for AlifeTactics and merged into X-Ray.
+
 Accuracy:
-Anomaly's rank curve clamps every NPC to the same dispersion. Accuracy never scaled per rank even though the engine code exists.
-AlifeTactics restores a real per-rank curve through the engine's own dispersion callback.
-A second curve covers fire on the move. Each rank keeps a share of the movement spread penalty. Rookies spray while repositioning and top ranks cut about a third of it.
-Every rank curve in the mod is two sliders, a base and a percent per rank. Retuning a whole curve is one motion instead of eight.
-The engine has several dispersion variables, including barrel and weapon, and this one is the NPC skill-based dispersion.
+A shot's spread is the gun's spread plus the shooter's, and Accuracy scales only the shooter's share. A better gun shoots tighter for a rookie and a legend alike.
+  Dispersion: a veteran groups his shots tight, where a rookie sprays wide.
+  Moving Fire: a veteran keeps more of his accuracy than a rookie when he has to fire while moving.
 
 Crossfire:
-Same-faction fighters no longer cut each other down in a crossfire.
-A hit between two NPCs of the same faction deals reduced damage, set by a slider (no damage by default, up to full vanilla).
-It keys on their actual relation. Genuinely hostile factions still trade fire while allies stay safe. Your own shots are never affected.
+If a stalker walks into a friend's or a neutral's line of fire, the hit doesn't cut him down.
+Because it keys on their real relation, a soured pair trades full damage as in vanilla, and the protection never covers the shots that you fire yourself.
 
 Reaction:
-Stalker rank now shapes gun handling, applied per stalker.
-Tracking Speed sets how fast a barrel moves while tracking, from vanilla at the bottom rank to a decent step above it at the top, well short of the game's hardcore AI aim.
-Tracking Lock sets how tightly a barrel holds a strafing target. A novice's aim lags and a moving target loses it, exactly like vanilla.
-A legend holds you across the firing window without tracking you perfectly.
-Target Lead aims a stalker ahead of a moving target by the round's real flight time, computed from range and the weapon's bullet speed as it fires.
-Higher ranks lead true and hit movers, lower ranks over-lead and overshoot.
-Fire Discipline scales burst size and cadence per rank.
-The shipped defaults are near-flat. Rank barely alters fire out of the box. The sliders allow the full spread.
-Defaults keep a rank's rounds per minute at or above vanilla.
-Tracking Speed, Tracking Lock, Target Lead, and Fire Discipline are each a base plus percent-per-rank slider pair. Speed and Lock share one on/off, Lead and Discipline each carry their own.
-The two rank vision curves moved to the Perception tab below. Fire Discipline is on its own Discipline tab.
+Reaction is how a stalker's gun follows a moving target. A rookie tracks as in vanilla, and even a legend stays well short of the game's hardcore aim setting.
+  Tracking Speed: a veteran's barrel follows you faster as you move.
+  Tracking Lock: if you strafe, a veteran holds you, where a rookie's aim lags and loses you.
+  Target Lead: he aims ahead of a runner by the round's real flight time. A legend aims where you will be, and the lower his rank, the farther ahead of you he shoots.
+
+Discipline:
+Discipline is how a stalker works the trigger, the length of his bursts and the pause between them.
+  Burst Size: a veteran fires shorter bursts and drops the stray rounds at the end of a long one.
+  Fire Cadence: a veteran pauses less between bursts to keep his volume of fire up.
+The defaults are close to flat and keep the hits per minute of each rank at or above vanilla, and the sliders widen the gap between a rookie and a legend.
 
 Range (planned):
-The game stops NPC fights at a hard range cap regardless of weapon. A sniper never fires at the distances his rifle exists for.
-A stalker sniped from beyond the cap can duck, which is the Danger hit response, but never answer. This page will let long-range NPCs answer and initiate at their weapon's real reach.
+Vanilla's combat-ignore script drops another stalker as an enemy past a fixed distance, whatever gun he carries, and closer still at night and in rain.
+This page will let a long-range stalker answer and open fire at his weapon's real reach.
 
 Perception
 
-Perception is how a stalker senses and reacts. It covers what he hears, how his rank shapes his sight, and how he reacts to being hit.
-The Sound and Danger reactions are a runtime patch laid onto whichever danger script your modpack ships. They work with other combat AI.
-Detection distances stay owned by your setup's danger config, and AlifeTactics adds only the reactions.
+Perception is what a stalker hears and sees, and how he reacts to it.
+Every sound you make now counts. A careful crouch keeps you hidden, a careless sprint gives you away, and in a firefight your noise tells him where to look.
+AlifeTactics patches these reactions into whichever danger script your modpack ships.
 
 Sound:
-In vanilla a stalker hears a shot anywhere inside its reach and answers it with the engine's own cover, look-out, detour and search. AlifeTactics leaves that plan alone.
-Everything quieter barely reaches him: a running step only inside about 6 m, a reload inside 4 m, a walk never.
-On the multi-thread exes his sound memory also refuses every sound from a player he has not seen or heard for a minute (two on GAMMA). A quiet sound never starts anything.
-AlifeTactics answers that refusal. For half a second after a sound of yours loud enough to keep, the hostile hearer's enemy check says yes for you.
-His sound memory then stores the sound and the engine runs its own reaction, from the first step, with no earlier sighting.
-What the engine still cannot keep, your footsteps and handling noise, stamps the danger scheme at the source with an evidence grade the scheme already runs.
-A faint stamp turns a standing stalker weapon-ready toward its source, and solid evidence sends him over to check the spot himself.
-A moving stalker ignores a faint stamp, and no sound alone ever drives a run.
-Nearby creature cries draw a lighter response, a head-turn a standing stalker gives out of combat that leaves him in place and outside the danger scheme.
-Mutant cries always earn that glance, another stalker's only when the two are hostile.
-Your bullet landing within 30 m of a neutral or friendly stalker puts him on alert without turning him hostile. Off, he ignores it as vanilla does.
-A step's noise scales with stance, surface, and weather, and a crouch makes none at all.
-The stamp channel stays inside the scripts and never writes the engine's bounded sound memory.
-Sound never touches vision, seen-memory, or the sight test. It reads the config's own hearing sensitivity. A setup that deafens the AI quiets this too.
+In vanilla, a stalker who hasn't seen you lately drops your sounds, even a reload behind his back.
+AlifeTactics lets a hostile stalker hear you, and he answers with the engine's cover and search.
+  Neutral Gunfire Alert: a stray bullet of yours alerts a neutral or friend, who won't turn hostile.
+  Movement Noise: a hostile hears your steps by stance, surface and weather, and a crouch is silent. A walk turns a standing hostile toward you, and a sprint or a jump landing sends him over to check.
+  Handling Noise: your reload or empty click brings him over, and using an item turns him toward you.
+  Creature Awareness: a standing stalker glances at a mutant he hears nearby and keeps his post.
 
 Vision:
-Stalker rank shapes the eyes as well as the trigger, applied per stalker.
-Vision Speed sets how fast each rank turns a glimpse into a confirmed threat, from your setup's detection speed at the bottom rank (a novice matches it) to about 21 percent faster at the top.
-Every rank notices at least as fast as your baseline.
-It scales the rate only. Sight range, vision cone, light and darkness response, cover and occlusion, and hearing all stay exactly as your setup has them.
-Vision Range sets how far out each rank begins to notice a threat, the same band, from your baseline at novice to about 15 percent farther at the top.
-Both are base plus percent-per-rank slider pairs under one Vision toggle, on their own Vision page.
+Vision is how fast a stalker turns a glimpse into a confirmed threat, and how far out he starts to notice one. Both scale with rank on the engine's own visual memory.
+  Vision Speed: a veteran confirms you sooner, and a rookie matches your setup's baseline.
+  Vision Range: a veteran starts noticing you from farther out, while light, darkness and cover still hide you from him exactly as your own setup decides.
 
 Danger:
-A stalker hit from far off reacts even when vanilla would have him stand still. Sniped at 200m he turns and seeks cover.
-The reaction is the duck, and returning fire at that range is the planned Range page above.
-Attempted murder: a knife swing that lands on nobody is noticed by the stalker in front of you within 3 m. Vanilla registers nothing until a hit lands, so a failed stealth kill left the victim idle.
-He gets up, raises his weapon and faces you, and a hostile who then sees you fights. A neutral or friend reacts only while Neutral gunfire alert is on, and never turns hostile for a miss.
-A Player target pull dial tunes how strongly NPCs prioritize you over other combatants once you are seen, down to treating you like anyone else.
-A hit victim turns on his shooter through the engine's own target selection, always on: the real "he hit me" signal outweighs a distant visible enemy,
-and he returns fire the moment he has line of sight. Nothing is revealed through walls, and a suppressed kill tells no one.
-The vanilla danger-check and corpse-investigation fixes are listed under Fixes to Vanilla below.
+Danger is the vanilla scheme that makes a stalker react to a hit, a corpse or a grenade. AlifeTactics repairs its bugs, listed under Fixes, and adds the reactions below.
+  Distant Hits: a stalker sniped from far off turns and seeks cover, where vanilla left him standing.
+  Attempted Murder: if your knife swing misses the stalker in front of you, he gets up, raises his weapon and faces you, and a hostile who then sees you fights.
+  Player Target Pull: vanilla stalkers turn on you before any other enemy. AlifeTactics removes that player bias, and you count like any other fighter in the fight.
 
 Mechanics
 
