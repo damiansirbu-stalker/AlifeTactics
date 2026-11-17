@@ -1,8 +1,8 @@
 1.2.2-snapshot
-  New mutant combat system, harmonized with stalkers
-    Mutants now read your weak moments and answer with new and revived moves: leaps, a claw, a rear strike, a gravity throw and a cloak.
+  Mutant combat, one decision model for all, and sharper stalker senses
+    Mutants now fight with new and revived moves, leaps, a claw, a rear strike, a gravity throw and a cloak, each taken when you give an opening.
     Stalkers and mutants share one decision model. Intelligence rises with rank, and Personality comes from the faction or the species.
-    Other things you will notice. Stalkers hear you before they see you, notice a missed knife swing, mount looted scopes, and retreat to real cover.
+    Other things you will notice. Stalkers hear you before they see you, notice a missed knife swing, retreat to real cover, mount looted scopes, and their guns jam only from wear.
 
   Combat
     General
