@@ -1,6 +1,8 @@
 digraph at_danger_patch {
     // C4 level 3: the danger scheme, installed as a function-level patch on whichever
     // xr_danger won the MO2 slot. No xr_danger.script of AT's own, so no slot contest.
+    // The verdict is a stamp or the type tables; the action claims grenade, corpse and attacked,
+    // and every sound danger stays with the engine planner (at_danger.script, at_evaluator_check_danger).
     rankdir=TB
     splines=ortho
     pad=0.3
@@ -10,6 +12,17 @@ digraph at_danger_patch {
     node  [shape=box, style="rounded,filled", fillcolor=white,
            color=gray40, fontname="Arial", fontsize=13, margin="0.15,0.09"]
     edge  [fontname="Arial", fontsize=11, color=gray35, arrowsize=0.8]
+
+    subgraph cluster_feed {
+        label="feeders -> patched set_script_danger"
+        labeljust=l
+        fontname="Arial"
+        fontsize=12
+        style=rounded
+        color=gray55
+        feed_win [label="the winner's own\nhear + death callbacks", fillcolor=gray95]
+        feed_at  [label="at_sound: your steps, reload,\nempty click, item use,\na missed knife swing", fillcolor=gray95]
+    }
 
     install [label="on_game_start -> _install_patches\npoints the winning xr_danger's 7 entry points at AT", fillcolor=gray95]
 
@@ -22,19 +35,21 @@ digraph at_danger_patch {
         fontsize=12
         style=rounded
         color=gray55
-        eval  [label="eval_danger -> eval_danger_raw (verdict)\nthen npc_on_eval_danger only on would-be-true"]
-        stamp [label="live script_danger stamp = TRUE outright\n(the stamp is an activator)"]
-        table [label="else best_danger type ->\ninertion + ignore tables (the winner's xr_danger.ltx)\n-> danger_flag"]
-        act   [label="at_action_danger:execute\nscript_danger first, else per-type response\n(grenade / corpse / attacked / attack_sound alert)"]
-        safe  [label="combat-safe by GOAP:\naction requires property_enemy == false"]
+        eval   [label="eval_danger -> eval_danger_raw (verdict)\nthen npc_on_eval_danger only on would-be-true"]
+        stamp  [label="live admitted script_danger stamp\n= TRUE outright (an activator,\ngraded faint / solid / watch)"]
+        table  [label="else best_danger type ->\ninertion + ignore tables\n(the winner's xr_danger.ltx) -> danger_flag"]
+        act    [label="at_action_danger:execute\nscript_danger first, else per-type response"]
+        engine [label="engine danger planner\ncover, look-out, hold, detour, search"]
+        safe   [label="combat-safe by GOAP:\naction requires property_enemy == false"]
     }
 
-    feeders [label="feeders (the winner's own hear + death callbacks)\n-> patched set_script_danger -> script_danger table", fillcolor=gray95]
-
     install -> bind -> eval
-    eval -> stamp [xlabel="stamped"]
-    eval -> table [xlabel="not stamped"]
-    eval -> act
+    eval -> stamp  [xlabel="  stamped  "]
+    eval -> table  [xlabel="  not stamped  "]
+    stamp -> act
+    table -> act    [xlabel="  grenade, corpse, attacked  "]
+    table -> engine [xlabel="  sound  "]
     act -> safe [style=dashed, arrowhead=none]
-    feeders -> stamp [style=dashed, constraint=false]
+    feed_win -> stamp [style=dashed]
+    feed_at  -> stamp [style=dashed]
 }

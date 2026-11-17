@@ -12,8 +12,8 @@ digraph at_control_loop {
 
     loop [label="_run_monitor  every 200ms", style=filled, fillcolor=gray85, color=gray25, penwidth=1.4]
     arm  [label="re-arm first (_reset_monitor)", fillcolor=gray95]
-    each [label="for each record in _npc_states"]
-    dead [label="dead: clear maneuvers + behaviors, next"]
+    each [label="for each online record in _npc_states"]
+    out  [label="dead or wounded:\nclear maneuvers + behaviors, next"]
     dist [label="write actor_dist_sqr"]
     best [label="refresh best_enemy_id (per 600ms)\nmaintain _best_enemy_of reverse index"]
     gate [label="gate up?", shape=diamond, fillcolor=gray92, color=gray25, margin="0.14,0.06"]
@@ -28,20 +28,22 @@ digraph at_control_loop {
         fontsize=12
         style=rounded
         color=gray55
-        ev_spawn  [label="npc_on_net_spawn\ncreate _npc_states[id]", fillcolor=gray98]
+        ev_spawn  [label="npc_on_net_spawn\ncreate _npc_states[id]\nroll the repertoire (at_faction)", fillcolor=gray98]
         ev_hit    [label="npc_on_hit_callback\nhit_at, hit_by", fillcolor=gray98]
-        ev_reload [label="reload start/stop\nreloading, reload_at", fillcolor=gray98]
+        ev_reload [label="xcombat.on_reload_start / stop\nreloading, reload_at", fillcolor=gray98]
+        ev_gone   [label="npc_on_net_destroy, unregister\nclear, then delete the record", fillcolor=gray98]
     }
 
     loop -> arm -> each
     each -> dist -> best -> gate
-    each -> dead
-    gate -> run [xlabel="yes"]
-    gate -> try [xlabel="no"]
+    each -> out
+    gate -> run [xlabel="  yes  "]
+    gate -> try [xlabel="  no  "]
     run -> beh
     try -> beh
 
     ev_spawn  -> each [style=dashed, constraint=false]
     ev_hit    -> each [style=dashed, constraint=false]
     ev_reload -> each [style=dashed, constraint=false]
+    ev_gone   -> each [style=dashed, constraint=false]
 }

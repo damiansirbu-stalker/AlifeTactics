@@ -1,5 +1,5 @@
 digraph at_goap_graft {
-    // C4 level 3: the takeover control point. xcombat grafts one evaluator+action at the
+    // C4 level 3: the takeover control point. xgraft grafts one evaluator+action at the
     // reserved id TAKEOVER_ID (188347) into every stalker's motivation manager at spawn.
     rankdir=TB
     splines=ortho
@@ -11,11 +11,12 @@ digraph at_goap_graft {
            color=gray40, fontname="Arial", fontsize=13, margin="0.15,0.09"]
     edge  [fontname="Arial", fontsize=11, color=gray35, arrowsize=0.8]
 
-    spawn [label="npc_on_net_spawn\nat_maneuvers._register_graft\nxcombat.register_takeover(npc, SPEC)", fillcolor=gray95]
+    spawn [label="npc_on_net_spawn\nat_maneuvers._register_graft\nxgraft.register_takeover(npc, SPEC)", fillcolor=gray95]
 
     subgraph cluster_graft {
         label="grafted on the action manager at id 188347"
-        labeljust=l
+        labeljust=r
+        labelloc=b
         fontname="Arial"
         fontsize=12
         style=rounded
@@ -25,15 +26,17 @@ digraph at_goap_graft {
         blk [label="block: every blocked planner gains\nprecondition TAKEOVER_ID == false"]
     }
 
-    down  [label="gate down (188347 false)\nvanilla chain solves; graft dormant"]
-    seize [label="seize (188347 true)\nblocked actions unselectable;\ngraft action is the only path to the goal\ninitialize starts the maneuver", fillcolor=gray92]
+    down  [label="gate down (188347 false), no row picked\nvanilla chain solves; graft dormant"]
+    seize [label="seize (188347 true), _try_seize raises the gate\nblocked actions unselectable;\ngraft action is the only path to the goal\ninitialize starts the maneuver", fillcolor=gray92]
     rel   [label="release (188347 false)\nvanilla resumes from where the NPC stands"]
 
     spawn -> eva
     spawn -> act
     spawn -> blk
-    eva -> down  [xlabel="need false"]
-    eva -> seize [xlabel="need fires -> _try_seize"]
-    seize -> rel [xlabel="arrival / cap / broken premise / target_lost"]
+    eva -> down
+    eva -> seize
+    seize -> rel [xlabel="  check_end / arrival / cap / target_lost  "]
     rel -> down  [constraint=false]
+    {rank=same; seize; down}
+    seize -> down [style=invis]
 }

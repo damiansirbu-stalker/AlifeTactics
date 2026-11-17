@@ -1,19 +1,19 @@
 digraph at_context {
-    // C4 level 1: AlifeTactics against its neighbours.
+    // C4 level 1: AlifeTactics against its neighbours. Three columns: the Anomaly Lua layer,
+    // the stalker path through xcombat, the mutant path through xmonster.
     rankdir=TB
     splines=ortho
     pad=0.3
     compound=true
     nodesep=0.5
-    ranksep=0.95
+    ranksep=0.85
     graph [fontname="Arial", fontsize=16]
     node  [shape=box, style="rounded,filled", fillcolor=white,
            color=gray40, fontname="Arial", fontsize=15, margin="0.16,0.1"]
     edge  [fontname="Arial", fontsize=12, color=gray35, arrowsize=0.8]
 
-    player  [label="Player\nobserved inside gate_radius_m"]
-    at      [label="AlifeTactics\nat_*.script  (policy: when, whom, which)", fillcolor=gray85, color=gray25, penwidth=1.4]
-    xcombat [label="xcombat (xlibs)\nthe one combat-call boundary", shape=hexagon, fillcolor=gray92, color=gray30]
+    player   [label="Player\nobserved inside gate_radius_m"]
+    at       [label="AlifeTactics\nat_*.script  (policy: when, whom, which)", fillcolor=gray85, color=gray25, penwidth=1.4]
 
     subgraph cluster_anomaly {
         label="Anomaly Lua layer"
@@ -23,26 +23,34 @@ digraph at_context {
         style=rounded
         color=gray55
         anomaly [label="xr_danger | state_mgr | xr_eat_medkit\nxr_weapon_jam | xr_combat_ignore"]
-        brain   [label="installed combat brain\nvanilla or a third-party combat-AI overhaul\ncomposed, never replaced"]
+        brain   [label="installed combat brain\nvanilla or a third-party combat-AI overhaul\ncomposed, never replaced\nthe GOAP graft borrows one NPC, then hands him back"]
     }
+
+    xcombat  [label="xcombat (xlibs)\nthe stalker combat boundary", shape=hexagon, fillcolor=gray92, color=gray30]
+    xmonster [label="xmonster (xlibs)\nthe mutant combat boundary", shape=hexagon, fillcolor=gray92, color=gray30]
 
     subgraph cluster_engine {
         label="X-Ray engine (C++), themrdemonized fork"
-        labeljust=l
         fontname="Arial"
         fontsize=13
         style="rounded,dashed"
         color=gray50
-        engine [label="GOAP planners | CEnemyManager\nsight_manager | CVisualMemoryManager\nweapon handler"]
-        exes   [label="modded-exes seams\ndemonized or AOEngine\nper-NPC binds, vetoes, callbacks", fillcolor=gray95]
+        labeljust=r
+        exes    [label="modded-exes seams, demonized or AOEngine\nper-NPC and per-monster binds, vetoes, callbacks", fillcolor=gray95]
+        engine  [label="stalker AI\nGOAP planners | CEnemyManager\nsight_manager | CVisualMemoryManager\nweapon handler"]
+        monster [label="monster FSM\nCControlJump | burer gravi\nbloodsucker invisibility"]
+        {rank=same; engine; monster}
     }
 
-    at -> xcombat     [xlabel="every combat command and read"]
-    xcombat -> engine [xlabel="bind / veto / read"]
-    at -> anomaly     [xlabel="function patch"]
-    at -> engine      [xlabel="engine callbacks", style=dashed]
-    exes -> engine    [xlabel="expose", style=dashed]
-    engine -> brain   [xlabel="drives NPCs"]
-    at -> brain       [xlabel="GOAP graft interrupts, then hands back", constraint=false, style=dashed]
-    player -> at      [label="hit / noise / sight", style=dotted]
+    player -> at        [xlabel="  hit / noise / sight  ", style=dotted]
+    at -> anomaly       [xlabel="  function patch  "]
+    at -> xcombat       [xlabel="  stalker commands  "]
+    at -> xmonster      [xlabel="  mutant moves  "]
+    xcombat -> engine   [xlabel="  bind / veto / read  ", minlen=3]
+    xmonster -> monster [xlabel="  invoke / set / read  ", minlen=3]
+    exes -> engine      [style=dashed]
+    exes -> monster     [style=dashed]
+    anomaly -> brain    [style=invis, minlen=3]
+    engine -> brain     [xlabel="  drives stalkers  ", constraint=false]
+    at -> brain         [constraint=false, style=dashed]
 }

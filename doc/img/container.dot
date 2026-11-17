@@ -2,7 +2,7 @@ digraph at_container {
     // C4 level 2: the containers. The user-facing set IS the MCM tree (at_mcm.script),
     // same grouping, order, and names. Substrate and Observability carry no MCM page.
     rankdir=LR
-    splines=ortho
+    splines=polyline
     pad=0.3
     nodesep=0.22
     ranksep=0.9
@@ -13,12 +13,13 @@ digraph at_container {
 
     root [label="AlifeTactics", fillcolor=gray85, color=gray25, penwidth=1.4, fontsize=16]
 
-    // MCM categories, in tree order.
+    // MCM categories, in tree order. Grey fill marks a page not live in this release.
     combat  [label="Combat"]
     effect  [label="Effectiveness"]
     percep  [label="Perception"]
     mechan  [label="Mechanics"]
-    planned [label="Effects (planned)\nMutants (planned)", fillcolor=gray95]
+    effects [label="Effects (planned)", fillcolor=gray95]
+    mutants [label="Mutants"]
     fixes   [label="Fixes to Vanilla"]
     devel   [label="Development"]
 
@@ -30,7 +31,8 @@ digraph at_container {
     root -> effect
     root -> percep
     root -> mechan
-    root -> planned
+    root -> effects
+    root -> mutants
     root -> fixes
     root -> devel
     root -> substrate
@@ -38,20 +40,23 @@ digraph at_container {
 
     node [fontsize=12, fillcolor=white]
 
-    c1 [label="Maneuvers"]; c2 [label="Commitment"]; c3 [label="Conduct"]; c4 [label="Behaviors (Push, Pull)"]
-    combat -> c1; combat -> c2; combat -> c3; combat -> c4
+    c0 [label="General (Intelligence)"]; c1 [label="Maneuvers"]; c2 [label="Commitment"]; c3 [label="Conduct"]; c4 [label="Behaviors (Push, Pull)"]
+    combat -> c0; combat -> c1; combat -> c2; combat -> c3; combat -> c4
 
-    e1 [label="Accuracy"]; e2 [label="Disclosure"]; e3 [label="Crossfire"]; e4 [label="Reaction"]; e5 [label="Discipline"]; e6 [label="Range (planned)", fillcolor=gray95]
-    effect -> e1; effect -> e2; effect -> e3; effect -> e4; effect -> e5; effect -> e6
+    e1 [label="Accuracy"]; e2 [label="Crossfire"]; e3 [label="Reaction"]; e4 [label="Discipline"]; e5 [label="Range (planned)", fillcolor=gray95]
+    effect -> e1; effect -> e2; effect -> e3; effect -> e4; effect -> e5
 
     p1 [label="Sound"]; p2 [label="Vision"]; p3 [label="Danger"]
     percep -> p1; percep -> p2; percep -> p3
 
-    m1 [label="Healing"]; m2 [label="Jamming"]; m3 [label="Ammo"]; m4 [label="Gear"]
-    mechan -> m1; mechan -> m2; mechan -> m3; mechan -> m4
+    m1 [label="Healing"]; m2 [label="Jamming"]; m3 [label="Ammo"]; m4 [label="Attachments"]; m5 [label="Gear"]
+    mechan -> m1; mechan -> m2; mechan -> m3; mechan -> m4; mechan -> m5
 
-    s1 [label="at_core (store, loop, budget)"]; s2 [label="at_faction (flavor)"]
-    s3 [label="at_effects_resolver"]; s4 [label="xcombat boundary"]; s5 [label="GOAP graft"]
+    u1 [label="General (Intelligence, Wild)"]; u2 [label="Power (off in this release)", fillcolor=gray95]; u3 [label="one page per species (15)"]
+    mutants -> u1; mutants -> u2; mutants -> u3
+
+    s1 [label="at_core (store, loop, budget)"]; s2 [label="at_faction (repertoire, Intelligence)"]
+    s3 [label="at_effects_resolver"]; s4 [label="xcombat boundary"]; s5 [label="GOAP graft (xgraft)"]
     substrate -> s1; substrate -> s2; substrate -> s3; substrate -> s4; substrate -> s5
 
     o1 [label="at_debug"]; o2 [label="at_world_trace"]; o3 [label="at_hud"]; o4 [label="at_test"]
