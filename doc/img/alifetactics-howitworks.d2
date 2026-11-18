@@ -7,45 +7,56 @@ style.fill: "#1f2421"
 **.style.font-color: "#ece7d8"
 **.style.stroke-width: 2
 
-title: "AlifeTactics - make Anomaly enemies fight smarter" {
+title: "AlifeTactics - everyone wants to live" {
   near: top-center
   style: { stroke-width: 0; fill: "#1f2421"; font-color: "#ece7d8"; font-size: 28 }
 }
 
-read: "The read - a fight's real state\nweapons, range, angle, cover, squad, faction" {
+read: "The read - the fight's real state\nweapons, range, cover, vulnerability, your noise" {
   style.stroke: "#c9d8b6"
 }
 
-combat: "Combat - a 200ms loop, per NPC" {
-  grid-columns: 2
-  grid-gap: 16
-  man: "Maneuvers\nseize one NPC for one committed move"
-  com: "Commitment\ndeny the shuffle off a winning shot"
-  con: "Conduct\ncrouch and weapon spacing"
-  beh: "Push / Pull\npress the weak, cover the exposed"
-}
-
-skill: "Per-NPC skill - bound at spawn" {
-  grid-columns: 3
-  grid-gap: 16
-  acc: "Accuracy\nreal per-rank dispersion"
-  rea: "Reaction + Vision\naim, lead, sight by rank"
-  dis: "Discipline\ncrisp short bursts"
-}
-
-sense: "Perception + Mechanics - on engine events" {
-  grid-columns: 3
-  grid-gap: 16
-  snd: "Sound / Vision / Danger\nhear, see, react in proportion"
-  hea: "Healing\nactive first aid, limp"
-  gia: "Gear / Ammo\nartefact edge, AP rounds"
-}
-
-out: "Every command through xcombat -> engine seams\ncallbacks, GOAP graft, DLTX. No file override, composes with any combat AI." {
+decide: "The decision - one model for stalkers and mutants\nIntelligence by rank or map danger, Personality by faction or species" {
   style.stroke: "#c9d8b6"
 }
 
-read -> combat: "drives" { style: { stroke: "#c9d8b6"; font-color: "#c9d8b6" } }
+combat: "Combat - stalkers" {
+  grid-rows: 1
+  grid-gap: 16
+  gen: "General\nIntelligence, hit reaction hold"
+  man: "Maneuvers\none committed move, then hand back"
+  com: "Commitment\nhold a plan that works"
+  con: "Conduct\ncover posture, weapon spacing"
+  beh: "Behaviors\nPush presses, Pull gives ground"
+}
+
+mutants: "Mutants - every species" {
+  grid-columns: 1
+  grid-gap: 16
+  gen: "General\nIntelligence, Personality, Wild, pacing"
+  new: "New moves\nleaps, claw, backstrike, flee"
+  man: "Managed moves\ngravity throw, cloak"
+  inf: "Influenced moves\nWild spreads their abilities"
+}
+
+skill: "Effectiveness, Perception, Mechanics - every stalker" {
+  grid-columns: 3
+  grid-gap: 16
+  eff: "Effectiveness\naccuracy, crossfire, reaction, discipline"
+  per: "Perception\nsound, vision, danger"
+  mec: "Mechanics\nhealing, jamming, ammo, attachments, gear"
+}
+
+fixes: "Fixes to Vanilla\ndanger scheme, corpse search, targeting, healing, Monolith stance"
+
+out: "Every command goes through xlibs, xcombat for stalkers and xmonster for mutants, into X-Ray\ncallbacks, the GOAP graft, DLTX. No file override, composes with any combat AI." {
+  style.stroke: "#c9d8b6"
+}
+
+read -> decide: "drives" { style: { stroke: "#c9d8b6"; font-color: "#c9d8b6" } }
+decide -> combat: "" { style: { stroke: "#c9d8b6" } }
+decide -> mutants: "" { style: { stroke: "#c9d8b6" } }
 combat -> skill: "" { style: { stroke: "#c9d8b6" } }
-skill -> sense: "" { style: { stroke: "#c9d8b6" } }
-sense -> out: "issued through" { style: { stroke: "#c9d8b6"; font-color: "#c9d8b6" } }
+mutants -> out: "" { style: { stroke: "#c9d8b6" } }
+skill -> fixes: "" { style: { stroke: "#c9d8b6" } }
+fixes -> out: "issued through" { style: { stroke: "#c9d8b6"; font-color: "#c9d8b6" } }
