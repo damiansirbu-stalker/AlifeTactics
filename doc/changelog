@@ -31,6 +31,7 @@
       - Added hearing before first contact. A stalker now stores your loud sounds before he has seen you, and the engine runs its own cover and search on them.
       - Changed a heard shot to run the engine's full plan of cover, look-out, detour and search. The Enemy gunfire toggle is gone.
       - Changed Neutral gunfire alert to govern a neutral's reaction to your bullet striking near him.
+      - Fixed Sound and Attempted murder logging an engine error when vanilla's list of online stalkers kept an id the game had reused for an artefact.
     Danger
       - Added Attempted murder. A missed knife swing alerts the stalker it was meant for, and a hostile who sees you fights. Its own toggle, default on.
       - Fixed a seated stalker who heard a noise walking off facing away. He now faces the noise.
