@@ -66,7 +66,7 @@ A flesh is the likeliest creature to run when it is hurt. Every burer carries it
 
 This is GSC's design. Its soldiers fight as a squad under a leader who signals each man by gesture and sends them around the flank [12].
 Its stalkers follow strategies of their own, and a zombied soldier is a separate type [12].
-Every NPC sizes up an enemy by his character type before choosing to attack, defend or run, and GSC sorts character from principled through independent to unprincipled [12].
+Every NPC sizes up an enemy by his type, his allies, his cover and his weapon before choosing to attack, defend or run, and GSC sorts character from principled through independent to unprincipled [12].
 Its tables score every creature and every kind of human for courage in attack and in defence [8].
 
 ### Engine first
