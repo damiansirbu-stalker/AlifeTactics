@@ -5,7 +5,7 @@
 AlifeTactics is a combat AI layer for STALKER Anomaly, for stalkers and mutants. It composes with the installed combat brain, vanilla or a third-party overhaul, and ships no vanilla script file.
 It acts on X-Ray in three ways:
 - Takeover: Maneuvers borrow one stalker from the engine's GOAP planner for one committed move, then hand him back.
-- Veto and answer: Commitment, Conduct, Sound and Danger answer the engine's own questions or deny its switches, and the engine keeps driving.
+- Veto and answer: Commitment, Conduct, Sound and Danger answer the engine's questions or deny its switches, and the engine keeps driving.
 - Value write: the rank curves, Gear and the mutant parameters write per-NPC numbers the engine reads.
 
 Two drivers run it: `at_core._run_monitor` every 200ms for stalkers near the player, and the mutant beat every 600ms inside `monster_on_update`. Every other system runs on an engine event.
@@ -21,7 +21,7 @@ It builds on xlibs, which owns every engine call that needs a guard, and on engi
 - Premise: a named check of objective state that finds an opening, a `_check_<move>` or `check_need` function.
 - Repertoire: the set of moves an individual carries, rolled once per record. It is Personality.
 - Intelligence: one roll at the moment of decision, `(base + per-rank x rank) / 100`, capped.
-- Panic: the move taken on an Intelligence miss, flee. Its gate token is `inv_int`.
+- Panic: flee, with a separate check against 1 - Intelligence. A dull individual flees more. Its gate token is `inv_int`.
 - Wild: a bounded spread of a mutant's numbers, with no roll.
 - Participant: a stalker the systems act on, `at_faction.is_participant`, every community but zombied.
 - Vulnerable: an enemy who cannot answer fire now, `at_core.is_enemy_vulnerable`.
@@ -30,7 +30,7 @@ It builds on xlibs, which owns every engine call that needs a guard, and on engi
 - `state.gate`: the takeover flag, the planner world property 188347, true while seized.
 - Gate radius: `gate_radius_m` around the player, read by `at_core.is_in_gate`. Maneuvers, Push, Pull and the mutant beat run inside it.
 - Block check: `_check_<action>_block`, the business gate, nil or a reason. `_can_<action>` is its engine-state part.
-- Row filter: the table reads before a maneuver walk. The die side walks a panic row only on an Intelligence miss.
+- Row filter: the table reads before a maneuver walk, then the Intelligence side. A fighting row needs the Intelligence check passed, and a panic row draws its inverse check last.
   The scope drops Counterflank in a fight with the player and every other row past the gate radius. The palette checks the row's weapon kinds against the stalker's weapon.
 - Liquidate: Commitment's deferral, a stalker who keeps firing past the hold cap while his enemy stays vulnerable.
 - Start: one begin of an action that spends from the start budget.
@@ -57,7 +57,7 @@ Lever shapes, by who owns the trigger:
 ```
 shape              roll                                 members
 per-opening        repertoire, then Intelligence        the maneuvers, Push, Pull, Liquidate, the mutant leaps, claw, backstrike, gravity throw, cloak
-panic              the Intelligence miss of the beat    flee, for stalkers and mutants
+panic              repertoire, then 1 - Intelligence    flee, for stalkers and mutants
 persistent trait   Intelligence then the faction [conduct] chance, cached  Conduct discipline, for the NPC's life, because the engine fires the behavior itself
 wild               none, a bounded spread               the mutant ability numbers, the leap force, the steering gain
 correctness        none                                 Commitment's switch denial, the danger scheme repairs, the targeting fixes
@@ -288,8 +288,8 @@ Stops: one open maneuver per stalker, bounded by the impose budget, ended on arr
 begin (try_maneuver -> _try_begin_maneuver):
   fighting: a live best enemy or a recent hit; a wounded enemy counts as none; the enemy is the player or a stalker
   _check_seize_block: not a companion, the graft registered, armed, outside smart cover, no playing animation, budget left
-  _select_maneuver: Intelligence once; a pass walks the fighting rows, a miss the panic row (flee)
-    _filter_rows: die side -> scope -> toggle -> repertoire -> palette -> loop guard -> shuffle -> check_need -> find_destination
+  _select_maneuver: the Intelligence chance once; the fighting rows need its check passed, flee draws 1 - Intelligence
+    _filter_rows: scope -> toggle -> repertoire -> palette -> loop guard -> Intelligence side -> shuffle -> check_need -> find_destination
   _check_repeat_limit -> _try_seize: spend a start, apply_takeover_block, raise the gate, stamp row, destination, committed target
 update (run_maneuver -> _update_maneuver): re-apply the row's state; skip while reloading or in a hit reaction
 end    (run_maneuver -> _try_end_maneuver): check_end, arrival or the cap; a lost target ends it
@@ -300,7 +300,7 @@ maneuver      need                                            destination       
 counterflank  the player close, the committed target farther  holds, aims at the player            FIRE; STILL    the cap
 reload_cover  reloading, a watcher has him in sight           nearest hiding cover                 READY; RUN     arrival, reload done
 flee          hurt, a threat in reach, the last man,          a far friendly base, away from       STOW; RUN      arrival or the cap
-              not under fire; taken on the Intelligence miss  the threat
+              not under fire; on its 1 - Intelligence check   the threat
 retreat       hurt, his spot exposed to a threat in reach     the best cover behind him            FIRE; WALK     arrival or the cap
 kite          a threat inside his weapon minimum              a clear lane back                    FIRE; WALK     arrival or the cap
 pickoff       stalled past the enemy's effective range        holds                                single; STILL  the cap or premise broken
@@ -606,8 +606,8 @@ monster_on_update -> at_mutants._on_mob_update
   each update -> contact lane: leap outcome, steering restore, claw
   adopt: species, map tier, [moves], repertoire, leap force, lead gain, Closing reach, jump auto-aim basis, gravi band, jump_delay, Wild offsets
   beat (600ms, _update_mutant): upkeep -> distance and motion sample -> held window (flee, gravity) skips -> is_in_gate -> Intelligence
-    miss -> flee
-    pass -> _filter_moves (repertoire, toggle, cooldowns) -> shuffle -> up to candidates: leaps / gravity / cloak / backstrike, the first fire wins
+    _filter_moves (repertoire, toggle, cooldowns, then a pass for the offensive moves and 1 - Intelligence for flee)
+      -> shuffle -> up to candidates: leaps / gravity / cloak / backstrike / flee, the first fire wins
 monster_on_combat_action -> proposes the run-away substate while a flee window holds
 before-hit callbacks: damage dealt (shit.draftsman) and taken (monster_on_before_hit); a 1.0 track skips the write
 ```
@@ -625,8 +625,8 @@ Pacing:
 - The gravity relay stamps the same key on an engine-fired throw.
 - The after-hit hold: when our offensive move lands on the player within a short window of its fire, no mutant starts an offensive move on him for `[caps] after_hit_ms`.
   `_on_actor_before_hit` sets it and `_check_start` reads it. The offensive moves are the leaps, claw, backstrike and gravity.
-  The creature's own attacks, flee, cloak and moves against NPCs neither start nor wait on it. Any hit inside the window counts as the move landing.
-- The jump rest: after any jump, ours too, the engine holds the creature's own next jump for its `jump_delay` from the glide start.
+  The creature's natural attacks, flee, cloak and moves against NPCs neither start nor wait on it. Any hit inside the window counts as the move landing.
+- The jump rest: after any jump, ours too, the engine holds the creature's next jump for its `jump_delay` from the glide start.
   `CControlJump::on_event` sets the rest, and `CControlJump::can_jump` checks it (`control_jump.cpp`).
   `[jump_delay]` writes the chimera and lurker values at adoption, and other species keep the install's value.
   Our leaps and claw obey the same rest on both engine lines. The release line never checks it for a script jump and PR #799 does,
@@ -660,7 +660,7 @@ The moves:
   - Closing leap, the bloodsucker and psysucker gap-closer: a perched enemy in reach, or the player aiming from mid range (`[closing_leap]`).
     The jump config does not load (`CAI_Bloodsucker::Load`). The claws strike after it lands.
   - Sight gate: the enemy sensed within `[leap] sense_ms` by the mutant's enemy memory (`xmonster.get_enemy_unseen_ms`).
-    The engine's own check reads the instant see bit (`CControlManagerCustom::check_attack_jump`).
+    The engine's jump check reads the instant see bit (`CControlManagerCustom::check_attack_jump`).
   - Feasibility: `xmonster.try_monster_jump` mirrors `can_jump`, which `script_try_jump` bypasses: restrictor, distance band where `jump_max_distance` exists, angle, height, force above 0, the rest.
   - A leap refuses while a jump holds the body.
 - Claw, chimera and lurker: the species jump at point blank without a crouch, within `[claw]` range and cone, on the contact lane, one Intelligence roll per contact.
@@ -672,7 +672,7 @@ The moves:
   The forced flag bypasses the engine gate (`burer_state_attack_gravi_inline.h`). The flag clears after `release_ms`.
   The handler checks the range band (`Gravi_MinDist`, `Gravi_MaxDist`), line of sight and facing.
 - Cloak, bloodsucker: aimed at or hit recently, outside point blank and visible, it forces `no_visibility` for a short window.
-- Flee, on the Intelligence miss: low health, the player far enough away, and the mutant not facing its enemy. The proposal subscriber proposes `eStateAttack_RunAway` for the window.
+- Flee, on a separate 1 - Intelligence check: low health, the player far enough away, and the mutant not facing its enemy. The proposal subscriber proposes `eStateAttack_RunAway` for the window.
   The bloodsucker and psysucker carry no flee, because their state manager applies a proposal above the attack substates (`bloodsucker_state_manager.cpp`).
 - The charge, the engine run-attack, stays the engine's. The completion relay traces it.
 
@@ -763,4 +763,23 @@ AlifeTactics/gamedata/
     ui/ui_at_stats.xml           the debug HUD layout
     text/eng, text/rus           the MCM strings
   textures/                      the MCM banner
+```
+
+Each config file and its sections, under `configs/alifetactics/`:
+
+```
+at_faction_config.ltx       [caps] the Intelligence cap
+                            [counterflank] [reload_cover] [flee] [retreat] [kite] [pickoff] [push] [pull] [liquidate]: one chance per faction for each action
+                            [conduct] the Conduct discipline chance per faction
+at_maneuvers_config.ltx     [at_maneuvers] the maneuver timers, guards and catalog values
+                            [at_core] the start budget
+at_mutants_config.ltx       [pages] [moves] the species pages and the move envelope per species
+                            [select] [cooldown] [caps] the candidate walk, the cooldowns and the after-hit hold
+                            [intelligence] the mutant Intelligence cap
+                            [premises] [threat] [motion] [survival] the reads the move premises share
+                            [leap] [lead] [adapt] [closing_leap] [claw] [cloak] [backstrike] [gravity_attack] the per-move values
+                            [jump_delay] the jump rest written at adoption
+                            [wild] the Wild spreads
+                            [personality_<move>] one chance per species for each move
+at_<system>_config.ltx      one section named after its module: at_ammo, at_behaviors, at_commitment, at_conduct, at_gear, at_reaction, at_sound
 ```
