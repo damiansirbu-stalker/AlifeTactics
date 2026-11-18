@@ -1,14 +1,14 @@
 1.2.2-snapshot
-  Mutant combat, one decision model for all, and sharper stalker senses
+  Mutant combat, a shared decision model, and sharper stalker senses
     Mutants now fight with new and revived moves, leaps, a claw, a rear strike, a gravity throw and a cloak, each taken when you give an opening.
-    Stalkers and mutants share one decision model. Intelligence rises with rank, and Personality comes from the faction or the species.
+    Stalkers and mutants share a decision model. Intelligence rises with rank, and Personality comes from the faction or the species.
     Other things you will notice. Stalkers hear you before they see you, notice a missed knife swing, retreat to real cover, mount looted scopes, and their guns jam only from wear.
 
   Combat
     General
       - Added Intelligence for stalkers, the chance that a stalker reads a moment of the fight right. It rises with rank.
       - Added Personality for stalkers, the set of actions a stalker carries, rolled from his faction's chances when he comes online.
-      - Changed flee to run when a stalker misreads the fight. A stalker who reads it right keeps fighting.
+      - Changed flee to a separate chance, which falls as Intelligence rises. A sharp stalker sometimes flees, and a dull one flees more often.
     Maneuvers
       - Changed the takeover so a stalker who comes online without a job, as at a full Warfare base, gets maneuvers once he enters combat.
       - Changed retreat to give ground to the best cover behind the stalker, and to end when he reaches it.
@@ -46,7 +46,7 @@
       - Changed Healing to work with GAMMA's Anti Lag, where a stalker healed once and then never used a medkit again.
     Attachments
       - Added attachment mounting. A stalker out of a fight fits the scope, silencer or grenade launcher that suits his pistol or rifle.
-      - A mounted scope tightens his aim when he shoots from a stop, by the base game's own scope bonus.
+      - A mounted scope tightens his aim when he shoots from a stop, by the scope bonus of the base game.
       - Companions mount what they loot, and what you hand a companion stays as you gave it.
     Jamming
       - Changed Jamming to drop only the fake jam the modded exes inject for NPCs. A worn NPC weapon now misfires by its condition, the same way yours does.
@@ -73,9 +73,13 @@
       - Added flee. A mutant near death may run from the fight when you are far enough, and a cornered one fights on.
     Managed moves
       - Changed the burer's gravity throw to fire when you look away from him or cannot answer, and to hold while you face him.
-      - Changed the bloodsucker's cloak to vanish when you aim at him or hit him as he closes in.
+      - Changed the bloodsucker's cloak to vanish when you aim at him or hit him.
     Influenced moves
       - Added ability variation. Wild spreads each species' ability numbers: burer gravity and telekinesis, controller psi tube, stamina and auras, poltergeist detection.
+
+  MCM
+    - Changed every page description, label and tooltip to plain words that explain each system and name what drives it.
+    - Fixed the version and compatibility line showing on the second Combat page. It now closes the first page.
 
   Development
     - Added the mutant rows to the debug HUD and the world trace.
@@ -86,7 +90,7 @@
 1.2.1
   Push and Pull, Faction flavor, and maneuvers in every fight near you
     Behaviors is a new page. The Push presses an enemy who cannot answer, and the Pull takes a weak stalker back to cover. Faction flavor sets how each faction fights.
-    Maneuvers now run in any stalker fight near you, under one shared budget. 2 targeting fixes merged into X-Ray turn a hit stalker on his shooter.
+    Maneuvers now run in any stalker fight near you, under a shared budget. 2 targeting fixes merged into X-Ray turn a hit stalker on his shooter.
     Other things you will notice. Stalkers keep their footing when hit, glance at creatures they hear, react to noise in proportion, and fewer danger bugs freeze or silence them.
 
   Combat
@@ -140,7 +144,7 @@
   Development
     - Added the planner operator that owns each stalker to the debug HUD, and scheme names in place of bare ids in the world trace.
     - Added the Liquidate, PUSH and PULL states to the debug HUD.
-    - Added a world trace line that tells the mod's own danger scheme from a stale sound the engine keeps alive.
+    - Added a world trace line that tells the AlifeTactics danger scheme from a stale sound the engine keeps alive.
     - Added combat checks to the world trace: idle with a clear shot, stance and target shuffles, a ghost target, blind fire, a reload loop and a gliding walk.
     - Added the cost of each admission check to the slow-danger watchdog line.
 
@@ -179,7 +183,7 @@
     - Changed the Danger tab to Perception. Vision has its own page, and the Hit and Fixes pages fold into Danger, with the always-on fixes shown as locked toggles.
     Sound
       - Fixed heard noise drawing no reaction on modpacks that mute NPC sound perception. The alert now starts the danger scheme on its own.
-      - Changed movement and jump noise to follow the installed pack's own NPC hearing tuning. Vanilla and GAMMA tuning are unchanged.
+      - Changed movement and jump noise to follow the NPC hearing tuning of the installed pack. Vanilla and GAMMA tuning are unchanged.
     Vision
       - Changed Vision Speed so every rank confirms a threat at least as fast as vanilla, and a high-rank squad is more alert.
       - Added Vision Range, how far out a stalker starts to notice a threat. A novice matches vanilla, and a legend sees farther.
@@ -206,7 +210,7 @@
   Movement noise, Reload Cover, Pickoff, cover posture and Target Lead
     Danger is a new tab and Conduct a new page. With Movement noise, stalkers hear your steps, jumps and reloads, and walk over to check the spot.
     Reload Cover, Pickoff, cover pinning, cover posture, Target Lead and Fire Discipline run on hooks merged into X-Ray.
-    Other things you will notice. Maneuver fire varies the way the engine's own fire does, a stalker stops healing while he fights, and zombied stalkers fight as vanilla.
+    Other things you will notice. Maneuver fire varies the way vanilla fire does, a stalker stops healing while he fights, and zombied stalkers fight as vanilla.
 
   Combat
     - Changed zombied stalkers to fight as vanilla drives them. Maneuvers, Commitment and the rank curves skip them.
@@ -214,11 +218,11 @@
       - Added Reload Cover. A stalker caught reloading in your line runs to the nearest cover and finishes the reload on the way. Out of your line, he stays put.
       - Fixed a maneuver's fire order cancelling a reload in progress, which made a pressed stalker rack the bolt again and again. He now walks weapon-up until the reload ends.
       - Changed Snipe into Pickoff, for any weapon. A stalker who outranges his enemy holds his ground and picks him off with aimed single shots until the enemy closes in.
-      - Changed maneuver fire to vary each burst's length and pause the way the engine's own fire does, by weapon and by Fire Discipline rank.
+      - Changed maneuver fire to vary each burst's length and pause the way vanilla fire does, by weapon and by Fire Discipline rank.
     Commitment
       - Added cover pinning. A stalker firing with a clear shot keeps his cover instead of strafing to another one mid-fight.
     Conduct
-      - Added cover posture. Riflemen and snipers crouch behind real chest-high cover toward the enemy and stand when there is none, read from the game's own cover map.
+      - Added cover posture. Riflemen and snipers crouch behind real chest-high cover toward the enemy and stand when there is none, read from the base game's cover map.
 
   Effectiveness
     Accuracy
