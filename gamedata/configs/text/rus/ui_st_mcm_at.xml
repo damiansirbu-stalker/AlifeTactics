@@ -1,29 +1,24 @@
 <?xml version="1.0" encoding="windows-1251"?>
 <string_table>
   <!-- ==================== MAIN MENU ==================== -->
-  <!-- ==================== TAB NAMES ==================== -->
-  <!-- ==================== SHARED ==================== -->
-  <!-- ==================== HIT SHARING TAB ==================== -->
-  <!-- ==================== HEALING TAB ==================== -->
-  <!-- Healing - Heal Rate -->
-  <!-- Healing - Healing Charge -->
-  <!-- Healing - Visual Layer -->
-  <!-- ==================== ACCURACY TAB ==================== -->
-  <!-- ==================== STANCE SWITCH TAB ==================== -->
-  <!-- ==================== DEVELOPMENT TAB ==================== -->
-  <!-- Development - Logging -->
-  <!-- Development - Reset -->
   <string id="ui_mcm_menu_at">
     <text>AlifeTactics</text>
   </string>
+  <!-- ==================== CATEGORY FOLDERS ==================== -->
   <string id="ui_mcm_menu_combat">
     <text>Бой</text>
   </string>
   <string id="ui_mcm_menu_effectiveness">
     <text>Эффективность</text>
   </string>
+  <string id="ui_mcm_menu_perception">
+    <text>Восприятие</text>
+  </string>
   <string id="ui_mcm_menu_mechanics">
     <text>Механика</text>
+  </string>
+  <string id="ui_mcm_menu_vanilla_fixes">
+    <text>Исправления</text>
   </string>
   <string id="ui_mcm_menu_effects">
     <text>Эффекты</text>
@@ -31,6 +26,7 @@
   <string id="ui_mcm_menu_mutants">
     <text>Мутанты</text>
   </string>
+  <!-- ==================== PAGE NAMES ==================== -->
   <string id="ui_mcm_menu_maneuvers">
     <text>Манёвры</text>
   </string>
@@ -43,9 +39,9 @@
   <string id="ui_mcm_menu_sound">
     <text>Звук</text>
   </string>
-  <TMPSOUND/>
-  <TMPHIT/>
-  <TMPFIXES/>
+  <string id="ui_mcm_menu_vision">
+    <text>Зрение</text>
+  </string>
   <string id="ui_mcm_menu_crossfire">
     <text>Перекрёстный огонь</text>
   </string>
@@ -58,111 +54,419 @@
   <string id="ui_mcm_menu_ammo">
     <text>Боеприпасы</text>
   </string>
+  <string id="ui_mcm_menu_attachments">
+    <text>Обвесы</text>
+  </string>
+  <string id="ui_mcm_menu_gear">
+    <text>Снаряжение</text>
+  </string>
   <string id="ui_mcm_menu_development">
     <text>Разработка</text>
   </string>
+  <!-- ==================== PLANNED SUB-PAGES ==================== -->
   <string id="ui_mcm_menu_behaviors">
-    <text>Поведения</text>
+    <text>Поведение</text>
   </string>
   <string id="ui_mcm_menu_commitment">
-    <text>Приверженность</text>
+    <text>Упорство</text>
+  </string>
+  <string id="ui_mcm_menu_conduct">
+    <text>Выучка</text>
   </string>
   <string id="ui_mcm_menu_reaction">
     <text>Реакция</text>
   </string>
+  <string id="ui_mcm_menu_discipline">
+    <text>Дисциплина</text>
+  </string>
   <string id="ui_mcm_menu_range">
     <text>Дистанция</text>
   </string>
-  <string id="ui_mcm_at_title">
-    <text>AlifeTactics</text>
+  <!-- ==================== PLANNED PAGE DESCRIPTIONS ==================== -->
+  <string id="ui_mcm_at_combat_general_desc">
+    <text>Интеллект - это шанс, что сталкер примет в бою верное решение. Он растёт с его Рангом, и даже легенда иногда ошибается. Характер - это то, как воюет его фракция, по типам характеров, которые GSC задумала для Зоны. Одни фракции держат позицию, другие давят или бегут, и два сталкера одной фракции всё равно могут воевать по-разному.</text>
+  </string>
+  <string id="ui_mcm_at_general_int_base">
+    <text>Интеллект, база (%)</text>
+  </string>
+  <string id="ui_mcm_at_general_int_base_desc">
+    <text>Задаёт шанс, что новичок примет верное решение, и каждый ранг выше добавляет к нему. Шанс не превышает 75 процентов при любом Ранге.</text>
+  </string>
+  <string id="ui_mcm_at_general_int_rank_pct">
+    <text>Интеллект за Ранг (%)</text>
+  </string>
+  <string id="ui_mcm_at_general_int_rank_pct_desc">
+    <text>Каждый ранг выше новичка добавляет столько к шансу верного решения.</text>
   </string>
   <string id="ui_mcm_at_behaviors_desc">
-    <text>Сталкеры пользуются слабыми моментами боя, в обе стороны и против любого врага. Натиск: сталкер, чей враг не может ответить, давит его - будь этот враг вами или другим бойцом. Отход: сталкер, застигнутый уязвимым, пока его враг силён, отходит, пока не восстановится.</text>
+    <text>Натиск и Отход срабатывают в слабые моменты боя, против вас или другого сталкера. Натиск давит врага, который не может ответить, а Отход уводит сталкера назад, пока слаб он сам. Каждый заканчивается, когда момент проходит.</text>
   </string>
   <string id="ui_mcm_at_behaviors_push_enabled">
     <text>Натиск на уязвимую цель</text>
   </string>
   <string id="ui_mcm_at_behaviors_push_enabled_desc">
-    <text>Боец, застигнутый с опущенным оружием или тяжело раненный, попадает под натиск своих противников: их огонь плотнеет на ближней дистанции, а при явном преимуществе они перебираются в более близкие укрытия. Работает и против вас, и между NPC. Всё возвращается к норме, как только цель снова может отвечать. На отладочном HUD отображается как PUSH.</text>
+    <text>Противники бьют более длинными очередями по цели, которая не может ответить, и переходят в более близкие укрытия, когда она истекает кровью или поворачивается спиной. (Интеллект, Характер)</text>
   </string>
   <string id="ui_mcm_at_behaviors_push_reload">
     <text>Натиск на перезарядке и с пустым магазином</text>
   </string>
   <string id="ui_mcm_at_behaviors_push_reload_desc">
-    <text>Давит бойца, чьё оружие опущено в разгар боя: перезарядка или пустой магазин. Натиск заканчивается, когда оружие снова поднято.</text>
+    <text>Натиск начинается, когда его цель перезаряжается или остаётся с пустым магазином, и заканчивается, когда оружие снова поднято.</text>
   </string>
   <string id="ui_mcm_at_behaviors_push_finisher">
     <text>Натиск на ослабленную цель</text>
   </string>
   <string id="ui_mcm_at_behaviors_push_finisher_desc">
-    <text>Давит тяжело раненного бойца: здоровые противники сближаются, чтобы закончить бой, вместо перестрелки на дистанции. Заканчивается, когда он приходит в себя.</text>
+    <text>Здоровые противники сближаются с тяжело раненной целью, чтобы закончить бой, пока она не придёт в себя.</text>
   </string>
   <string id="ui_mcm_at_behaviors_pull_enabled">
     <text>Отход в уязвимый момент</text>
   </string>
   <string id="ui_mcm_at_behaviors_pull_enabled_desc">
-    <text>Зеркало натиска: сталкер, застигнутый перезарядкой или тяжело раненный, пока его противник силён, отходит - его собственные укрытия выбираются дальше, пока он не восстановится. Самосохранение важнее натиска на его цель. На отладочном HUD отображается как PULL.</text>
+    <text>Сталкер, который перезаряжается или ранен после попадания, отходит к более дальнему укрытию, пока его враг силён, и Отход заканчивается, когда он приходит в себя. (Интеллект, Характер)</text>
   </string>
   <string id="ui_mcm_at_commitment_desc">
-    <text>Ванильные сталкеры пересчитывают бой каждое мгновение, поэтому любое мелкое изменение - чуть более удобное укрытие, потеря цели из виду на миг, союзник, пересёкший линию огня - заставляет сталкера бросить начатое и выбирать заново. Это постоянное перерешивание и есть та дёрганая беготня между укрытиями, которую вы видите в бою. Приверженность прекращает это, не забирая сталкера под контроль: пока то, что он делает, ещё имеет смысл, он держится за это, а не меняет на чуть лучший вариант, и переключается в тот же миг, когда смысл теряется (потерял цель из виду, выстрел перекрыт, враг исчез). В итоге сталкер доводит решение до конца - продолжает вести огонь, идёт во фланг, дозаряжается на месте - вместо того чтобы сомневаться в себе каждый кадр. Требуется свежая сборка движка с вето на смену действия; на старых сборках переключатель не действует и применяется ванильное поведение.</text>
+    <text>Упорство держит сталкера на огневом действии у того же укрытия, пока оно работает. Он переключается, как только теряет цель из виду, его выстрел перекрыт или враг исчез. Не действует на modded exes без этой возможности.</text>
+  </string>
+  <string id="ui_mcm_at_conduct_desc">
+    <text>Выучка даёт дисциплинированным сталкерам лучшие привычки в том, как держать укрытие и на какой дистанции воевать. У сталкера эта выучка есть на всю жизнь или нет совсем, и чаще всего она есть у обученных военных фракций. Не действует на modded exes без этой возможности.</text>
+  </string>
+  <string id="ui_mcm_at_conduct_conduct_posture">
+    <text>Стойка у укрытия</text>
+  </string>
+  <string id="ui_mcm_at_conduct_conduct_posture_desc">
+    <text>Опытный стрелок или снайпер приседает для стрельбы, когда линия до врага из приседа свободна, и встаёт, чтобы стрелять поверх низкого укрытия, которое её перекрывает. (Интеллект, Характер)</text>
+  </string>
+  <string id="ui_mcm_at_conduct_conduct_spacing">
+    <text>Дистанция по оружию</text>
+  </string>
+  <string id="ui_mcm_at_conduct_conduct_spacing_desc">
+    <text>Дисциплинированный сталкер выбирает укрытие под своё оружие: ближе с пистолетом-пулемётом и дальше со снайперской винтовкой по мере роста ранга. (Интеллект, Характер)</text>
   </string>
   <string id="ui_mcm_at_reaction_desc">
-    <text>Ранг сталкера определяет, насколько плотно его оружие сопровождает движущуюся цель и насколько сильно упреждает бегущую. Сопровождение меняет обращение с оружием по движущейся цели; оно не ускоряет первый выстрел. Упреждение задаёт, насколько впереди бегущего ложатся выстрелы, и растёт с рангом. Требуется свежая сборка движка с движковыми привязками прицеливания для каждого сталкера; на старых сборках страница не действует и применяется ванильное поведение.</text>
+    <text>Реакция даёт каждому рангу своё прицеливание: как быстро ствол следует за движущейся целью, как плотно держит цель, которая бегает боком, и насколько верно он упреждает бегущего. Не действует на modded exes без этой возможности.</text>
+  </string>
+  <string id="ui_mcm_at_discipline_desc">
+    <text>Дисциплина даёт каждому рангу свою манеру стрельбы очередями, и высокие ранги стреляют более короткими очередями и чаще. Не действует на modded exes без этой возможности.</text>
   </string>
   <string id="ui_mcm_at_range_desc">
-    <text>Планируется: дистанция боя. Игра останавливает бои NPC на жёстком пределе дальности независимо от оружия, поэтому снайпер никогда не стреляет на дистанциях, ради которых существует его винтовка, а сталкер, обстрелянный из-за предела, может укрыться (реакция на попадание из раздела Опасность), но не ответить. Эта страница позволит дальнобойным NPC отвечать и начинать бой на реальной дальности их оружия. Пока нечего настраивать.</text>
+    <text>Планируется: сталкеры отвечают и открывают огонь на всю дальность своего оружия. Сейчас сталкер, обстрелянный из-за дистанции боя, может только укрыться. Настроек пока нет.</text>
   </string>
   <string id="ui_mcm_at_effects_desc">
-    <text>Планируется: боевая обратная связь для игрока, в первую очередь контузия. Пока нечего настраивать.</text>
+    <text>Планируется: боевая обратная связь для игрока, в первую очередь контузия. Настроек пока нет.</text>
   </string>
-  <string id="ui_mcm_at_mutants_desc">
-    <text>Планируется: боевое поведение мутантов. Пока нечего настраивать.</text>
+  <!-- ==================== MUTANTS ==================== -->
+  <string id="ui_mcm_menu_general">
+    <text>Общее</text>
   </string>
+  <string id="ui_mcm_menu_power">
+    <text>Сила</text>
+  </string>
+  <string id="ui_mcm_menu_chimera">
+    <text>Химера</text>
+  </string>
+  <string id="ui_mcm_menu_bloodsucker">
+    <text>Кровосос</text>
+  </string>
+  <string id="ui_mcm_menu_burer">
+    <text>Бюрер</text>
+  </string>
+  <string id="ui_mcm_menu_controller">
+    <text>Контролёр</text>
+  </string>
+  <string id="ui_mcm_menu_poltergeist">
+    <text>Полтергейст</text>
+  </string>
+  <string id="ui_mcm_menu_dog">
+    <text>Слепой пёс</text>
+  </string>
+  <string id="ui_mcm_menu_boar">
+    <text>Кабан</text>
+  </string>
+  <string id="ui_mcm_menu_snork">
+    <text>Снорк</text>
+  </string>
+  <string id="ui_mcm_menu_pseudodog">
+    <text>Псевдособака</text>
+  </string>
+  <string id="ui_mcm_menu_gigant">
+    <text>Псевдогигант</text>
+  </string>
+  <string id="ui_mcm_menu_cat">
+    <text>Кот</text>
+  </string>
+  <string id="ui_mcm_menu_flesh">
+    <text>Плоть</text>
+  </string>
+  <string id="ui_mcm_menu_fracture">
+    <text>Излом</text>
+  </string>
+  <string id="ui_mcm_menu_karlik">
+    <text>Карлик</text>
+  </string>
+  <string id="ui_mcm_menu_tushkano">
+    <text>Тушкан</text>
+  </string>
+  <string id="ui_mcm_at_mutants_general_desc">
+    <text>Интеллект - это шанс, что мутант сделает в бою верный ход. Он растёт с Уровнем карты, от Кордона до Юпитера и Припяти, но даже там мутант иногда ошибается. Характер - это набор приёмов, который несёт мутант, по видам, задуманным GSC. Две химеры одной стаи всё равно могут драться по-разному. Дикость - это то, насколько числа одного вида расходятся между особями, например сила прыжка. Мутант выдерживает паузу между своими приёмами. Если один из этих приёмов попал по вам, ни один мутант какое-то время не начинает против вас новый. Поэтому стая нападает на вас по очереди.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_power_desc">
+    <text>Живучесть мутанта, масштабированная рангом карты (карты новичков ранг 0, финальные карты ранг 5): сопротивление урону растёт на процент ползунка за каждый ранг. Умножает установленный баланс, поэтому другие переработки мутантов сохраняют свои числа.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_chimera_desc">
+    <text>Химера и кикимора.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_bloodsucker_desc">
+    <text>Кровосос и пси-кровосос.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_burer_desc">
+    <text>Бюрер.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_controller_desc">
+    <text>Контролёр.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_poltergeist_desc">
+    <text>Полтергейст.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_dog_desc">
+    <text>Слепой пёс.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_boar_desc">
+    <text>Кабан.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_snork_desc">
+    <text>Снорк.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_pseudodog_desc">
+    <text>Псевдособака и пси-собака.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_gigant_desc">
+    <text>Псевдогигант.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_cat_desc">
+    <text>Кот.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_flesh_desc">
+    <text>Плоть.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_fracture_desc">
+    <text>Излом.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_karlik_desc">
+    <text>Карлик.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_tushkano_desc">
+    <text>Тушкан.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_managed">
+    <text>Управляемые приёмы</text>
+  </string>
+  <string id="ui_mcm_at_mutants_new">
+    <text>Новые приёмы</text>
+  </string>
+  <string id="ui_mcm_at_mutants_influenced">
+    <text>Изменённые приёмы</text>
+  </string>
+  <string id="ui_mcm_at_mutants_new_desc">
+    <text>Характер решает, какие из этих приёмов несёт мутант, а Интеллект решает, когда пустить их в ход.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_managed_desc">
+    <text>Существо продолжает использовать эти атаки так, как их сделала игра. Сверх того Интеллект выбирает верный момент, например гравиатаку, пока вы перезаряжаетесь, или невидимость, когда вы целитесь. Характер решает, будет ли мутант вообще так их использовать.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_influenced_desc">
+    <text>Эти способности работают так, как их сделала игра. Дикость разносит их числа между особями. При 0 они сохраняют значения игры.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_mut_int_base">
+    <text>Интеллект, база (%)</text>
+  </string>
+  <string id="ui_mcm_at_mutants_mut_int_base_desc">
+    <text>Задаёт шанс, что мутант на Кордоне и в Болотах сделает верный ход, и каждый Уровень карты выше добавляет к нему. Шанс не превышает 75 процентов при любом Уровне карты.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_mut_int_rank_pct">
+    <text>Интеллект за Уровень карты (%)</text>
+  </string>
+  <string id="ui_mcm_at_mutants_mut_int_rank_pct_desc">
+    <text>Каждый Уровень карты выше Кордона добавляет столько к шансу верного хода.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_mut_wild">
+    <text>Дикость (%)</text>
+  </string>
+  <string id="ui_mcm_at_mutants_mut_wild_desc">
+    <text>Чем выше значение, тем шире расходятся числа одного вида между особями, например сила прыжка и дальность гравиатаки. При 0 у всех мутантов одного вида одинаковые числа.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_mut_damage_pct">
+    <text>Урон за ранг (%)</text>
+  </string>
+  <string id="ui_mcm_at_mutants_mut_damage_pct_desc">
+    <text>Сила удара растёт на этот процент за каждый ранг карты: ранг 0 остаётся ванильным, ранг 5 получает пятикратный бонус.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_mut_resist_pct">
+    <text>Сопротивление за ранг (%)</text>
+  </string>
+  <string id="ui_mcm_at_mutants_mut_resist_pct_desc">
+    <text>Урон, который получает мутант, уменьшается на этот процент за каждый ранг карты, поэтому мутант из глубины Зоны отмахивается от огня, который мутант с Кордона почувствовал бы.</text>
+  </string>
+  <string id="ui_mcm_at_mutants_high_leap">
+    <text>Прыжок вверх</text>
+  </string>
+  <string id="ui_mcm_at_mutants_high_leap_desc">
+    <text>Прыгает вверх на врага, который стоит выше мутанта, например на камне, даже вблизи. Все виды, кроме химеры и кикиморы, сначала приседают, и у вас есть время среагировать. (Интеллект, Характер, Дикость)</text>
+  </string>
+  <string id="ui_mcm_at_mutants_punishing_leap">
+    <text>Карающий прыжок</text>
+  </string>
+  <string id="ui_mcm_at_mutants_punishing_leap_desc">
+    <text>Сразу бросается на врага, который целится в мутанта, и на того, кто не может ответить огнём, например пока вы перезаряжаетесь, бежите или отворачиваетесь. (Интеллект, Характер, Дикость)</text>
+  </string>
+  <string id="ui_mcm_at_mutants_hunting_leap">
+    <text>Охотничий прыжок</text>
+  </string>
+  <string id="ui_mcm_at_mutants_hunting_leap_desc">
+    <text>Бросается на движущегося врага и доворачивает к нему в воздухе. Все виды, кроме химеры и кикиморы, сначала приседают. (Интеллект, Характер, Дикость)</text>
+  </string>
+  <string id="ui_mcm_at_mutants_feral_leap">
+    <text>Яростный прыжок</text>
+  </string>
+  <string id="ui_mcm_at_mutants_feral_leap_desc">
+    <text>Бросается на движущегося врага без приседа и доворачивает к нему в воздухе. (Интеллект, Характер, Дикость)</text>
+  </string>
+  <string id="ui_mcm_at_mutants_catching_leap">
+    <text>Перехватывающий прыжок</text>
+  </string>
+  <string id="ui_mcm_at_mutants_catching_leap_desc">
+    <text>Целится в точку, где движущийся враг окажется, когда мутант приземлится, и не доворачивает в воздухе. Все виды, кроме химеры и кикиморы, сначала приседают. Умный мутант берёт больше упреждения. (Интеллект, Характер, Дикость)</text>
+  </string>
+  <string id="ui_mcm_at_mutants_cutoff_leap">
+    <text>Отсекающий прыжок</text>
+  </string>
+  <string id="ui_mcm_at_mutants_cutoff_leap_desc">
+    <text>Без приседа целится в точку, где движущийся враг окажется, когда мутант приземлится, и не доворачивает в воздухе. Умный мутант берёт больше упреждения. (Интеллект, Характер, Дикость)</text>
+  </string>
+  <string id="ui_mcm_at_mutants_closing_leap">
+    <text>Сближающий прыжок</text>
+  </string>
+  <string id="ui_mcm_at_mutants_closing_leap_desc">
+    <text>Сокращает дистанцию до врага на возвышении, а также до вас, если вы целитесь в кровососа со средней дистанции. Сам прыжок не наносит урона, но когти бьют, как только кровосос приземлится. (Интеллект, Характер, Дикость)</text>
+  </string>
+  <string id="ui_mcm_at_mutants_backstrike">
+    <text>Удар назад</text>
+  </string>
+  <string id="ui_mcm_at_mutants_backstrike_desc">
+    <text>Разворачивается и бьёт врага сбоку или сзади от мутанта вблизи. (Интеллект, Характер)</text>
+  </string>
+  <string id="ui_mcm_at_mutants_claw">
+    <text>Удар когтями</text>
+  </string>
+  <string id="ui_mcm_at_mutants_claw_desc">
+    <text>Бьёт в упор без приседа, если химера или кикимора стоит к врагу лицом вблизи. (Интеллект, Характер)</text>
+  </string>
+  <string id="ui_mcm_at_mutants_gravity_attack">
+    <text>Гравиатака</text>
+  </string>
+  <string id="ui_mcm_at_mutants_gravity_attack_desc">
+    <text>Бросает, когда вы отводите взгляд от бюрера, а также когда вы не можете ответить огнём, например пока перезаряжаетесь. В такой момент щит бюреру не нужен. (Интеллект, Характер)</text>
+  </string>
+  <string id="ui_mcm_at_mutants_gravity_numbers">
+    <text>Числа гравиатаки</text>
+  </string>
+  <string id="ui_mcm_at_mutants_gravity_numbers_desc">
+    <text>Разносит, как часто бюрер бросает гравиатаку, а также дальность, скорость и радиус броска. (Дикость)</text>
+  </string>
+  <string id="ui_mcm_at_mutants_telekinesis">
+    <text>Телекинез</text>
+  </string>
+  <string id="ui_mcm_at_mutants_telekinesis_desc">
+    <text>Разносит, сколько предметов поднимает бюрер, как далеко он их находит, с какой дистанции бросает и как быстро они летят. (Дикость)</text>
+  </string>
+  <string id="ui_mcm_at_mutants_psi_tube">
+    <text>Пси-тоннель</text>
+  </string>
+  <string id="ui_mcm_at_mutants_psi_tube_desc">
+    <text>Разносит, как долго контролёр должен видеть вас перед пси-атакой, и паузу между двумя атаками. (Дикость)</text>
+  </string>
+  <string id="ui_mcm_at_mutants_stamina">
+    <text>Выносливость</text>
+  </string>
+  <string id="ui_mcm_at_mutants_stamina_desc">
+    <text>Разносит, сколько выносливости отнимает у вас удар контролёра. (Дикость)</text>
+  </string>
+  <string id="ui_mcm_at_mutants_aura">
+    <text>Аура</text>
+  </string>
+  <string id="ui_mcm_at_mutants_aura_desc">
+    <text>Разносит силу и радиус аур контролёра. (Дикость)</text>
+  </string>
+  <string id="ui_mcm_at_mutants_detection">
+    <text>Обнаружение</text>
+  </string>
+  <string id="ui_mcm_at_mutants_detection_desc">
+    <text>Разносит, с какого расстояния полтергейст чувствует вас, как быстро вас выдаёт ваше движение и как скоро он теряет вас снова. (Дикость)</text>
+  </string>
+  <string id="ui_mcm_at_mutants_cloak">
+    <text>Невидимость</text>
+  </string>
+  <string id="ui_mcm_at_mutants_cloak_desc">
+    <text>Кровосос ненадолго исчезает, если вы целитесь в него или попадаете по нему, а потом снова появляется. Подобравшись на расстояние удара, кровосос вместо этого атакует. (Интеллект, Характер)</text>
+  </string>
+  <string id="ui_mcm_at_mutants_flee">
+    <text>Бегство</text>
+  </string>
+  <string id="ui_mcm_at_mutants_flee_desc">
+    <text>Тяжело раненный мутант на время убегает из боя, если его враг не рядом и мутант не стоит к нему лицом. Мутант с низким Интеллектом убегает чаще. (Интеллект, Характер, Дикость)</text>
+  </string>
+  <!-- ==================== SHARED ==================== -->
+  <string id="ui_mcm_at_title">
+    <text>AlifeTactics</text>
+  </string>
+  <!-- ==================== HEALING PAGE ==================== -->
   <string id="ui_mcm_at_healing_desc">
-    <text>Раненые сталкеры лечатся аптечками и бинтами, которые несут, и это видно: раненый хромает, лечащийся проигрывает жест, только вне боя. Ваниль поставляет списки лечебных предметов пустыми, поэтому носимые аптечки никогда не использовались, и раненые умирали с полными карманами. AlifeTactics восстанавливает списки при загрузке. Скорость лечения, заряд по рангу для пустых карманов и анимации настраиваются ниже.</text>
+    <text>Лечение позволяет раненым сталкерам пользоваться аптечками и бинтами, которые у них есть, и это видно: раненый хромает, а лечащийся показывает жест.</text>
   </string>
   <string id="ui_mcm_at_healing_healing_enabled">
     <text>Включить лечение</text>
   </string>
   <string id="ui_mcm_at_healing_healing_enabled_desc">
-    <text>Главный переключатель рантайм-слоя: масштабирование скорости лечения и заряд лечения по рангу. Когда выключено, ванильное самолечение работает без изменений. Для переключения требуется перезапуск. Восстановление списка предметов происходит при загрузке и всегда активно.</text>
+    <text>Добавляет скорость лечения, лечебный заряд по рангу и паузу в лечении, пока он сражается. Списки предметов остаются восстановленными и при выключенной настройке.</text>
   </string>
+  <!-- Healing - Heal Rate -->
   <string id="ui_mcm_at_hdr_heal_rate">
     <text>Скорость лечения</text>
   </string>
   <string id="ui_mcm_at_healing_heal_rate_multiplier">
-    <text>Множитель скорости лечения</text>
+    <text>Множитель скорости лечения (x)</text>
   </string>
   <string id="ui_mcm_at_healing_heal_rate_multiplier_desc">
-    <text>Масштабирует, сколько здоровья восстанавливает каждый тик самолечения. При 2.0 аптечка лечит вдвое быстрее, при 0.5 -- вдвое медленнее. Количество тиков фиксировано движком.</text>
+    <text>Масштабирует, сколько здоровья восстанавливает каждое лечение. 2.0 лечит вдвое быстрее, а 0.5 вдвое медленнее.</text>
   </string>
+  <!-- Healing - Healing Charge -->
   <string id="ui_mcm_at_hdr_healing_charge">
-    <text>Заряд лечения</text>
+    <text>Лечебный заряд</text>
   </string>
   <string id="ui_mcm_at_healing_charge_chance_novice">
     <text>Шанс заряда у новичка (%)</text>
   </string>
   <string id="ui_mcm_at_healing_charge_chance_novice_desc">
-    <text>Вероятность того, что сталкеру ранга новичок выдаётся один пожизненный заряд лечения при первом спавне. Заряд срабатывает один раз, когда сталкер опускается ниже порога лечения без аптечки в инвентаре. Ваниль ролит плоские 50% для каждого ранга.</text>
+    <text>Шанс, что у новичка есть лечебный заряд, который он использует, когда ранен, а аптечек не осталось. 50 процентов - значение игры для всех рангов.</text>
   </string>
   <string id="ui_mcm_at_healing_charge_chance_experienced">
     <text>Шанс заряда у опытного (%)</text>
   </string>
   <string id="ui_mcm_at_healing_charge_chance_experienced_desc">
-    <text>Вероятность для сталкеров ранга опытный.</text>
+    <text>Тот же шанс для опытного сталкера.</text>
   </string>
   <string id="ui_mcm_at_healing_charge_chance_veteran">
     <text>Шанс заряда у ветерана (%)</text>
   </string>
   <string id="ui_mcm_at_healing_charge_chance_veteran_desc">
-    <text>Вероятность для сталкеров ранга ветеран.</text>
+    <text>Тот же шанс для ветерана.</text>
   </string>
   <string id="ui_mcm_at_healing_charge_chance_master">
     <text>Шанс заряда у мастера (%)</text>
   </string>
   <string id="ui_mcm_at_healing_charge_chance_master_desc">
-    <text>Вероятность для сталкеров ранга мастер.</text>
+    <text>Тот же шанс для мастера.</text>
   </string>
+  <!-- Healing - Visual Layer -->
   <string id="ui_mcm_at_hdr_visuals">
     <text>Визуальный слой</text>
   </string>
@@ -170,179 +474,687 @@
     <text>Анимация хромоты</text>
   </string>
   <string id="ui_mcm_at_healing_limping_anim_enabled_desc">
-    <text>Сталкеры вне боя ниже порога здоровья заметно хромают: раненая стойка в неподвижности, раненая ходьба при движении, под стать носимому оружию. Сражающиеся сталкеры исключены, чтобы боевая стойка никогда не нарушалась.</text>
+    <text>Раненый сталкер рядом с вами хромает вне боя, стоя или на ходу, под то оружие, которое у него в руках. Бой прекращает хромоту.</text>
   </string>
   <string id="ui_mcm_at_healing_limping_health_threshold">
     <text>Порог здоровья для хромоты</text>
   </string>
   <string id="ui_mcm_at_healing_limping_health_threshold_desc">
-    <text>Доля здоровья, ниже которой подходящий сталкер начинает хромать. Меньшие значения откладывают сигнал до более серьёзного ранения.</text>
+    <text>Здоровье, ниже которого сталкер хромает. Меньшие значения ждут, пока он будет ранен тяжелее.</text>
   </string>
   <string id="ui_mcm_at_healing_healing_anim_enabled">
     <text>Анимация лечения</text>
   </string>
   <string id="ui_mcm_at_healing_healing_anim_enabled_desc">
-    <text>Проигрывает жест аптечки или бинта, когда сталкер начинает цикл лечения, только вне боя. Движок очищает его по завершении жеста.</text>
+    <text>Сталкер рядом с вами показывает жест аптечки или бинта, когда начинает лечиться, только вне боя.</text>
   </string>
+  <!-- ==================== ACCURACY PAGE ==================== -->
   <string id="ui_mcm_at_accuracy_desc">
-    <text>Точность сталкера масштабируется по рангу. Мастер стреляет точнее новичка, каждый тир настраивается ниже. У движка есть кривая разброса по рангу, но данные рангов Anomaly оставляют её плоской, поэтому каждый сталкер стреляет с одинаковым разбросом. AlifeTactics ведёт кривую через собственный коллбэк разброса движка. Разброс оружия и ствола не затрагивается. Здесь масштабируется навык сталкера.</text>
+    <text>Точность даёт каждому рангу свой разброс: плотный у легенды и широкий у новичка. Стрельба на ходу добавляет вторую кривую, и высокий ранг держит прицел ровнее, когда идёт или бежит.</text>
+  </string>
+  <string id="ui_mcm_at_accuracy_disp_enabled">
+    <text>Включить разброс</text>
+  </string>
+  <string id="ui_mcm_at_accuracy_disp_enabled_desc">
+    <text>Каждый ранг стреляет со своим разбросом, широким у новичка и плотным у легенды. (Ранг)</text>
+  </string>
+  <string id="ui_mcm_at_accuracy_move_enabled">
+    <text>Включить стрельбу на ходу</text>
+  </string>
+  <string id="ui_mcm_at_accuracy_move_enabled_desc">
+    <text>Высокие ранги сохраняют прицел, когда стреляют на ходу. (Ранг)</text>
   </string>
   <string id="ui_mcm_at_hdr_accuracy_curve">
-    <text>Кривая по рангам</text>
+    <text>Точность по рангу</text>
   </string>
-  <string id="ui_mcm_at_accuracy_acc_disp_novice">
-    <text>Разброс у новичка</text>
+  <string id="ui_mcm_at_accuracy_acc_disp_base">
+    <text>Разброс, база (x)</text>
   </string>
-  <string id="ui_mcm_at_accuracy_acc_disp_novice_desc">
-    <text>Ширина конуса выстрела для сталкеров ранга новичок. Ниже -- уже и смертоноснее. 1.00 соответствует ванильному конусу.</text>
+  <string id="ui_mcm_at_accuracy_acc_disp_base_desc">
+    <text>Разброс новичка как множитель ванили. Меньше значит плотнее, а 1.00 - это ваниль.</text>
   </string>
-  <string id="ui_mcm_at_accuracy_acc_disp_trainee">
-    <text>Разброс у ученика</text>
+  <string id="ui_mcm_at_accuracy_acc_disp_rank_pct">
+    <text>Разброс за Ранг (%)</text>
   </string>
-  <string id="ui_mcm_at_accuracy_acc_disp_trainee_desc">
-    <text>Ширина конуса выстрела для сталкеров ранга ученик. Ниже -- уже.</text>
+  <string id="ui_mcm_at_accuracy_acc_disp_rank_pct_desc">
+    <text>Каждый ранг выше новичка меняет разброс на столько. Отрицательные значения сужают его с ростом ранга.</text>
   </string>
-  <string id="ui_mcm_at_accuracy_acc_disp_experienced">
-    <text>Разброс у опытного</text>
+  <string id="ui_mcm_at_hdr_accuracy_move">
+    <text>Стрельба на ходу</text>
   </string>
-  <string id="ui_mcm_at_accuracy_acc_disp_experienced_desc">
-    <text>Ширина конуса выстрела для сталкеров ранга опытный. Ниже -- уже.</text>
+  <string id="ui_mcm_at_accuracy_acc_move_base">
+    <text>Стрельба на ходу, база (x)</text>
   </string>
-  <string id="ui_mcm_at_accuracy_acc_disp_professional">
-    <text>Разброс у профессионала</text>
+  <string id="ui_mcm_at_accuracy_acc_move_base_desc">
+    <text>Разброс новичка, пока он идёт или бежит, как множитель ванили. 1.00 - это ваниль, а меньше значит ровнее.</text>
   </string>
-  <string id="ui_mcm_at_accuracy_acc_disp_professional_desc">
-    <text>Ширина конуса выстрела для сталкеров ранга профессионал. Ниже -- уже.</text>
+  <string id="ui_mcm_at_accuracy_acc_move_rank_pct">
+    <text>Стрельба на ходу за Ранг (%)</text>
   </string>
-  <string id="ui_mcm_at_accuracy_acc_disp_veteran">
-    <text>Разброс у ветерана</text>
+  <string id="ui_mcm_at_accuracy_acc_move_rank_pct_desc">
+    <text>Каждый ранг выше новичка меняет его разброс на ходу на столько. Отрицательные значения выравнивают его огонь с ростом ранга.</text>
   </string>
-  <string id="ui_mcm_at_accuracy_acc_disp_veteran_desc">
-    <text>Ширина конуса выстрела для сталкеров ранга ветеран. Ниже -- уже.</text>
+  <!-- ==================== REACTION PAGE ==================== -->
+  <string id="ui_mcm_at_reaction_aim_enabled">
+    <text>Включить скорость сопровождения</text>
   </string>
-  <string id="ui_mcm_at_accuracy_acc_disp_expert">
-    <text>Разброс у эксперта</text>
+  <string id="ui_mcm_at_reaction_aim_enabled_desc">
+    <text>Высокие ранги быстрее следуют за движущейся целью и дольше держат цель, которая бегает боком. (Ранг)</text>
   </string>
-  <string id="ui_mcm_at_accuracy_acc_disp_expert_desc">
-    <text>Ширина конуса выстрела для сталкеров ранга эксперт. Ниже -- уже.</text>
+  <string id="ui_mcm_at_hdr_reaction_aim">
+    <text>Скорость сопровождения</text>
   </string>
-  <string id="ui_mcm_at_accuracy_acc_disp_master">
-    <text>Разброс у мастера</text>
+  <string id="ui_mcm_at_reaction_rct_aim_base">
+    <text>Скорость сопровождения, база (рад/с)</text>
   </string>
-  <string id="ui_mcm_at_accuracy_acc_disp_master_desc">
-    <text>Ширина конуса выстрела для сталкеров ранга мастер. Ниже -- уже.</text>
+  <string id="ui_mcm_at_reaction_rct_aim_base_desc">
+    <text>Как быстро ствол новичка следует за движущейся целью вблизи, в радианах в секунду. 0.24 - это ваниль.</text>
   </string>
-  <string id="ui_mcm_at_accuracy_acc_disp_legend">
-    <text>Разброс у легенды</text>
+  <string id="ui_mcm_at_reaction_rct_aim_rank_pct">
+    <text>Скорость сопровождения за Ранг (%)</text>
   </string>
-  <string id="ui_mcm_at_accuracy_acc_disp_legend_desc">
-    <text>Ширина конуса выстрела для сталкеров ранга легенда, высшего ранга. Ниже -- уже.</text>
+  <string id="ui_mcm_at_reaction_rct_aim_rank_pct_desc">
+    <text>Каждый ранг выше новичка добавляет столько скорости.</text>
   </string>
+  <string id="ui_mcm_at_hdr_reaction_track">
+    <text>Захват цели</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_track_base">
+    <text>Захват цели, база (рад)</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_track_base_desc">
+    <text>Как плотно новичок держит цель, которая бегает боком, как ширина полосы захвата в радианах. 0.196 - это ваниль, при которой такая цель уходит из его прицела.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_track_rank_pct">
+    <text>Захват цели за Ранг (%)</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_track_rank_pct_desc">
+    <text>Каждый ранг выше новичка расширяет полосу на столько, и высокие ранги дольше держат цель, которая бегает боком.</text>
+  </string>
+  <string id="ui_mcm_at_hdr_reaction_lead">
+    <text>Упреждение</text>
+  </string>
+  <string id="ui_mcm_at_reaction_lead_enabled">
+    <text>Включить упреждение</text>
+  </string>
+  <string id="ui_mcm_at_reaction_lead_enabled_desc">
+    <text>Сталкер целится впереди движущейся цели на реальное время полёта пули, и высокие ранги упреждают вернее. (Ранг)</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_lead_base">
+    <text>Упреждение, база (x)</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_lead_base_desc">
+    <text>Насколько далеко вперёд целится новичок, как множитель верного упреждения. 2.00 целится вдвое дальше нужного, а 1.00 - точно.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_lead_rank_pct">
+    <text>Упреждение за Ранг (%)</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_lead_rank_pct_desc">
+    <text>Каждый ранг выше новичка меняет упреждение на столько. Отрицательные значения приближают его к 1.00 с ростом ранга.</text>
+  </string>
+  <string id="ui_mcm_at_hdr_reaction_vision">
+    <text>Скорость зрения</text>
+  </string>
+  <string id="ui_mcm_at_reaction_vision_enabled">
+    <text>Включить скорость зрения</text>
+  </string>
+  <string id="ui_mcm_at_reaction_vision_enabled_desc">
+    <text>Высокие ранги быстрее подтверждают угрозу, которую заметили краем глаза, а новичок остаётся на скорости вашей сборки. (Ранг)</text>
+  </string>
+  <string id="ui_mcm_at_hdr_reaction_trigger">
+    <text>Длина очереди</text>
+  </string>
+  <string id="ui_mcm_at_reaction_discipline_enabled">
+    <text>Включить огневую дисциплину</text>
+  </string>
+  <string id="ui_mcm_at_reaction_discipline_enabled_desc">
+    <text>Высокие ранги стреляют более короткими очередями и чаще. (Ранг)</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qsize_base">
+    <text>Длина очереди, база (x)</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qsize_base_desc">
+    <text>Длина очереди новичка как множитель ванили. Ниже 1.00 укорачивает очередь.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qsize_rank_pct">
+    <text>Длина очереди за Ранг (%)</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qsize_rank_pct_desc">
+    <text>Каждый ранг выше новичка меняет длину очереди на столько. Держите это значение не ниже «Темп огня за Ранг», иначе скорострельность падает.</text>
+  </string>
+  <string id="ui_mcm_at_hdr_reaction_qinterval">
+    <text>Темп огня</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qinterval_base">
+    <text>Темп огня, база (x)</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qinterval_base_desc">
+    <text>Пауза между очередями новичка как множитель ванили. Ниже 1.00 стреляет чаще.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qinterval_rank_pct">
+    <text>Темп огня за Ранг (%)</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_qinterval_rank_pct_desc">
+    <text>Каждый ранг выше новичка меняет паузу на столько. Отрицательные значения укорачивают её с ростом ранга.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vision_base">
+    <text>Скорость зрения, база (x)</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vision_base_desc">
+    <text>Как быстро новичок превращает мелькнувшую цель в подтверждённую угрозу, как множитель вашей сборки. 1.00 - это скорость вашей сборки.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vision_rank_pct">
+    <text>Скорость зрения за Ранг (%)</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vision_rank_pct_desc">
+    <text>Каждый ранг выше новичка добавляет столько скорости.</text>
+  </string>
+  <string id="ui_mcm_at_hdr_vision_range">
+    <text>Дальность зрения</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vrange_base">
+    <text>Дальность зрения, база (x)</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vrange_base_desc">
+    <text>С какого расстояния новичок начинает замечать угрозу, как множитель вашей сборки. 1.00 - это дальность вашей сборки.</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vrange_rank_pct">
+    <text>Дальность зрения за Ранг (%)</text>
+  </string>
+  <string id="ui_mcm_at_reaction_rct_vrange_rank_pct_desc">
+    <text>Каждый ранг выше новичка добавляет столько дальности.</text>
+  </string>
+  <!-- ==================== COMMITMENT PAGE ==================== -->
+  <string id="ui_mcm_at_commitment_commitment_cover_pin">
+    <text>Удержание укрытия</text>
+  </string>
+  <string id="ui_mcm_at_commitment_commitment_cover_pin_desc">
+    <text>Сталкер, который стреляет по открытой цели, держит своё укрытие, даже когда рядом освобождается место получше. Потеря цели из виду, перекрытый выстрел или враг вне досягаемости всё равно позволяют ему сменить позицию. Не действует на modded exes без этой возможности.</text>
+  </string>
+  <string id="ui_mcm_at_commitment_commitment_liquidate">
+    <text>Добивание уязвимой цели</text>
+  </string>
+  <string id="ui_mcm_at_commitment_commitment_liquidate_desc">
+    <text>Когда его враг не может ответить, потому что перезаряжается, остался без патронов, безоружен, бежит, лезет или отвернулся, сталкер продолжает огонь сверх предела упорства. Он сменит позицию, как только враг снова сможет ответить, а мутанты этого никогда не вызывают. (Интеллект, Характер)</text>
+  </string>
+  <string id="ui_mcm_at_commitment_commitment_enabled">
+    <text>Включить упорство</text>
+  </string>
+  <string id="ui_mcm_at_commitment_commitment_enabled_desc">
+    <text>Действует на каждого сталкера вне манёвра.</text>
+  </string>
+  <string id="ui_mcm_at_hdr_commitment_hold">
+    <text>Предел упорства</text>
+  </string>
+  <string id="ui_mcm_at_commitment_commitment_hold_s">
+    <text>Макс. время упорства (с)</text>
+  </string>
+  <string id="ui_mcm_at_commitment_commitment_hold_s_desc">
+    <text>Самый долгий отрезок, который сталкер держится за действие, после чего X-Ray может снова его сдвинуть. Он всё равно прерывается, как только причина держаться исчезает.</text>
+  </string>
+  <!-- ==================== MANEUVERS PAGE ==================== -->
   <string id="ui_mcm_at_combat_desc">
-    <text>Манёвр представляет собой полный, авторитетный перехват одного сталкера, чтобы выполнить то, чего ванильный движок не умеет: ни как механику, которой у него нет, ни как решение, которое он никогда не принимает. Система читает боевые события, характеристики NPC и игрока и состояние мира, затем принимает разумное решение в пользу бойца, взвешивая отряд и фракцию, состояние отряда и врага, дистанцию, угол, укрытие и оружие. Замысел идёт дальше одного сталкера: целые отряды согласуют своё движение и огонь, и каждая фракция сражается в своём стиле, предпочитая подходящие ей манёвры. Он не перекрывает боевые скрипты, поэтому работает вместе с другим боевым ИИ. Каждый манёвр ниже включается отдельно.</text>
+    <text>Манёвр - это полный перехват сталкера ради настоящего тактического хода, например контрфланга, прицельного отстрела или перезарядки в укрытии. Система построена под слаженную тактику отрядов в военном стиле, и впереди ещё много манёвров. Интеллект решает, сделает ли он ход, а Характер решает, есть ли этот ход у него вообще.</text>
   </string>
   <string id="ui_mcm_at_combat_combat_enabled">
     <text>Включить боевой перехват</text>
   </string>
   <string id="ui_mcm_at_combat_combat_enabled_desc">
-    <text>Когда выключено, AlifeTactics не трогает бой, и каждая перестрелка идёт на вашем текущем ИИ. Когда включено, мод может ненадолго взять сталкера из любого боя рядом с вами - его противником можете быть вы или другой боец - на один манёвр, а затем вернуть управление. По умолчанию охватывает бои в пределах 150 м от вас.</text>
+    <text>Позволяет AlifeTactics перехватывать сталкера для манёвра в любом бою рядом с вами, против вас или другого сталкера. У других страниц Боя свои переключатели.</text>
   </string>
   <string id="ui_mcm_at_combat_combat_ignore_companions">
-    <text>Игнорировать компаньонов</text>
+    <text>Не трогать компаньонов</text>
   </string>
   <string id="ui_mcm_at_combat_combat_ignore_companions_desc">
-    <text>Когда включено, AlifeTactics никогда не перехватывает ваших компаньонов, поэтому их ИИ следования и боя и ваши команды остаются в управлении. Выключите, чтобы он маневрировал и ими.</text>
+    <text>Ни один манёвр не перехватывает компаньона, и мутанта-компаньона тоже не трогают.</text>
   </string>
   <string id="ui_mcm_at_combat_combat_hit_hold">
-    <text>Фиксация при попадании</text>
+    <text>Удержание при попадании</text>
   </string>
   <string id="ui_mcm_at_combat_combat_hit_hold_desc">
-    <text>Стоящий сталкер, поймавший попадание, удерживается на месте, пока играет анимация ранения, вместо скольжения по земле с неподвижными ногами, и снова двигается, как только она закончится. Требуется сборка modded exes с engine PR 645. Старые сборки сохраняют ванильное движение.</text>
+    <text>Сталкер, в которого попали, пока он стоял, или которого попадание пошатнуло, держит место, пока реакция не закончится. Действует на каждого сталкера, в манёвре или нет. Не действует на modded exes без этой возможности.</text>
   </string>
   <string id="ui_mcm_at_combat_hdr_maneuvers">
     <text>Манёвры</text>
   </string>
   <string id="ui_mcm_at_combat_maneuver_counterflank">
-    <text>Разворот</text>
+    <text>Контрфланг</text>
   </string>
   <string id="ui_mcm_at_combat_maneuver_counterflank_desc">
-    <text>Сталкер, стреляющий по дальней цели, пока враждебный игрок стоит вплотную, разворачивается и атакует ближнюю угрозу, вместо того чтобы подставлять спину.</text>
+    <text>Сталкер, который воюет с кем-то другим, разворачивается к вам и держит позицию, когда вы подходите ближе его цели. (Интеллект, Характер)</text>
+  </string>
+  <string id="ui_mcm_at_combat_maneuver_reload_cover">
+    <text>Перезарядка в укрытии</text>
+  </string>
+  <string id="ui_mcm_at_combat_maneuver_reload_cover_desc">
+    <text>Сталкер, застигнутый перезарядкой на линии огня наблюдателя, бежит к ближайшему укрытию, которое его скрывает, и перезаряжается на ходу. Если за ним никто не следит, он перезаряжается на месте. Не действует на modded exes без этой возможности. (Интеллект, Характер)</text>
   </string>
   <string id="ui_mcm_at_combat_maneuver_kite">
-    <text>Кайт</text>
+    <text>Разрыв дистанции</text>
   </string>
   <string id="ui_mcm_at_combat_maneuver_kite_desc">
-    <text>Враг подошёл ближе минимальной дистанции оружия сталкера. Он отступает на свою дистанцию, продолжая стрелять, по коридору, который проверил на проходимость.</text>
+    <text>Сталкер, чей враг подошёл ближе минимальной дистанции его оружия, отходит по свободному коридору, пока не получит место для своего оружия, и продолжает стрелять. Например, снайпер отходит от человека с дробовиком. (Интеллект, Характер)</text>
   </string>
   <string id="ui_mcm_at_combat_maneuver_retreat">
-    <text>Отход</text>
+    <text>Отступление</text>
   </string>
   <string id="ui_mcm_at_combat_maneuver_retreat_desc">
-    <text>Тяжело раненный, пока стрелок в пределах досягаемости, сталкер отходит в укрытие позади себя, продолжая стрелять. Укрытие всегда увеличивает дистанцию до стрелка, и двое никогда не занимают одно место.</text>
+    <text>Раненый сталкер, чья позиция открыта ближнему врагу, отходит к укрытию позади себя и продолжает стрелять. Если укрытия рядом нет, он отходит по свободному коридору, и два сталкера никогда не занимают одно укрытие. (Интеллект, Характер)</text>
   </string>
   <string id="ui_mcm_at_combat_maneuver_flee">
     <text>Бегство</text>
   </string>
   <string id="ui_mcm_at_combat_maneuver_flee_desc">
-    <text>Последний из разбитого отряда бежит к дальней дружественной базе с закинутым оружием. Сначала он дожидается затишья в стрельбе. Только осторожные фракции, фанатики никогда не ломаются.</text>
+    <text>Раненый сталкер, последний в своём отряде, убирает оружие и бежит на дружественную базу, когда по нему никто не стреляет. Чем ниже Интеллект, тем чаще он убегает. (Интеллект, Характер)</text>
   </string>
+  <string id="ui_mcm_at_combat_maneuver_pickoff">
+    <text>Прицельный отстрел</text>
+  </string>
+  <string id="ui_mcm_at_combat_maneuver_pickoff_desc">
+    <text>Сталкер, который бьёт дальше своего врага в позиционной перестрелке, держит позицию и стреляет одиночными прицельными выстрелами. Он прекращает, когда враг подходит достаточно близко, чтобы ответить, когда по нему стреляют или когда враг видит его. (Интеллект, Характер)</text>
+  </string>
+  <!-- ==================== CROSSFIRE PAGE ==================== -->
   <string id="ui_mcm_at_crossfire_desc">
-    <text>Бойцы одной фракции больше не выкашивают друг друга в перекрёстном огне. Попадание между двумя NPC одной фракции наносит сниженный урон, задаваемый ползунком ниже. Оно опирается на их фактические отношения, поэтому по-настоящему враждебные фракции всё так же обмениваются полным уроном. Ваши собственные выстрелы никогда не затрагиваются.</text>
+    <text>Перекрёстный огонь снижает урон, который сталкер наносит сталкерам, с которыми не враждует, и перестрелка союзников больше их не убивает. Ваши выстрелы и бои между врагами наносят полный урон.</text>
   </string>
   <string id="ui_mcm_at_crossfire_crossfire_enabled">
-    <text>Блокировать дружественный огонь своей фракции</text>
+    <text>Блокировать огонь по своим</text>
   </string>
   <string id="ui_mcm_at_crossfire_crossfire_enabled_desc">
-    <text>Когда выключено, ванильный урон от дружественного огня применяется полностью.</text>
+    <text>Действует на попадания между любыми сталкерами, которые не враждуют друг с другом, в том числе из разных фракций.</text>
   </string>
   <string id="ui_mcm_at_crossfire_crossfire_factor">
-    <text>Множитель урона по своей фракции</text>
+    <text>Урон по своим (x)</text>
   </string>
   <string id="ui_mcm_at_crossfire_crossfire_factor_desc">
-    <text>Сколько урона наносит попадание по своей фракции. 0.00 означает, что сокомандники не получают урона друг от друга. 1.00 -- полный ванильный урон.</text>
+    <text>Доля урона, которую наносит такое попадание. 0.00 значит без урона, а 1.00 - полный ванильный урон.</text>
+  </string>
+  <!-- ==================== PERCEPTION FOLDER (SOUND / VISION / DANGER) ==================== -->
+  <string id="ui_mcm_at_vision_desc">
+    <text>Зрение даёт каждому рангу своё обнаружение: как быстро сталкер превращает мелькнувшую цель в подтверждённую угрозу и с какого расстояния начинает её замечать. Новичок равен вашей сборке, а высокие ранги замечают раньше и дальше. Не действует на modded exes без этой возможности.</text>
+  </string>
+  <string id="ui_mcm_at_perception_danger_desc">
+    <text>Опасность исправляет то, как сталкеры реагируют на угрозу, которую чувствуют, поверх той схемы опасности, которую ставит ваш модпак. Она добавляет реакцию на дальние попадания и на промах ножом и задаёт, насколько сильно NPC сосредотачиваются на вас.</text>
   </string>
   <string id="ui_mcm_at_danger_sound_desc">
-    <text>Как сталкеры реагируют на угрозы, которые слышат. AlifeTactics устанавливается как рантайм-патч на тот скрипт опасности, что поставляет ваш модпак, поэтому работает вместе с другим боевым ИИ, а не заменяет файл. Дистанции реакции берутся из конфига опасности вашей сборки; AlifeTactics добавляет реакции, а не настройку.</text>
+    <text>Звук позволяет враждебным сталкерам услышать вас раньше, чем увидеть. Ваши громкие звуки доходят до слуха игры, а более тихие шаги и обращение со снаряжением заставляют их повернуться или подойти проверить. Движение в приседе бесшумно, и то, как вас видят, остаётся за вашими стелс-модами.</text>
+  </string>
+  <string id="ui_mcm_at_danger_hdr_gunfire">
+    <text>Стрельба</text>
+  </string>
+  <string id="ui_mcm_at_danger_hdr_noise">
+    <text>Ваш шум</text>
   </string>
   <string id="ui_mcm_at_fixes_danger_danger_hit_bypass">
     <text>Дальние попадания</text>
   </string>
   <string id="ui_mcm_at_fixes_danger_danger_hit_bypass_desc">
-    <text>Ванильные сталкеры игнорируют дальних стрелков, потому что дистанционный барьер ограничивает реакцию. С этой опцией прямое попадание всегда регистрируется, поэтому обстрелянный сталкер на 200 м оборачивается и ищет укрытие вместо того, чтобы стоять на месте.</text>
+    <text>Сталкер, в которого попали издалека, разворачивается и ищет укрытие, даже если выстрел пришёл из-за пределов его дальности реакции.</text>
   </string>
-  <string id="ui_mcm_at_fixes_danger_danger_attack_sound">
-    <text>Вражеский огонь</text>
+  <string id="ui_mcm_at_danger_danger_knife_miss">
+    <text>Покушение на убийство</text>
   </string>
-  <string id="ui_mcm_at_fixes_danger_danger_attack_sound_desc">
-    <text>Ванильные NPC игнорируют стрельбу, которую слышат, но не видят. С этой опцией сталкер реагирует на выстрелы ВРАГА без прямой видимости: он оборачивается к источнику огня и принимает угрожающую позу, а увидев стрелка, идёт в укрытие. Он реагирует на звук, а не на то, что видит вас. Стрельба нейтральных или дружественных сталкеров, включая вашу, их не тревожит - это правило отношений движка, как в ванили. Дистанция реакции берётся из конфига опасности вашей сборки.</text>
+  <string id="ui_mcm_at_danger_danger_knife_miss_desc">
+    <text>Сталкер перед вами замечает удар ножом, который промахнулся по нему в пределах 3 м. Он встаёт, поднимает оружие и поворачивается к вам, а враждебный сталкер, увидев вас, вступает в бой. Нейтрал или друг реагирует, только пока включена Тревога нейтралов от стрельбы.</text>
   </string>
-  <string id="ui_mcm_at_fixes_danger_danger_actor_tables">
-    <text>Дистанции игрока</text>
+  <string id="ui_mcm_at_danger_danger_neutral_gunfire">
+    <text>Тревога нейтралов от стрельбы</text>
   </string>
-  <string id="ui_mcm_at_fixes_danger_danger_actor_tables_desc">
-    <text>Опасность, вызванная вами, читает отдельные таблицы актёра там, где конфиг опасности вашей сборки их различает (некоторые боевые ИИ-моды различают). Если конфиг поставляет одинаковые таблицы, эффекта нет.</text>
+  <string id="ui_mcm_at_danger_danger_neutral_gunfire_desc">
+    <text>Нейтральный или дружественный сталкер реагирует, когда ваша пуля бьёт рядом с ним, а без этого движок отбросил бы такую реакцию. Он не становится враждебным, и тот же переключатель отвечает за ваш промах ножом по нейтралу или другу.</text>
   </string>
+  <string id="ui_mcm_at_danger_danger_move_noise">
+    <text>Шум движения</text>
+  </string>
+  <string id="ui_mcm_at_danger_danger_move_noise_desc">
+    <text>Враждебные сталкеры слышат, как вы двигаетесь. Шаг слышен на 5 м, бег в 1,6 раза дальше, а приземление после прыжка на 10 м, и поверхность и дождь меняют дистанцию. Шаг поворачивает его к звуку с оружием наготове, а бег или приземление заставляет подойти и проверить.</text>
+  </string>
+  <string id="ui_mcm_at_danger_danger_heard_actions">
+    <text>Шум обращения со снаряжением</text>
+  </string>
+  <string id="ui_mcm_at_danger_danger_heard_actions_desc">
+    <text>Враждебные сталкеры слышат вашу перезарядку в пределах 8 м, щелчок пустого оружия в пределах 6 м и использование предмета в пределах 5 м. Перезарядка или щелчок заставляет его подойти, а предмет поворачивает его к вам с оружием наготове.</text>
+  </string>
+  <string id="ui_mcm_at_danger_danger_creature_awareness">
+    <text>Чуткость к существам</text>
+  </string>
+  <string id="ui_mcm_at_danger_danger_creature_awareness_desc">
+    <text>Стоящий сталкер вне боя бросает взгляд на существо, которое слышит в пределах 5-10 м: на мутанта всегда, а на сталкера только враждебного. Он поворачивает голову и остаётся на месте.</text>
+  </string>
+  <string id="ui_mcm_at_danger_danger_noise_mult">
+    <text>Дальность шума (x)</text>
+  </string>
+  <string id="ui_mcm_at_danger_danger_noise_mult_desc">
+    <text>Масштабирует, как далеко слышен шум вашего движения и обращения со снаряжением. Ниже 1.00 стелс прощает больше, а выше 1.00 сталкеры слышат вас дальше.</text>
+  </string>
+  <string id="ui_mcm_at_danger_hdr_targeting">
+    <text>Приоритет цели</text>
+  </string>
+  <string id="ui_mcm_at_danger_selection_actor_bias">
+    <text>Притяжение к игроку</text>
+  </string>
+  <string id="ui_mcm_at_danger_selection_actor_bias_desc">
+    <text>Насколько сильно NPC сосредотачивается на вас, пока вы его видите, против притяжения других целей. 300 оценивает вас как любого другого бойца, 900 - это ванильное притяжение к вам, а 0 убирает его. Не действует на modded exes без этой возможности.</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_config_isolation">
+    <text>Раздельные настройки опасностей</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_config_isolation_desc">
+    <text>Рикошет, звук боя поблизости и атака на союзника читали настройки другой опасности. Сталкеры реагировали на них не на той дистанции и не то время, а теперь у каждой опасности свои настройки.</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_corpse_time">
+    <text>Проверка времени трупа мутанта</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_corpse_time_desc">
+    <text>Свежий труп мутанта досрочно прерывал реакцию сталкера на опасность. Трупы мутантов её больше не прерывают.</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_npc_teardown">
+    <text>Защита от исчезнувшего NPC</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_npc_teardown_desc">
+    <text>Проверка опасности могла вызвать вылет игры из-за сталкера, который только что пропал с уровня. Теперь проверка его не трогает.</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_time_value">
+    <text>Проверка времени опасности</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_time_value_desc">
+    <text>Если у опасности было испорченное значение времени, проверка опасности могла вызвать вылет игры. Теперь проверка пропускает такую опасность.</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_hit_shooter">
+    <text>Опознание стрелка при попадании</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_hit_shooter_desc">
+    <text>Сталкер, в которого попала пуля, терял стрелка. Теперь он поворачивается к стрелку и укрывается с этого направления.</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_anim_cleanup">
+    <text>Сброс анимации опасности</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_anim_cleanup_desc">
+    <text>Если сталкер переключался между реакциями на опасность, анимация старой реакции могла продолжаться. Теперь старая анимация останавливается при каждой смене.</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_cover_scope">
+    <text>Границы заявок на укрытия</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_cover_scope_desc">
+    <text>Когда сталкер выходил из реакции на опасность, стирались заявки всех сталкеров на места в укрытиях, и двое могли выбрать одно место. Теперь он снимает только свою заявку.</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_corpse_despawn">
+    <text>Защита при исчезновении трупа</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_corpse_despawn_desc">
+    <text>Игра могла упасть, если труп исчезал, пока сталкер шёл его проверить. Теперь он останавливается.</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_investigator_select">
+    <text>Выбор осматривающего</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_investigator_select_desc">
+    <text>Если убийцей были вы, осмотр трупа мог отправить не того товарища по отряду. Теперь осматривает тот, кто нашёл тело.</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_investigate_target">
+    <text>Цель осмотра</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_investigate_target_desc">
+    <text>В конце осмотра трупа сталкер возвращался на старое место и бросал найденное укрытие. Теперь он идёт в это укрытие.</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_config_cache">
+    <text>Кэш настроек опасности</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_config_cache_desc">
+    <text>Проверка опасности заново читала свои настройки на каждом проходе для каждого сталкера, и в толпе это стоило времени. Теперь она читает их один раз.</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_id_reuse">
+    <text>Повторное использование id опасности</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_id_reuse_desc">
+    <text>Новый сталкер, получивший id погибшего, получал и его последнюю тревогу. Теперь эта тревога снимается вместе с погибшим сталкером.</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_corpse_order">
+    <text>Порядок реакции на труп</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_corpse_order_desc">
+    <text>Игра могла упасть, если реакция на труп срабатывала раньше, чем начался его осмотр. Теперь она ждёт.</text>
+  </string>
+  <!-- ==================== FIXES TO VANILLA PAGE ==================== -->
+  <string id="ui_mcm_at_vanilla_fixes_desc">
+    <text>Это ошибки Anomaly и X-Ray, которые исправляет AlifeTactics, сгруппированные по системам, в которых они живут. Все строки заблокированы. Большинство исправлений работает всегда, но некоторым нужна настройка, названная в их строке.</text>
+  </string>
+  <string id="ui_mcm_at_vf_hdr_danger">
+    <text>Схема опасности</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_dead_eval">
+    <text>Опасность у мёртвого сталкера</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_dead_eval_desc">
+    <text>Мёртвый сталкер продолжал реакцию на опасность, пока тело не исчезало, и лог заполнялся ошибкой. Теперь реакция останавливается при смерти.</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_ff_release">
+    <text>Снятие запрета огня по своим</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_ff_release_desc">
+    <text>Придержав огонь из-за друга на линии стрельбы, сталкер так и ходил с оружием наготове после конца боя. Теперь он возвращается к обычному состоянию, как только враг исчез.</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_ff_lane">
+    <text>Проверка перекрытого выстрела по своим</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_ff_lane_desc">
+    <text>Сталкеры придерживали огонь из-за любого друга рядом в любом направлении и из-за друга далеко за целью. В толпе запрет постоянно продлевался, а заодно глушил кемперов, огонь вертолётов и добивание раненых врагов. Теперь сталкер придерживает огонь и отходит в сторону, только если друг стоит между ним и целью.</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_ff_aim">
+    <text>Проверка огня по своим у мутантов</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_ff_aim_desc">
+    <text>Сталкер проверял линию огня на друзей по ногам химеры или бюрера, потому что ни у одного из них нет позвоночной кости, которую ищет проверка, и лог заполнялся предупреждением движка. Теперь он проверяет её по телу.</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_stale_memory">
+    <text>Устаревшая память об опасности</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_stale_memory_desc">
+    <text>Сталкер, атакованный второй раз, поворачивался туда, где стоял первый нападавший, и только первый осмотренный труп получал анимацию осмотра. Теперь память о каждой опасности очищается в её конце.</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_grenade_far">
+    <text>Радиус уклонения от гранаты</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_grenade_far_desc">
+    <text>Сталкер уклоняется от гранаты, которая падает рядом с ним, и поворачивается к той, что падает дальше. Теперь AlifeTactics задаёт дистанцию, которая разделяет эти два случая.</text>
+  </string>
+  <string id="ui_mcm_at_vf_hdr_corpse">
+    <text>Осмотр трупов</text>
+  </string>
+  <string id="ui_mcm_at_vf_hdr_target">
+    <text>Выбор цели</text>
+  </string>
+  <string id="ui_mcm_at_vf_sticky_targeting">
+    <text>Залипание цели</text>
+  </string>
+  <string id="ui_mcm_at_vf_sticky_targeting_desc">
+    <text>Сталкер, в которого стрелял невидимый ему враг, продолжал бить по цели, которую видел. Теперь он поворачивается к нападавшему, и это притяжение слабеет с расстоянием. Не действует на modded exes без этой возможности.</text>
+  </string>
+  <string id="ui_mcm_at_vf_player_bias">
+    <text>Перекос в сторону игрока</text>
+  </string>
+  <string id="ui_mcm_at_vf_player_bias_desc">
+    <text>Сталкеры выбирали вас целью гораздо чаще, если их видели вы, чем если их видел другой сталкер, и вас выбирали целые группы. Ползунок Восприятие &gt; Опасность &gt; Притяжение к игроку задаёт, насколько сильно вы притягиваете. Не действует на modded exes без этой возможности.</text>
+  </string>
+  <string id="ui_mcm_at_vf_hdr_accuracy">
+    <text>Точность (разброс выстрелов)</text>
+  </string>
+  <string id="ui_mcm_at_vf_rank_accuracy">
+    <text>Точность по рангу</text>
+  </string>
+  <string id="ui_mcm_at_vf_rank_accuracy_desc">
+    <text>Все сталкеры, включая новичка, стреляли с разбросом лучших стрелков, потому что шкала рангов игры заканчивается намного ниже рангов, которые использует Anomaly. Теперь у каждого ранга свой разброс. Работает, пока включено Эффективность &gt; Точность &gt; Включить разброс.</text>
+  </string>
+  <string id="ui_mcm_at_vf_hdr_combat">
+    <text>Бой</text>
+  </string>
+  <string id="ui_mcm_at_vf_cover_posture">
+    <text>Стойка у укрытия</text>
+  </string>
+  <string id="ui_mcm_at_vf_cover_posture_desc">
+    <text>X-Ray сажает сталкера в присед в бою, не проверяя, может ли он оттуда попасть во врага, и тот стрелял в низкое укрытие перед собой. Теперь он приседает, только когда линия до врага из приседа свободна. Работает, пока включено Бой &gt; Выучка &gt; Стойка у укрытия.</text>
+  </string>
+  <string id="ui_mcm_at_vf_hdr_movement">
+    <text>Движение и анимация</text>
+  </string>
+  <string id="ui_mcm_at_vf_hit_hold">
+    <text>Скольжение при попадании</text>
+  </string>
+  <string id="ui_mcm_at_vf_hit_hold_desc">
+    <text>Стоящий сталкер, в которого попала пуля, скользил по земле, пока играла анимация попадания. Теперь он держит место, пока анимация не закончится. Работает, пока включено Бой &gt; Общее &gt; Удержание при попадании. Не действует на modded exes без этой возможности.</text>
+  </string>
+  <string id="ui_mcm_at_vf_anim_body">
+    <text>Манёвр во время анимации</text>
+  </string>
+  <string id="ui_mcm_at_vf_anim_body_desc">
+    <text>Манёвр мог начаться у сталкера, который ещё шатался от попадания или играл скриптовую анимацию. Теперь он ждёт, пока анимация не закончится. Работает, пока включено Бой &gt; Манёвры &gt; Включить боевой перехват.</text>
+  </string>
+  <string id="ui_mcm_at_vf_hdr_healing">
+    <text>Лечение</text>
+  </string>
+  <string id="ui_mcm_at_healing_fix_medkit_reroll">
+    <text>Повторный бросок аптечки при загрузке</text>
+  </string>
+  <string id="ui_mcm_at_healing_fix_medkit_reroll_desc">
+    <text>Каждая загрузка заново разыгрывала лечебный заряд сталкера, и сталкеры, которые его уже потратили, могли получить его обратно. Теперь заряд разыгрывается для каждого сталкера один раз.</text>
+  </string>
+  <string id="ui_mcm_at_vf_bandage">
+    <text>Скольжение с бинтом</text>
+  </string>
+  <string id="ui_mcm_at_vf_bandage_desc">
+    <text>X-Ray останавливает анимацию ног сталкера, пока играет жест. Сталкер, который перевязывался на ходу, скользил с замершими ногами. Теперь жест играет, только пока он стоит на месте. Работает, пока включено Механика &gt; Лечение &gt; Анимация лечения.</text>
+  </string>
+  <string id="ui_mcm_at_vf_limp">
+    <text>Хромота в бою</text>
+  </string>
+  <string id="ui_mcm_at_vf_limp_desc">
+    <text>Хромота - тоже жест, и хромающий сталкер, втянутый в бой, сохранял позу и скользил, когда в него стреляли. Теперь он бросает хромоту в тот миг, когда начинается бой. Работает, пока включено Механика &gt; Лечение &gt; Анимация хромоты.</text>
+  </string>
+  <string id="ui_mcm_at_vf_heal_freeze">
+    <text>Замирание при лечении</text>
+  </string>
+  <string id="ui_mcm_at_vf_heal_freeze_desc">
+    <text>X-Ray удерживает всё тело сталкера в жесте до его конца, и сталкер, начавший лечиться рядом с врагом, стоял как вкопанный. Теперь жест начинается, только пока у него нет врага. Работает, пока включено Механика &gt; Лечение &gt; Анимация лечения.</text>
+  </string>
+  <string id="ui_mcm_at_vf_distant_hits">
+    <text>Дальние попадания</text>
+  </string>
+  <string id="ui_mcm_at_vf_distant_hits_desc">
+    <text>Сталкер, в которого стреляли издалека, не реагировал на попадание, потому что выстрел пришёл из-за пределов дальности реакции. Теперь он разворачивается и укрывается. Работает, пока включено Восприятие &gt; Опасность &gt; Дальние попадания.</text>
+  </string>
+  <string id="ui_mcm_at_vf_low_cover">
+    <text>Проверка выстрела из-за низкого укрытия</text>
+  </string>
+  <string id="ui_mcm_at_vf_low_cover_desc">
+    <text>Проверка свободной линии из приседа начиналась на высоте груди, выше низкого укрытия, которое перекрывало линию из приседа, и сталкеры приседали и стреляли в это укрытие. Теперь проверка начинается на высоте глаз присевшего сталкера. Работает, пока включено Бой &gt; Выучка &gt; Стойка у укрытия.</text>
+  </string>
+  <string id="ui_mcm_at_vf_monolith_stance">
+    <text>Боевая стойка Монолита</text>
+  </string>
+  <string id="ui_mcm_at_vf_monolith_stance_desc">
+    <text>Бойцы Монолита весь бой перескакивали между приседом и стойкой покоя. Теперь их боевые действия считаются боем, и они сохраняют стойку.</text>
+  </string>
+  <string id="ui_mcm_at_vf_heal_lists">
+    <text>Пустые списки лечения</text>
+  </string>
+  <string id="ui_mcm_at_vf_heal_lists_desc">
+    <text>Сталкеры никогда не пользовались аптечками и бинтами, которые у них были, потому что списки этих предметов в игре были пустыми. Теперь в списках указаны ванильные предметы, и сталкеры лечатся тем, что несут.</text>
+  </string>
+  <string id="ui_mcm_at_vf_hdr_mutants">
+    <text>Мутанты</text>
+  </string>
+  <string id="ui_mcm_at_vf_jump_rest">
+    <text>Отдых химеры после прыжка</text>
+  </string>
+  <string id="ui_mcm_at_vf_jump_rest_desc">
+    <text>Химера или кикимора могла прыгнуть снова в тот же миг, как приземлилась, и нанести вам второй удар сразу после первого. Теперь обе отдыхают после каждого прыжка. Не действует на modded exes без этой возможности.</text>
+  </string>
+  <!-- ==================== JAMMING PAGE ==================== -->
   <string id="ui_mcm_at_jam_desc">
-    <text>Оружие NPC клинит только по-настоящему и перезаряжается только когда магазин опустел. На моддированных exe каждый NPC получает фальшивый бросок заклинивания по рангу от потраченных патронов, поэтому даже винтовка в полном состоянии клинит и перезаряжается каждые несколько выстрелов, а в Anomaly нет анимации заклинивания, чтобы это показать. AlifeTactics отключает этот бросок для NPC. Ваши собственные заклинивания остаются ванильными.</text>
+    <text>Заклинивание даёт оружию NPC клинить только от износа. В X-Ray каждый NPC вдобавок разыгрывает лишнее заклинивание, и клинит даже новая винтовка, без анимации, которая бы это показала. Ваше оружие остаётся как есть.</text>
   </string>
   <string id="ui_mcm_at_fixes_jam_jam_enabled">
-    <text>Подавлять заклинивания NPC</text>
+    <text>Убрать заклинивания NPC</text>
   </string>
   <string id="ui_mcm_at_fixes_jam_jam_enabled_desc">
-    <text>Включено: оружие NPC никогда не клинит от броска моддированных exe. Выключено: работает поведение моддированных exe по умолчанию. Заклинивания вашего оружия в любом случае не затрагиваются.</text>
+    <text>Оружие NPC клинит только по мере износа.</text>
   </string>
+  <!-- ==================== AMMO PAGE ==================== -->
   <string id="ui_mcm_at_ammo_desc">
-    <text>Сталкеры стреляют боеприпасами, которые реально несут. Ранга ветеран и выше используют бронебойные патроны из собственного инвентаря, с реальной баллистикой, и возвращаются к обычным патронам, когда запас заканчивается. У каждого боя есть шанс израсходовать один носимый ящик AP, и более быстрое оружие и низкие ранги тратят его быстрее. AP приходит из мира через торговлю и лут, поэтому то, что сталкер добыл, определяет, насколько он опасен, и он не роняет ничего из этого в лут. Порог ранга и скорость расхода настраиваются в configs/alifetactics/at_ammo_config.ltx.</text>
+    <text>Боеприпасы позволяют сталкерам от ветерана и выше стрелять бронебойными патронами, которые у них есть, и возвращаться к обычным, когда те кончаются. Бой может израсходовать коробку из запаса, быстрее у скорострельного оружия и низких рангов. Работает, только пока игра даёт NPC бесконечные патроны.</text>
   </string>
   <string id="ui_mcm_at_fixes_ammo_ammo_enabled">
-    <text>Бронебойные боеприпасы NPC</text>
+    <text>Бронебойные патроны у NPC</text>
   </string>
   <string id="ui_mcm_at_fixes_ammo_ammo_enabled_desc">
-    <text>Включено: подходящие сталкеры заряжают носимый AP и расходуют его за бой. Выключено: каждый сталкер стреляет ванильными обычными патронами, и носимые боеприпасы не расходуются.</text>
+    <text>Сталкеры, у которых есть бронебойные патроны, заряжают их и расходуют от боя к бою.</text>
   </string>
+  <!-- ==================== ATTACHMENTS PAGE ==================== -->
+  <string id="ui_mcm_at_attachments_desc">
+    <text>Обвесы позволяют сталкерам ставить на свой пистолет или винтовку прицелы, глушители и подствольные гранатомёты, которые у них есть, когда они вне боя и руки свободны. Прицел затем появляется на оружии в следующую спокойную минуту.</text>
+  </string>
+  <string id="ui_mcm_at_attachments_attachments_enabled">
+    <text>Установка обвесов NPC</text>
+  </string>
+  <string id="ui_mcm_at_attachments_attachments_enabled_desc">
+    <text>Сталкеры ставят обвесы из инвентаря в следующую спокойную минуту. Сюжетные и именные персонажи сохраняют своё оружие как есть.</text>
+  </string>
+  <!-- ==================== GEAR PAGE ==================== -->
+  <string id="ui_mcm_at_gear_desc">
+    <text>Снаряжение заставляет артефакты и экипировку, которые несёт сталкер, работать на него, по классу аномалии артефакта. На каждом канале считается сильнейший артефакт, и они не складываются, а сталкер, вокруг которого дрожит воздух, несёт настоящий артефакт.</text>
+  </string>
+  <string id="ui_mcm_at_gear_gear_enabled">
+    <text>Носимые предметы усиливают сталкеров</text>
+  </string>
+  <string id="ui_mcm_at_gear_gear_enabled_desc">
+    <text>Артефакт даёт носителю до 10 процентов на своём канале, и считается только сильнейший.</text>
+  </string>
+  <string id="ui_mcm_at_gear_gear_resist_enabled">
+    <text>Сопротивление урону</text>
+  </string>
+  <string id="ui_mcm_at_gear_gear_resist_enabled_desc">
+    <text>Гравитационные артефакты и бронепластины снижают урон, который получает носитель.</text>
+  </string>
+  <string id="ui_mcm_at_gear_gear_dealt_enabled">
+    <text>Исходящий урон</text>
+  </string>
+  <string id="ui_mcm_at_gear_gear_dealt_enabled_desc">
+    <text>Электрические и квестовые артефакты повышают урон выстрелов носителя.</text>
+  </string>
+  <string id="ui_mcm_at_gear_gear_disp_enabled">
+    <text>Устойчивость прицела</text>
+  </string>
+  <string id="ui_mcm_at_gear_gear_disp_enabled_desc">
+    <text>Термические артефакты делают прицел носителя плотнее.</text>
+  </string>
+  <string id="ui_mcm_at_gear_gear_regen_enabled">
+    <text>Восстановление здоровья</text>
+  </string>
+  <string id="ui_mcm_at_gear_gear_regen_enabled_desc">
+    <text>Химические артефакты медленно восстанавливают здоровье носителя. Не действует на modded exes без этой возможности.</text>
+  </string>
+  <string id="ui_mcm_at_gear_gear_aura_enabled">
+    <text>Искажение от артефакта</text>
+  </string>
+  <string id="ui_mcm_at_gear_gear_aura_enabled_desc">
+    <text>Вокруг сталкера с любым артефактом дрожит воздух, и видно, что артефакт у него есть.</text>
+  </string>
+  <string id="ui_mcm_at_gear_gear_binoc_enabled">
+    <text>Наблюдатели с биноклем</text>
+  </string>
+  <string id="ui_mcm_at_gear_gear_binoc_enabled_desc">
+    <text>Сталкер с биноклем видит дальше днём. Не действует на modded exes без этой возможности.</text>
+  </string>
+  <string id="ui_mcm_at_gear_gear_nvg_enabled">
+    <text>Ночное зрение ночью</text>
+  </string>
+  <string id="ui_mcm_at_gear_gear_nvg_enabled_desc">
+    <text>Сталкер с прибором ночного видения видит дальше ночью. Не действует на modded exes без этой возможности.</text>
+  </string>
+  <!-- ==================== DEVELOPMENT PAGE ==================== -->
   <string id="ui_mcm_at_development_desc">
-    <text>Отладка и инструменты разработки. Уровень DEBUG трассирует каждую систему с таймингами: решения манёвров, оценку опасности, тики лечения и израсходованные предметы, точность на выстрел, события боеприпасов и перезарядки. Записывается в alifetactics.log. Трассировка имеет цену, для обычной игры оставьте WARN.</text>
+    <text>Это инструменты для тестирования AlifeTactics и для отчёта о баге. Лог трассирует каждую систему, трасса мира записывает бой вокруг вас, а отладочный HUD показывает, что управляет каждым бойцом рядом с вами. В обычной игре держите лог на уровне «Предупреждение», а два других выключенными, потому что трассировка стоит времени.</text>
   </string>
+  <!-- Development - Logging -->
   <string id="ui_mcm_at_hdr_logging">
     <text>Логирование</text>
   </string>
@@ -350,7 +1162,13 @@
     <text>Уровень логов</text>
   </string>
   <string id="ui_mcm_at_development_log_level_desc">
-    <text>Подробность логов. ERROR: только сбои. WARN: аномалии. INFO: инициализация модулей и установка патчей. DEBUG: полная трассировка по событиям с длительностями.</text>
+    <text>Ошибка пишет только сбои, Предупреждение добавляет проблемы, на которые стоит взглянуть, Информация добавляет строки запуска, а Отладка трассирует каждое решение с его таймингом. Лог - alifetactics.log в папке логов игры.</text>
+  </string>
+  <string id="ui_mcm_at_development_log_flush">
+    <text>Сбрасывать лог на каждой строке</text>
+  </string>
+  <string id="ui_mcm_at_development_log_flush_desc">
+    <text>Пишет каждую строку на диск в тот же миг, как она залогирована. Включите, чтобы поймать вылет, и последние строки перед ним попадут в файл. Замедляет игру, и в обычной игре его стоит выключить.</text>
   </string>
   <string id="at_development_log_level_lst_error">
     <text>Ошибка</text>
@@ -364,14 +1182,15 @@
   <string id="at_development_log_level_lst_debug">
     <text>Отладка</text>
   </string>
+  <!-- Development - Debug HUD -->
   <string id="ui_mcm_at_hdr_hud">
     <text>Отладочный HUD</text>
   </string>
   <string id="ui_mcm_at_development_hud_position">
-    <text>Позиция</text>
+    <text>Положение</text>
   </string>
   <string id="ui_mcm_at_development_hud_position_desc">
-    <text>Живой оверлей ближних сталкеров: ранг и имя, здоровье, схема логики, боевое действие и состояние, ментальное состояние, флаги зрения и укрытия, текущая цель с дистанцией. Зелёная строка отмечает сталкера, которым управляет AlifeTactics. Обновляется каждую секунду и скрывается при открытом КПК. Выберите угол для показа.</text>
+    <text>Каждый боец рядом с вами получает две строки. Первая показывает его имя, здоровье и систему, которая им управляет. Вторая показывает его цель с дистанцией, а также схему и состояние, которые X-Ray для него ведёт. Цвет строки называет управляющую систему, а приём мутанта берёт цвет своей группы на вкладке Мутанты. HUD обновляется дважды в секунду и прячется, пока открыт КПК.</text>
   </string>
   <string id="at_development_hud_position_lst_off">
     <text>Выкл</text>
@@ -394,881 +1213,24 @@
   <string id="at_development_hud_position_lst_bottomright">
     <text>Снизу справа</text>
   </string>
+  <!-- Development - World trace -->
+  <string id="ui_mcm_at_development_world_trace_enabled">
+    <text>Трасса мира</text>
+  </string>
+  <string id="ui_mcm_at_development_world_trace_enabled_desc">
+    <text>Записывает бой вокруг вас в alifetactics_world.log. Отмечает тело, которое скользит, выстрел далеко мимо прицела, две системы, которые дерутся за одного сталкера, и мутанта, который бежит на месте, и каждую минуту пишет таблицу попаданий и очередей. Каждая строка называет систему, которая управляет этим бойцом. Выключенная, она не записывает и не делает проверок.</text>
+  </string>
+  <!-- Development - Reset -->
   <string id="ui_mcm_at_development_btn_reset_all">
     <text>Сбросить к значениям по умолчанию</text>
   </string>
   <string id="ui_mcm_at_development_btn_reset_all_desc">
-    <text>Восстановить все настройки MCM AlifeTactics до значений по умолчанию. Используйте после обновления с версии с другой структурой MCM.</text>
+    <text>Возвращает каждую настройку AlifeTactics к значению по умолчанию. Используйте после обновления, которое изменило меню.</text>
   </string>
   <string id="ui_mcm_at_development_reset_warning">
-    <text>Предупреждение: сначала сохраните или отмените ожидающие изменения MCM, иначе они переопределят сброс при следующем Применить.</text>
+    <text>Внимание: сначала сохраните или отмените незавершённые изменения MCM, иначе они перезапишут сброс при следующем нажатии «Применить».</text>
   </string>
   <string id="st_at_reset_all_done">
     <text>AlifeTactics: все настройки сброшены к значениям по умолчанию.</text>
-  </string>
-  <string id="ui_mcm_at_hdr_accuracy_move">
-    <text>Кривая стрельбы в движении</text>
-  </string>
-  <string id="ui_mcm_at_accuracy_acc_move_novice">
-    <text>Стрельба в движении у новичка</text>
-  </string>
-  <string id="ui_mcm_at_accuracy_acc_move_novice_desc">
-    <text>Какую долю штрафа разброса за движение сталкер ранга новичок сохраняет при стрельбе на ходу. 1.00 - полный ванильный штраф; ниже - ровнее в движении.</text>
-  </string>
-  <string id="ui_mcm_at_accuracy_acc_move_trainee">
-    <text>Стрельба в движении у ученика</text>
-  </string>
-  <string id="ui_mcm_at_accuracy_acc_move_trainee_desc">
-    <text>Какую долю штрафа разброса за движение сталкер ранга ученик сохраняет при стрельбе на ходу. Ниже - ровнее.</text>
-  </string>
-  <string id="ui_mcm_at_accuracy_acc_move_experienced">
-    <text>Стрельба в движении у опытного</text>
-  </string>
-  <string id="ui_mcm_at_accuracy_acc_move_experienced_desc">
-    <text>Какую долю штрафа разброса за движение сталкер ранга опытный сохраняет при стрельбе на ходу. Ниже - ровнее.</text>
-  </string>
-  <string id="ui_mcm_at_accuracy_acc_move_professional">
-    <text>Стрельба в движении у профессионала</text>
-  </string>
-  <string id="ui_mcm_at_accuracy_acc_move_professional_desc">
-    <text>Какую долю штрафа разброса за движение сталкер ранга профессионал сохраняет при стрельбе на ходу. Ниже - ровнее.</text>
-  </string>
-  <string id="ui_mcm_at_accuracy_acc_move_veteran">
-    <text>Стрельба в движении у ветерана</text>
-  </string>
-  <string id="ui_mcm_at_accuracy_acc_move_veteran_desc">
-    <text>Какую долю штрафа разброса за движение сталкер ранга ветеран сохраняет при стрельбе на ходу. Ниже - ровнее.</text>
-  </string>
-  <string id="ui_mcm_at_accuracy_acc_move_expert">
-    <text>Стрельба в движении у эксперта</text>
-  </string>
-  <string id="ui_mcm_at_accuracy_acc_move_expert_desc">
-    <text>Какую долю штрафа разброса за движение сталкер ранга эксперт сохраняет при стрельбе на ходу. Ниже - ровнее.</text>
-  </string>
-  <string id="ui_mcm_at_accuracy_acc_move_master">
-    <text>Стрельба в движении у мастера</text>
-  </string>
-  <string id="ui_mcm_at_accuracy_acc_move_master_desc">
-    <text>Какую долю штрафа разброса за движение сталкер ранга мастер сохраняет при стрельбе на ходу. Ниже - ровнее.</text>
-  </string>
-  <string id="ui_mcm_at_accuracy_acc_move_legend">
-    <text>Стрельба в движении у легенды</text>
-  </string>
-  <string id="ui_mcm_at_accuracy_acc_move_legend_desc">
-    <text>Какую долю штрафа разброса за движение сталкер ранга легенда, высшего ранга, сохраняет при стрельбе на ходу. 0.50 делает его стрельбу в движении такой же ровной, как стоя.</text>
-  </string>
-  <string id="ui_mcm_at_hdr_reaction_aim">
-    <text>Скорость сопровождения</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_aim_novice">
-    <text>Скорость сопровождения у новичка</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_aim_novice_desc">
-    <text>Насколько плотно ствол сталкера ранга новичок следует за движущейся целью, радиан в секунду. 0.24 соответствует ванильному движку.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_aim_trainee">
-    <text>Скорость сопровождения у ученика</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_aim_trainee_desc">
-    <text>Насколько плотно ствол сталкера ранга ученик следует за движущейся целью. Выше - плотнее.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_aim_experienced">
-    <text>Скорость сопровождения у опытного</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_aim_experienced_desc">
-    <text>Насколько плотно ствол сталкера ранга опытный следует за движущейся целью. Выше - плотнее.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_aim_professional">
-    <text>Скорость сопровождения у профессионала</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_aim_professional_desc">
-    <text>Насколько плотно ствол сталкера ранга профессионал следует за движущейся целью. Выше - плотнее.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_aim_veteran">
-    <text>Скорость сопровождения у ветерана</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_aim_veteran_desc">
-    <text>Насколько плотно ствол сталкера ранга ветеран следует за движущейся целью. Выше - плотнее.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_aim_expert">
-    <text>Скорость сопровождения у эксперта</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_aim_expert_desc">
-    <text>Насколько плотно ствол сталкера ранга эксперт следует за движущейся целью. Выше - плотнее.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_aim_master">
-    <text>Скорость сопровождения у мастера</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_aim_master_desc">
-    <text>Насколько плотно ствол сталкера ранга мастер следует за движущейся целью. Выше - плотнее.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_aim_legend">
-    <text>Скорость сопровождения у легенды</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_aim_legend_desc">
-    <text>Насколько плотно ствол сталкера ранга легенда, высшего ранга, следует за движущейся целью. 2.50 соответствует опции хардкорного прицеливания ИИ.</text>
-  </string>
-  <string id="ui_mcm_at_hdr_reaction_vision">
-    <text>Кривая скорости зрения</text>
-  </string>
-  <string id="ui_mcm_at_hdr_reaction_trigger">
-    <text>Огневая дисциплина (длина очереди)</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vision_novice">
-    <text>Скорость зрения у новичка</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vision_novice_desc">
-    <text>Коэффициент скорости обнаружения для сталкеров ранга новичок. Выше - быстрее замечает цели на расстоянии; 1.00 оставляет обнаружение вашей сборки без изменений. Обнаружение в упор не затрагивается.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vision_trainee">
-    <text>Скорость зрения у ученика</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vision_trainee_desc">
-    <text>Коэффициент скорости обнаружения для сталкеров ранга ученик. Выше - быстрее замечает цели на расстоянии.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vision_experienced">
-    <text>Скорость зрения у опытного</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vision_experienced_desc">
-    <text>Коэффициент скорости обнаружения для сталкеров ранга опытный. Выше - быстрее замечает цели на расстоянии.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vision_professional">
-    <text>Скорость зрения у профессионала</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vision_professional_desc">
-    <text>Коэффициент скорости обнаружения для сталкеров ранга профессионал. Выше - быстрее замечает цели на расстоянии.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vision_veteran">
-    <text>Скорость зрения у ветерана</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vision_veteran_desc">
-    <text>Коэффициент скорости обнаружения для сталкеров ранга ветеран. Выше - быстрее замечает цели на расстоянии.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vision_expert">
-    <text>Скорость зрения у эксперта</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vision_expert_desc">
-    <text>Коэффициент скорости обнаружения для сталкеров ранга эксперт. Выше - быстрее замечает цели на расстоянии.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vision_master">
-    <text>Скорость зрения у мастера</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vision_master_desc">
-    <text>Коэффициент скорости обнаружения для сталкеров ранга мастер. Выше - быстрее замечает цели на расстоянии.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vision_legend">
-    <text>Скорость зрения у легенды</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vision_legend_desc">
-    <text>Коэффициент скорости обнаружения для сталкеров ранга легенда, высшего ранга. Выше - быстрее замечает цели на расстоянии. 2.00 замечает цели вдвое быстрее базовой скорости вашей сборки.</text>
-  </string>
-  <string id="ui_mcm_at_commitment_commitment_enabled">
-    <text>Включить Приверженность</text>
-  </string>
-  <string id="ui_mcm_at_commitment_commitment_enabled_desc">
-    <text>Когда выключено, сталкеры ведут себя как в ванили: сталкер бросает действие, которому был привержен, в тот же миг, когда движок пересчитывает и находит чуть лучший вариант - это и есть беготня между укрытиями посреди боя.</text>
-  </string>
-  <string id="ui_mcm_at_hdr_commitment_hold">
-    <text>Предел приверженности</text>
-  </string>
-  <string id="ui_mcm_at_commitment_commitment_hold_s">
-    <text>Макс. время приверженности</text>
-  </string>
-  <string id="ui_mcm_at_commitment_commitment_hold_s_desc">
-    <text>Как долго сталкер может оставаться приверженным одному действию, прежде чем движку снова позволят его сдвинуть. Это потолок, а не заданная длительность: пока причина держаться ещё в силе, он остаётся приверженным, и это лишь ограничивает один непрерывный отрезок, чтобы качество укрытия со временем снова имело значение. Он прекращает сам в тот же миг, когда причина исчезает (потерял цель из виду, выстрел больше не чист). Выше - дольше остаётся приверженным.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_aim_enabled">
-    <text>Включить скорость слежения</text>
-  </string>
-  <string id="ui_mcm_at_reaction_aim_enabled_desc">
-    <text>Насколько плотно ствол сталкера ведет движущуюся цель, по рангам. Низкие ранги отстают от бегущей цели, высшие держат ее на прицеле. Если выключено, применяется плоская скорость движка.</text>
-  </string>
-  <string id="ui_mcm_at_hdr_reaction_lead">
-    <text>Упреждение</text>
-  </string>
-  <string id="ui_mcm_at_reaction_lead_enabled">
-    <text>Включить упреждение</text>
-  </string>
-  <string id="ui_mcm_at_reaction_lead_enabled_desc">
-    <text>Насколько сталкер целится впереди движущейся цели, исходя из реального времени полета пули. Высшие ранги берут точное упреждение и попадают по бегущим, низшие перебирают. Если выключено, применяется фиксированное упреждение движка.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_vision_enabled">
-    <text>Включить скорость обнаружения</text>
-  </string>
-  <string id="ui_mcm_at_reaction_vision_enabled_desc">
-    <text>Как быстро сталкер замечает цель на дистанции, по рангам, поверх вашей системы обнаружения. Высшие ранги замечают вас раньше. Если выключено, применяется плоская скорость обнаружения.</text>
-  </string>
-  <string id="ui_mcm_at_accuracy_disp_enabled">
-    <text>Включить кривую разброса</text>
-  </string>
-  <string id="ui_mcm_at_accuracy_disp_enabled_desc">
-    <text>Насколько узок конус прицеливания каждого ранга. Низкие ранги палят широко, высшие кучно. Если выключено, применяется плоский конус движка.</text>
-  </string>
-  <string id="ui_mcm_at_accuracy_move_enabled">
-    <text>Включить огонь в движении</text>
-  </string>
-  <string id="ui_mcm_at_accuracy_move_enabled_desc">
-    <text>Насколько каждый ранг компенсирует штраф к точности при стрельбе в движении. Высшие ранги точны на ходу. Если выключено, штраф остается полным.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_lead_novice">
-    <text>Упреждение новичка</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_lead_novice_desc">
-    <text>Ошибка упреждения для ранга новичок, множитель к физически верному упреждению. 2.00 перебирает по бегущей цели, 1.00 берет точно.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_lead_trainee">
-    <text>Упреждение стажера</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_lead_trainee_desc">
-    <text>Ошибка упреждения для ранга стажер. Выше 1.00 перебирает по движущейся цели, 1.00 берет точно.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_lead_experienced">
-    <text>Упреждение опытного</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_lead_experienced_desc">
-    <text>Ошибка упреждения для ранга опытный. Выше 1.00 перебирает по движущейся цели, 1.00 берет точно.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_lead_professional">
-    <text>Упреждение профессионала</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_lead_professional_desc">
-    <text>Ошибка упреждения для ранга профессионал. Выше 1.00 перебирает по движущейся цели, 1.00 берет точно.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_lead_veteran">
-    <text>Упреждение ветерана</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_lead_veteran_desc">
-    <text>Ошибка упреждения для ранга ветеран. Выше 1.00 перебирает по движущейся цели, 1.00 берет точно.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_lead_expert">
-    <text>Упреждение эксперта</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_lead_expert_desc">
-    <text>Ошибка упреждения для ранга эксперт. Выше 1.00 перебирает по движущейся цели, 1.00 берет точно.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_lead_master">
-    <text>Упреждение мастера</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_lead_master_desc">
-    <text>Ошибка упреждения для ранга мастер. Выше 1.00 перебирает по движущейся цели, 1.00 берет точно.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_lead_legend">
-    <text>Упреждение легенды</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_lead_legend_desc">
-    <text>Ошибка упреждения для ранга легенда, высший. 1.00 берет точно и попадает по бегущим.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_discipline_enabled">
-    <text>Включить огневую дисциплину</text>
-  </string>
-  <string id="ui_mcm_at_reaction_discipline_enabled_desc">
-    <text>Масштабирует длину и темп очередей по рангам. Высшие ранги дают короткие точные очереди чаще, низшие остаются ванильными. По умолчанию масштаб длины не меньше масштаба интервала, поэтому попадания в минуту не падают ниже ванили. Выключено = ванильные очереди.</text>
-  </string>
-  <string id="ui_mcm_at_hdr_reaction_qinterval">
-    <text>Темп огня (интервал)</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qsize_novice">
-    <text>Длина очереди: новичок</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qsize_novice_desc">
-    <text>Множитель длины очереди для этого ранга. 1.00 = ваниль, ниже 1 обрезает очередь до точных первых выстрелов.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qsize_trainee">
-    <text>Длина очереди: стажер</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qsize_trainee_desc">
-    <text>Множитель длины очереди для этого ранга. 1.00 = ваниль, ниже 1 обрезает очередь до точных первых выстрелов.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qsize_experienced">
-    <text>Длина очереди: опытный</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qsize_experienced_desc">
-    <text>Множитель длины очереди для этого ранга. 1.00 = ваниль, ниже 1 обрезает очередь до точных первых выстрелов.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qsize_professional">
-    <text>Длина очереди: профессионал</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qsize_professional_desc">
-    <text>Множитель длины очереди для этого ранга. 1.00 = ваниль, ниже 1 обрезает очередь до точных первых выстрелов.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qsize_veteran">
-    <text>Длина очереди: ветеран</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qsize_veteran_desc">
-    <text>Множитель длины очереди для этого ранга. 1.00 = ваниль, ниже 1 обрезает очередь до точных первых выстрелов.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qsize_expert">
-    <text>Длина очереди: эксперт</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qsize_expert_desc">
-    <text>Множитель длины очереди для этого ранга. 1.00 = ваниль, ниже 1 обрезает очередь до точных первых выстрелов.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qsize_master">
-    <text>Длина очереди: мастер</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qsize_master_desc">
-    <text>Множитель длины очереди для этого ранга. 1.00 = ваниль, ниже 1 обрезает очередь до точных первых выстрелов.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qsize_legend">
-    <text>Длина очереди: легенда</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qsize_legend_desc">
-    <text>Множитель длины очереди для этого ранга. 1.00 = ваниль, ниже 1 обрезает очередь до точных первых выстрелов.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qinterval_novice">
-    <text>Темп огня: новичок</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qinterval_novice_desc">
-    <text>Множитель паузы между очередями для этого ранга. 1.00 = ваниль, ниже 1 стреляет чаще.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qinterval_trainee">
-    <text>Темп огня: стажер</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qinterval_trainee_desc">
-    <text>Множитель паузы между очередями для этого ранга. 1.00 = ваниль, ниже 1 стреляет чаще.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qinterval_experienced">
-    <text>Темп огня: опытный</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qinterval_experienced_desc">
-    <text>Множитель паузы между очередями для этого ранга. 1.00 = ваниль, ниже 1 стреляет чаще.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qinterval_professional">
-    <text>Темп огня: профессионал</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qinterval_professional_desc">
-    <text>Множитель паузы между очередями для этого ранга. 1.00 = ваниль, ниже 1 стреляет чаще.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qinterval_veteran">
-    <text>Темп огня: ветеран</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qinterval_veteran_desc">
-    <text>Множитель паузы между очередями для этого ранга. 1.00 = ваниль, ниже 1 стреляет чаще.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qinterval_expert">
-    <text>Темп огня: эксперт</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qinterval_expert_desc">
-    <text>Множитель паузы между очередями для этого ранга. 1.00 = ваниль, ниже 1 стреляет чаще.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qinterval_master">
-    <text>Темп огня: мастер</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qinterval_master_desc">
-    <text>Множитель паузы между очередями для этого ранга. 1.00 = ваниль, ниже 1 стреляет чаще.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qinterval_legend">
-    <text>Темп огня: легенда</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_qinterval_legend_desc">
-    <text>Множитель паузы между очередями для этого ранга. 1.00 = ваниль, ниже 1 стреляет чаще.</text>
-  </string>
-  <string id="ui_mcm_at_combat_maneuver_pickoff">
-    <text>Отстрел</text>
-  </string>
-  <string id="ui_mcm_at_combat_maneuver_pickoff_desc">
-    <text>Сталкер, превосходящий врага по дальности в позиционной дуэли, стоит на месте и снимает его размеренными одиночными выстрелами. Он занимает позицию только заметно дальше эффективной дальности врага, отходит, как только враг сближается, и никогда не держит позицию под огнём или на прицеле своей цели.</text>
-  </string>
-  <string id="ui_mcm_at_combat_maneuver_reload_cover">
-    <text>Укрытие при перезарядке</text>
-  </string>
-  <string id="ui_mcm_at_combat_maneuver_reload_cover_desc">
-    <text>Сталкер, застигнутый перезарядкой на линии огня наблюдающего врага - вашей или другого бойца - бежит в ближайшее укрытие, скрывающее его от этого наблюдателя, и оружие дозаряжается на бегу. Перезаряжаясь незамеченным, он остаётся на месте. Требуется свежая сборка движка.</text>
-  </string>
-  <string id="ui_mcm_at_commitment_commitment_cover_pin">
-    <text>Закрепление в укрытии</text>
-  </string>
-  <string id="ui_mcm_at_commitment_commitment_cover_pin_desc">
-    <text>Сталкер, стреляющий с чистой линией, сохраняет своё укрытие вместо того, чтобы перебираться в чуть лучшее место. Метание посреди боя остановлено у самой причины, на шаг раньше переключения действия, которое уже держит Приверженность. Скомпрометированное место (враг вплотную, выстрел заблокирован) всё равно освобождается. Требует недавней сборки движка, на старых не работает.</text>
-  </string>
-  <string id="ui_mcm_at_commitment_commitment_liquidate">
-    <text>Ликвидация уязвимой цели</text>
-  </string>
-  <string id="ui_mcm_at_commitment_commitment_liquidate_desc">
-    <text>Сталкер, чей враг застигнут перезарядкой, без патронов, оглушён попаданием, бежит с опущенным оружием или вовсе без оружия, продолжает вести огонь в это окно вместо отхода на новую позицию и снова двигается, когда враг может ответить. Дополнительное удержание ограничено по времени - никто не стоит на месте долго. Мутанты его никогда не вызывают. На отладочном HUD отображается как LIQUIDATE.</text>
-  </string>
-  <string id="ui_mcm_at_conduct_conduct_posture">
-    <text>Стойка у укрытия</text>
-  </string>
-  <string id="ui_mcm_at_conduct_conduct_posture_desc">
-    <text>Опытные стрелки и снайперы приседают, когда между ними и врагом стоит настоящее укрытие по грудь, и встают, когда его нет. Ваниль выбирает боевую стойку вслепую, поэтому сталкеры приседают за случайными бугорками и стреляют в них или стоят в полный рост рядом с укрытием, которое могли бы использовать. Решение читает собственную карту укрытий игры в сторону врага. Носители короткого оружия и зелёные ранги сохраняют ванильное поведение. Зомбированные сталкеры удерживаются стоя и никогда не приседают на огневом рубеже.</text>
-  </string>
-  <string id="ui_mcm_at_conduct_conduct_spacing">
-    <text>Дистанция по оружию</text>
-  </string>
-  <string id="ui_mcm_at_conduct_conduct_spacing_desc">
-    <text>Выбор укрытий сталкера учитывает, на что годится его оружие: бойцы с пистолетами-пулемётами принимают более близкие укрытия, чтобы огонь оставался эффективным, а умелые снайперы держат дополнительную дистанцию.</text>
-  </string>
-  <string id="ui_mcm_at_conduct_desc">
-    <text>Мелкие боевые привычки, применяемые к сталкерам, которыми управляет ванильный движок. Никакого перехвата, только лучшие решения в моменты, которые движок и так решает. Требует недавней сборки движка, на старых сборках страница не действует и применяется ванильное поведение.</text>
-  </string>
-  <string id="ui_mcm_at_danger_danger_heard_actions">
-    <text>Шум обращения с оружием</text>
-  </string>
-  <string id="ui_mcm_at_danger_danger_heard_actions_desc">
-    <text>Враждебные сталкеры реагируют, услышав, как ты передёргиваешь затвор при перезарядке, щёлкаешь вхолостую или используешь предмет рядом. Меньший радиус, чем у шума движения, и только для звуков, которые их уши действительно уловили. Передёрнутая перезарядка или холостой щелчок отправляют его пройтись и проверить место, использованный предмет разворачивает его с оружием наготове в сторону звука.</text>
-  </string>
-  <string id="ui_mcm_at_danger_danger_move_noise">
-    <text>Шум движения</text>
-  </string>
-  <string id="ui_mcm_at_danger_danger_move_noise_desc">
-    <text>Враждебные сталкеры слышат твоё движение. Каждый шаг несёт радиус шума, собранный из твоей стойки, поверхности и погоды: база 5 м при ходьбе, x1.6 на бегу, 10 м при приземлении с прыжка, а движение вприсядку полностью бесшумно, поэтому скрытность остаётся вопросом света и укрытия. Поверхности: металл x1.25, дерево x1.15, вода x1.35, трава x0.7, земля и песок x0.8, а дождь снижает разнос до 40 процентов. Реакция следует за уликами: услышанная ходьба разворачивает его с оружием наготове в сторону звука, бег или приземление отправляют его пройтись и проверить место. Звук никогда не считается подтверждённым врагом. Он расследует шагом, никогда не бросается в атаку и не узнаёт волшебным образом, где ты. Реагируют только уже враждебные тебе сталкеры и только вне боя, поэтому скрытность остаётся игрой дистанции и стойки, а не глухими НПС.</text>
-  </string>
-  <string id="ui_mcm_at_danger_danger_neutral_gunfire">
-    <text>Тревога от стрельбы рядом</text>
-  </string>
-  <string id="ui_mcm_at_danger_danger_neutral_gunfire_desc">
-    <text>Нейтральные и дружественные сталкеры настораживаются, когда ты стреляешь рядом с ними: стойка с оружием наготове, лицом к твоим выстрелам, вместо того чтобы игнорировать стрельбу у самых голов. Это лишь настороженность: они не становятся враждебными, не перемещаются и успокаиваются, когда стрельба прекращается. Малый радиус, далеко от дальностей боевого обнаружения.</text>
-  </string>
-  <string id="ui_mcm_at_danger_danger_noise_mult">
-    <text>Дальность разноса шума</text>
-  </string>
-  <string id="ui_mcm_at_danger_danger_noise_mult_desc">
-    <text>Регулирует, как далеко разносится шум твоего движения и обращения с оружием. Ниже 1 делает скрытность мягче, выше 1 делает сталкеров острее на слух.</text>
-  </string>
-  <string id="ui_mcm_at_danger_hdr_gunfire">
-    <text>Стрельба</text>
-  </string>
-  <string id="ui_mcm_at_danger_hdr_noise">
-    <text>Твой шум</text>
-  </string>
-  <string id="ui_mcm_at_development_world_trace_enabled">
-    <text>Трассировка мира</text>
-  </string>
-  <string id="ui_mcm_at_development_world_trace_enabled_desc">
-    <text>Отладочный наблюдатель за боевыми НПС рядом с тобой, отмечающий скользящее тело: реально пройденное расстояние без анимации ходьбы или бега, включая толчок сразу после попадания. Каждая строка называет систему, управляющую этим НПС (манёвр, Приверженность или ваниль). Строки идут в alifetactics_world.log. В выключенном состоянии ничего не стоит.</text>
-  </string>
-  <string id="ui_mcm_at_danger_hdr_targeting">
-    <text>Приоритет целей</text>
-  </string>
-  <string id="ui_mcm_at_danger_selection_actor_bias">
-    <text>Притяжение целей к игроку</text>
-  </string>
-  <string id="ui_mcm_at_danger_selection_actor_bias_desc">
-    <text>Насколько сильно NPC приоритизирует вас как цель, когда может вас видеть, по сравнению с более слабым притяжением к другим NPC. Меньшие значения делают вас обычным участником боя; 0 убирает притяжение полностью. Требуется свежая сборка движка; на старых неактивно.</text>
-  </string>
-  <string id="ui_mcm_menu_conduct">
-    <text>Поведение</text>
-  </string>
-  <string id="ui_mcm_at_danger_fix_anim_cleanup">
-    <text>Очистка анимации опасности</text>
-  </string>
-  <string id="ui_mcm_at_danger_fix_anim_cleanup_desc">
-    <text>Переходы состояния опасности больше не оставляют застрявшую анимацию нижней части тела.</text>
-  </string>
-  <string id="ui_mcm_at_danger_fix_config_cache">
-    <text>Кэширование конфига опасности</text>
-  </string>
-  <string id="ui_mcm_at_danger_fix_config_cache_desc">
-    <text>Проверка опасности разбирает строки конфига один раз, а не заново при каждой оценке.</text>
-  </string>
-  <string id="ui_mcm_at_danger_fix_config_isolation">
-    <text>Изоляция конфига опасности</text>
-  </string>
-  <string id="ui_mcm_at_danger_fix_config_isolation_desc">
-    <text>Три категории опасности раньше читали не те строки конфига из-за конфликта имён. Теперь каждая читает свои строки.</text>
-  </string>
-  <string id="ui_mcm_at_danger_fix_corpse_despawn">
-    <text>Безопасность исчезновения трупа</text>
-  </string>
-  <string id="ui_mcm_at_danger_fix_corpse_despawn_desc">
-    <text>Труп, исчезающий во время осмотра, больше не вызывает вылет у осматривающего.</text>
-  </string>
-  <string id="ui_mcm_at_danger_fix_corpse_order">
-    <text>Порядок реакции на труп</text>
-  </string>
-  <string id="ui_mcm_at_danger_fix_corpse_order_desc">
-    <text>Реакция на труп больше не вызывает вылет, когда срабатывает до установки стадии осмотра.</text>
-  </string>
-  <string id="ui_mcm_at_danger_fix_corpse_time">
-    <text>Проверка времени трупа мутанта</text>
-  </string>
-  <string id="ui_mcm_at_danger_fix_corpse_time_desc">
-    <text>Труп мутанта больше не вызывает вылет в проверке времени опасности.</text>
-  </string>
-  <string id="ui_mcm_at_danger_fix_cover_scope">
-    <text>Область резервирования укрытия</text>
-  </string>
-  <string id="ui_mcm_at_danger_fix_cover_scope_desc">
-    <text>Выход из состояния опасности снимает только своё резервирование укрытия, а не стирает его у всех сталкеров.</text>
-  </string>
-  <string id="ui_mcm_at_danger_fix_hit_shooter">
-    <text>Целостность памяти о попадании</text>
-  </string>
-  <string id="ui_mcm_at_danger_fix_hit_shooter_desc">
-    <text>Колбэк попадания больше не портит память об опасности отсутствующим стрелком при каждом попадании.</text>
-  </string>
-  <string id="ui_mcm_at_danger_fix_id_reuse">
-    <text>Повторное использование id опасности</text>
-  </string>
-  <string id="ui_mcm_at_danger_fix_id_reuse_desc">
-    <text>Скриптовая опасность мёртвого сталкера больше не остаётся на его id, поэтому возрождение с тем же id начинается чисто.</text>
-  </string>
-  <string id="ui_mcm_at_danger_fix_investigate_target">
-    <text>Цель осмотра</text>
-  </string>
-  <string id="ui_mcm_at_danger_fix_investigate_target_desc">
-    <text>Осматривающий идёт к найденному укрытию, а не к очищенной точке.</text>
-  </string>
-  <string id="ui_mcm_at_danger_fix_investigator_select">
-    <text>Выбор осматривающего</text>
-  </string>
-  <string id="ui_mcm_at_danger_fix_investigator_select_desc">
-    <text>Осмотр трупа ведёт тот член отряда, который нашёл труп, а не другой.</text>
-  </string>
-  <string id="ui_mcm_at_danger_fix_npc_teardown">
-    <text>Защита от разрушенного NPC</text>
-  </string>
-  <string id="ui_mcm_at_danger_fix_npc_teardown_desc">
-    <text>Ссылка на разрушенного NPC больше не вызывает вылет в оценщике опасности.</text>
-  </string>
-  <string id="ui_mcm_at_danger_fix_time_value">
-    <text>Проверка значения времени опасности</text>
-  </string>
-  <string id="ui_mcm_at_danger_fix_time_value_desc">
-    <text>Неверное значение времени опасности больше не вызывает вылет оценщика.</text>
-  </string>
-  <string id="ui_mcm_at_development_log_flush">
-    <text>Сброс лога на каждой строке</text>
-  </string>
-  <string id="ui_mcm_at_development_log_flush_desc">
-    <text>Записывать каждую строку лога на диск сразу, без буферизации. Включите при диагностике вылета, чтобы последние строки уцелели при жёстком зависании, которое не доходит до периодического сброса. Медленнее, для обычной игры оставьте выключенным.</text>
-  </string>
-  <string id="ui_mcm_at_gear_desc">
-    <text>Каждый предмет, который несёт сталкер, питает один канал эффекта по игровым данным самого предмета, поэтому работает любой артефакт из любого мода. Гравитационные, химические и бронепластинчатые артефакты снижают получаемый им урон, термические артефакты сужают его стрельбу, а электрические и квестовые артефакты повышают наносимый им урон. Любой отдельный артефакт даёт максимум 10 процентов и не складывается, на канале побеждает сильнейший артефакт, поэтому снаряжение склоняет бой, но не решает его. Бинокль увеличивает его дальность зрения днём, а ночное видение ночью, на сборках движка с привязкой дальности зрения для каждого сталкера. Сталкер, вокруг которого искривляется воздух, несёт настоящий артефакт, и убить его есть способ его получить.</text>
-  </string>
-  <string id="ui_mcm_at_gear_gear_aura_enabled">
-    <text>Искажение от артефакта</text>
-  </string>
-  <string id="ui_mcm_at_gear_gear_aura_enabled_desc">
-    <text>Вкл: сталкер, несущий любой артефакт, искривляет воздух вокруг тела, поэтому носитель заметен и на него можно охотиться. Выкл: эффекты применяются без визуального признака.</text>
-  </string>
-  <string id="ui_mcm_at_gear_gear_binoc_enabled">
-    <text>Наблюдатели с биноклем</text>
-  </string>
-  <string id="ui_mcm_at_gear_gear_binoc_enabled_desc">
-    <text>Вкл: сталкер с биноклем видит дальше при дневном свете. Требуется сборка движка с привязкой дальности зрения для каждого сталкера, на старых exe неактивно. Выкл: бинокль остаётся инертным.</text>
-  </string>
-  <string id="ui_mcm_at_gear_gear_enabled">
-    <text>Переносимые предметы усиливают сталкеров</text>
-  </string>
-  <string id="ui_mcm_at_gear_gear_enabled_desc">
-    <text>Вкл: переносимые артефакты и снаряжение дают сталкеру эффекты, описанные выше. Выкл: предметы инвентаря остаются инертным лутом, точно как в ванили.</text>
-  </string>
-  <string id="ui_mcm_at_gear_gear_nvg_enabled">
-    <text>Ночное видение ночью</text>
-  </string>
-  <string id="ui_mcm_at_gear_gear_nvg_enabled_desc">
-    <text>Вкл: сталкер с прибором ночного видения видит дальше в ночные часы. Требуется сборка движка с привязкой дальности зрения для каждого сталкера, на старых exe неактивно. Выкл: приборы ночного видения остаются инертными.</text>
-  </string>
-  <string id="ui_mcm_at_hdr_reaction_track">
-    <text>Захват цели</text>
-  </string>
-  <string id="ui_mcm_at_hdr_vision_range">
-    <text>Дальность зрения</text>
-  </string>
-  <string id="ui_mcm_at_perception_danger_desc">
-    <text>Как сталкеры реагируют на попадание по ним. Реакция на дальнее попадание и настройка дистанции до игрока переключаются ниже. Исправления ванильной проверки опасности и осмотра трупов переехали на вкладку Исправления. AlifeTactics устанавливается как runtime-патч поверх того скрипта опасности, который поставляет ваш модпак.</text>
-  </string>
-  <string id="ui_mcm_at_vision_desc">
-    <text>Как зрение сталкера растёт с рангом: как быстро он превращает мельком увиденное в подтверждённую угрозу (скорость) и с какого расстояния начинает её замечать (дальность). И то, и другое это реакция и опыт, а не сырое зрение, и держится в узкой полосе вокруг базовой линии вашей сборки. Дальность требует свежей сборки движка с привязкой дальности зрения для каждого сталкера, на старых сборках работает только кривая скорости.</text>
-  </string>
-  <string id="ui_mcm_menu_gear">
-    <text>Снаряжение</text>
-  </string>
-  <string id="ui_mcm_menu_perception">
-    <text>Восприятие</text>
-  </string>
-  <string id="ui_mcm_menu_vision">
-    <text>Зрение</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_track_experienced">
-    <text>Захват цели: опытный</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_track_experienced_desc">
-    <text>Насколько плотно ствол опытного ранга удерживает движущуюся цель. Выше значение удерживает плотнее, труднее уклониться.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_track_expert">
-    <text>Захват цели: эксперт</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_track_expert_desc">
-    <text>Насколько плотно ствол ранга эксперт удерживает движущуюся цель. Выше значение удерживает плотнее, труднее уклониться.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_track_legend">
-    <text>Захват цели: легенда</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_track_legend_desc">
-    <text>Насколько плотно ствол ранга легенды, высшего ранга, удерживает движущуюся цель. 0.40 удерживает на протяжении всего окна стрельбы, намного ниже хардкорного аимбота игры 17.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_track_master">
-    <text>Захват цели: мастер</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_track_master_desc">
-    <text>Насколько плотно ствол ранга мастер удерживает движущуюся цель. Выше значение удерживает плотнее, труднее уклониться.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_track_novice">
-    <text>Захват цели: новичок</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_track_novice_desc">
-    <text>Насколько плотно ствол новичка удерживает движущуюся цель, ширина полосы захвата в радианах. 0.196 соответствует ванили, где движущийся может сбить прицел.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_track_professional">
-    <text>Захват цели: профессионал</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_track_professional_desc">
-    <text>Насколько плотно ствол ранга профессионал удерживает движущуюся цель. Выше значение удерживает плотнее, труднее уклониться.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_track_trainee">
-    <text>Захват цели: стажёр</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_track_trainee_desc">
-    <text>Насколько плотно ствол стажёра удерживает движущуюся цель. Выше значение удерживает плотнее, труднее уклониться.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_track_veteran">
-    <text>Захват цели: ветеран</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_track_veteran_desc">
-    <text>Насколько плотно ствол ранга ветеран удерживает движущуюся цель. Выше значение удерживает плотнее, труднее уклониться.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vrange_experienced">
-    <text>Дальность зрения: опытный</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vrange_experienced_desc">
-    <text>Коэффициент дальности обнаружения для сталкеров опытного ранга. Выше начинает видеть цели с большего расстояния.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vrange_expert">
-    <text>Дальность зрения: эксперт</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vrange_expert_desc">
-    <text>Коэффициент дальности обнаружения для сталкеров ранга эксперт. Выше начинает видеть цели с большего расстояния.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vrange_legend">
-    <text>Дальность зрения: легенда</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vrange_legend_desc">
-    <text>Насколько далеко сталкер ранга легенды, высшего ранга, начинает замечать угрозу. Выше 1.00 видит дальше, 1.00 базовая линия вашей сборки. Требуется движковая привязка дальности зрения.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vrange_master">
-    <text>Дальность зрения: мастер</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vrange_master_desc">
-    <text>Коэффициент дальности обнаружения для сталкеров ранга мастер. Выше начинает видеть цели с большего расстояния.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vrange_novice">
-    <text>Дальность зрения: новичок</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vrange_novice_desc">
-    <text>Насколько далеко сталкер-новичок начинает замечать угрозу. Выше 1.00 видит дальше, 1.00 базовая линия вашей сборки. Требуется свежая сборка движка с привязкой дальности зрения для каждого сталкера, на старых неактивно.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vrange_professional">
-    <text>Дальность зрения: профессионал</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vrange_professional_desc">
-    <text>Коэффициент дальности обнаружения для сталкеров ранга профессионал. Выше начинает видеть цели с большего расстояния.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vrange_trainee">
-    <text>Дальность зрения: стажёр</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vrange_trainee_desc">
-    <text>Коэффициент дальности обнаружения для сталкеров ранга стажёр. Выше начинает видеть цели с большего расстояния.</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vrange_veteran">
-    <text>Дальность зрения: ветеран</text>
-  </string>
-  <string id="ui_mcm_at_reaction_rct_vrange_veteran_desc">
-    <text>Коэффициент дальности обнаружения для сталкеров ранга ветеран. Выше начинает видеть цели с большего расстояния.</text>
-  </string>
-  <string id="ui_mcm_menu_discipline">
-    <text>Дисциплина</text>
-  </string>
-  <string id="ui_mcm_at_discipline_desc">
-    <text>Ранг сталкера определяет, как он работает со спуском: насколько длинной идёт очередь и как часто он стреляет. Высокие ранги дают более короткие и чёткие очереди чаще; низкие ранги сохраняют ванильное поведение. Значения по умолчанию удерживают попадания в минуту на уровне ванили или выше на каждом ранге. Требуется свежая сборка движка с привязкой очереди огня для каждого сталкера; на старых сборках страница не действует и применяется ванильное поведение.</text>
-  </string>
-  <string id="ui_mcm_at_gear_gear_resist_enabled">
-    <text>Сопротивление урону</text>
-  </string>
-  <string id="ui_mcm_at_gear_gear_resist_enabled_desc">
-    <text>Вкл: переносимые бронепластины и защитные артефакты снижают получаемый сталкером урон. Выкл: без снижения урона от снаряжения.</text>
-  </string>
-  <string id="ui_mcm_at_gear_gear_dealt_enabled">
-    <text>Наносимый урон</text>
-  </string>
-  <string id="ui_mcm_at_gear_gear_dealt_enabled_desc">
-    <text>Вкл: заряженные и квестовые артефакты повышают урон выстрелов носителя. Выкл: канал исходящего урона выключен.</text>
-  </string>
-  <string id="ui_mcm_at_gear_gear_disp_enabled">
-    <text>Устойчивость прицела</text>
-  </string>
-  <string id="ui_mcm_at_gear_gear_disp_enabled_desc">
-    <text>Вкл: термические артефакты сужают разброс выстрелов носителя. Выкл: канал устойчивости прицела выключен.</text>
-  </string>
-  <string id="ui_mcm_at_gear_gear_regen_enabled">
-    <text>Восстановление здоровья</text>
-  </string>
-  <string id="ui_mcm_at_gear_gear_regen_enabled_desc">
-    <text>Вкл: химические артефакты дают носителю пассивное восстановление здоровья. Выкл: без регенерации от снаряжения.</text>
-  </string>
-  <!-- ==================== FIXES TAB ==================== -->
-  <string id="ui_mcm_menu_vanilla_fixes">
-    <text>Исправления</text>
-  </string>
-  <string id="ui_mcm_at_vanilla_fixes_desc">
-    <text>Все исправленные ошибки ванильной Anomaly и xray, сгруппированные по системам, каждая как заблокированный переключатель. Постоянные исправления нельзя отключить. Остальные включаются на своих страницах.</text>
-  </string>
-  <string id="ui_mcm_at_vf_hdr_danger">
-    <text>Схема опасности (xr_danger)</text>
-  </string>
-  <string id="ui_mcm_at_danger_fix_dead_eval">
-    <text>Оценка опасности у мёртвого</text>
-  </string>
-  <string id="ui_mcm_at_danger_fix_dead_eval_desc">
-    <text>Сталкер больше не оценивается на опасность после смерти, что прекращает повторяющуюся ошибку видимости движка до исчезновения тела.</text>
-  </string>
-  <string id="ui_mcm_at_vf_hdr_corpse">
-    <text>Осмотр трупов (xr_danger)</text>
-  </string>
-  <string id="ui_mcm_at_vf_hdr_target">
-    <text>Выбор цели (CEnemyManager)</text>
-  </string>
-  <string id="ui_mcm_at_vf_sticky_targeting">
-    <text>Залипание на цели</text>
-  </string>
-  <string id="ui_mcm_at_vf_sticky_targeting_desc">
-    <text>Обстрелянный сталкер поворачивается к тому, кто его ударил, а не к дальней видимой цели. Всегда включено; требуется свежая сборка движка.</text>
-  </string>
-  <string id="ui_mcm_at_vf_player_bias">
-    <text>Смещение на игрока</text>
-  </string>
-  <string id="ui_mcm_at_vf_player_bias_desc">
-    <text>НПС больше не стягиваются на вас втрое сильнее, чем друг на друга. Настраивается ползунком Притяжение целей к игроку на странице Восприятие, Опасность.</text>
-  </string>
-  <string id="ui_mcm_at_vf_hdr_accuracy">
-    <text>Точность (разброс выстрела)</text>
-  </string>
-  <string id="ui_mcm_at_vf_rank_accuracy">
-    <text>Точность по рангу</text>
-  </string>
-  <string id="ui_mcm_at_vf_rank_accuracy_desc">
-    <text>Настоящая кривая точности по рангу заменяет плоский зажим ванили. Настраивается на своей странице.</text>
-  </string>
-  <string id="ui_mcm_at_vf_hdr_combat">
-    <text>Бой</text>
-  </string>
-  <string id="ui_mcm_at_vf_cover_posture">
-    <text>Поза за укрытием</text>
-  </string>
-  <string id="ui_mcm_at_vf_cover_posture_desc">
-    <text>Сталкер больше не стреляет в низкое укрытие, за которое присел. Настраивается на своей странице.</text>
-  </string>
-  <string id="ui_mcm_at_vf_low_cover">
-    <text>Выстрел из-за низкого укрытия</text>
-  </string>
-  <string id="ui_mcm_at_vf_low_cover_desc">
-    <text>Сталкер стреляет поверх низкого укрытия, через которое может стрелять. Проверка выстрела берёт высоту глаз, а не груди. Работает с манёврами.</text>
-  </string>
-  <string id="ui_mcm_at_vf_monolith_stance">
-    <text>Боевая стойка Монолита</text>
-  </string>
-  <string id="ui_mcm_at_vf_monolith_stance_desc">
-    <text>Бойцы на ванильной боевой схеме Монолита гораздо реже дёргаются между приседом и покоем в бою. Её четыре действия теперь считаются боевыми для менеджера состояний. Работает всегда.</text>
-  </string>
-  <string id="ui_mcm_at_vf_hdr_movement">
-    <text>Движение и анимация</text>
-  </string>
-  <string id="ui_mcm_at_vf_hit_hold">
-    <text>Скольжение при попадании</text>
-  </string>
-  <string id="ui_mcm_at_vf_hit_hold_desc">
-    <text>Попадание больше не скользит стоящего сталкера по земле, пока играет анимация. Настраивается на своей странице, требует PR #645.</text>
-  </string>
-  <string id="ui_mcm_at_vf_anim_body">
-    <text>Манёвр на анимируемом теле</text>
-  </string>
-  <string id="ui_mcm_at_vf_anim_body_desc">
-    <text>Манёвр не начинается на сталкере, ещё проигрывающем анимацию удара или скрипта. Работает с манёврами на сборках с PR #629.</text>
-  </string>
-  <string id="ui_mcm_at_vf_hdr_healing">
-    <text>Лечение (xr_eat_medkit)</text>
-  </string>
-  <string id="ui_mcm_at_healing_fix_medkit_reroll">
-    <text>Пере-розыгрыш заряда при сохранении</text>
-  </string>
-  <string id="ui_mcm_at_healing_fix_medkit_reroll_desc">
-    <text>Заряд лечения сталкера больше не разыгрывается заново при сохранении и загрузке.</text>
-  </string>
-  <string id="ui_mcm_at_vf_bandage">
-    <text>Скольжение при бинтовании</text>
-  </string>
-  <string id="ui_mcm_at_vf_bandage_desc">
-    <text>Жест бинтования ждёт, пока сталкер встанет неподвижно, поэтому его ноги больше не замирают и не скользят. Работает с лечением.</text>
-  </string>
-  <string id="ui_mcm_at_vf_limp">
-    <text>Хромота в бою</text>
-  </string>
-  <string id="ui_mcm_at_vf_limp_desc">
-    <text>Раненый сталкер сбрасывает хромоту в момент начала боя. Работает с лечением.</text>
-  </string>
-  <string id="ui_mcm_at_vf_heal_freeze">
-    <text>Замирание при лечении</text>
-  </string>
-  <string id="ui_mcm_at_vf_heal_freeze_desc">
-    <text>Лечащийся сталкер больше не замирает на месте и не игнорирует врага, появившегося посреди жеста. Работает с лечением.</text>
-  </string>
-  <string id="ui_mcm_at_vf_heal_lists">
-    <text>Восстановленные списки лечения</text>
-  </string>
-  <string id="ui_mcm_at_vf_heal_lists_desc">
-    <text>Списки аптечек и бинтов, потерянные движком, восстановлены, поэтому НПС лечатся надёжно. Работает с лечением.</text>
-  </string>
-  <string id="ui_mcm_at_vf_hdr_mutants">
-    <text>Мутанты</text>
-  </string>
-  <string id="ui_mcm_at_vf_jump_rest">
-    <text>Отдых химеры после прыжка</text>
-  </string>
-  <string id="ui_mcm_at_vf_jump_rest_desc">
-    <text>Химера или лурк ждёт 3 секунды после любого прыжка, прежде чем прыгнуть снова, а в ванили она прыгала снова сразу после приземления. Не работает на модифицированных exe без этой функции.</text>
-  </string>
-  <string id="ui_mcm_at_vf_distant_hits">
-    <text>Дальние попадания</text>
-  </string>
-  <string id="ui_mcm_at_vf_distant_hits_desc">
-    <text>Сталкер, обстрелянный издалека, реагирует и ищет укрытие, там где ограничение по дистанции оставляло его стоять. Настраивается на своей странице.</text>
-  </string>
-  <string id="ui_mcm_at_danger_danger_creature_awareness">
-    <text>Чутьё на существ</text>
-  </string>
-  <string id="ui_mcm_at_danger_danger_creature_awareness_desc">
-    <text>Стоящий сталкер оглядывается на существ, которых слышит в пределах 5-10 метров: шаги, голоса и предсмертные крики мутантов — всегда, звуки другого сталкера — только когда тот ему враг. Только взгляд: без перемещения, без проверки с подходом, никогда во время собственного боя и никогда на ходу, поэтому патрули не сбивают шаг. Напарники исключены. Никого не делает враждебным; активные бои покрывает реакция на стрельбу.</text>
-  </string>
-  <string id="ui_mcm_at_danger_fix_ff_lane">
-    <text>Проверка блокировки выстрела по своим</text>
-  </string>
-  <string id="ui_mcm_at_danger_fix_ff_lane_desc">
-    <text>Ванильная проверка удержания огня блокирует выстрел для любого видимого не-врага, стоящего близко в любом направлении или на линии прицела даже за целью, и её удержание перевзводится бесконечно в толпе, оставляя сталкеров целиться в тишине десятки секунд. Эти ложные удержания также глушили кемперов, добивание раненых, стационарные пулемёты и огонь по вертолётам. Сталкер теперь держит и уходит в сторону только ради друга, реально стоящего между ним и целью.</text>
-  </string>
-  <string id="ui_mcm_at_danger_fix_ff_aim">
-    <text>Проверка своих по мутантам</text>
-  </string>
-  <string id="ui_mcm_at_danger_fix_ff_aim_desc">
-    <text>Сталкер проверяет, нет ли своих на линии огня, по телу химеры или бюрера. В ванили проверка шла по их ногам, потому что у этих существ нет кости позвоночника, которую она ищет, и движок каждый раз писал предупреждение в лог.</text>
-  </string>
-  <string id="ui_mcm_at_danger_fix_ff_release">
-    <text>Снятие удержания огня по своим</text>
-  </string>
-  <string id="ui_mcm_at_danger_fix_ff_release_desc">
-    <text>Сталкер, придержавший огонь из-за пересёкшего линию друга, больше не остаётся застывшим в боевой стойке после конца боя. Базовая игра бросает его, не восстанавливая спокойное состояние; он теперь возвращается в норму в тот миг, когда его враг исчез.</text>
-  </string>
-  <string id="ui_mcm_at_danger_fix_grenade_far">
-    <text>Радиус уклонения от гранаты</text>
-  </string>
-  <string id="ui_mcm_at_danger_fix_grenade_far_desc">
-    <text>Дистанция, решающая, уклоняется ли сталкер от гранаты или лишь поворачивается к ней лицом, читалась в неверном масштабе в базовой игре. Уклонение теперь покрывает свой задуманный радиус вокруг сталкера.</text>
-  </string>
-  <string id="ui_mcm_at_danger_fix_stale_memory">
-    <text>Устаревшая память об опасности</text>
-  </string>
-  <string id="ui_mcm_at_danger_fix_stale_memory_desc">
-    <text>Базовая игра никогда не очищала память сталкера об эпизоде опасности. Атакованный снова позже, он оборачивался на старую позицию ПЕРВОГО атакующего вместо новой угрозы, и анимация поиска трупа играла только для первого трупа, который он когда-либо обыскал. Память теперь очищается, когда каждый эпизод опасности кончается.</text>
   </string>
 </string_table>
