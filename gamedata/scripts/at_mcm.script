@@ -103,6 +103,7 @@ local defaults = {
     fix_low_cover          = true,
     fix_monolith_stance    = true,
     fix_heal_lists         = true,
+    fix_jump_rest          = true,
     jam_enabled  = true,
     ammo_enabled = true,
     attachments_enabled = true,
@@ -278,6 +279,7 @@ local _key_to_tab = {
     fix_low_cover          = "vanilla_fixes",
     fix_monolith_stance    = "vanilla_fixes",
     fix_heal_lists         = "vanilla_fixes",
+    fix_jump_rest          = "vanilla_fixes",
     jam_enabled         = "mechanics/jam",
     ammo_enabled        = "mechanics/ammo",
     attachments_enabled = "mechanics/attachments",
@@ -1069,6 +1071,9 @@ function on_mcm_load()
                     { id = "fix_limp", type = "check", val = 1, def = true, hint = "at_vf_limp", ui_hook_functor = { at_mcm.render_locked_check } },
                     { id = "fix_heal_freeze", type = "check", val = 1, def = true, hint = "at_vf_heal_freeze", ui_hook_functor = { at_mcm.render_locked_check } },
                     { id = "fix_heal_lists", type = "check", val = 1, def = true, hint = "at_vf_heal_lists", ui_hook_functor = { at_mcm.render_locked_check } },
+
+                    { id = "hdr_vf_mutants", type = "desc", text = "ui_mcm_at_vf_hdr_mutants", clr = {255, 200, 200, 200} },
+                    { id = "fix_jump_rest", type = "check", val = 1, def = true, hint = "at_vf_jump_rest", ui_hook_functor = { at_mcm.render_locked_check } },
                 },
             },
             {

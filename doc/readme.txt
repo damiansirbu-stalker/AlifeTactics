@@ -64,7 +64,7 @@ Mechanics lets stalkers heal with the medkits they carry, fire the armour-pierci
 An artefact feeds its carrier one effect channel, and the air warps around him.
 Mutants decide on Intelligence by map danger and Personality by species, and Wild varies each one.
 They exploit your vulnerabilities and your bad decisions with new leaps, claws and rear strikes.
-Fixes to Vanilla make the unfinished danger reactions, corpse search, targeting and healing work.
+Fixes make the unfinished danger reactions, corpse search, targeting and healing work.
 Each system has its MCM page, and the design behind them reaches much further.
 
 Combat
@@ -237,7 +237,7 @@ A mutant leaps only at an enemy it has seen or sensed lately, and close in only 
   Hunting leap and Feral leap: it turns with a moving enemy through the leap, no harder than a vanilla creature turns, and only Hunting crouches first, a warning you can see.
   Catching leap and Cutoff leap: it springs at the path of a moving enemy, a short step ahead of him, a smarter mutant judges that step better, and only Catching crouches first.
   Closing leap (bloodsucker, psysucker): it closes the gap to an enemy on a ledge, or to a player who aims at it from mid range, and then claws him on the ground.
-  Claw (chimera, lurker): a point-blank pounce, the close strike a vanilla chimera lacks. Both creatures leap with no crouch and rest after each jump, where vanilla let them jump again at once.
+  Claw (chimera, lurker): a point-blank pounce, the close strike a vanilla chimera lacks. Both creatures leap with no crouch, and their leaps come without warning.
   Backstrike (chimera, lurker, burer, controller): a spin strike at an enemy behind it.
   Flee (dog, boar, snork, pseudodog, psy dog, pseudogigant, cat, flesh, fracture, karlik, tushkano): when its read fails a badly hurt mutant may run, unless it faces you or you are close.
 
@@ -250,7 +250,7 @@ Influenced Moves:
 Abilities the creature already has, whose numbers Wild spreads between individuals of one kind.
   Gravity numbers and Telekinesis (burer), Psi tube, Stamina and Aura (controller), and Detection (poltergeist) all differ from one creature of a kind to the next.
 
-Fixes to Vanilla
+Fixes
 
 Vanilla leaves many combat behaviours broken, and AlifeTactics carries more than 30 fixes for them.
 Each fix is listed on the Fixes tab, and these are the ones you notice.
@@ -261,6 +261,7 @@ Each fix is listed on the Fixes tab, and these are the ones you notice.
   Combat: stalkers shoot over the low cover they duck behind, and Monolith fighters flip stance less.
   Movement and animation: a hit stalker stops sliding, and no maneuver starts mid-animation.
   Healing: stalkers use their kits, stop to fight, limp only out of combat and bandage standing.
+  Mutants: a chimera or lurker rests after each jump, where vanilla let it jump again at once.
 The danger checks and the corpse search no longer crash, a dead body no longer spams engine errors, and the danger check reads its config once and keeps it.
 
 Requirements:

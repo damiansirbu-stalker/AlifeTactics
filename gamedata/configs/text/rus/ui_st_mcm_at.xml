@@ -1220,6 +1220,15 @@
   <string id="ui_mcm_at_vf_heal_lists_desc">
     <text>Списки аптечек и бинтов, потерянные движком, восстановлены, поэтому НПС лечатся надёжно. Работает с лечением.</text>
   </string>
+  <string id="ui_mcm_at_vf_hdr_mutants">
+    <text>Мутанты</text>
+  </string>
+  <string id="ui_mcm_at_vf_jump_rest">
+    <text>Отдых химеры после прыжка</text>
+  </string>
+  <string id="ui_mcm_at_vf_jump_rest_desc">
+    <text>Химера или лурк ждёт 3 секунды после любого прыжка, прежде чем прыгнуть снова, а в ванили она прыгала снова сразу после приземления. Не работает на модифицированных exe без этой функции.</text>
+  </string>
   <string id="ui_mcm_at_vf_distant_hits">
     <text>Дальние попадания</text>
   </string>

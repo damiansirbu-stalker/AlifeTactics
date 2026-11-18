@@ -358,7 +358,7 @@
     <text>Claw</text>
   </string>
   <string id="ui_mcm_at_mutants_claw_desc">
-    <text>A point-blank pounce with no wind-up, the close strike the chimera otherwise lacks: a vanilla chimera closes to melee range with no attack to use there. It watches for contact constantly and strikes at most every two seconds. (int, pers)</text>
+    <text>A point-blank pounce with no wind-up, the close strike the chimera otherwise lacks: a vanilla chimera closes to melee range with no attack to use there. It watches for contact constantly and strikes at most every 10 seconds. (int, pers)</text>
   </string>
   <string id="ui_mcm_at_mutants_gravity_attack">
     <text>Gravity attack</text>
@@ -1052,6 +1052,15 @@
   </string>
   <string id="ui_mcm_at_vf_heal_lists_desc">
     <text>The medkit and bandage item lists the engine dropped are restored, so NPCs heal reliably. Needs the Healing toggle.</text>
+  </string>
+  <string id="ui_mcm_at_vf_hdr_mutants">
+    <text>Mutants</text>
+  </string>
+  <string id="ui_mcm_at_vf_jump_rest">
+    <text>Chimera jump rest</text>
+  </string>
+  <string id="ui_mcm_at_vf_jump_rest_desc">
+    <text>A chimera or lurker waits 3 seconds after any jump before its next one, where vanilla let it jump again the moment it landed. Inactive on modded exes without this feature.</text>
   </string>
   <!-- ==================== JAMMING PAGE ==================== -->
   <string id="ui_mcm_at_jam_desc">

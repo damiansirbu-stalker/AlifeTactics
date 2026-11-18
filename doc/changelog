@@ -55,8 +55,9 @@
       - Added Intelligence for mutants, the chance that a mutant reads a moment of the fight right. It rises with the map's danger rank.
       - Added Personality for mutants, the set of moves an individual carries, rolled from its species' chances. 2 chimeras of a pack fight differently.
       - Added Wild, a slider for how much a mutant's numbers vary between individuals, up to a different set of numbers for each one.
-      - Added pacing. A mutant spaces its moves apart, and the mutants together space their attacks on you. A pack comes at you in turns.
+      - Added pacing. A mutant spaces its moves apart, and once one mutant's leap, strike or throw hits you, the others hold their next move on you for a few seconds.
       - A mutant reads the weapon in your hands and your aim from where you look.
+      - Fixed vanilla bug "chimera re-jump". A chimera or lurker now rests after each jump, where vanilla let it jump again the moment it landed. Listed on the Fixes tab.
     New moves
       - Added the leap family, 7 leaps for the chimera, lurker, cat, dog, snork, pseudodogs and bloodsucker. Personality decides which leaps an individual carries.
       - High leap springs up at you when you stand on a rock or a ledge above the mutant.

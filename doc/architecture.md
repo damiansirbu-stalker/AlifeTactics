@@ -120,7 +120,7 @@ Effects          none              none                    planned
 Mutants          General           at_mutants              monster_on_update, the 600ms beat
                  Power             at_mutants              off in the release (MUT_POWER_ENABLED)
                  one per species   at_mutants              the same beat
-Fixes to Vanilla                   the owning systems      locked toggles
+Fixes                              the owning systems      locked toggles
 Development                        at_debug, at_world_trace, at_hud, at_test
 ```
 
@@ -255,7 +255,7 @@ release   188347 false   vanilla resumes from where the stalker stands
 - A seized stalker proposes no switch, and neither Commitment, Conduct nor Behaviors reaches him. Maneuvers take precedence.
 - Every hold has its release. A toggle-off releases what its system holds live.
 - Debug is free when off. A trace gates on `at_debug.is_on()`, an integer compare, and the timers are null objects.
-- A vanilla or xray fix appears on three surfaces: the readme under Fixes to Vanilla, the changelog as a Fixed vanilla bug line, the MCM Fixes tab.
+- A vanilla or xray fix appears on three surfaces: the readme under Fixes, the changelog as a Fixed vanilla bug line, the MCM Fixes tab.
 - The MCM defaults in `at_mcm.script` are the only copy of the rank curves.
 - `at_<system>.script` holds the logic and `at_<system>_config.ltx` the numbers. A `_config.script` exists where LTX cannot hold the shape, as the maneuver catalog references methods.
 
@@ -681,7 +681,7 @@ Rules:
 - There is no mutant disengage move, because the engine exposes no reachability read.
 - Monster health is a fraction clamped to 1.0 on each condition update. Toughness lives in resistance.
 
-## Fixes to Vanilla
+## Fixes
 
 Each fix is a locked entry on the Fixes tab.
 
