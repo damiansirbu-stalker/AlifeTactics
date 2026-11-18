@@ -21,7 +21,6 @@ local GATE            = "int, pers"
 local GATE_WILD       = "int, pers, wild"
 -- The inverse gate: a move taken on an Intelligence MISS (panic). inv_ is the AlifePlus trait prefix for 1 - value (ap_ext_const.script INV_).
 local GATE_PANIC      = "inv_int, pers, wild"
-local VS_PLAYER, VS_NPC = "vs_player", "vs_npc"
 local MOVE_HIGH_LEAP      = "high_leap"
 local MOVE_PUNISHING_LEAP = "punishing_leap"
 local MOVE_HUNTING_LEAP   = "hunting_leap"
@@ -33,16 +32,16 @@ local MOVE_CLAW       = "claw"
 local MOVE_GRAVITY    = "gravity_attack"
 local MOVE_RUN_ATTACK = "run_attack"
 local MOVE_BACKSTRIKE = "backstrike"
--- The [cooldown] row all leaps share, beside each leap's own row.
-local COOLDOWN_LEAP   = "leap"
+-- The [cooldown] row every move shares, beside each move's own row: any two moves of one mutant stand this far apart.
+local COOLDOWN_ANY    = "any_move"
+-- The player throttle's one key: a single bucket for every mutant against the player.
+local THROTTLE_PLAYER = "player"
 local FIRED_CALLED, FIRED_SHAPED, FIRED_ENGINE = "called", "shaped", "engine"
 local VIS_FULL        = 2
 
 -- The wind-up leaps (High, Hunting, Catching) keep the species crouch the enemy sees coming; every other leap launches straight into the glide (ePrepareSkip).
 local LAUNCH_WINDUP  = { skip_prepare = false }
 local LAUNCH_INSTANT = { skip_prepare = true }
--- xmonster.try_monster_jump's refusal when its own gates pass and the engine's launch says no.
-local REFUSED_ENGINE = "engine"
 local LAUNCH = { high_leap = LAUNCH_WINDUP, hunting_leap = LAUNCH_WINDUP, catching_leap = LAUNCH_WINDUP }
 
 
@@ -86,9 +85,8 @@ local _pages = {}
 local _move_cfg = {}
 local _all_toggle_keys = {}
 local _backstrike_motions = {}
-local _starts = nil
+local _player_throttle = nil
 local _cooldown_ms = {}
-local _leap_set = {}
 local _active = false
 local _seams = nil
 local _runaway_id = nil
@@ -212,14 +210,14 @@ local function _compute_band(min_basis, max_basis, pct)
     return min_basis and min_basis * factor or nil, max_basis and max_basis * factor or nil
 end
 
--- The caps: starts assumed running per bucket; an offensive fire checks then adds, flee adds and is never denied.
-local function _check_start(bucket)
-    local cap = bucket == VS_PLAYER and _tun_num.cap_player or _tun_num.cap_npc
-    return _starts:get_count(bucket) < cap
+-- The player throttle: one offensive move against the player per [caps] player_gap_ms, from every mutant together.
+-- A token bucket of capacity 1 (the ap_core_limiter shape): check before the fire, take the token after it. Moves against NPCs pass free.
+local function _check_start(is_actor)
+    return not is_actor or _player_throttle:check(THROTTLE_PLAYER)
 end
 
-local function _add_start(bucket)
-    _starts:add(bucket)
+local function _add_start(is_actor)
+    if is_actor then _player_throttle:get_token(THROTTLE_PLAYER) end
 end
 
 -- The cooldowns: one [cooldown] row in ms per key, kept per mutant in rec.ready_at; a key with no row never cools down.
@@ -234,10 +232,16 @@ local function _add_cooldown(rec, key, now)
     if ms then rec.ready_at[key] = now + ms end
 end
 
--- The keys a move waits on: its own, and for a leap the shared leap key too. Returns the blocking key for the trace, nil when ready.
+-- Stamp a fired move: its own key and the shared any_move key.
+local function _add_fired(rec, move, now)
+    _add_cooldown(rec, move, now)
+    _add_cooldown(rec, COOLDOWN_ANY, now)
+end
+
+-- The keys a move waits on: its own and the shared any_move key. Returns the blocking key for the trace, nil when ready.
 local function _check_ready(rec, move, now)
     if not _check_cooldown(rec, move, now) then return move end
-    if _leap_set[move] and not _check_cooldown(rec, COOLDOWN_LEAP, now) then return COOLDOWN_LEAP end
+    if not _check_cooldown(rec, COOLDOWN_ANY, now) then return COOLDOWN_ANY end
     return nil
 end
 
@@ -716,7 +720,7 @@ end
 -- order = { target, force, steered, lead_m }; feasibility is the can_jump mirror in xmonster.try_monster_jump.
 local function _execute_leap(mob, rec, move, now, order)
     local memo = rec.memo
-    if not _check_start(memo.bucket) then return _log_block(rec, move, "caps") end
+    if not _check_start(memo.is_actor) then return _log_block(rec, move, "caps") end
     local aim
     if order.steered then
         aim = _select_band(_tun_num.adapt_min, _tun_num.adapt_max)
@@ -735,16 +739,10 @@ local function _execute_leap(mob, rec, move, now, order)
     end
     if not fired then
         if not at_debug.is_on() then return false end
-        if refusal == REFUSED_ENGINE then
-            local info = xmonster.get_monster_movement_info(mob)
-            refusal = ("engine script=%s jmp=%s cap=%s state=%s"):format(tostring(mob:get_script()), tostring(xmonster.is_monster_jumping(mob)),
-                tostring(info and info.path_capturer), tostring(xmonster.get_monster_state(mob)))
-        end
         return _log_block(rec, move, ("refused_%s d=%.1f dy=%.2f"):format(tostring(refusal), memo.dist, memo.enemy_pos.y - memo.mob_pos.y))
     end
-    _add_start(memo.bucket)
-    _add_cooldown(rec, COOLDOWN_LEAP, now)
-    _add_cooldown(rec, move, now)
+    _add_start(memo.is_actor)
+    _add_fired(rec, move, now)
     if at_debug.is_on() then
         local time_s = xmonster.compute_jump_time(mob, target, order.force) or 0
         _start_strike(rec, move, now, order.force, time_s)
@@ -827,7 +825,7 @@ local function _check_flee_block(mob, rec, _now)
     return nil
 end
 
--- Rout out of melee reach: a committed fixed-timer window, the caps never deny it.
+-- Rout out of melee reach: a committed fixed-timer window, outside the player throttle (not an offensive move).
 local function _try_flee(mob, rec, _move, now)
     local block = _check_flee_block(mob, rec, now)
     if block then return _log_block(rec, "flee", block) end
@@ -835,8 +833,7 @@ local function _try_flee(mob, rec, _move, now)
     local hold = _select_band(_tun_num.survival_hold_min, _tun_num.survival_hold_max)
     rec.flee_until = now + hold
     _flee_recs[rec.id] = rec
-    _add_cooldown(rec, "flee", now)
-    _add_start(memo.bucket)
+    _add_fired(rec, "flee", now)
     _log_fire(rec, "flee", memo.dist, (" hold=%dms"):format(hold))
     return true
 end
@@ -848,20 +845,23 @@ local function _can_claw(mob)
 end
 
 -- The claw gates on the contact lane: the cheap record fields first, then the live reach and facing, then the engine-state gate.
--- It records the live target and distance on rec.contact_pos and rec.contact_dist for the launch.
+-- It records the live target, distance and player flag on rec.contact_pos, rec.contact_dist and rec.contact_actor for the launch.
 local function _check_claw_block(mob, rec, now)
     if not _check_cooldown(rec, MOVE_CLAW, now) then return "cooldown" end
+    if not _check_cooldown(rec, COOLDOWN_ANY, now) then return COOLDOWN_ANY end
     if not rec.dist or rec.dist > _tun_num.claw_near_m then return "far" end
     if rec.flee_until > now or rec.gravity_release > now then return "window" end
     local enemy = mob:get_enemy()
     if not (enemy and enemy:alive()) then return "no_enemy" end
+    local is_actor = enemy:id() == AC_ID
+    if not _check_start(is_actor) then return "caps" end
     local enemy_pos = enemy:position()
     local dist_sqr = mob:position():distance_to_sqr(enemy_pos)
     if dist_sqr > _tun_num.claw_range_m * _tun_num.claw_range_m then return "range" end
     if not xcombat.is_facing(mob, enemy_pos, _tun_num.claw_cone) then return "facing" end
     local can_claw, claw_block = _can_claw(mob)
     if not can_claw then return claw_block end
-    rec.contact_pos, rec.contact_dist = enemy_pos, math_sqrt(dist_sqr)
+    rec.contact_pos, rec.contact_dist, rec.contact_actor = enemy_pos, math_sqrt(dist_sqr), is_actor
     return nil
 end
 
@@ -877,6 +877,8 @@ local function _try_claw(mob, rec, now)
     end
     local fired = xmonster.try_monster_jump(mob, rec.contact_pos, rec.leap_basis, LAUNCH_INSTANT)
     if not fired then return end
+    _add_cooldown(rec, COOLDOWN_ANY, now)
+    _add_start(rec.contact_actor)
     rec.tick_now = now
     if at_debug.is_on() then
         _start_strike(rec, MOVE_CLAW, now, rec.leap_basis, xmonster.compute_jump_time(mob, rec.contact_pos, rec.leap_basis) or 0)
@@ -901,11 +903,11 @@ local function _try_gravity(mob, rec, _move, now)
     local memo = rec.memo
     local block = _check_gravity_block(mob, rec)
     if block then return _log_block(rec, MOVE_GRAVITY, block) end
-    if not _check_start(memo.bucket) then return _log_block(rec, MOVE_GRAVITY, "caps") end
+    if not _check_start(memo.is_actor) then return _log_block(rec, MOVE_GRAVITY, "caps") end
     if not xmonster.set_burer_gravi_force(mob, true) then return _log_block(rec, MOVE_GRAVITY, "refused") end
     rec.gravity_release = now + _tun_num.gravity_release
-    _add_cooldown(rec, MOVE_GRAVITY, now)
-    _add_start(memo.bucket)
+    _add_fired(rec, MOVE_GRAVITY, now)
+    _add_start(memo.is_actor)
     _log_fire(rec, MOVE_GRAVITY, memo.dist)
     return true
 end
@@ -928,7 +930,7 @@ local function _try_cloak(mob, rec, _move, now)
     local memo = rec.memo
     if not xmonster.force_visibility_state(mob, 0) then return _log_block(rec, "cloak", "refused") end
     rec.cloak_until = now + _tun_num.cloak_window_ms
-    _add_cooldown(rec, "cloak", now)
+    _add_fired(rec, "cloak", now)
     _log_fire(rec, "cloak", memo.dist, hit and " on=hit" or " on=aim")
     return true
 end
@@ -937,7 +939,7 @@ end
 local function _try_backstrike(mob, rec, _move, now)
     local memo = rec.memo
     if memo.dist > _tun_num.backstrike_near_m then return _log_block(rec, MOVE_BACKSTRIKE, "far") end
-    if not _check_start(memo.bucket) then return _log_block(rec, MOVE_BACKSTRIKE, "caps") end
+    if not _check_start(memo.is_actor) then return _log_block(rec, MOVE_BACKSTRIKE, "caps") end
     local motions = _backstrike_motions[rec.species]
     if not motions then return _log_block(rec, MOVE_BACKSTRIKE, "no_motions") end
     if not xmonster.set_monster_melee_strike(mob, motions[1], motions[2], _tun_num.backstrike_arc) then
@@ -945,8 +947,8 @@ local function _try_backstrike(mob, rec, _move, now)
     end
     rec.armed_backstrike = true
     rec.backstrike_until = now + _tun_num.backstrike_window_ms
-    _add_start(memo.bucket)
-    _add_cooldown(rec, MOVE_BACKSTRIKE, now)
+    _add_start(memo.is_actor)
+    _add_fired(rec, MOVE_BACKSTRIKE, now)
     _log_fire(rec, MOVE_BACKSTRIKE, memo.dist, " arm")
     return true
 end
@@ -1076,7 +1078,6 @@ local function _update_mutant(mob, rec, now)
     memo.dist = dist
     memo.dist_sqr = dist_sqr
     memo.is_actor = is_actor
-    memo.bucket = is_actor and VS_PLAYER or VS_NPC
     if not _check_intelligence(rec) then
         if at_debug.is_on() then at_debug.debug("[MUT] PASS id=%d int", rec.id) end
         _select_panic(mob, rec, now)
@@ -1300,8 +1301,6 @@ local function _load_tunables()
     _tun = xltx.resolve_handle(LTX_PATH)
     _tun_num = {
         candidates = _read_num("select", "candidates") or 3,
-        cap_player = _read_num("caps", "vs_player"),
-        cap_npc = _read_num("caps", "vs_npc"),
         int_cap = _read_num("intelligence", "cap"),
         above_m = _read_num("premises", "above_m"),
         perch_gap_sqr = (_read_num("premises", "perch_gap_m") or 1.0) ^ 2,
@@ -1338,11 +1337,9 @@ local function _load_tunables()
         backstrike_near_m = _read_num("backstrike", "near_m"),
         ability_pct = _read_num("wild", "ability_pct"),
     }
-    _starts = xttltable.create_ttl_counter({ ttl = _read_num("caps", "starts_s") or 3 })
-    _cooldown_ms = { [COOLDOWN_LEAP] = _read_num("cooldown", COOLDOWN_LEAP) }
+    _player_throttle = xttltable.create_token_bucket({ capacity = 1, rate = 1000 / (_read_num("caps", "player_gap_ms") or 2000) })
+    _cooldown_ms = { [COOLDOWN_ANY] = _read_num("cooldown", COOLDOWN_ANY) }
     for i = 1, #MOVE_KEYS do _cooldown_ms[MOVE_KEYS[i]] = _read_num("cooldown", MOVE_KEYS[i]) end
-    _leap_set = {}
-    for i = 1, #LEAP_MOVES do _leap_set[LEAP_MOVES[i]] = true end
     _move_species = {}
     for i = 1, #MOVE_KEYS do
         local move = MOVE_KEYS[i]
@@ -1352,7 +1349,7 @@ local function _load_tunables()
         _move_species[move] = set
     end
     for key in pairs(xltx.read_section(_tun, "cooldown")) do
-        if key ~= COOLDOWN_LEAP and not _move_species[key] then
+        if key ~= COOLDOWN_ANY and not _move_species[key] then
             at_debug.warn("[MUT] [cooldown] row %s names no move and is ignored", key)
         end
     end

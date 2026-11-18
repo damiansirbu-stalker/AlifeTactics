@@ -41,8 +41,8 @@ backstrike     = chimera, lurker, burer, controller
 ; Repertoire, page toggle and cooldown filter BEFORE the shuffle and never spend a slot (user ruling 2026-11-15).
 candidates = 3
 
-[cooldown] ; per-mutant re-fire gaps in ms, one row per key; a leap waits on its own row AND the shared leap row; a key with no row never cools down
-leap           = 10000  ; between any two of our leaps: the instant ones home on the player, so two in a row cannot be dodged (user ruling); the game's own telegraphed jumps stay outside. A per-species key was tried and removed 2026-11-15: one leap per 10s for a whole pack was far too easy.
+[cooldown] ; per-mutant re-fire gaps in ms, one row per key; every move waits on its own row AND the shared any_move row; a key with no row never cools down
+any_move       = 10000  ; between any two of our moves by one mutant, every move, no exceptions (user 2026-11-17): two Jupiter chimeras chained leap, rear strike and claw inside one second. A per-species shared key was tried and removed 2026-11-15: one leap per 10s for a whole pack was far too easy.
 high_leap      = 20000  ; before the same leap again (user ruling: 10s between two of our leaps, 20s before the same one)
 punishing_leap = 20000
 hunting_leap   = 20000
@@ -50,16 +50,14 @@ feral_leap     = 20000
 catching_leap  = 20000
 cutoff_leap    = 20000
 closing_leap   = 20000
-claw           = 2000   ; stamped on every claw roll, fired or not (user ruling)
+claw           = 10000  ; stamped on every claw roll, fired or not (user ruling); 10 s like the backstrike, two Jupiter chimeras clawed 8 times in 80 s at 2 s (user 2026-11-17)
 backstrike     = 10000  ; between two arms of the rear strike (user 2026-11-17): armed, the engine strikes every 0.5-1 s on its own (control_melee_jump.cpp:7-8), the Jupiter chimera blender
 flee           = 120000 ; a routed mutant does not re-rout as soon as its committed window closes
 cloak          = 5000   ; re-cloak gap, so it cannot flicker-spam
 gravity_attack = 8000   ; a little over one throw-and-release cycle; the engine's own throws stamp it too, so ours never chains onto one
 
-[caps] ; max driven moves assumed running at once per bucket; a start counts starts_s seconds
-starts_s  = 3
-vs_player = 3
-vs_npc    = 3
+[caps] ; the player throttle: one offensive move (leaps, claw, backstrike, gravity) against the player per gap, from every mutant together; flee, cloak and moves against NPCs pass free
+player_gap_ms = 2000 ; breaks the same-second stack of two mutants (user 2026-11-17); six dogs at one move per 10 s each still nearly fill it
 
 [intelligence]
 cap = 0.75
