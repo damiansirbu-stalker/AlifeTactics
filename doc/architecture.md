@@ -527,6 +527,7 @@ _run_monitor (200ms): the limp pose, dropped when its gait stops matching
 ```
 
 A queued script animation suspends the engine's animation selection (`CStalkerAnimationManager::update`, `stalker_animation_manager_update.cpp`).
+The end of a heal chain clears `db.storage[id].healing_active`, the lock a rewritten medkit scheme sets in `consume_medkit` and clears only in its own `heal_hp` and `heal_bleed`, which ours replace.
 
 ### Jamming
 

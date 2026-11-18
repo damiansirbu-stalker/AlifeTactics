@@ -129,6 +129,13 @@ local function _log_hp_complete(timer, npc, id, left)
     at_debug.debug("[HEAL] complete id=%d reason=%s left=%d [%.2fms]", id, reason, left, timer:get_ms())
 end
 
+-- GAMMA Anti Lag's medkit scheme locks consume_medkit on db.storage[id].healing_active and clears it only in its heal_hp and heal_bleed.
+-- Ours replace those functions, so the end of our heal chain clears the lock, or the stalker never heals again.
+local function _clear_heal_lock(id)
+    local st = db.storage[id]
+    if st then st.healing_active = nil end
+end
+
 local function _update_heal_hp(id, left)
     local timer = xprofiler.new_if(at_debug.is_on()):start()
     local nextl = left - 1
@@ -155,6 +162,7 @@ local function _update_heal_hp(id, left)
             level.get_time_factor(), xr_eat_medkit.heal_hp, id, nextl)
     else
         timer:stop()
+        _clear_heal_lock(id)
         _log_hp_complete(timer, npc, id, left)
     end
     return true
@@ -178,6 +186,7 @@ local function _update_heal_bleed(id, left)
             level.get_time_factor(), xr_eat_medkit.heal_bleed, id, nextl)
     else
         timer:stop()
+        _clear_heal_lock(id)
         if at_debug.is_on() then
             local reason = (not npc) and "no_obj"
                 or (not npc:alive()) and "dead"

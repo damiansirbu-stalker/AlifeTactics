@@ -40,6 +40,8 @@
       - Fixed vanilla bug "player bias" out of the box. Player target pull now defaults to the weight of any NPC enemy, and 900 restores the vanilla magnet.
 
   Mechanics
+    Healing
+      - Changed Healing to work with GAMMA's Anti Lag, where a stalker healed once and then never used a medkit again.
     Attachments
       - Added attachment mounting. A stalker out of a fight fits the scope, silencer or grenade launcher that suits his pistol or rifle.
       - A mounted scope tightens his aim when he shoots from a stop, by the base game's own scope bonus.
