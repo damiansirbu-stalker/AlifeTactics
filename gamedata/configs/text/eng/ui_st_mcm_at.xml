@@ -126,16 +126,16 @@
     <text>A stalker who is reloading, or hurt after a hit, falls back to farther cover while his enemy is strong, and the pull ends when he recovers. (Intelligence, Personality)</text>
   </string>
   <string id="ui_mcm_at_commitment_desc">
-    <text>Commitment keeps a stalker on a fire action while it still works, where vanilla re-plans every moment and swaps cover over small differences. He switches as soon as he loses sight, his shot is blocked or his enemy is gone. Inactive on modded exes without this feature.</text>
+    <text>Commitment keeps a stalker on a fire action, at the same cover, while it still works. He switches as soon as he loses sight, his shot is blocked or his enemy is gone. Inactive on modded exes without this feature.</text>
   </string>
   <string id="ui_mcm_at_conduct_desc">
-    <text>Conduct gives disciplined stalkers better habits at moments vanilla already decides, in how they hold cover and how close they fight. A stalker has the discipline for life or not at all, and trained military factions have it most often. Inactive on modded exes without this feature.</text>
+    <text>Conduct gives disciplined stalkers better habits in how they hold cover and how close they fight. A stalker has the discipline for life or not at all, and trained military factions have it most often. Inactive on modded exes without this feature.</text>
   </string>
   <string id="ui_mcm_at_conduct_conduct_posture">
     <text>Cover posture</text>
   </string>
   <string id="ui_mcm_at_conduct_conduct_posture_desc">
-    <text>An experienced rifleman or sniper crouches to fire when the crouched line to his enemy is clear, and stands to fire over low cover that blocks it. Vanilla picks the posture without checking that line. (Intelligence, Personality)</text>
+    <text>An experienced rifleman or sniper crouches to fire when the crouched line to his enemy is clear, and stands to fire over low cover that blocks it. (Intelligence, Personality)</text>
   </string>
   <string id="ui_mcm_at_conduct_conduct_spacing">
     <text>Weapon spacing</text>
@@ -147,7 +147,7 @@
     <text>Reaction gives each rank a different aim, in how fast the barrel follows a moving target, how tightly it holds a strafing one, and how well he leads a runner. Inactive on modded exes without this feature.</text>
   </string>
   <string id="ui_mcm_at_discipline_desc">
-    <text>Discipline gives each rank a different trigger, and higher ranks fire shorter bursts more often while low ranks stay at vanilla. The settings keep every rank's rate of fire at or above vanilla. Inactive on modded exes without this feature.</text>
+    <text>Discipline gives each rank a different trigger, and higher ranks fire shorter bursts more often. Inactive on modded exes without this feature.</text>
   </string>
   <string id="ui_mcm_at_range_desc">
     <text>Planned: stalkers answer and open fire as far as their weapon reaches. Today a stalker shot from beyond the fight range can only take cover. There is no setting yet.</text>
@@ -208,7 +208,7 @@
     <text>Tushkano</text>
   </string>
   <string id="ui_mcm_at_mutants_general_desc">
-    <text>How often mutants act on an opening, and how much their moves vary. Each species page lists its moves in three groups: NEW MOVES are attacks the vanilla game never fires for that species, MANAGED MOVES are the creature's own attacks this mod decides when to fire, INFLUENCED MOVES are the creature's own abilities whose numbers Wild spreads between individuals. Every move's tooltip names its gates: int (Intelligence decides when), pers (the creature's own leaning toward it), and wild (the values vary).</text>
+    <text>Intelligence is the chance that a mutant makes the right move in a fight. It grows with the Map level, from Cordon up to Jupiter and Pripyat, but even there a mutant sometimes makes the wrong move. Personality is the set of moves a mutant carries, after the species GSC designed. Two chimeras of a pack can still fight differently. Wild is how far the numbers of a species vary between individuals, like the force of a leap. A mutant waits between its moves. If one of those moves hits you, no mutant starts another on you for a moment. This is why a pack comes at you in turns.</text>
   </string>
   <string id="ui_mcm_at_mutants_power_desc">
     <text>A mutant's toughness, scaled by the map rank (rookie maps rank 0 up to endgame maps rank 5): damage resistance grows by the slider's percent per rank. Multiplies the installed balance, so other mutant overhauls keep their numbers.</text>
@@ -259,40 +259,40 @@
     <text>Tushkano.</text>
   </string>
   <string id="ui_mcm_at_mutants_managed">
-    <text>MANAGED MOVES</text>
+    <text>Managed moves</text>
   </string>
   <string id="ui_mcm_at_mutants_new">
-    <text>NEW MOVES</text>
+    <text>New moves</text>
   </string>
   <string id="ui_mcm_at_mutants_influenced">
-    <text>INFLUENCED MOVES</text>
+    <text>Influenced moves</text>
   </string>
   <string id="ui_mcm_at_mutants_new_desc">
-    <text>Attacks the vanilla game never fires for this creature. Intelligence and Personality decide, Wild spreads the force.</text>
+    <text>Personality decides which of these moves a mutant carries, and Intelligence decides when to take one.</text>
   </string>
   <string id="ui_mcm_at_mutants_managed_desc">
-    <text>This creature already has these attacks. AlifeTactics decides when, by Intelligence and Personality.</text>
+    <text>The creature keeps using these attacks as the game made it. On top of that, Intelligence picks the right moment, like a gravity throw while you reload or a cloak when you take aim. Personality decides whether a mutant uses them that way at all.</text>
   </string>
   <string id="ui_mcm_at_mutants_influenced_desc">
-    <text>This creature already has these abilities. Wild spreads their numbers between individuals.</text>
+    <text>These abilities work as the game made them. Wild spreads their numbers between individuals. At 0 they keep the game's values.</text>
   </string>
   <string id="ui_mcm_at_mutants_mut_int_base">
-    <text>Intelligence (%)</text>
+    <text>Intelligence base (%)</text>
   </string>
   <string id="ui_mcm_at_mutants_mut_int_base_desc">
-    <text>The chance a mutant answers an opening with the right move, before the rank bonus. Observing is free, deciding is hard. Every mutant sees your reload, but only a passed roll turns it into the right answer, and a missed roll lets the opening go, or panics into a flee. One decision every few seconds.</text>
+    <text>This sets the chance that a mutant in Cordon and the Swamps makes the right move, and each higher Map level adds to it. The chance stops at 75 percent, whatever the Map level.</text>
   </string>
   <string id="ui_mcm_at_mutants_mut_int_rank_pct">
-    <text>Per rank (%)</text>
+    <text>Intelligence per Map level (%)</text>
   </string>
   <string id="ui_mcm_at_mutants_mut_int_rank_pct_desc">
-    <text>Added to the Intelligence chance for each map rank.</text>
+    <text>Each Map level above Cordon adds this much to the chance of the right move.</text>
   </string>
   <string id="ui_mcm_at_mutants_mut_wild">
-    <text>Wild</text>
+    <text>Wild (%)</text>
   </string>
   <string id="ui_mcm_at_mutants_mut_wild_desc">
-    <text>How much a mutant's own numbers vary between individuals: the timings of its moves, how hard it leaps and steers in the air, and the ranges, bands, and reach of its abilities. At 0 every value sits at its band middle, so a kind is identical and learnable. At 100 each spawn and each use rolls any point across its band, so no two read alike.</text>
+    <text>A higher value spreads the numbers of a species wider between individuals, like the force of a leap and the reach of a gravity throw. At 0 all mutants of a species have the same numbers.</text>
   </string>
   <string id="ui_mcm_at_mutants_mut_damage_pct">
     <text>Damage per rank (%)</text>
@@ -310,109 +310,109 @@
     <text>High leap</text>
   </string>
   <string id="ui_mcm_at_mutants_high_leap_desc">
-    <text>The jump up at an enemy on a rock or ledge, with a wind-up. The crouch is the warning a perched player sees, and the leap flies at the game's own force so it clears the edge. Every leaping species can take each leap; its Personality, rolled once per individual, decides which ones it carries. (int, pers)</text>
+    <text>Jumps up at an enemy standing higher than the mutant, like on a rock, even at close range. All species but the chimera and the lurker wind up first, which gives you time to react. (Intelligence, Personality, Wild)</text>
   </string>
   <string id="ui_mcm_at_mutants_punishing_leap">
     <text>Punishing leap</text>
   </string>
   <string id="ui_mcm_at_mutants_punishing_leap_desc">
-    <text>An instant pounce with no wind-up, at where the enemy stands, when the enemy aims at it or is reloading or turned away. Each mutant leaps with its own strength. (int, pers, wild)</text>
+    <text>Springs at once at an enemy aiming at the mutant, and at one with no way to fire back, like while you reload, sprint or turn away. (Intelligence, Personality, Wild)</text>
   </string>
   <string id="ui_mcm_at_mutants_hunting_leap">
     <text>Hunting leap</text>
   </string>
   <string id="ui_mcm_at_mutants_hunting_leap_desc">
-    <text>A pounce with a wind-up that steers in mid-air toward a moving enemy. The crouch warns you, then the steering follows you. (int, pers, wild)</text>
+    <text>Goes for a moving enemy, then steers toward him in the air. All species but the chimera and the lurker wind up first. (Intelligence, Personality, Wild)</text>
   </string>
   <string id="ui_mcm_at_mutants_feral_leap">
     <text>Feral leap</text>
   </string>
   <string id="ui_mcm_at_mutants_feral_leap_desc">
-    <text>An instant pounce that steers in mid-air toward a moving enemy. The steering stays inside the game's own range. The most lethal leap. (int, pers, wild)</text>
+    <text>Goes for a moving enemy with no wind-up, then steers toward him in the air. (Intelligence, Personality, Wild)</text>
   </string>
   <string id="ui_mcm_at_mutants_catching_leap">
     <text>Catching leap</text>
   </string>
   <string id="ui_mcm_at_mutants_catching_leap_desc">
-    <text>A pounce with a wind-up at where a moving enemy will be when it lands. The crouch warns you, then it leaps at your path. (int, pers, wild)</text>
+    <text>Aims at the spot where a moving enemy will be when the mutant comes down, with no steering in the air. All species but the chimera and the lurker wind up first. A smarter mutant leads its target more. (Intelligence, Personality, Wild)</text>
   </string>
   <string id="ui_mcm_at_mutants_cutoff_leap">
     <text>Cutoff leap</text>
   </string>
   <string id="ui_mcm_at_mutants_cutoff_leap_desc">
-    <text>An instant pounce at where a moving enemy will be when it lands. A smarter mutant leads its target more. (int, pers, wild)</text>
+    <text>Aims with no wind-up at the spot where a moving enemy will be when the mutant comes down, with no steering in the air. A smarter mutant leads its target more. (Intelligence, Personality, Wild)</text>
   </string>
   <string id="ui_mcm_at_mutants_closing_leap">
     <text>Closing leap</text>
   </string>
   <string id="ui_mcm_at_mutants_closing_leap_desc">
-    <text>The bloodsucker's own leap: it closes the distance to an enemy on a perch, or to a player aiming at it, and strikes with its claws once it lands. It never hits in the air. (int, pers, wild)</text>
+    <text>Closes the distance to an enemy on a perch, and to you if you aim at the bloodsucker from mid range. The jump itself does no damage, but the claws strike once the bloodsucker lands. (Intelligence, Personality, Wild)</text>
   </string>
   <string id="ui_mcm_at_mutants_backstrike">
     <text>Backstrike</text>
   </string>
   <string id="ui_mcm_at_mutants_backstrike_desc">
-    <text>A spin-strike when the enemy works around to its back. Whether an individual carries it is settled the moment it appears. (int, pers)</text>
+    <text>Turns and strikes at an enemy beside or behind the mutant up close. (Intelligence, Personality)</text>
   </string>
   <string id="ui_mcm_at_mutants_claw">
     <text>Claw</text>
   </string>
   <string id="ui_mcm_at_mutants_claw_desc">
-    <text>A point-blank pounce with no wind-up, the close strike the chimera otherwise lacks: a vanilla chimera closes to melee range with no attack to use there. It watches for contact constantly and strikes at most every 10 seconds. (int, pers)</text>
+    <text>Strikes at point blank with no wind-up, if the chimera or the lurker faces its enemy up close. (Intelligence, Personality)</text>
   </string>
   <string id="ui_mcm_at_mutants_gravity_attack">
     <text>Gravity attack</text>
   </string>
   <string id="ui_mcm_at_mutants_gravity_attack_desc">
-    <text>A burer throws its gravity attack when you cannot answer it - reloading, unarmed, or with your back turned - the moment its shield is not needed anyway. (int, pers)</text>
+    <text>Throws when you look away from the burer, and also when you have no way to fire back, like while you reload. This is when the burer has no need for its shield. (Intelligence, Personality)</text>
   </string>
   <string id="ui_mcm_at_mutants_gravity_numbers">
     <text>Gravity numbers</text>
   </string>
   <string id="ui_mcm_at_mutants_gravity_numbers_desc">
-    <text>Varies the gravity attack's numbers per individual: cooldown, distance band, speed, radius. (wild)</text>
+    <text>Spreads how often a burer throws its gravity attack, and the range, speed and radius of the throw. (Wild)</text>
   </string>
   <string id="ui_mcm_at_mutants_telekinesis">
     <text>Telekinesis</text>
   </string>
   <string id="ui_mcm_at_mutants_telekinesis_desc">
-    <text>Varies the telekinesis per individual: find radius, distance band, fly speed. (wild)</text>
+    <text>Spreads how many objects a burer lifts, how far away it finds them, the range it throws them from and how fast the objects fly. (Wild)</text>
   </string>
   <string id="ui_mcm_at_mutants_psi_tube">
     <text>Psi tube</text>
   </string>
   <string id="ui_mcm_at_mutants_psi_tube_desc">
-    <text>Varies the psi tube pacing per individual. (wild)</text>
+    <text>Spreads how long a controller must see you before its psy attack, and the pause between two attacks. (Wild)</text>
   </string>
   <string id="ui_mcm_at_mutants_stamina">
     <text>Stamina</text>
   </string>
   <string id="ui_mcm_at_mutants_stamina_desc">
-    <text>Varies the per-hit stamina drain per individual. (wild)</text>
+    <text>Spreads how much stamina a blow from the controller takes from you. (Wild)</text>
   </string>
   <string id="ui_mcm_at_mutants_aura">
     <text>Aura</text>
   </string>
   <string id="ui_mcm_at_mutants_aura_desc">
-    <text>Varies the aura strength and reach per individual. (wild)</text>
+    <text>Spreads the strength and reach of the controller's auras. (Wild)</text>
   </string>
   <string id="ui_mcm_at_mutants_detection">
     <text>Detection</text>
   </string>
   <string id="ui_mcm_at_mutants_detection_desc">
-    <text>Varies the actor-detection pacing per individual. (wild)</text>
+    <text>Spreads how far away a poltergeist senses you, how fast your movement gives you away, and how quickly it loses you again. (Wild)</text>
   </string>
   <string id="ui_mcm_at_mutants_cloak">
     <text>Cloak</text>
   </string>
   <string id="ui_mcm_at_mutants_cloak_desc">
-    <text>The bloodsucker vanishes to break your aim or a hit while it is still closing, then re-appears when the window ends. Rate-limited, and it never vanishes once at strike range. (int, pers)</text>
+    <text>The bloodsucker vanishes for a short time if you aim at it or hit it, then shows again. Once close enough to strike, the bloodsucker attacks instead. (Intelligence, Personality)</text>
   </string>
   <string id="ui_mcm_at_mutants_flee">
     <text>Flee</text>
   </string>
   <string id="ui_mcm_at_mutants_flee_desc">
-    <text>Breaks off and runs when near death and far enough to reach safety. A cornered mutant has no room to run and fights to the end. Runs on the inverse of Intelligence: the dull mutant panics. (inv_int, pers, wild)</text>
+    <text>A badly hurt mutant runs from the fight for a while if its enemy is not close and the mutant is not facing him. A mutant with a lower Intelligence flees more often. (Intelligence, Personality, Wild)</text>
   </string>
   <!-- ==================== SHARED ==================== -->
   <string id="ui_mcm_at_title">
@@ -420,7 +420,7 @@
   </string>
   <!-- ==================== HEALING PAGE ==================== -->
   <string id="ui_mcm_at_healing_desc">
-    <text>Healing lets wounded stalkers use the medkits and bandages they carry, and you can see it, as a hurt man limps and a healing one plays the gesture. Vanilla's config leaves out the item lists the healing script reads, and stalkers die with full pockets.</text>
+    <text>Healing lets wounded stalkers use the medkits and bandages they carry, and you can see it, as a hurt man limps and a healing one plays the gesture.</text>
   </string>
   <string id="ui_mcm_at_healing_healing_enabled">
     <text>Enable Healing</text>
@@ -446,7 +446,7 @@
     <text>Novice charge chance (%)</text>
   </string>
   <string id="ui_mcm_at_healing_charge_chance_novice_desc">
-    <text>The chance a novice carries a healing charge, used when he is hurt with no medkit left. Vanilla gives every rank 50 percent.</text>
+    <text>The chance a novice carries a healing charge, used when he is hurt with no medkit left. 50 percent is the game's value for every rank.</text>
   </string>
   <string id="ui_mcm_at_healing_charge_chance_experienced">
     <text>Experienced charge chance (%)</text>
@@ -490,7 +490,7 @@
   </string>
   <!-- ==================== ACCURACY PAGE ==================== -->
   <string id="ui_mcm_at_accuracy_desc">
-    <text>Accuracy gives each rank a different spread, tight for a legend and wide for a novice. Vanilla has a per-rank curve that Anomaly's rank values leave flat, which gives every stalker the same spread.</text>
+    <text>Accuracy gives each rank a different spread, tight for a legend and wide for a novice. Moving fire adds a second curve, and a higher rank keeps a steadier aim while he walks or runs.</text>
   </string>
   <string id="ui_mcm_at_accuracy_disp_enabled">
     <text>Enable Dispersion</text>
@@ -608,7 +608,7 @@
     <text>Enable Fire Discipline</text>
   </string>
   <string id="ui_mcm_at_reaction_discipline_enabled_desc">
-    <text>Higher ranks fire shorter bursts more often, and low ranks stay at vanilla. (Rank)</text>
+    <text>Higher ranks fire shorter bursts more often. (Rank)</text>
   </string>
   <string id="ui_mcm_at_reaction_rct_qsize_base">
     <text>Burst size base (x)</text>
@@ -669,7 +669,7 @@
     <text>Cover pinning</text>
   </string>
   <string id="ui_mcm_at_commitment_commitment_cover_pin_desc">
-    <text>A stalker firing with a clear shot keeps his cover, where vanilla moves him whenever it finds a better spot nearby. Losing sight, a blocked shot or an enemy out of range still lets him move. Inactive on modded exes without this feature.</text>
+    <text>A stalker firing with a clear shot keeps his cover, even when a better spot opens nearby. Losing sight, a blocked shot or an enemy out of range still lets him move. Inactive on modded exes without this feature.</text>
   </string>
   <string id="ui_mcm_at_commitment_commitment_liquidate">
     <text>Liquidate vulnerable targets</text>
@@ -690,11 +690,11 @@
     <text>Max time committed (s)</text>
   </string>
   <string id="ui_mcm_at_commitment_commitment_hold_s_desc">
-    <text>The longest stretch a stalker holds an action before vanilla may move him again. He still breaks off as soon as his reason to hold ends.</text>
+    <text>The longest stretch a stalker holds an action, after which X-Ray may move him again. He still breaks off as soon as his reason to hold ends.</text>
   </string>
   <!-- ==================== MANEUVERS PAGE ==================== -->
   <string id="ui_mcm_at_combat_desc">
-    <text>A maneuver is a complete takeover of a stalker for a real tactical move that vanilla never decides on, like a counterflank, a pickoff or reload cover. The system is built for coordinated, military-style squad tactics, and many more maneuvers are coming. Intelligence decides whether he takes a move, and Personality whether he carries it at all.</text>
+    <text>A maneuver is a complete takeover of a stalker for a real tactical move, like a counterflank, a pickoff or reload cover. The system is built for coordinated, military-style squad tactics, and many more maneuvers are coming. Intelligence decides whether he takes a move, and Personality whether he carries it at all.</text>
   </string>
   <string id="ui_mcm_at_combat_combat_enabled">
     <text>Enable combat takeover</text>
@@ -712,7 +712,7 @@
     <text>Hit reaction hold</text>
   </string>
   <string id="ui_mcm_at_combat_combat_hit_hold_desc">
-    <text>A stalker hit while standing, or staggered by the hit, holds his place until the reaction ends, where vanilla slides him across the ground. It works on every stalker, in a maneuver or not. Inactive on modded exes without this feature.</text>
+    <text>A stalker hit while standing, or staggered by the hit, holds his place until the reaction ends. It works on every stalker, in a maneuver or not. Inactive on modded exes without this feature.</text>
   </string>
   <string id="ui_mcm_at_combat_hdr_maneuvers">
     <text>Maneuvers</text>
@@ -789,7 +789,7 @@
     <text>Distant hits</text>
   </string>
   <string id="ui_mcm_at_fixes_danger_danger_hit_bypass_desc">
-    <text>A stalker hit from far off turns and seeks cover, where vanilla ignores a hit past a distance limit.</text>
+    <text>A stalker hit from far off turns and seeks cover, even when the shot came from past his reaction range.</text>
   </string>
   <string id="ui_mcm_at_danger_danger_knife_miss">
     <text>Attempted murder</text>
@@ -840,116 +840,116 @@
     <text>Danger config isolation</text>
   </string>
   <string id="ui_mcm_at_danger_fix_config_isolation_desc">
-    <text>Three danger categories once read the wrong config rows through a name collision. Each now reads its own rows.</text>
+    <text>A ricochet, the sound of a fight nearby and an ally under attack each read the settings of another danger. Stalkers reacted to them at the wrong range and for the wrong time, but now each danger has the right settings.</text>
   </string>
   <string id="ui_mcm_at_danger_fix_corpse_time">
     <text>Mutant corpse time check</text>
   </string>
   <string id="ui_mcm_at_danger_fix_corpse_time_desc">
-    <text>A mutant corpse no longer crashes the danger time check.</text>
+    <text>A fresh mutant corpse ended a stalker's danger reaction early. Mutant corpses no longer interrupt it.</text>
   </string>
   <string id="ui_mcm_at_danger_fix_npc_teardown">
     <text>Torn-down NPC guard</text>
   </string>
   <string id="ui_mcm_at_danger_fix_npc_teardown_desc">
-    <text>A torn-down NPC reference no longer crashes the danger evaluator.</text>
+    <text>The danger check could crash the game for a stalker gone from the level a moment before. The check now leaves him alone.</text>
   </string>
   <string id="ui_mcm_at_danger_fix_time_value">
     <text>Danger time validation</text>
   </string>
   <string id="ui_mcm_at_danger_fix_time_value_desc">
-    <text>A bad danger time value no longer crashes the evaluator.</text>
+    <text>If a danger had a broken time value, the danger check could crash the game. The check now skips any danger like that.</text>
   </string>
   <string id="ui_mcm_at_danger_fix_hit_shooter">
     <text>Hit shooter identity</text>
   </string>
   <string id="ui_mcm_at_danger_fix_hit_shooter_desc">
-    <text>A stalker hit by a bullet knows who shot him. He looks at the shooter's live position and takes cover from it, where vanilla loses the shooter on every hit.</text>
+    <text>A stalker hit by a bullet lost track of the shooter. Now he turns to the shooter and takes cover from that direction.</text>
   </string>
   <string id="ui_mcm_at_danger_fix_anim_cleanup">
     <text>Danger animation cleanup</text>
   </string>
   <string id="ui_mcm_at_danger_fix_anim_cleanup_desc">
-    <text>Danger transitions no longer leave a stale lower-body animation playing.</text>
+    <text>If a stalker switched danger reactions, the animation of the old reaction could keep playing. The old animation now stops at each change.</text>
   </string>
   <string id="ui_mcm_at_danger_fix_cover_scope">
     <text>Cover reservation scope</text>
   </string>
   <string id="ui_mcm_at_danger_fix_cover_scope_desc">
-    <text>Leaving the danger state clears only its own cover reservation instead of wiping every stalker's.</text>
+    <text>If a stalker left the danger reaction, the claims of all stalkers to cover spots were wiped, and two of them could pick the same spot. Now he clears only the claim he made.</text>
   </string>
   <string id="ui_mcm_at_danger_fix_corpse_despawn">
     <text>Corpse despawn safety</text>
   </string>
   <string id="ui_mcm_at_danger_fix_corpse_despawn_desc">
-    <text>A corpse despawning mid-investigation no longer crashes the investigator.</text>
+    <text>The game could crash when a corpse vanished while a stalker went to check it. He now stops.</text>
   </string>
   <string id="ui_mcm_at_danger_fix_investigator_select">
     <text>Investigator selection</text>
   </string>
   <string id="ui_mcm_at_danger_fix_investigator_select_desc">
-    <text>Corpse investigation drives the squad member that found the corpse, not the wrong one.</text>
+    <text>If you were the killer, the corpse search could move the wrong squadmate. Now the finder of the body does the search.</text>
   </string>
   <string id="ui_mcm_at_danger_fix_investigate_target">
     <text>Investigation targeting</text>
   </string>
   <string id="ui_mcm_at_danger_fix_investigate_target_desc">
-    <text>The investigator walks to the cover it found instead of a cleared spot.</text>
+    <text>At the end of a corpse search a stalker walked back to the old spot and left the cover he had found unused. He now goes to that cover.</text>
   </string>
   <string id="ui_mcm_at_danger_fix_config_cache">
     <text>Danger config caching</text>
   </string>
   <string id="ui_mcm_at_danger_fix_config_cache_desc">
-    <text>The danger check parses its config strings once instead of re-parsing them on every evaluation.</text>
+    <text>The danger check read its settings again at each pass for each stalker, which cost time in a crowd. It now reads them once.</text>
   </string>
   <string id="ui_mcm_at_danger_fix_id_reuse">
     <text>Danger id reuse</text>
   </string>
   <string id="ui_mcm_at_danger_fix_id_reuse_desc">
-    <text>A dead stalker's scripted danger no longer lingers on its id, so a respawn reusing the id starts clean.</text>
+    <text>A new stalker taking over the id of a dead one also took over the last alarm. That alarm now clears with the dead stalker.</text>
   </string>
   <string id="ui_mcm_at_danger_fix_corpse_order">
     <text>Corpse reaction ordering</text>
   </string>
   <string id="ui_mcm_at_danger_fix_corpse_order_desc">
-    <text>The corpse reaction no longer crashes when it fires before its investigation stage is set.</text>
+    <text>The game could crash when a corpse reaction ran before its search had started. It now waits.</text>
   </string>
   <!-- ==================== FIXES TO VANILLA PAGE ==================== -->
   <string id="ui_mcm_at_vanilla_fixes_desc">
-    <text>Every vanilla Anomaly and xray bug AlifeTactics fixes, grouped by system, each shown as a locked toggle. The always-on ones cannot be turned off. The rest are switched on their own pages, named in each line.</text>
+    <text>These are the bugs in Anomaly and X-Ray that AlifeTactics fixes, grouped by the system they live in. All rows are locked. Most fixes always run, but some need the option named in their line.</text>
   </string>
   <string id="ui_mcm_at_vf_hdr_danger">
-    <text>Danger scheme (xr_danger)</text>
+    <text>Danger scheme</text>
   </string>
   <string id="ui_mcm_at_danger_fix_dead_eval">
     <text>Dead-stalker danger eval</text>
   </string>
   <string id="ui_mcm_at_danger_fix_dead_eval_desc">
-    <text>A stalker is no longer evaluated for danger after he dies, which stops a repeated engine visibility error until the body despawns.</text>
+    <text>A dead stalker kept running the danger reaction until the body vanished, and the log filled with an error. The reaction now stops at death.</text>
   </string>
   <string id="ui_mcm_at_danger_fix_ff_release">
     <text>Friendly-fire hold release</text>
   </string>
   <string id="ui_mcm_at_danger_fix_ff_release_desc">
-    <text>A stalker who held fire because a friend crossed his line no longer stays frozen in a combat stance after the fight ends. The base game drops him without restoring a calm state, so he now returns to normal the moment his enemy is gone.</text>
+    <text>After holding fire for a friend in the line of fire, a stalker kept walking weapon-ready once the fight ended. Now he returns to normal once the enemy is gone.</text>
   </string>
   <string id="ui_mcm_at_danger_fix_ff_lane">
     <text>Friendly-fire blocked-shot test</text>
   </string>
   <string id="ui_mcm_at_danger_fix_ff_lane_desc">
-    <text>The base game's hold-fire test blocks a shot for any visible non-enemy standing close in any direction, or standing on the aim line even beyond the target, and its hold re-arms endlessly in a crowd, leaving stalkers aiming in silence for tens of seconds. Those false holds also silenced campers, wounded-finishing, mounted guns and anti-helicopter fire. A stalker now holds and steps aside only for a friend actually between him and his target.</text>
+    <text>Stalkers held fire for any friend close by in any direction, and for one far behind the target. In a crowd the hold kept renewing, and the hold also silenced campers, helicopter fire and the finishing of wounded enemies. A stalker now holds and steps aside only if a friend stands between him and the target.</text>
   </string>
   <string id="ui_mcm_at_danger_fix_ff_aim">
     <text>Friendly-fire aim at mutants</text>
   </string>
   <string id="ui_mcm_at_danger_fix_ff_aim_desc">
-    <text>A stalker checks his line of fire for friends against a chimera or burer's body. Vanilla checked it against their feet, because neither creature has the spine bone the check looks for, and logged an engine warning every time.</text>
+    <text>A stalker checked his line of fire for friends against the feet of a chimera or a burer, because neither creature has the spine bone the check looks for, and the log filled with an engine warning. He now checks it against the body.</text>
   </string>
   <string id="ui_mcm_at_danger_fix_stale_memory">
     <text>Stale danger memory</text>
   </string>
   <string id="ui_mcm_at_danger_fix_stale_memory_desc">
-    <text>The base game never cleared a stalker's danger episode memory. Attacked again later, he turned to his first attacker's old position instead of the new threat, and the corpse search animation played only for the first corpse he ever searched. The memory now clears when each danger episode ends.</text>
+    <text>A stalker attacked a second time turned to where the first attacker had stood, and only the first corpse he searched played the search animation. The memory of each danger now clears at its end.</text>
   </string>
   <string id="ui_mcm_at_danger_fix_grenade_far">
     <text>Grenade dodge radius</text>
@@ -958,22 +958,22 @@
     <text>The distance deciding whether a stalker dodges a grenade or only turns to face it was read on the wrong scale in the base game. The dodge now covers its intended radius around the stalker.</text>
   </string>
   <string id="ui_mcm_at_vf_hdr_corpse">
-    <text>Corpse investigation (xr_danger)</text>
+    <text>Corpse investigation</text>
   </string>
   <string id="ui_mcm_at_vf_hdr_target">
-    <text>Target selection (CEnemyManager)</text>
+    <text>Target selection</text>
   </string>
   <string id="ui_mcm_at_vf_sticky_targeting">
     <text>Sticky targeting</text>
   </string>
   <string id="ui_mcm_at_vf_sticky_targeting_desc">
-    <text>A shot-at stalker turns on the man who hit him, not a distant target he can see. Always on, and needs a recent engine build.</text>
+    <text>A stalker shot by an enemy he could not see kept firing at a target he could see. He now turns to the attacker, and that pull fades with distance. Inactive on modded exes without this feature.</text>
   </string>
   <string id="ui_mcm_at_vf_player_bias">
     <text>Player bias</text>
   </string>
   <string id="ui_mcm_at_vf_player_bias_desc">
-    <text>NPCs no longer converge on you about three times harder than on each other. Tuned by the Player target pull slider on Perception, Danger.</text>
+    <text>Stalkers made you their target much more often if you saw them than if another stalker did, and whole groups picked you. The Perception &gt; Danger &gt; Player target pull slider sets how hard you pull. Inactive on modded exes without this feature.</text>
   </string>
   <string id="ui_mcm_at_vf_hdr_accuracy">
     <text>Accuracy (shot dispersion)</text>
@@ -982,7 +982,7 @@
     <text>Rank accuracy</text>
   </string>
   <string id="ui_mcm_at_vf_rank_accuracy_desc">
-    <text>A real per-rank accuracy curve replaces vanilla's flat clamp. Needs the Enable Dispersion toggle on Accuracy.</text>
+    <text>All stalkers shot with the spread meant for the best shots, a novice included, because the game's rank scale stops far below the ranks Anomaly uses. Now each rank has a different spread. Works while Effectiveness &gt; Accuracy &gt; Enable Dispersion is on.</text>
   </string>
   <string id="ui_mcm_at_vf_hdr_combat">
     <text>Combat</text>
@@ -991,7 +991,7 @@
     <text>Cover posture</text>
   </string>
   <string id="ui_mcm_at_vf_cover_posture_desc">
-    <text>A stalker no longer fires into the low cover he ducks behind. Needs the Cover posture toggle on Conduct.</text>
+    <text>X-Ray crouches a stalker in a fight without checking that he can still hit his enemy from there, and he fired into the low cover in front of him. He now crouches only when the crouched line to his enemy is clear. Works while Combat &gt; Conduct &gt; Cover posture is on.</text>
   </string>
   <string id="ui_mcm_at_vf_hdr_movement">
     <text>Movement and animation</text>
@@ -1000,64 +1000,64 @@
     <text>Hit-reaction slide</text>
   </string>
   <string id="ui_mcm_at_vf_hit_hold_desc">
-    <text>A hit no longer slides a standing stalker across the ground while the animation plays. Needs the Hit reaction hold toggle on Combat, General and PR #645.</text>
+    <text>A standing stalker hit by a bullet slid across the ground while the hit animation played. Now he holds his place until the animation ends. Works while Combat &gt; General &gt; Hit reaction hold is on. Inactive on modded exes without this feature.</text>
   </string>
   <string id="ui_mcm_at_vf_anim_body">
     <text>Maneuver on an animating body</text>
   </string>
   <string id="ui_mcm_at_vf_anim_body_desc">
-    <text>A maneuver never starts on a stalker still playing a hit or script animation. Runs with Maneuvers on builds carrying PR #629.</text>
+    <text>A maneuver could start on a stalker still staggering from a hit or playing a scripted animation. It now waits until the animation ends. Works while Combat &gt; Maneuvers &gt; Enable combat takeover is on.</text>
   </string>
   <string id="ui_mcm_at_vf_hdr_healing">
-    <text>Healing (xr_eat_medkit)</text>
+    <text>Healing</text>
   </string>
   <string id="ui_mcm_at_healing_fix_medkit_reroll">
     <text>Medkit save-load re-roll</text>
   </string>
   <string id="ui_mcm_at_healing_fix_medkit_reroll_desc">
-    <text>A stalker's healing charge no longer re-rolls across a save and load.</text>
+    <text>Each load rolled a stalker's healing charge again, and stalkers that had used it could have it back. The charge is now rolled once for each stalker.</text>
   </string>
   <string id="ui_mcm_at_vf_bandage">
     <text>Bandage slide</text>
   </string>
   <string id="ui_mcm_at_vf_bandage_desc">
-    <text>The bandage gesture waits until the stalker stands still, so his legs no longer freeze and slide. Runs with Healing.</text>
+    <text>X-Ray stops a stalker's leg animation while a gesture plays. A stalker who bandaged on the move slid with frozen legs. The gesture now plays only while he stands still. Works while Mechanics &gt; Healing &gt; Healing animation is on.</text>
   </string>
   <string id="ui_mcm_at_vf_limp">
     <text>Combat limp</text>
   </string>
   <string id="ui_mcm_at_vf_limp_desc">
-    <text>A hurt stalker drops his limp the instant a fight starts. Runs with Healing.</text>
+    <text>The limp is a gesture too, and a limping stalker pulled into a fight kept the pose and slid when he was shot. He now drops the limp the moment a fight starts. Works while Mechanics &gt; Healing &gt; Limping animation is on.</text>
   </string>
   <string id="ui_mcm_at_vf_heal_freeze">
     <text>Healing freeze</text>
   </string>
   <string id="ui_mcm_at_vf_heal_freeze_desc">
-    <text>A healing stalker no longer freezes in place or ignores an enemy that appears mid-gesture. Runs with Healing.</text>
+    <text>X-Ray holds the whole body of a stalker in a gesture until it ends, and a stalker who started to heal near an enemy stood locked in place. The gesture now starts only while he has no enemy. Works while Mechanics &gt; Healing &gt; Healing animation is on.</text>
   </string>
   <string id="ui_mcm_at_vf_distant_hits">
     <text>Distant hits</text>
   </string>
   <string id="ui_mcm_at_vf_distant_hits_desc">
-    <text>A stalker sniped from far off reacts and seeks cover, where a distance gate left him standing. Needs the Distant hits toggle on Danger.</text>
+    <text>A stalker shot from far off ignored the hit, because the shot came from past the reaction range. He now turns and takes cover. Works while Perception &gt; Danger &gt; Distant hits is on.</text>
   </string>
   <string id="ui_mcm_at_vf_low_cover">
     <text>Low cover shot check</text>
   </string>
   <string id="ui_mcm_at_vf_low_cover_desc">
-    <text>A stalker fires over low cover he can shoot across. The shot check reads eye height, not chest height. Runs with Maneuvers.</text>
+    <text>The check for a clear crouched shot started at chest height, above low cover that blocked the crouched line, and stalkers crouched into that cover. The check now starts at the height of a crouched stalker's eyes. Works while Combat &gt; Conduct &gt; Cover posture is on.</text>
   </string>
   <string id="ui_mcm_at_vf_monolith_stance">
     <text>Monolith combat stance</text>
   </string>
   <string id="ui_mcm_at_vf_monolith_stance_desc">
-    <text>Fighters on the vanilla Monolith combat scheme flip between crouch and idle far less often in a fight. Its four actions now count as combat actions for the state manager. Always on.</text>
+    <text>Monolith fighters flipped between a crouch and an idle stance for as long as the fight lasted. Their combat actions now count as combat, and they keep their stance.</text>
   </string>
   <string id="ui_mcm_at_vf_heal_lists">
-    <text>Dropped heal lists</text>
+    <text>Empty heal lists</text>
   </string>
   <string id="ui_mcm_at_vf_heal_lists_desc">
-    <text>The medkit and bandage item lists the engine dropped are restored, so NPCs heal reliably. Needs the Healing toggle.</text>
+    <text>Stalkers never used the medkits and bandages they carried, because the game's lists of those items were empty. The lists now name the vanilla items, and stalkers heal from what they carry.</text>
   </string>
   <string id="ui_mcm_at_vf_hdr_mutants">
     <text>Mutants</text>
@@ -1066,7 +1066,7 @@
     <text>Chimera jump rest</text>
   </string>
   <string id="ui_mcm_at_vf_jump_rest_desc">
-    <text>A chimera or lurker waits 3 seconds after any jump before its next one, where vanilla let it jump again the moment it landed. Inactive on modded exes without this feature.</text>
+    <text>A chimera or lurker could jump again the moment it landed, and put a second hit on you right after the first. Both now rest after each jump. Inactive on modded exes without this feature.</text>
   </string>
   <!-- ==================== JAMMING PAGE ==================== -->
   <string id="ui_mcm_at_jam_desc">
@@ -1152,7 +1152,7 @@
   </string>
   <!-- ==================== DEVELOPMENT PAGE ==================== -->
   <string id="ui_mcm_at_development_desc">
-    <text>Debug and development tools. DEBUG log level traces every system with timings: maneuver decisions, danger evaluation, healing ticks and consumed items, per-shot accuracy, ammo and reload events. Written to alifetactics.log. Tracing has a cost, leave at WARN for normal play.</text>
+    <text>These are the tools for testing AlifeTactics and for reporting a bug. The log traces every system, the world trace records the fight around you, and the debug HUD shows what drives each fighter near you. Keep the log at Warn and the other two off in normal play, because tracing costs time.</text>
   </string>
   <!-- Development - Logging -->
   <string id="ui_mcm_at_hdr_logging">
@@ -1162,13 +1162,13 @@
     <text>Log level</text>
   </string>
   <string id="ui_mcm_at_development_log_level_desc">
-    <text>Log verbosity. ERROR: failures only. WARN: anomalies. INFO: module init and patch installs. DEBUG: full per-event tracing with durations.</text>
+    <text>Error writes failures only, Warn adds problems worth a look, Info adds the startup lines, and Debug traces every decision with its timing. The log is alifetactics.log, in the game's log folder.</text>
   </string>
   <string id="ui_mcm_at_development_log_flush">
     <text>Flush log every line</text>
   </string>
   <string id="ui_mcm_at_development_log_flush_desc">
-    <text>Write each log line to disk at once instead of buffering. Turn on when diagnosing a crash so the final lines survive a hard freeze that never reaches the periodic flush. Slower, so leave off for normal play.</text>
+    <text>Writes each line to disk the moment it is logged. Turn it on to chase a crash, and the last lines before it reach the file. It slows the game, and normal play needs it off.</text>
   </string>
   <string id="at_development_log_level_lst_error">
     <text>Error</text>
@@ -1190,42 +1190,42 @@
     <text>Position</text>
   </string>
   <string id="ui_mcm_at_development_hud_position_desc">
-    <text>Live overlay of nearby stalkers: rank and name, health, logic scheme, mental state, and the current target with distance. A green row with the maneuver name in green marks a stalker AlifeTactics is driving, for the maneuver's whole life. Refreshes twice per second and hides while the PDA is open. Pick a corner to show it.</text>
+    <text>Each fighter near you gets two lines. The first shows his name, health and the system driving him. The second shows his target with the distance, and the scheme and state X-Ray runs for him. The row colour names the driving system, and a mutant's move takes the colour of its group on the Mutants tab. The HUD refreshes twice a second and hides while the PDA is open.</text>
   </string>
   <string id="at_development_hud_position_lst_off">
     <text>Off</text>
   </string>
   <string id="at_development_hud_position_lst_topleft">
-    <text>Top Left</text>
+    <text>Top left</text>
   </string>
   <string id="at_development_hud_position_lst_topright">
-    <text>Top Right</text>
+    <text>Top right</text>
   </string>
   <string id="at_development_hud_position_lst_centerleft">
-    <text>Center Left</text>
+    <text>Center left</text>
   </string>
   <string id="at_development_hud_position_lst_centerright">
-    <text>Center Right</text>
+    <text>Center right</text>
   </string>
   <string id="at_development_hud_position_lst_bottomleft">
-    <text>Bottom Left</text>
+    <text>Bottom left</text>
   </string>
   <string id="at_development_hud_position_lst_bottomright">
-    <text>Bottom Right</text>
+    <text>Bottom right</text>
   </string>
   <!-- Development - World trace -->
   <string id="ui_mcm_at_development_world_trace_enabled">
     <text>World trace</text>
   </string>
   <string id="ui_mcm_at_development_world_trace_enabled_desc">
-    <text>Debug recorder for the physical fight around you. Flags a body that slides (real distance covered with no walk or run animation, including the shove right after a hit) and records shot outcomes: per-rank hit rates split by shooter motion, damage dealt, near misses, and burst lengths per weapon kind, written as tables once a minute. Each line names the system driving that NPC (maneuver, Commitment, or vanilla). Everything goes to alifetactics_world.log. Off costs nothing.</text>
+    <text>Records the fight around you to alifetactics_world.log. It flags a body that slides, a shot fired far off the aim, two systems fighting over a stalker and a mutant that runs in place, and it writes a table of hits and bursts each minute. Each line names the system driving that fighter. Switched off, it stops recording and runs no checks.</text>
   </string>
   <!-- Development - Reset -->
   <string id="ui_mcm_at_development_btn_reset_all">
     <text>Reset to defaults</text>
   </string>
   <string id="ui_mcm_at_development_btn_reset_all_desc">
-    <text>Restore all AlifeTactics MCM settings to defaults. Use after upgrading from a version with a different MCM structure.</text>
+    <text>Restores every AlifeTactics setting to its default. Use it after an update that changed the menu.</text>
   </string>
   <string id="ui_mcm_at_development_reset_warning">
     <text>Warning: save or discard pending MCM changes first, otherwise they override the reset on the next Accept.</text>
