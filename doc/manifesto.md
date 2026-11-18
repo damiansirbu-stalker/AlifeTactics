@@ -5,7 +5,7 @@ AlifeTactics makes the Zone's enemies fight to stay alive.
 In vanilla Anomaly a rookie fires with a legend's spread. Most mutants run straight at you.
 AlifeTactics gives every stalker and every mutant a read of the fight, and a reason to act on what it sees.
 If you reload in a stalker's sights, he runs for cover. A burer waits for you to look away before it throws.
-The chimeras of one pack come at you in turns, each with the leaps it rolled for itself.
+When a chimera of the pack hits you, the others hold their next leap on you for a few seconds, and each chimera leaps with the set of moves it rolled for itself.
 
 GSC built a mind like this first and cut it later.
 Its stalkers outplayed the player so often that the studio held them back, to leave him room to win [9].
