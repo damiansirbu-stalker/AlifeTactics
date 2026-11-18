@@ -73,18 +73,19 @@ Combat is how a stalker moves in a fight, and his rank and faction shape each de
 In vanilla he re-plans every moment, and a fight turns into strafing and cover-hopping.
 
 General:
-Each decision takes one Intelligence roll, and a veteran reads the moment right more often.
+Each decision takes one Intelligence roll, and a veteran reads the moment right more often than a rookie, though even a legend gets some of them wrong.
 A hurt Duty trooper falls back firing, a hurt bandit runs for home, and a Monolith fighter holds.
   Hit reaction hold: a stalker hit while standing no longer slides across the ground.
 
 Maneuvers:
 A maneuver takes a stalker over from X-Ray's planner for one move the engine can't make or never decides on, and it hands him back once the move is done.
+However many stalkers fight you, only a few of them make a move on you at once.
   Counterflank: a stalker fighting someone far off turns on a player who walks up on him.
   Reload Cover: caught reloading in an enemy's sights, he finishes the reload on his way to cover.
-  Flee: the last man of a beaten squad may sling his weapon and run for a friendly base.
+  Flee: the last man of a beaten squad may sling his weapon and run for a distant friendly base, once the shooting pauses and you are not right on top of him.
   Retreat: hurt and exposed, he falls back to cover still firing.
   Kite: an enemy inside his gun's minimum range makes him back off down a clear lane, still firing.
-  Pickoff: outranging an enemy who isn't pressing him, he plants and picks him off with single shots.
+  Pickoff: outranging an enemy who isn't pressing him, he plants and picks him off with single shots, and he breaks off the moment you aim at him or close in.
 
 Commitment:
 Commitment holds a stalker to a plan that works, where vanilla drops it at the smallest change, a teammate crossing his line or a better cover spot a step away.
@@ -148,7 +149,7 @@ It all runs on X-Ray's own senses and on the danger scheme your modpack ships.
 Sound:
 A hostile stalker may hear you before he ever sees you.
 Hearing and sight are separate senses, and a sound only sends him to check the spot.
-The engine runs its own cover and search on what he heard.
+X-Ray then runs cover and search on what he heard, and once his squad is in a real fight he stops checking noises and keeps watch on the spot from where he stands.
   Neutral Gunfire Alert: a stray bullet of yours that hits near a neutral or a friend puts him on alert, and he moves to cover facing the impact without turning hostile.
   Movement Noise: your steps carry by stance, surface and weather. A walk turns a standing hostile toward you, and a sprint or a hard landing sends him over to check.
   Handling Noise: a reload or an empty click brings him over, and using an item turns him toward you.
@@ -204,63 +205,67 @@ The system stays fair, because only the strongest artefact counts on a channel, 
   Binocular spotters: binoculars let him see farther by day.
   Night-vision at night: a night-vision lamp lets him see farther after dark.
 
+Effects (planned)
+
+This tab will add combat feedback you feel, starting with concussion.
+A close blast will leave your ears ringing and your sight blurred.
+
 Mutants
 
-Vanilla mutants run an engine state machine that shuffles their moves at random.
-They charge straight at you, and anyone on a rock or strafing in time beats them.
-AlifeTactics gives mutants the stalkers' decision model, the same Intelligence and Personality.
-It answers a vulnerable enemy with moves its own body carries.
+Mutant combat is how a creature of the Zone chooses its moves against you or a stalker.
+In vanilla X-Ray drives each mutant with a state machine that only charges straight in at melee range, and a player standing on a rock shoots most of them as they come.
+AlifeTactics gives mutants the stalkers' decision model and new moves that run through X-Ray's jump and attack controls and play the creature's real animations.
 
 General:
-Every mutant reads when its enemy, you or a stalker, is reloading, empty or turned away. It also reads where that enemy stands and how he moves around it.
-  Intelligence: whether it answers with the right move, rising with the danger of the map.
-  Personality: each species leans toward its own moves. Each individual rolls its set once as it enters the fight, and two chimeras from one pack fight differently.
-  Wild: how much a mutant's numbers vary, from every spawn the same to each one different.
-A pack takes turns on you, and its moves come one after another.
+Every mutant watches its enemy, you or a stalker, for an opening such as a weapon aimed at it, a reload or a turned back, a ledge above it, or a man on the run.
+  Intelligence: whether it answers an opening with the right move, rising with the danger of the map. If its read fails, it lets the opening go, and a badly hurt one may panic.
+  Personality: each species leans toward some moves, and each mutant rolls its set once. Two chimeras of one pack fight differently, and a flesh runs far more often than a pseudodog.
+  Wild: how much mutants of one kind differ, in the timing of their moves, the force of their leaps and the reach of their abilities, from one creature to the next.
+A mutant spaces its moves apart, and once one mutant's leap, strike or throw hits you, every mutant holds its next one on you for a few seconds while its natural attacks go on.
 
 Species:
-Each species has its own page with the moves its body carries, sorted into three groups.
+Every species has a page: Chimera, Bloodsucker, Burer, Controller, Poltergeist, Dog, Boar, Snork, Pseudodog, Pseudogigant, Cat, Flesh, Fracture, Karlik and Tushkano.
+Each subspecies shares the page of its parent species, the lurker with the chimera, the psysucker with the bloodsucker and the psy dog with the pseudodog.
 
 New Moves:
-Completely new moves, built on dead moves the engine carries and leaves unused in vanilla.
-  High Leap (chimera, lurker, cat, dog, snork, pseudodog, psy-dog): a mutant below a perched shooter crouches and springs up after him, and a rock stops being a safe place to shoot from.
-  Punishing Leap (chimera, lurker, cat, dog, snork, pseudodog, psy-dog): if you aim at it, reload or turn your back, it pounces at once, with no wind-up at all.
-  Hunting and Feral Leap (chimera, lurker, cat, dog, snork, pseudodog, psy-dog): it steers in the air after you as you run, and only Hunting crouches first.
-  Catching and Cutoff Leap (chimera, lurker, cat, dog, snork, pseudodog, psy-dog): it leaps at the spot where you will be, and only Catching crouches before it jumps.
-  Closing Leap (bloodsucker, psysucker): it closes the gap with a leap of its own, then claws.
-  Claw (chimera, lurker): a pounce at point-blank range.
-  Backstrike (chimera, lurker, burer, controller): a spin strike at an enemy circling behind it.
-  Flee (dog, boar, snork, pseudodog, psy-dog, pseudogiant, cat, flesh, fracture, karlik, tushkano): a dying mutant breaks off when it can get away, and a cornered one fights on.
+These are moves vanilla never makes for the species, each built on a part of the creature X-Ray already carries, its jump, an unused rear strike or its run-away state.
+The chimera, lurker, cat, dog, snork, pseudodog and psy dog share every leap but the Closing leap.
+A dog favours the straight leaps, a snork the ones that turn and a chimera the sudden ones.
+A mutant leaps only at an enemy it has seen or sensed lately, and close in only up at a ledge.
+  High leap: an enemy standing on a rock or a ledge above it draws a jump up after him, and for you or any stalker a rock stops being a safe place to shoot from.
+  Punishing leap: it springs without a crouch the moment you aim at it or can't fire back.
+  Hunting leap and Feral leap: it turns with a moving enemy through the leap, no harder than a vanilla creature turns, and only Hunting crouches first, a warning you can see.
+  Catching leap and Cutoff leap: it springs at the path of a moving enemy, a short step ahead of him, a smarter mutant judges that step better, and only Catching crouches first.
+  Closing leap (bloodsucker, psysucker): it closes the gap to an enemy on a ledge, or to a player who aims at it from mid range, and then claws him on the ground.
+  Claw (chimera, lurker): a point-blank pounce, the close strike a vanilla chimera lacks. Both creatures leap with no crouch and rest after each jump, where vanilla let them jump again at once.
+  Backstrike (chimera, lurker, burer, controller): a spin strike at an enemy behind it.
+  Flee (dog, boar, snork, pseudodog, psy dog, pseudogigant, cat, flesh, fracture, karlik, tushkano): when its read fails a badly hurt mutant may run, unless it faces you or you are close.
 
 Managed Moves:
-The creature's own attacks, which AlifeTactics fires at the moment the fight calls for them.
-  Gravity Throw (burer): it answers your reload or your turned back with its gravity throw.
-  Cloak (bloodsucker, psysucker): a second cloak, on top of the invisibility vanilla times on its own. Aim at it or hit it while it closes in, and it vanishes for a beat.
+Attacks the creature already has, which AlifeTactics fires at the moment the fight calls for them.
+  Gravity attack (burer): it throws when you look away from it or can't fire back, at a moment it needs no shield, and never straight after another throw.
+  Cloak (bloodsucker, psysucker): if you aim at it or hit it while it closes in, it vanishes for a moment on top of the cloak vanilla times, but never once it is close enough to strike.
 
 Influenced Moves:
-The creature's own abilities, whose numbers Wild spreads between individuals.
-The burer's gravity and telekinesis, the controller's psi attack and stamina, and the poltergeist's detection all differ between individuals of a kind.
+Abilities the creature already has, whose numbers Wild spreads between individuals of one kind.
+  Gravity numbers and Telekinesis (burer), Psi tube, Stamina and Aura (controller), and Detection (poltergeist) all differ from one creature of a kind to the next.
 
-Fixes to Vanilla:
-AlifeTactics repairs bugs across many vanilla systems, each listed on the MCM Fixes tab: the danger scheme, the corpse search, target choice, cover posture and healing.
-Behaviours that were unfinished or not working now work.
-Stalkers heal with the medkits and bandages they carry, search every corpse they find, and dodge a grenade at the full distance the game intended for it.
-A stalker holds fire only for a friend standing between him and his target, and campers and mounted gunners shoot again when other stalkers stand near them.
-Stalkers also react to the right threat. One who is shot knows who shot him and turns on him, answers the newest attacker, and stops healing to fight an enemy who appears.
-Animation bugs are fixed. A stalker no longer slides across the ground when he is hit or while he bandages, stops limping when a fight starts, and leaves the combat stance after it.
-Stability and speed improve too. Vanilla's crashes in the danger checks and the corpse search are fixed, a dead body stops spamming engine errors, and the danger check parses its config once.
+Fixes to Vanilla
 
-Effects (planned):
-Player-facing combat feedback, starting with concussion: tinnitus and blur.
-
-Intended setup:
-AlifeTactics is built and tuned against vanilla Anomaly on the latest demonized build.
-It runs on AOEngine and older demonized builds with fallbacks, where a feature that needs a newer hook stays inactive or reduced.
-It coexists with other combat AI mods, but vanilla plus AlifeTactics is the intended setup.
+Vanilla leaves many combat behaviours broken, and AlifeTactics carries more than 30 fixes for them.
+Each fix is listed on the Fixes tab, and these are the ones you notice.
+  Danger scheme: a sniped stalker takes cover, knows his shooter, answers his newest attacker, dodges grenades at full radius, holds fire only for a friend in his line and relaxes after the fight.
+  Corpse investigation: stalkers search every corpse they find, every time.
+  Target selection: a hit stalker turns on his shooter, and NPCs weigh you like any other enemy.
+  Accuracy: rank sets each stalker's spread, where vanilla gave all of them one.
+  Combat: stalkers shoot over the low cover they duck behind, and Monolith fighters flip stance less.
+  Movement and animation: a hit stalker stops sliding, and no maneuver starts mid-animation.
+  Healing: stalkers use their kits, stop to fight, limp only out of combat and bandage standing.
+The danger checks and the corpse search no longer crash, a dead body no longer spams engine errors, and the danger check reads its config once and keeps it.
 
 Requirements:
 Anomaly 1.5.3
-Modded exes: themrdemonized 20250908 or newer, or AOEngine v0.5.2 or newer. The full feature set needs the latest demonized build. A feature that needs a newer one stays inactive on older exes.
+Modded exes: themrdemonized 20250908 or newer, or AOEngine v0.5.2 or newer. The full feature set needs the latest demonized build. A feature needing a newer one is inactive or reduced on older exes.
 xlibs (https://www.moddb.com/mods/stalker-anomaly/addons/xlibs-1001)
 MCM
 
