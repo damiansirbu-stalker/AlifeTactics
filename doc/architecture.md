@@ -745,7 +745,7 @@ the monster hook set (xmonster)            Mutants                        probed
 
 ## Cross-cutting
 
-- Compatibility floor: `_at_init.script` asserts xlibs 1.9.2 or later and the modded exes, demonized 20250908 or later or AOEngine, at boot. `_at_manifest.script` holds the identity.
+- Compatibility floor: `_at_init.script` asserts xlibs 1.10.0 or later and the modded exes, demonized 20250908 or later or AOEngine, at boot. `_at_manifest.script` holds the identity.
 - Composition: Danger, Healing, Jamming and Maneuvers patch whichever vanilla script wins the slot, and the combat brain the takeover borrows from may be vanilla or an overhaul.
 - grok_bo: `at_compat.script` is a Decorator over grok_bo's `npc_on_before_hit`. grok_bo applies player-to-NPC damage itself and drops DAMAGE_RESIST.
   The wrapper heals back the resisted fraction of the health grok_bo removed. It installs at `actor_on_first_update` and is inert without grok_bo.
