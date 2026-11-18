@@ -469,6 +469,10 @@ function on_mcm_load()
                             { id = "int_base",     type = "track", val = 2, min = 0, max = 100, step = 5, def = 40, hint = "at_general_int_base" },
                             { id = "int_rank_pct", type = "track", val = 2, min = 0, max = 20, step = 1, def = 6, hint = "at_general_int_rank_pct" },
                             { id = "combat_hit_hold", type = "check", val = 1, def = true, hint = "at_combat_combat_hit_hold" },
+
+                            { id = "div_footer", type = "line" },
+                            { id = "platform", type = "desc", text = "ui_mcm_xmcm_footer",
+                                ui_hook_functor = { _at_init.get_platform_functor() }, clr = {255, 212, 201, 168} },
                         },
                     },
                     {
@@ -489,10 +493,7 @@ function on_mcm_load()
                             { id = "maneuver_retreat", type = "check", val = 1, def = true, hint = "at_combat_maneuver_retreat" },
                             { id = "maneuver_kite",    type = "check", val = 1, def = true, hint = "at_combat_maneuver_kite" },
                             { id = "maneuver_pickoff", type = "check", val = 1, def = true, hint = "at_combat_maneuver_pickoff" },
-
-                            { id = "div_footer", type = "line" },
-                            { id = "platform", type = "desc", text = "ui_mcm_xmcm_footer",
-                                ui_hook_functor = { _at_init.get_platform_functor() }, clr = {255, 212, 201, 168} },                        },
+                        },
                     },
                     {
                         id = "commitment",
