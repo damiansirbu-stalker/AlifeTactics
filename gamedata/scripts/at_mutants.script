@@ -69,9 +69,9 @@ local PANIC_MOVES = { flee = true }
 -- The leaps a species may carry; any one of them makes the mutant a leaper that rolls its leap numbers at adoption.
 local LEAP_MOVES = { "high_leap", "punishing_leap", "hunting_leap", "feral_leap", "catching_leap", "cutoff_leap", "closing_leap" }
 
--- The gate token each fired move prints: a leap whose force Wild spreads carries wild, High leap flies at the species force.
+-- The gate token each fired move prints: every leap carries wild, because Wild spreads its force at adoption.
 local MOVE_GATES = {
-    high_leap = GATE, punishing_leap = GATE_WILD, hunting_leap = GATE_WILD, feral_leap = GATE_WILD,
+    high_leap = GATE_WILD, punishing_leap = GATE_WILD, hunting_leap = GATE_WILD, feral_leap = GATE_WILD,
     catching_leap = GATE_WILD, cutoff_leap = GATE_WILD, closing_leap = GATE_WILD,
     flee = GATE_PANIC, backstrike = GATE,
 }
