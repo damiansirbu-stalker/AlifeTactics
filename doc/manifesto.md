@@ -214,11 +214,11 @@ Attachments puts what he carries on the gun he fights with, through the game's o
 
 #### Gear
 
-An artefact grants one combat edge by its class, capped so it tilts a fight and never decides it.
+An artefact feeds one effect channel by its class, capped so it tilts a fight and never decides it.
 The carrier warps the air around him, a real and huntable drop.
 Binoculars and night vision widen what he sees.
 GSC's combat tables rate equipment for effectiveness, and the monster design gives artefacts their field effects.
-Gear reads each item's own data for one capped edge, and the advantages are our design on that base.
+Gear reads each item's own data for one capped effect channel, and the channels are our design on that base.
 
 ### Mutants
 
