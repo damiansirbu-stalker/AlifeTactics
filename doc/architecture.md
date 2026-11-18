@@ -153,19 +153,6 @@ Lifecycle of a stalker record:
 
 A mutant record is adopted on its first update in reach and drops after `STALE_MS` idle, then is adopted again.
 
-## Rules and invariants
-
-- A maneuver clears the need that started it. A need the maneuver cannot clear picks the same row again, and the stalker loops on it. The `need_cleared=` field of the `[CMB] end` trace checks it.
-- Gates are named, not inline: `_can_<action>(obj)` for engine state, `_check_<action>_block(...)` for the business gate, `_try_<action>` for one block check then the act.
-  Intelligence is a named roll, `at_faction.check_intelligence` and `_check_intelligence` in `at_mutants`. Repertoire and cooldowns are filtered before a `_try_` runs.
-- Each `_npc_states` field has one writer.
-- A seized stalker proposes no switch, and neither Commitment, Conduct nor Behaviors reaches him. Maneuvers take precedence.
-- Every hold has its release. A toggle-off releases what its system holds live.
-- Debug is free when off. A trace gates on `at_debug.is_on()`, an integer compare, and the timers are null objects.
-- A vanilla or xray fix appears on three surfaces: the readme under Fixes to Vanilla, the changelog as a Fixed vanilla bug line, the MCM Fixes tab.
-- The MCM defaults in `at_mcm.script` are the only copy of the rank curves.
-- `at_<system>.script` holds the logic and `at_<system>_config.ltx` the numbers. A `_config.script` exists where LTX cannot hold the shape, as the maneuver catalog references methods.
-
 ## Substrate
 
 ### Combat record store
@@ -258,6 +245,19 @@ release   188347 false   vanilla resumes from where the stalker stands
 - `apply_takeover_block` blocks the vanilla combat, danger and cover planners and the monolith, zombied, camper and facer sub-schemes (`xgraft.get_blocked_planners`).
   It runs on each seize, per NPC, because a world property added twice to one action throws (`condition_state_inline.h`, `CConditionState::add_condition`).
 - 188347 sits off the vanilla property id range.
+
+## Rules and invariants
+
+- A maneuver clears the need that started it. A need the maneuver cannot clear picks the same row again, and the stalker loops on it. The `need_cleared=` field of the `[CMB] end` trace checks it.
+- Gates are named, not inline: `_can_<action>(obj)` for engine state, `_check_<action>_block(...)` for the business gate, `_try_<action>` for one block check then the act.
+  Intelligence is a named roll, `at_faction.check_intelligence` and `_check_intelligence` in `at_mutants`. Repertoire and cooldowns are filtered before a `_try_` runs.
+- Each `_npc_states` field has one writer.
+- A seized stalker proposes no switch, and neither Commitment, Conduct nor Behaviors reaches him. Maneuvers take precedence.
+- Every hold has its release. A toggle-off releases what its system holds live.
+- Debug is free when off. A trace gates on `at_debug.is_on()`, an integer compare, and the timers are null objects.
+- A vanilla or xray fix appears on three surfaces: the readme under Fixes to Vanilla, the changelog as a Fixed vanilla bug line, the MCM Fixes tab.
+- The MCM defaults in `at_mcm.script` are the only copy of the rank curves.
+- `at_<system>.script` holds the logic and `at_<system>_config.ltx` the numbers. A `_config.script` exists where LTX cannot hold the shape, as the maneuver catalog references methods.
 
 ## Combat
 
