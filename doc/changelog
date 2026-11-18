@@ -37,6 +37,7 @@
       - Changed Distant hits to answer enemies only. A neutral's stray hit is no longer answered as an attack.
       - Removed the Player ranges toggle. Every shipped config sets the actor danger tables equal to the normal ones.
       - Fixed vanilla bug "hit shooter identity". A stalker hit by a bullet now looks at the shooter and takes cover from him. Listed on the Fixes tab.
+      - Fixed vanilla bug "friendly-fire aim at mutants". A stalker checks his line of fire against a chimera's or burer's body, not its feet. Listed on the Fixes tab.
       - Fixed vanilla bug "player bias" out of the box. Player target pull now defaults to the weight of any NPC enemy, and 900 restores the vanilla magnet.
 
   Mechanics

@@ -939,6 +939,12 @@
   <string id="ui_mcm_at_danger_fix_ff_lane_desc">
     <text>The base game's hold-fire test blocks a shot for any visible non-enemy standing close in any direction, or standing on the aim line even beyond the target, and its hold re-arms endlessly in a crowd, leaving stalkers aiming in silence for tens of seconds. Those false holds also silenced campers, wounded-finishing, mounted guns and anti-helicopter fire. A stalker now holds and steps aside only for a friend actually between him and his target.</text>
   </string>
+  <string id="ui_mcm_at_danger_fix_ff_aim">
+    <text>Friendly-fire aim at mutants</text>
+  </string>
+  <string id="ui_mcm_at_danger_fix_ff_aim_desc">
+    <text>A stalker checks his line of fire for friends against a chimera or burer's body. Vanilla checked it against their feet, because neither creature has the spine bone the check looks for, and logged an engine warning every time.</text>
+  </string>
   <string id="ui_mcm_at_danger_fix_stale_memory">
     <text>Stale danger memory</text>
   </string>

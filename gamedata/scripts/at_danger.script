@@ -1045,6 +1045,38 @@ local function _rx_ff_check_in_los(self, friend, _be, be_pos)
 	return xcombat.has_body_in_lane(pos, be_pos, friend_pos, FF_LANE_HALF_WIDTH_M)
 end
 
+local FF_AIM_BONE = "bip01_spine"
+local INVALID_BONE_ID = 65535
+
+--- The lane aim point: the spine when the enemy has one, else the body centre, since chimeras and burers lack it.
+local function _get_lane_aim(be)
+	if be:get_bone_id(FF_AIM_BONE) ~= INVALID_BONE_ID then return be:bone_position(FF_AIM_BONE) end
+	return be:center()
+end
+
+local function _rx_ff_check_all_in_los(self)
+	local be = self.object:best_enemy()
+	if not be then return false end
+	local be_pos = _get_lane_aim(be)
+	if self:check_in_los(db.actor, be, be_pos) == true then
+		self.st.friend_id = AC_ID
+		return true
+	end
+	local online = db.OnlineStalkers
+	if not online then return false end
+	local sid = self.object:id()
+	for i = 1, #online do
+		local id = online[i]
+		local st = id ~= sid and db.storage[id]
+		local friend = st and st.object
+		if friend and IsStalker(friend) and self:check_in_los(friend, be, be_pos) == true then
+			self.st.friend_id = id
+			return true
+		end
+	end
+	return false
+end
+
 local function _install_patches()
 	if _patched then return end
 	_patched = true
@@ -1072,6 +1104,7 @@ local function _install_patches()
 		_orig_dont_shoot_eval = rx_ff.evaluator_dont_shoot.evaluate
 		rx_ff.evaluator_dont_shoot.evaluate = _rx_ff_dont_shoot
 		rx_ff.evaluator_dont_shoot.check_in_los = _rx_ff_check_in_los
+		rx_ff.evaluator_dont_shoot.check_all_in_los = _rx_ff_check_all_in_los
 	end
 end
 

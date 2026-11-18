@@ -263,6 +263,7 @@ Each fix is listed on the Fixes tab, and these are the ones you notice.
   Healing: stalkers use their kits, stop to fight, limp only out of combat and bandage standing.
   Mutants: a chimera or lurker rests after each jump, where vanilla let it jump again at once.
 The danger checks and the corpse search no longer crash, a dead body no longer spams engine errors, and the danger check reads its config once and keeps it.
+The friendly-fire check now aims at the body of a chimera or a burer, where vanilla aimed it at the creature's feet and logged an engine warning every time.
 
 Requirements:
 Anomaly 1.5.3

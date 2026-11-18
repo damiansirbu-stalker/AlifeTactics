@@ -688,6 +688,8 @@ Each fix is a locked entry on the Fixes tab.
 - Danger scheme crashes: the mutant-corpse time crash, the torn-down and nil-return evaluator crashes, the evaluation after death.
 - Danger scheme reads: the `bd_types` enum collision, the meters-against-squared grenade gate, the condlist parsed on each evaluation.
 - Danger scheme state: the friendly-fire freeze, the any-direction blocked-shot hold, the stale transition animation, the cover reservation wiped on finalize, the stale position on a repeat attack.
+- Friendly-fire aim: `rx_ff.check_all_in_los` aims its lane test at the enemy's `bip01_spine`, which chimeras and burers lack, and `utils_obj.safe_bone_pos` falls back to the root bone.
+  `_rx_ff_check_all_in_los()` aims at `center()` when the enemy has no such bone.
 - Hit shooter identity: vanilla stamps a hit with an undefined `who_id`. `_resolve_hit_source()` fills it from the same-frame `at_core` hit record when the reaction runs.
 - Corpse investigation: the despawn crash, the wrong investigator, the cleared-vertex target, the crash before a stage, the danger left on a reused id.
 - Target selection: sticky targeting and player bias, through the Reaction binds.
@@ -695,6 +697,7 @@ Each fix is a locked entry on the Fixes tab.
 - Combat: cover posture by the crouch shot ray, fire over low cover read at eye height, and the monolith sub-scheme's four actions in `state_mgr.combat_action_ids`.
 - Movement: the hit hold, and no maneuver start on an animating body.
 - Healing: the medkit and bandage lists, the bandage gesture waiting for stillness, the limp dropped in a fight, the heal freeze, the save-load charge re-roll.
+- Mutants: the chimera and lurker jump rest, the `[jump_delay]` row written at adoption over vanilla's 0.
 
 ## Development
 
