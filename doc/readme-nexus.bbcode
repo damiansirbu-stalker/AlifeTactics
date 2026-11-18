@@ -1,6 +1,6 @@
 [line]
 [center]
-[size=5][b]Version 1.2.1 (xlibs 1.9.0, demonized [url=https://github.com/themrdemonized/xray-monolith/releases]latest[/url])[/b][/size]
+[size=5][b]Version 1.2.2 (xlibs 1.9.2, demonized [url=https://github.com/themrdemonized/xray-monolith/releases]latest[/url])[/b][/size]
 [size=4][b][url=https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/changelog]Changelog[/url] · [url=https://damiansirbu-stalker.github.io/AlifeTactics/health/]Health[/url] · [url=https://damiansirbu-stalker.github.io/AlifeTactics/jitprofiler/]JitProfiler[/url] · [url=https://github.com/damiansirbu-stalker/AlifeTactics/issues]Bugs[/url] · [url=https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/readme_ru.txt]Russian[/url] · [url=https://github.com/damiansirbu-stalker/AlifeTactics/blob/main/doc/manifesto.md]Manifesto[/url][/b][/size]
 [/center]
 [line]
@@ -24,317 +24,221 @@ After every update, open Development in the mod's MCM and reset every setting to
 
 Everyone wants to live.
 
-AlifeTactics rebuilds how creatures behave and fight in STALKER Anomaly.
-The engine is strong mechanically, but its enemies fight stereotypically, their actions shuffled and settled by a die roll.
-AlifeTactics adds the intelligence to choose the action, and a Personality for each faction and each mutant species over which action it takes at all.
-Sections marked (planned) are not built yet.
+AlifeTactics is a complete combat system for S.T.A.L.K.E.R. Anomaly, for stalkers and mutants alike, from what they hear and see to how they decide, move, shoot and heal.
+In vanilla the enemies all fight the same way, because X-Ray shuffles its combat moves at random.
+AlifeTactics adds the decision. Each fighter reads the fight in front of him and picks a move, through the engine's combat systems and hooks built for AlifeTactics and merged into the demonized exes.
+It also brings back moves and mechanics that GSC built and the shipped game never ran.
 
-It rebuilds the combat mind GSC designed and shelved, the intelligence their own AI documents lay out.
-GSC built it first and cut it. The AI grew so sharp that stalkers won the firefights before the player could, and the studio reined it in.
-Much of it only ever lived as stubs and commented-out code in the engine source, revived here on the current engine.
-AlifeTactics is engine-first. Where the engine could not decide, dozens of changes went into X-Ray itself and shipped in the official modded exes.
-Every behaviour then runs on the engine's own machinery.
+[size=4][b]Summary[/b][/size]
 
-Every system reads the real state of the game, then decides in the combatant's favor rather than by script or die roll.
-It weighs combat events, NPC and player stats, the world, squad, faction, weapons, range, angle, and cover.
-Maneuvers take a stalker over for an action the vanilla engine has no mechanism for.
-Commitment holds a stalker to a decision while it still makes sense.
-Mutants run the same decision model, reading your weak moments and answering with their own body's moves.
-Threat, accuracy, and the rest read state and decide the same way.
-
-One formula runs every decision in the mod, stalker or mutant.
-A premise, the read of the fight, opens the decision. Intelligence, rising with rank, is how sharply he reads it.
-Personality is whether his kind takes that action at all. Both must pass, and a passed decision commits to its window.
-A bandit and an ecologist do not carry the same instincts.
-Each faction carries its own chance on every action, and each mutant species its own chance on every move it has, from 0 (never) to 1 (always).
-Rank buys the correct answer more often. The ability set stays fixed across ranks. A novice and a legend both act, and the legend is the one who gets it right.
-
-[b]Effects[/b]
-- Creatures make emergent decisions from environment, own state, enemy state, squad state, weapons, and faction doctrine.
-- Every faction fights its own way: who routs, who presses your weak moment, who plants for deliberate shots, who crouches on the line, who never backs down.
-- Mutants answer your weak moments and punish the cheese: reload and a leap comes, perch on a rock and the jumpers come up after you, move and they steer in the air to follow.
-- Every mutant ability value varies inside its species' own envelope. No two spawns read alike. Movement stays the game's own tuning. The variation is one dial.
-- Nothing is player-centric, and no side gets an advantage or a handicap.
-- Creatures use the items they acquired themselves: medkits, ammo, props.
-- Rank scales accuracy, weapon spread, aim speed, and how tightly a stalker tracks you, which vanilla clamps flat.
-- AP ammo is fired from its owner's inventory and consumed, where vanilla gives NPCs infinite cheap rounds and modpacks give infinite AP by rank and map.
-- Bugs disguised as features are gone, like fake weapon jamming and random tactical reloading.
-
-Every system in this mod is a behaviour GSC designed, or one the engine left unfinished in code. The manifesto documents the source behind each.
-
-[b]Everything is canon, engine-native, safe, and fast[/b]
-- Every behavior is built from pure X-Ray and Anomaly primitives:
-  the GOAP action planner (the planner family F.E.A.R. made famous), the xr_logic scheme system, state_mgr, smart terrains and the gulag job system, condlists, and DLTX/DXML for data.
-- Nothing is faked and nothing is simulated beside the engine.
-- Where the engine had no seam, the seam was added upstream first: per-NPC hooks created in xray-monolith specifically for this mod, merged into the official modded exes.
-- It never replaces a vanilla script file. Takeovers block the planner only for their seconds and then hand back, and patches lay onto whichever script your setup ships.
-- Every value ships as a formula over the engine's own constants, never an invented number.
-- No per-frame Lua. Everything runs on engine callbacks and scheduled passes, and the whole mod costs 5 timer compares per frame, whatever the NPC count.
-- AlifeTactics never wraps the engine's visibility function. No sight test gains a cost or a behavior it did not already have. Your stealth setup computes being seen exactly as before.
-- Perception is written as a per-stalker engine field once at spawn. It multiplies onto whatever detection system is installed instead of replacing it.
-- It fixes dozens of vanilla Anomaly bugs: dead branches, wrong calculations, and plain crashes in original code.
-
-Every system below has its own MCM page in this order, where it is toggled and tuned.
+A stalker decides on Intelligence, which rises with his rank, and on Personality, his faction's character, the two traits that GSC's design documents name.
+Combat makes stalkers reload behind cover, fall back to cover when hurt, turn on a player who closes in, pick off an enemy they outrange and press an enemy who can't answer.
+Effectiveness makes rank show in every shot. A veteran groups tighter, holds a strafer and leads a runner, and allies stop killing each other in a crossfire.
+Perception lets stalkers hear your steps and your reload before they see you, take cover when sniped from far off, turn on the man who shot them and notice a missed knife swing.
+Mechanics lets stalkers heal with the medkits they carry, fire the armour-piercing rounds they scavenged, mount the scopes they loot and jam only from real wear.
+An artefact feeds its carrier one effect channel, and the air warps around him.
+Mutants decide on Intelligence by map danger and Personality by species, and Wild varies each one.
+They exploit your vulnerabilities and your bad decisions with new leaps, claws and rear strikes.
+Fixes make the unfinished danger reactions, corpse search, targeting and healing work.
+Each system has its MCM page, and the design behind them reaches much further.
 [line]
 [size=4][b]Combat[/b][/size]
 
-[b]Faction Personality and Intelligence[/b]
-Intelligence is how sharply a stalker reads a fight, and it scales with his rank, a base plus a bonus per rank, two sliders on the General page.
-A novice fumbles the openings a veteran takes. His judgment emerges from his rank, where vanilla clamps every NPC to one flat setting.
-It caps short of certain, and even a legend is never guaranteed the right call.
-Then the faction's Personality decides whether his kind takes that action at all, every action carrying a per-faction chance from 0 (never) to 1 (always).
-Monolith presses relentlessly, Duty holds the line and gives ground in order, bandits finish a downed man and rout when the fight turns, ecologists pull back early.
-One opening draws a different answer by faction.
-The per-action faction table is the faction config, yours to tune. Zombied stalkers never participate in anything.
+Combat is how a stalker moves in a fight, and his rank and faction shape each decision.
+In vanilla he re-plans every moment, and a fight turns into strafing and cover-hopping.
+
+[b]General[/b]
+Each decision takes one Intelligence roll, and a veteran reads the moment right more often than a rookie, though even a legend gets some of them wrong.
+A hurt Duty trooper falls back firing, a hurt bandit runs for home, and a Monolith fighter holds.
+  Hit reaction hold: a stalker hit while standing no longer slides across the ground.
 
 [b]Maneuvers[/b]
-A maneuver takes one stalker over completely to perform what the vanilla engine cannot, either a mechanic it lacks or a decision it never makes.
-Planned: whole squads coordinating their movement and fire, each faction favoring the maneuvers that suit it.
-
-These maneuvers cover the moments vanilla fumbles:
-  Counterflank snaps a stalker around when a hostile player stands at contact range while he shoots someone far away.
-  Reload Cover sends a stalker caught reloading in a watching enemy's line of fire, yours included, to the cover that hides him from that watcher, and his weapon finishes reloading on the way.
-  Flee routs a flee-prone faction to a distant friendly base, because a coward runs before he fights.
-  Retreat pulls a steadier one to cover under pressure, and a coward whose escape is cut off does the same.
-  Kite backs a stalker out of an enemy that closed too near, still firing.
-  Pickoff plants a stalker who has his enemy outranged and picks him off with deliberate single shots, breaking off the moment the threat returns.
-
-Maneuvers run in every stalker fight within 150 meters of you, tunable, whether or not you are the target.
-Fights against mutants and fights beyond that range stay vanilla.
-One shared allowance bounds everything AlifeTactics starts, against you and against NPCs separately. A mass battle never drowns either side.
-A maneuver fires when its problem is real and ends when it is solved. Keep creating the problem, such as pressing a shotgunner's minimum range, and the answer keeps coming.
-The decisions come out looking human. Nobody turns his back on a shooter, two men never take the same cover, nobody plants in his enemy's sight.
-Maneuver fire bursts by weapon and by skill: burst length and pauses vary shot to shot inside the game's own per-weapon ranges and tighten with rank.
-That replaces the uniform burst the game's script machinery applies to every weapon it drives.
-Stalkers keep their footing under fire. A hit mid reaction no longer slides a standing stalker across the ground. He stays planted while the animation plays, and moves the moment it ends.
-The footing hold ships ahead of its engine half and needs a modded exes build carrying engine PR 645. Older builds keep vanilla movement.
-The takeover overrides no combat scripts. It fights side by side with vanilla and works with other combat AI. Companions are excluded by default.
+A maneuver takes a stalker over from X-Ray's planner for one move the engine can't make or never decides on, and it hands him back once the move is done.
+However many stalkers fight you, only a few of them make a move on you at once.
+  Counterflank: a stalker fighting someone far off turns on a player who walks up on him.
+  Reload Cover: caught reloading in an enemy's sights, he finishes the reload on his way to cover.
+  Flee: the last man of a beaten squad may sling his weapon and run for a distant friendly base, once the shooting pauses and you are not right on top of him.
+  Retreat: hurt and exposed, he falls back to cover still firing.
+  Kite: an enemy inside his gun's minimum range makes him back off down a clear lane, still firing.
+  Pickoff: outranging an enemy who isn't pressing him, he plants and picks him off with single shots, and he breaks off the moment you aim at him or close in.
 
 [b]Commitment[/b]
-Vanilla stalkers re-plan the fight every moment. Any small change makes a stalker drop what he is doing and choose again.
-Better cover, a flicker of lost sight, or a teammate crossing the line sets him off, which is the twitchy strafing and cover-hopping you see in a firefight.
-Many mods answer this by switching the stalker to a camper scheme that holds him in place, muting most of Anomaly's combat variety.
-AlifeTactics keeps the engine's full combat AI and instead stops a stalker throwing away a decision that still makes sense.
-While what he is doing still works he stays with it. He switches the moment it stops working, on a lost sight line, a blocked shot, or a vanished enemy.
-It also holds his cover. A stalker firing with a clear shot keeps his spot. He no longer slides to a marginally better one, and the mid-fight strafe stops at its source.
-When his enemy is caught reloading, out of ammo, staggered, sprinting weapon-down, or with no weapon up, he liquidates.
-He keeps firing through the window and repositions once the enemy can answer again.
-He sees a decision through without second-guessing himself every frame.
+Commitment holds a stalker to a plan that works, where vanilla drops it at the smallest change, a teammate crossing his line or a better cover spot a step away.
+  Cover pinning: with a clear shot he keeps his cover and stops hopping to the next spot.
+  Liquidate vulnerable targets: he stays in his spot and keeps firing at a vulnerable enemy.
 
 [b]Conduct[/b]
-Conduct makes better choices at moments the engine already decides, with no takeover, for stalkers the vanilla engine drives.
-Whether a fighter holds the discipline is his training, settled once in his life and weighed by faction. Militarized stalkers keep it and scavengers slouch.
-Cover posture: experienced riflemen and snipers crouch to steady the shot when the line to the enemy is clear, and stand to fire over low cover that would block a crouched shot.
-It replaces vanilla's blind posture picks, such as a crouch behind a random bump, or standing tall where a crouch would steady the aim.
-They crouch only past close range and only while holding a position. They stay mobile in a knife fight and while moving to cover.
-It reads the game's own cover map toward the enemy, and short-weapon carriers and green ranks keep vanilla behavior.
-Weapon spacing: a stalker's cover choices respect what his weapon is good at, submachine gunners accept closer cover so their fire stays effective, and skilled snipers hold extra distance.
+Conduct improves choices the engine already makes, with no takeover. Military factions mostly keep its discipline, and bandits and other scavengers mostly don't.
+  Cover posture: a trained rifleman crouches for a clear shot and stands to fire over a low wall.
+  Weapon spacing: an SMG gunner takes closer cover, and a skilled sniper keeps his distance.
 
 [b]Behaviors[/b]
-Stalkers act on weak moments in the fight, in both directions and against any enemy, you or another combatant.
-The Push: a stalker whose enemy cannot answer presses him.
-Caught reloading, out of ammo, or badly hurt, the target's attackers thicken their fire at close range.
-With a clear upper hand (the target hurt or turned away) they move to closer cover.
-The Pull is the mirror. A stalker caught reloading or badly hurt while his enemy is strong falls back, his cover choices moving farther out until he recovers.
-Everything reverts the moment the target can answer, each attacker presses briefly with a cooldown before pressing again, and each cause has its own switch.
+Push and Pull read who is caught weak in a fight, you or another stalker.
+  Push vulnerable targets: his attackers press an enemy who can't answer with heavier bursts, and once they clearly hold the upper hand they move to closer cover.
+  Push on reload and empty mag: a reload or an empty magazine starts the press.
+  Push weakened targets: a badly hurt enemy draws the press, and healthy attackers close in.
+  Pull back while vulnerable: caught weak against a strong enemy, he gives ground until he recovers.
 
 [size=4][b]Effectiveness[/b][/size]
 
+Effectiveness is how well a stalker performs in combat.
+In vanilla these skills are fixed numbers, the same for every NPC whatever his rank, and editing a config only swaps them for other fixed numbers that every NPC shares.
+AlifeTactics revives the rank curve for accuracy and adds one to every other skill.
+Each stalker fights at the level of his own rank.
+A mixed squad will hit you unevenly, the rookie wide and the veteran tight.
+It all runs on X-Ray's own aim and fire controls.
+
 [b]Accuracy[/b]
-Anomaly's rank curve clamps every NPC to the same dispersion. Accuracy never scaled per rank even though the engine code exists.
-AlifeTactics restores a real per-rank curve through the engine's own dispersion callback.
-A second curve covers fire on the move. Each rank keeps a share of the movement spread penalty. Rookies spray while repositioning and top ranks cut about a third of it.
-Every rank curve in the mod is two sliders, a base and a percent per rank. Retuning a whole curve is one motion instead of eight.
-The engine has several dispersion variables, including barrel and weapon, and this one is the NPC skill-based dispersion.
+His accuracy follows his rank, and the gun keeps its own spread.
+A worn AK sprays in anyone's hands.
+  Dispersion: a rookie shoots as in vanilla, and each rank above him groups tighter.
+  Moving Fire: on the move, a veteran keeps more of his accuracy than a rookie.
 
 [b]Crossfire[/b]
-Same-faction fighters no longer cut each other down in a crossfire.
-A hit between two NPCs of the same faction deals reduced damage, set by a slider (no damage by default, up to full vanilla).
-It keys on their actual relation. Genuinely hostile factions still trade fire while allies stay safe. Your own shots are never affected.
+Stalkers stop gunning down the friends and neutrals who step into their line of fire.
+Hostile pairs and your own bullets still do full damage.
 
 [b]Reaction[/b]
-Stalker rank now shapes gun handling, applied per stalker.
-Tracking Speed sets how fast a barrel moves while tracking, from vanilla at the bottom rank to a decent step above it at the top, well short of the game's hardcore AI aim.
-Tracking Lock sets how tightly a barrel holds a strafing target. A novice's aim lags and a moving target loses it, exactly like vanilla.
-A legend holds you across the firing window without tracking you perfectly.
-Target Lead aims a stalker ahead of a moving target by the round's real flight time, computed from range and the weapon's bullet speed as it fires.
-Higher ranks lead true and hit movers, lower ranks over-lead and overshoot.
-Fire Discipline scales burst size and cadence per rank.
-The shipped defaults are near-flat. Rank barely alters fire out of the box. The sliders allow the full spread.
-Defaults keep a rank's rounds per minute at or above vanilla.
-Tracking Speed, Tracking Lock, Target Lead, and Fire Discipline are each a base plus percent-per-rank slider pair. Speed and Lock share one on/off, Lead and Discipline each carry their own.
-The two rank vision curves moved to the Perception tab below. Fire Discipline is on its own Discipline tab.
+Reaction is how fast a stalker's gun can follow you.
+It closes the strafe and sprint tricks that beat vanilla aim.
+  Tracking Speed: a veteran's barrel follows you faster, and when you strafe it stays on you.
+  Target Lead: he aims ahead of a runner by his bullet's real flight time. A legend will hit you on the run, while a rookie leads too far and misses in front of you.
+
+[b]Discipline[/b]
+Discipline sets how long a stalker's bursts run and how soon the next one comes.
+  Fire Discipline: a veteran fires shorter, more frequent bursts that cut the wide last rounds, and every rank hits at least as often per minute as in vanilla.
 
 [b]Range (planned)[/b]
-The game stops NPC fights at a hard range cap regardless of weapon. A sniper never fires at the distances his rifle exists for.
-A stalker sniped from beyond the cap can duck, which is the Danger hit response, but never answer. This page will let long-range NPCs answer and initiate at their weapon's real reach.
+In vanilla, a stalker stops treating another stalker as an enemy past a fixed distance, whatever gun he carries, and the limit drops further at night and in rain.
+This page will let a long-range stalker answer and open fire as far as his weapon really reaches.
 
 [size=4][b]Perception[/b][/size]
 
-Perception is how a stalker senses and reacts. It covers what he hears, how his rank shapes his sight, and how he reacts to being hit.
-The Sound and Danger reactions are a runtime patch laid onto whichever danger script your modpack ships. They work with other combat AI.
-Detection distances stay owned by your setup's danger config, and AlifeTactics adds only the reactions.
+Perception is what a stalker notices around him and how he reacts to it.
+In vanilla a stalker who has not seen you lately drops most of what he hears from you.
+AlifeTactics makes the whole soundscape matter, your gunfire, your reloads and the calls of mutants nearby, and it adds new sound events for your footsteps and landings.
+The system stays fair, because a sound is never a confirmed enemy, a stalker who hears you only walks over to check the spot, and a careful crouch keeps you silent.
+His eyes follow his rank, and darkness and cover still hide you.
+It all runs on X-Ray's own senses and on the danger scheme your modpack ships.
 
 [b]Sound[/b]
-In vanilla, sound barely works as a combat signal. The engine raises an attack-sound danger when a stalker hears a shot he cannot see, yet ships no handler for it.
-A stalker never hears the player move or handle gear. AlifeTactics turns that movement and handling noise into graded danger the engine's own scheme already runs.
-Each footstep and handling sound stamps the scheme at the source, and the scheme owns the reaction and its cleanup for whatever evidence grade the stamp carries.
-A faint stamp turns a standing stalker weapon-ready toward its source, and solid evidence sends him over to check the spot himself.
-A moving stalker ignores a faint stamp, and no sound alone ever drives a run.
-Nearby creature cries draw a lighter response, a head-turn a standing stalker gives out of combat that leaves him in place and outside the danger scheme.
-Mutant cries always earn that glance, another stalker's only when the two are hostile.
-AlifeTactics also supplies the gunfire handler vanilla lacks. A stalker who hears an enemy shot without sight faces it in a threat stance until the shooter shows.
-Neutral or friendly shots within 30m put him on alert without turning him hostile.
-A step's noise scales with stance, surface, and weather, and a crouch makes none at all.
-Footsteps never enter the engine's own sound space. They cannot flood its bounded sound memory, and the whole channel stays inside the scripts.
-Sound never touches vision, seen-memory, or the sight test. It reads the config's own hearing sensitivity. A setup that deafens the AI quiets this too.
+A hostile stalker may hear you before he ever sees you.
+Hearing and sight are separate senses, and a sound only sends him to check the spot.
+X-Ray then runs cover and search on what he heard, and once his squad is in a real fight he stops checking noises and keeps watch on the spot from where he stands.
+  Neutral Gunfire Alert: a stray bullet of yours that hits near a neutral or a friend puts him on alert, and he moves to cover facing the impact without turning hostile.
+  Movement Noise: your steps carry by stance, surface and weather. A walk turns a standing hostile toward you, and a sprint or a hard landing sends him over to check.
+  Handling Noise: a reload or an empty click brings him over, and using an item turns him toward you.
+  Creature Awareness: a standing stalker glances at a mutant he hears nearby and keeps his post.
 
 [b]Vision[/b]
-Stalker rank shapes the eyes as well as the trigger, applied per stalker.
-Vision Speed sets how fast each rank turns a glimpse into a confirmed threat, from your setup's detection speed at the bottom rank (a novice matches it) to about 21 percent faster at the top.
-Every rank notices at least as fast as your baseline.
-It scales the rate only. Sight range, vision cone, light and darkness response, cover and occlusion, and hearing all stay exactly as your setup has them.
-Vision Range sets how far out each rank begins to notice a threat, the same band, from your baseline at novice to about 15 percent farther at the top.
-Both are base plus percent-per-rank slider pairs under one Vision toggle, on their own Vision page.
+Vision is how fast a stalker spots a target, and how far out he starts to notice one.
+  Vision Speed: a veteran spots you sooner and from farther out, while a rookie sees as in vanilla, and darkness, light and cover still hide you as your setup decides.
 
 [b]Danger[/b]
-A stalker hit from far off reacts even when vanilla would have him stand still. Sniped at 200m he turns and seeks cover.
-The reaction is the duck, and returning fire at that range is the planned Range page above.
-One tuning toggle lets danger you cause read your setup's separate player-specific ranges where the config provides them.
-A Player target pull dial tunes how strongly NPCs prioritize you over other combatants once you are seen, down to treating you like anyone else.
-A hit victim turns on his shooter through the engine's own target selection, always on: the real "he hit me" signal outweighs a distant visible enemy,
-and he returns fire the moment he has line of sight. Nothing is revealed through walls, and a suppressed kill tells no one.
-The vanilla danger-check and corpse-investigation fixes are listed under Fixes to Vanilla below.
+Danger is how a stalker reacts to a hit, a body or a grenade.
+AlifeTactics fixes its broken reactions and adds new ones.
+  Distant Hits: a stalker sniped from far off turns and seeks cover.
+  Attempted Murder: if your knife swing misses the stalker in front of you, he gets up and faces you with his weapon raised, and a hostile who then sees you fights.
 
 [size=4][b]Mechanics[/b][/size]
 
+Mechanics are the game rules behind a stalker's kit.
+In vanilla many of these rules never run for NPCs, and AlifeTactics makes them work.
+AlifePlus fills the Zone with a living economy of trade and loot, and with AlifeTactics everything a stalker has gathered counts once the shooting starts.
+Every item in his kit is real and can run out.
+A well-stocked veteran is more dangerous than a scavenger with empty pockets.
+
 [b]Healing[/b]
-Wounded NPCs heal with the items they carry.
-Vanilla's medkit heal fires unreliably and bandages do nothing. Bleeding stalkers die that should not.
-AlifeTactics has them spend real medkits when injured and real bandages when bleeding, falling back to a per-rank charge only when empty.
-The heal rate is tunable. Fixed limp and heal animations show it, out of combat only.
+A hurt stalker heals with the medkits and bandages he carries.
+He stops healing while an enemy is on him.
+Some stalkers of every rank still carry one spare heal when their pockets are empty.
+  Limping animation: a badly hurt stalker near you limps out of combat and stops in a fight.
+  Healing animation: a stalker who starts a heal standing still plays the medkit or bandage gesture.
 
 [b]Jamming[/b]
-Eliminates the fake NPC jams and the tactical-reload loop they cause.
-On modded exes an NPC rolls a per-rank jam from ammo spent. Even a full-condition rifle chokes and reloads every few rounds.
-AlifeTactics turns that roll off for NPCs. They now jam only for real and reload only once the magazine is spent, which you can confirm in the debug log.
-Your own weapon still jams normally when worn.
+On the modded exes an NPC's gun jams from a fake roll, whatever its condition.
+  Suppress NPC jams: his gun jams only from real wear, and your own jams stay as they are.
 
 [b]Ammo[/b]
-NPCs fire the ammunition they actually carry.
-Veteran-rank and higher stalkers use armor-piercing rounds from their own inventory, with real ballistics, and fall back to standard rounds once it runs out.
-That AP comes from trade and looting through the Alife Collection. What an NPC scavenged shapes how dangerous he is. NPCs drop no AP as loot.
-Rank threshold and consumption rate are tunable in the ammo config under configs/alifetactics/.
+A veteran fights with the rounds he really carries.
+  NPC armor-piercing ammo: a veteran loads the armour-piercing rounds he carries, and after each fight he may use up a box of them. Once his supply runs out, he goes back to standard rounds.
+
+[b]Attachments[/b]
+A stalker fits the scopes, silencers and grenade launchers he carries onto his own pistol or rifle.
+He waits for a quiet moment out of the fight.
+  NPC attachment mounting: a looted scope shows on his rifle, and he shoots tighter with it once he stops to aim. Whatever you hand your companion stays as you gave it.
 
 [b]Gear[/b]
-Items a stalker carries give him combat advantages, each read from its own game data. An artefact from any mod works the same way.
-An artefact grants one advantage chosen by its anomaly class, scaled by its own tier. Gravity and armour-plate artefacts cut the damage he takes.
-Thermal artefacts tighten his fire, and electric and quest artefacts raise the damage he deals.
-Any single artefact tops out at 10 percent, and only the strongest applies. Gear tilts a fight without deciding it.
-A chemical artefact heals its carrier slowly over time.
-Any artefact carrier warps the air around his body. A distorting stalker is a real, huntable artefact drop.
-Binoculars extend his sight range by day and night-vision by night.
-Effect strengths and the artefact class tables are tunable in the gear config under configs/alifetactics/.
+In vanilla an artefact works only on the player's belt, and an NPC gets nothing from it.
+AlifeTactics translates each artefact into one effect channel an NPC can use, chosen by its anomaly class, and the artefact's tier sets how strong it gets.
+The system stays fair, because only the strongest artefact counts on a channel, a cap keeps it from deciding a fight, and every carrier gives himself away.
+  Damage resistance: gravity artefacts and armour plates cut the damage he takes.
+  Outgoing damage: electric and quest artefacts make his shots hit harder.
+  Aim steadiness: thermal artefacts tighten his grouping.
+  Health regeneration: chemical artefacts heal him slowly over time.
+  Artefact distortion: the air warps around a carrier, and killing him gets you the artefact.
+  Binocular spotters: binoculars let him see farther by day.
+  Night-vision at night: a night-vision lamp lets him see farther after dark.
+
+[size=4][b]Effects (planned)[/b][/size]
+
+This tab will add combat feedback you feel, starting with concussion.
+A close blast will leave your ears ringing and your sight blurred.
 
 [size=4][b]Mutants[/b][/size]
 
-Vanilla mutants are a straight line. They run at you, they swing, and they die to anyone who stands on a rock or strafes on cooldown.
-AlifeTactics gives every mutant the decision model stalkers run. It reads your reload, your aim, your high ground, and your strafe, and it answers with moves its own body already has,
-the ones vanilla fires blindly and the ones vanilla never fires at all.
-The engine drives every mutant as it always has. AlifeTactics scales a mutant's stats. It commands moves the engine itself validates and runs. It never takes a mutant over.
-Rank is the map tier, from 0 on the starting maps to 5 at the endgame. A Cordon dog barely changes while a deep-Zone chimera is far deadlier.
-The whole system needs the latest demonized build and stays inactive on older exes and on AOEngine.
-
-[b]Power[/b]
-A mutant hits harder and takes less as the Zone deepens. Damage dealt and damage resistance each grow by a percent-per-rank slider.
-Rank 0 stays vanilla, and every value multiplies the installed balance. A mutant overhaul keeps its numbers.
+Mutant combat is how a creature of the Zone chooses its moves against you or a stalker.
+In vanilla X-Ray drives each mutant with a state machine that only charges straight in at melee range, and a player standing on a rock shoots most of them as they come.
+AlifeTactics gives mutants the stalkers' decision model and new moves that run through X-Ray's jump and attack controls and play the creature's real animations.
 
 [b]General[/b]
-Observing is free, deciding is hard. Every mutant sees your reload from the first fight, and Intelligence is the chance it answers with the RIGHT move, a base plus a bonus per map rank.
-Personality then sets which moves its species favours, a chimera leaping and clawing without pause where a flesh bolts early. The final chance is Intelligence times Personality.
-A missed roll lets the opening go. A dull mutant wastes chance after chance while a sharp one punishes each.
-Every move you see has a real cause behind it, and a cap holds a pack to waves.
-Wild is how much a mutant's own ability numbers vary between spawns, the gravity, telekinesis, aura, tube, stamina, and detection values.
-At 0 a kind is identical and learnable. At 100 no two spawns read alike.
+Every mutant watches its enemy, you or a stalker, for an opening such as a weapon aimed at it, a reload or a turned back, a ledge above it, or a man on the run.
+  Intelligence: whether it answers an opening with the right move, rising with the danger of the map. If its read fails, it lets the opening go, and a badly hurt one may panic.
+  Personality: each species leans toward some moves, and each mutant rolls its set once. Two chimeras of one pack fight differently, and a flesh runs far more often than a pseudodog.
+  Wild: how much mutants of one kind differ, in the timing of their moves, the force of their leaps and the reach of their abilities, from one creature to the next.
+A mutant spaces its moves apart, and once one mutant's leap, strike or throw hits you, every mutant holds its next one on you for a few seconds while its natural attacks go on.
 
 [b]Species[/b]
-Each species gets its own page carrying only the moves its body has. First come the managed moves, the creature's own attacks and the values AlifeTactics varies.
-Then come the new moves the vanilla game never fires for it.
-The leap family reads your aim, your movement, and your perch. Punishing leap strikes with no wind-up when you aim right at it or catch it reloading.
-Hunting and Feral leap steer mid-air to track you while you move. Catching and Cutoff leap aim at where you will be when you run in a line.
-Every leaping species except the bloodsucker can take each leap. Its Personality, rolled once per individual, decides which ones it carries.
-A chimera rarely telegraphs, a dog jumps straight and open, a snork steers, a cat strikes from your blind side.
-Every jumper leaps up at a shooter above it. Climbing a rock or a ledge stops being safe.
-Rush drives the charge. A boar, bloodsucker, or pseudogigant may be an aggressive charger, its Intelligence and temperament deciding.
-A charger then recharges at its fastest and keeps pressing, while the rest vary per individual.
-The charge itself stays the game's own move.
-Backstrike arms a spin strike on an enemy circling behind, once per individual, on the four species whose models carry the motions. Claw gives the chimera the point-blank strike vanilla never gave it.
-Flee breaks a dying mutant out of the fight, rarely, and only when it is far enough to escape. A mutant with no escape fights to the end.
-Cloak sends a bloodsucker invisible when you aim at it or hit it while it is still closing. It re-appears a beat later, and never vanishes once it is already at strike range.
-A reloading or defenseless enemy draws the instant Jump over the telegraphed Leap, since a helpless target cannot punish the wind-up.
-Beyond the moves, each species' own ability numbers breathe: the burer's gravity and telekinesis, the controller's psi tube and stamina and auras, the poltergeist's detection,
-each behind its own row, each a bounded variation over the installed balance.
-Movement stays the game's own, since varying what the engine's path and attack timing depend on only ever made mutants worse.
+Every species has a page: Chimera, Bloodsucker, Burer, Controller, Poltergeist, Dog, Boar, Snork, Pseudodog, Pseudogigant, Cat, Flesh, Fracture, Karlik and Tushkano.
+Each subspecies shares the page of its parent species, the lurker with the chimera, the psysucker with the bloodsucker and the psy dog with the pseudodog.
 
-[size=4][b]Fixes to Vanilla[/b][/size]
+[b]New Moves[/b]
+These are moves vanilla never makes for the species, each built on a part of the creature X-Ray already carries, its jump, an unused rear strike or its run-away state.
+The chimera, lurker, cat, dog, snork, pseudodog and psy dog share every leap but the Closing leap.
+A dog favours the straight leaps, a snork the ones that turn and a chimera the sudden ones.
+A mutant leaps only at an enemy it has seen or sensed lately, and close in only up at a ledge.
+  High leap: an enemy standing on a rock or a ledge above it draws a jump up after him, and for you or any stalker a rock stops being a safe place to shoot from.
+  Punishing leap: it springs without a crouch the moment you aim at it or can't fire back.
+  Hunting leap and Feral leap: it turns with a moving enemy through the leap, no harder than a vanilla creature turns, and only Hunting crouches first, a warning you can see.
+  Catching leap and Cutoff leap: it springs at the path of a moving enemy, a short step ahead of him, a smarter mutant judges that step better, and only Catching crouches first.
+  Closing leap (bloodsucker, psysucker): it closes the gap to an enemy on a ledge, or to a player who aims at it from mid range, and then claws him on the ground.
+  Claw (chimera, lurker): a point-blank pounce, the close strike a vanilla chimera lacks. Both creatures leap with no crouch, and their leaps come without warning.
+  Backstrike (chimera, lurker, burer, controller): a spin strike at an enemy behind it.
+  Flee (dog, boar, snork, pseudodog, psy dog, pseudogigant, cat, flesh, fracture, karlik, tushkano): when its read fails a badly hurt mutant may run, unless it faces you or you are close.
 
-AlifeTactics corrects dozens of vanilla Anomaly and xray defects, grouped below by the system each repairs.
-Each shows as a locked toggle on the Fixes tab. The always-on ones cannot be turned off. The rest are switched on their own pages.
+[b]Managed Moves[/b]
+Attacks the creature already has, which AlifeTactics fires at the moment the fight calls for them.
+  Gravity attack (burer): it throws when you look away from it or can't fire back, at a moment it needs no shield, and never straight after another throw.
+  Cloak (bloodsucker, psysucker): if you aim at it or hit it while it closes in, it vanishes for a moment on top of the cloak vanilla times, but never once it is close enough to strike.
 
-[b]Danger scheme[/b]
-- A name collision made three danger categories read the wrong range. A ricochet read at 150m, not its own 4m. Each now reads its own range.
-- A mutant corpse no longer crashes the danger time check.
-- A torn-down NPC reference no longer crashes the evaluator.
-- A bad danger time value no longer crashes the evaluator.
-- A stalker hit by a bullet knows who shot him. He looks at where the shooter is now and takes cover from him.
-- A stalker is no longer evaluated for danger after he dies.
-- A stalker who held fire because a friend crossed his line no longer freezes in a combat stance after the fight. He returns to normal when his enemy is gone.
-- A stalker held fire for any visible non-enemy standing close in any direction, or standing on his aim line beyond the target, and the hold re-armed endlessly in a crowd.
-  He now holds and steps aside only for a friend actually between him and his target.
-  The false holds also silenced campers, wounded-finishing, mounted guns and anti-helicopter fire. Those behaviors now run again.
-- A danger transition no longer leaves a stale lower-body animation playing.
-- Leaving danger clears only its own cover reservation, not every stalker's.
-- A stalker attacked again later reacts to the new attacker, not his first attacker's old position, and the corpse search plays for every corpse, not only his first.
-- The grenade dodge distance read on the wrong scale. A stalker now dodges within the intended radius and faces distant grenades.
-- The danger check parses its config once and caches the result.
-- A stalker sniped from far off reacts and seeks cover, where vanilla left him standing.
+[b]Influenced Moves[/b]
+Abilities the creature already has, whose numbers Wild spreads between individuals of one kind.
+  Gravity numbers and Telekinesis (burer), Psi tube, Stamina and Aura (controller), and Detection (poltergeist) all differ from one creature of a kind to the next.
 
-[b]Corpse investigation[/b]
-- A despawning corpse no longer crashes the investigator.
-- The squad member who found the body investigates it, not the wrong one.
-- The investigator walks to the cover it found, not a cleared spot.
-- The corpse reaction survives firing before its stage is set.
-- A dead stalker's danger no longer lingers on a reused id.
+[size=4][b]Fixes[/b][/size]
 
-[b]Target selection[/b]
-- A shot-at stalker turns on the man who hit him, not a distant target he can see.
-- NPCs no longer converge on you far harder than on each other.
-
-[b]Accuracy[/b]
-- A real per-rank accuracy curve replaces vanilla's flat clamp.
-
-[b]Combat[/b]
-- A stalker no longer fires into the low cover he ducks behind.
-- A stalker fires over low cover he can shoot across. The shot check reads eye height, not chest height.
-
-[b]Movement and animation[/b]
-- A hit no longer slides a standing stalker across the ground.
-- A maneuver never starts on a stalker still playing an animation.
-
-[b]Healing[/b]
-- The medkit and bandage lists the engine dropped are restored.
-- The bandage gesture waits until the stalker stands still.
-- A hurt stalker drops his limp in a fight.
-- A healing stalker no longer freezes or ignores an enemy that appears mid-gesture.
-- The save-load charge re-roll is suppressed.
-
-[b]Effects (planned)[/b]
-Player-facing combat feedback, starting with concussion: tinnitus and blur.
-
-[b]Intended setup[/b]
-AlifeTactics is built and tuned against vanilla Anomaly on the latest demonized build.
-It runs on AOEngine and older demonized builds with fallbacks, where a feature that needs a newer hook stays inactive or reduced.
-It coexists with other combat AI mods, but vanilla plus AlifeTactics is the intended setup.
+Vanilla leaves many combat behaviours broken, and AlifeTactics carries more than 30 fixes for them.
+Each fix is listed on the Fixes tab, and these are the ones you notice.
+  Danger scheme: a sniped stalker takes cover, knows his shooter, answers his newest attacker, dodges grenades at full radius, holds fire only for a friend in his line and relaxes after the fight.
+  Corpse investigation: stalkers search every corpse they find, every time.
+  Target selection: a hit stalker turns on his shooter, and NPCs weigh you like any other enemy.
+  Accuracy: rank sets each stalker's spread, where vanilla gave all of them one.
+  Combat: stalkers shoot over the low cover they duck behind, and Monolith fighters flip stance less.
+  Movement and animation: a hit stalker stops sliding, and no maneuver starts mid-animation.
+  Healing: stalkers use their kits, stop to fight, limp only out of combat and bandage standing.
+  Mutants: a chimera or lurker rests after each jump, where vanilla let it jump again at once.
+The danger checks and the corpse search no longer crash, a dead body no longer spams engine errors, and the danger check reads its config once and keeps it.
+The friendly-fire check now aims at the body of a chimera or a burer, where vanilla aimed it at the creature's feet and logged an engine warning every time.
 [line]
 [size=4][b]Requirements[/b][/size]
 Anomaly 1.5.3
@@ -345,30 +249,32 @@ MCM
 [size=4][b]Compatibility[/b][/size]
 Depends only on xlibs. Install and uninstall mid-save work. Tested: Anomaly 1.5.3, GAMMA, EFP, Zona, Forgotten Zone.
 [b]Drop:[/b]
-- NPC self-heal replacements - run in place of the Healing system.
-- G.A.M.M.A. No NPC Friendly Fire, and community friendly-fire blockers - re-filter the friendly hits Crossfire already handles and rewrite NPC relations on hit.
-- G.A.M.M.A. NPCs Faster Reactions - raises sight range and detection. NPCs see across open ground and swamp the Vision curve. No toggle.
-- NPC Limping and Healing (Vodoxleb) - stacks the limp and heal animation and breaks the heal cue.
-- NPC Weapon Jamming, and any NPC-jam mod - re-adds the jams the Jamming system removes, looping reloads with no end.
-- RE:DONE Combat AI - a full combat-AI takeover: full-file overrides of the combat schemes, danger, visual memory, GOAP state and aim, replacing the whole layer Alife Tactics works at.
-- Worse NPC Vision and Accuracy, and any mod with its own NPC vision config - override the Vision and Accuracy systems. No toggle.
-- Companion Spotters - replaces vanilla NPC movement game-wide so one bug breaks every NPC, does per-frame work plus a full world scan,
-  and misroutes companions on large maps with a broken vertex check.
-- G.A.M.M.A. No logs, Log spam remover - full-file _g.script overrides that drop the modded-exes weapon-accuracy hook the Accuracy system reads.
-  Accuracy goes dead, and No logs (a stale 1.5.1 copy) reverts newer engine callbacks the whole game needs.
+- G.A.M.M.A. AI Rework - it replaces the combat AI AlifeTactics works through with old scripts.
+  Much of it is copied or dead code, its far stalkers fire without line of sight or stand idle, and its development builds overwrite stalker movement every update.
+- RE:DONE Combat AI - it overwrites 17 vanilla scripts whole, moves stalkers onto scripted combat, and sets every stalker's aim from the rank of one stalker.
+  Its danger and healing schemes clash with AlifeTactics, and both mods make stalkers flee.
+- G.A.M.M.A. No logs, Log spam remover - their _g.script copies drop the hook stalker aim runs on.
+  Accuracy, Target Lead and thermal artefacts stop working. No logs also drops the knife hook Attempted murder needs, and functions other scripts call as they load.
 [b]Avoid:[/b]
-- G.A.M.M.A. AI Rework - hands combat to broken scripted subschemes in place of the engine brain. Past 173m a normal NPC gets a camper that fires through cover or a "cover" scheme that freezes it.
-  Monolith, Sin and ISG run an assault-rush at any range that can crash. It also reseeds the global RNG at load and is half dead code.
+- NPC self-heal replacements, such as NPC Limping and Healing (Vodoxleb) - they switch off the medkit scheme Healing runs on and heal stalkers in its place.
+  Their limp fights the Healing limp on the same stalker.
+- NPC Weapon Jamming, and any mod that adds NPC jams - it jams a gun on a roll, not from wear, which undoes the Jamming system, and a rookie jams every few shots.
+- G.A.M.M.A. No NPC Friendly Fire - Crossfire does its job already, and on every hit it turns two feuding stalkers of friendly or neutral factions back to peace.
+- G.A.M.M.A. NPCs Faster Reactions - it lengthens stalker sight, and the Vision range and binoculars stretch it further until stalkers spot you across open ground.
 [b]Interferes:[/b]
-- Useful Idiots - a well-liked companion UI, fine to keep. Two combat caveats: companions keep its combat modes when the takeover skips them, and it replaces 1 of Crossfire's 3 friendly-fire fixes.
-  Combat runs cleanest with it off, but it works.
+- Oleh's Weapons Sounds Tweaks and Fixes (GAMMA) - most of its rifle, SMG and sniper shots carry 5m to other NPCs, while its silenced rifle shots carry 75-120m.
+  Stalkers barely hear each other's gunfire, and a mounted silencer makes a stalker louder.
+[b]Coexists:[/b]
+- Ballistics Overhaul (GBOOBS) - it applies your hit damage itself, and AlifeTactics restores the artefact and plate resistance a stalker carries against your shots.
+- Useful Idiots - your companions follow its orders, since AlifeTactics leaves companions alone by default, and the friendly-fire fixes of both mods run together.
+- Vision and accuracy configs, such as Worse NPC Vision and Accuracy - they set the baseline sight and spread, and Vision and Accuracy scale that baseline by rank.
 Everything else coexists, as long as it extends X-Ray and Anomaly and never overrides them.
 
-[size=4][b]Not AlifeTactics (base game or your setup)[/b][/size]
-- Stalkers gliding or staggering when shot - the engine moves the body while a hit animation plays, present in unmodded Anomaly.
-- Stalkers ignoring darkness - your visibility script applies its darkness curve only from 21:00 to 04:00. Dusk and dawn read as full daylight.
-- Stalkers seeing across open ground - sight range comes from your creature config, not from acquisition speed.
-- Stalkers reacting to danger across the map - vanilla's danger table uses duration values. A shot counts as danger past 300m.
+[b]Not AlifeTactics (base game or your setup)[/b]
+- Stalkers sliding when shot on the move - the hit animation plays while he keeps walking or running, as in unmodded Anomaly. Hit reaction hold covers a standing or staggered stalker.
+- Stalkers ignoring darkness at dusk and dawn - Stealth Overhaul's visibility script uses its night light curve only from 21:00 to 04:00, and its day curve the rest of the time.
+- Stalkers seeing you from far off - sight range comes from your creature config, and AlifeTactics adds up to 15 percent by rank and 50 percent with binoculars by day.
+- Stalkers reacting to danger from far off - vanilla's danger distance table holds its duration values. A shot or a ricochet then counts as danger out to 300m.
 [line]
 [b]How It's Built[/b]
 
