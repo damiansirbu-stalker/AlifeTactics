@@ -104,34 +104,36 @@ Push and Pull read who is caught weak in a fight, you or another stalker.
 
 Effectiveness
 
-Effectiveness is how well a stalker fights, and his rank should decide it.
-The engine has a rank curve for accuracy, but Anomaly's rank values push nearly all NPCs to the same end of it. In vanilla a rookie and a legend shoot alike.
-AlifeTactics drives a real curve through the engine's shot callback, and sets each stalker's aim and bursts through hooks built for AlifeTactics and merged into X-Ray.
+Effectiveness is how well a stalker performs in combat.
+In vanilla these skills are fixed numbers, the same for every NPC whatever his rank, and editing a config only swaps them for other fixed numbers that every NPC shares.
+AlifeTactics revives the rank curve for accuracy and adds one to every other skill.
+Each stalker fights at the level of his own rank.
+A mixed squad will hit you unevenly, the rookie wide and the veteran tight.
+It all runs on X-Ray's own aim and fire controls.
 
 Accuracy:
-A shot's spread is the gun's spread plus the shooter's, and Accuracy scales only the shooter's share. A better gun shoots tighter for a rookie and a legend alike.
-  Dispersion: a veteran groups his shots tight, where a rookie sprays wide.
-  Moving Fire: a veteran keeps more of his accuracy than a rookie when he has to fire while moving.
+His accuracy follows his rank, and the gun keeps its own spread.
+A worn AK sprays in anyone's hands.
+  Dispersion: a rookie shoots as in vanilla, and each rank above him groups tighter.
+  Moving Fire: on the move, a veteran keeps more of his accuracy than a rookie.
 
 Crossfire:
-If a stalker walks into a friend's or a neutral's line of fire, the hit doesn't cut him down.
-Because it keys on their real relation, a soured pair trades full damage as in vanilla, and the protection never covers the shots that you fire yourself.
+Stalkers stop gunning down the friends and neutrals who step into their line of fire.
+Hostile pairs and your own bullets still do full damage.
 
 Reaction:
-Reaction is how a stalker's gun follows a moving target. A rookie tracks as in vanilla, and even a legend stays well short of the game's hardcore aim setting.
-  Tracking Speed: a veteran's barrel follows you faster as you move.
-  Tracking Lock: if you strafe, a veteran holds you, where a rookie's aim lags and loses you.
-  Target Lead: he aims ahead of a runner by the round's real flight time. A legend aims where you will be, and the lower his rank, the farther ahead of you he shoots.
+Reaction is how fast a stalker's gun can follow you.
+It closes the strafe and sprint tricks that beat vanilla aim.
+  Tracking Speed: a veteran's barrel follows you faster. If you strafe, it stays on you.
+  Target Lead: he aims ahead of a runner by his bullet's real flight time. A legend will hit you on the run, while a rookie leads too far and misses in front of you.
 
 Discipline:
-Discipline is how a stalker works the trigger, the length of his bursts and the pause between them.
-  Burst Size: a veteran fires shorter bursts and drops the stray rounds at the end of a long one.
-  Fire Cadence: a veteran pauses less between bursts to keep his volume of fire up.
-The defaults are close to flat and keep the hits per minute of each rank at or above vanilla, and the sliders widen the gap between a rookie and a legend.
+Discipline sets how long a stalker's bursts run and how soon the next one comes.
+  Fire Discipline: a veteran fires shorter, more frequent bursts that cut the wide last rounds, and every rank hits at least as often per minute as in vanilla.
 
 Range (planned):
-Vanilla's combat-ignore script drops another stalker as an enemy past a fixed distance, whatever gun he carries, and closer still at night and in rain.
-This page will let a long-range stalker answer and open fire at his weapon's real reach.
+In vanilla, a stalker stops treating another stalker as an enemy past a fixed distance, whatever gun he carries, and the limit drops further at night and in rain.
+This page will let a long-range stalker answer and open fire as far as his weapon really reaches.
 
 Perception
 
