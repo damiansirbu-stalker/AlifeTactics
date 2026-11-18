@@ -56,8 +56,8 @@ flee           = 120000 ; a routed mutant does not re-rout as soon as its commit
 cloak          = 5000   ; re-cloak gap, so it cannot flicker-spam
 gravity_attack = 8000   ; a little over one throw-and-release cycle; the engine's own throws stamp it too, so ours never chains onto one
 
-[caps] ; the player throttle: one offensive move (leaps, claw, backstrike, gravity) against the player per gap, from every mutant together; flee, cloak and moves against NPCs pass free
-player_gap_ms = 2000 ; breaks the same-second stack of two mutants (user 2026-11-17); six dogs at one move per 10 s each still nearly fill it
+[caps] ; the after-hit hold: when our offensive move (leaps, claw, backstrike, gravity) lands on the player, no mutant starts one on him for this long; the creature's own attacks, flee, cloak and moves against NPCs pass free
+after_hit_ms = 5000 ; every Jupiter death of 2026-11-18 was a second hit 3-5 s after the first, from two chimeras (user 2026-11-18)
 
 [intelligence]
 cap = 0.75
@@ -117,6 +117,10 @@ facing_cone_deg = 30   ; inside the jump's own angle limit (jump_max_angle 0.55 
 melee_m     = 3     ; no cloak inside this reach - a bloodsucker at strike range attacks, it does not vanish
 hit_ms      = 3000  ; a hit within this window counts as "recently hit" - shoot a closing bloodsucker and it vanishes
 window_ms   = 2500  ; hold the forced invisibility this long, then release to the engine's natural flicker
+
+[jump_delay] ; per-species jump rest in ms, written over the install's jump_delay at adoption: after any jump, ours too, the creature's own next jump waits this long
+chimera = 3000 ; vanilla ships the chimera class 0 (m_chimera.ltx:131), so it re-jumped the instant it landed: a hit 1 s after our Cutoff (field 2026-11-18); 3000 is the dog and pseudodog value
+lurker  = 3000
 
 [backstrike] ; per-species motion pair for the rear spin-strike; motions must carry attack_params rows
 arc_deg    = 120

@@ -34,8 +34,12 @@ local MOVE_RUN_ATTACK = "run_attack"
 local MOVE_BACKSTRIKE = "backstrike"
 -- The [cooldown] row every move shares, beside each move's own row: any two moves of one mutant stand this far apart.
 local COOLDOWN_ANY    = "any_move"
--- The player throttle's one key: a single bucket for every mutant against the player.
-local THROTTLE_PLAYER = "player"
+-- The after-hit hold: a player hit this soon after our offensive move fired counts as that move landing.
+local HIT_MATCH_MS    = 1500
+local OFFENSIVE_MOVES = {
+    high_leap = true, punishing_leap = true, hunting_leap = true, feral_leap = true, catching_leap = true,
+    cutoff_leap = true, closing_leap = true, claw = true, backstrike = true, gravity_attack = true,
+}
 local FIRED_CALLED, FIRED_SHAPED, FIRED_ENGINE = "called", "shaped", "engine"
 local VIS_FULL        = 2
 
@@ -43,6 +47,8 @@ local VIS_FULL        = 2
 local LAUNCH_WINDUP  = { skip_prepare = false }
 local LAUNCH_INSTANT = { skip_prepare = true }
 local LAUNCH = { high_leap = LAUNCH_WINDUP, hunting_leap = LAUNCH_WINDUP, catching_leap = LAUNCH_WINDUP }
+-- The chimera class loads no jump crouch (chimera.cpp:138-139); a wind-up request clears its skip mark and the jump hops 1-2 m, so it launches instantly.
+local NO_CROUCH = { chimera = true, lurker = true }
 
 
 -- Every move the adopt line and the MCM tree key on; backstrike arms at adoption, claw checks on contact, the rest decide per beat.
@@ -85,7 +91,9 @@ local _pages = {}
 local _move_cfg = {}
 local _all_toggle_keys = {}
 local _backstrike_motions = {}
-local _player_throttle = nil
+local _jump_delay = {}
+local _launch_opts = {}
+local _hold_until = 0
 local _cooldown_ms = {}
 local _active = false
 local _seams = nil
@@ -210,14 +218,9 @@ local function _compute_band(min_basis, max_basis, pct)
     return min_basis and min_basis * factor or nil, max_basis and max_basis * factor or nil
 end
 
--- The player throttle: one offensive move against the player per [caps] player_gap_ms, from every mutant together.
--- A token bucket of capacity 1 (the ap_core_limiter shape): check before the fire, take the token after it. Moves against NPCs pass free.
-local function _check_start(is_actor)
-    return not is_actor or _player_throttle:check(THROTTLE_PLAYER)
-end
-
-local function _add_start(is_actor)
-    if is_actor then _player_throttle:get_token(THROTTLE_PLAYER) end
+-- The after-hit hold: no offensive move on the player while the hold set by our last landed move runs. Moves against NPCs pass free.
+local function _check_start(is_actor, now)
+    return not is_actor or now >= _hold_until
 end
 
 -- The cooldowns: one [cooldown] row in ms per key, kept per mutant in rec.ready_at; a key with no row never cools down.
@@ -275,10 +278,12 @@ local function _build_repertoire(rec)
     end
 end
 
--- The leap numbers, rolled once at adoption: the force, the steering restore point, the Intelligence lead gain and the Closing leap reach.
--- The force basis is the species jump_factor, or [leap] basis where the species has none (the bloodsucker's never loads).
-local function _apply_leap(_mob, rec, section)
+-- The leap numbers, rolled once at adoption: the force, the steering restore point, the Intelligence lead gain, the Closing leap reach and the jump rest.
+-- The force basis is the species jump_factor or [leap] basis; the rest is the [jump_delay] row once the engine took it, else the install's jump_delay.
+local function _apply_leap(mob, rec, section)
     if not rec.leaper then return end
+    local delay = _jump_delay[rec.species]
+    rec.rest_ms = delay and xmonster.set_monster_jump_params(mob, { delay_ms = delay }) and delay or _read_basis(section, "jump_delay") or 0
     local basis = _read_basis(section, "jump_factor") or _tun_num.leap_basis
     rec.leap_basis = basis
     rec.reach_m = _read_basis(section, "jump_max_distance") or _tun_num.closing_max_m
@@ -716,11 +721,19 @@ local function _compute_lead_point(mob, rec, memo, force)
     return lead, off
 end
 
+-- The launch options for one jump: the crouch choice and the species rest from the last observed landing (the xmonster can_jump mirror).
+local function _build_launch(rec, launch)
+    _launch_opts.skip_prepare = launch.skip_prepare or NO_CROUCH[rec.species] == true
+    _launch_opts.landed_at = rec.landed_at
+    _launch_opts.rest_ms = rec.rest_ms
+    return _launch_opts
+end
+
 -- The shared leap launch: the start cap, the claw clear, the optional steering, the engine jump, the unled retry, the restore.
 -- order = { target, force, steered, lead_m }; feasibility is the can_jump mirror in xmonster.try_monster_jump.
 local function _execute_leap(mob, rec, move, now, order)
     local memo = rec.memo
-    if not _check_start(memo.is_actor) then return _log_block(rec, move, "caps") end
+    if not _check_start(memo.is_actor, now) then return _log_block(rec, move, "caps") end
     local aim
     if order.steered then
         aim = _select_band(_tun_num.adapt_min, _tun_num.adapt_max)
@@ -728,10 +741,10 @@ local function _execute_leap(mob, rec, move, now, order)
     end
     local launch = LAUNCH[move] or LAUNCH_INSTANT
     local target, lead_m = order.target, order.lead_m
-    local fired, refusal = xmonster.try_monster_jump(mob, target, order.force, launch)
+    local fired, refusal = xmonster.try_monster_jump(mob, target, order.force, _build_launch(rec, launch))
     if not fired and lead_m > 0 then
         target, lead_m = memo.enemy_pos, 0
-        fired, refusal = xmonster.try_monster_jump(mob, target, order.force, launch)
+        fired, refusal = xmonster.try_monster_jump(mob, target, order.force, _build_launch(rec, launch))
     end
     if aim then
         rec.aim_restore = fired or nil
@@ -741,7 +754,6 @@ local function _execute_leap(mob, rec, move, now, order)
         if not at_debug.is_on() then return false end
         return _log_block(rec, move, ("refused_%s d=%.1f dy=%.2f"):format(tostring(refusal), memo.dist, memo.enemy_pos.y - memo.mob_pos.y))
     end
-    _add_start(memo.is_actor)
     _add_fired(rec, move, now)
     if at_debug.is_on() then
         local time_s = xmonster.compute_jump_time(mob, target, order.force) or 0
@@ -845,7 +857,7 @@ local function _can_claw(mob)
 end
 
 -- The claw gates on the contact lane: the cheap record fields first, then the live reach and facing, then the engine-state gate.
--- It records the live target, distance and player flag on rec.contact_pos, rec.contact_dist and rec.contact_actor for the launch.
+-- It records the live target and distance on rec.contact_pos and rec.contact_dist for the launch.
 local function _check_claw_block(mob, rec, now)
     if not _check_cooldown(rec, MOVE_CLAW, now) then return "cooldown" end
     if not _check_cooldown(rec, COOLDOWN_ANY, now) then return COOLDOWN_ANY end
@@ -854,14 +866,14 @@ local function _check_claw_block(mob, rec, now)
     local enemy = mob:get_enemy()
     if not (enemy and enemy:alive()) then return "no_enemy" end
     local is_actor = enemy:id() == AC_ID
-    if not _check_start(is_actor) then return "caps" end
+    if not _check_start(is_actor, now) then return "caps" end
     local enemy_pos = enemy:position()
     local dist_sqr = mob:position():distance_to_sqr(enemy_pos)
     if dist_sqr > _tun_num.claw_range_m * _tun_num.claw_range_m then return "range" end
     if not xcombat.is_facing(mob, enemy_pos, _tun_num.claw_cone) then return "facing" end
     local can_claw, claw_block = _can_claw(mob)
     if not can_claw then return claw_block end
-    rec.contact_pos, rec.contact_dist, rec.contact_actor = enemy_pos, math_sqrt(dist_sqr), is_actor
+    rec.contact_pos, rec.contact_dist = enemy_pos, math_sqrt(dist_sqr)
     return nil
 end
 
@@ -875,10 +887,9 @@ local function _try_claw(mob, rec, now)
         if at_debug.is_on() then at_debug.debug("[MUT] CLAW id=%d miss cause=int", rec.id) end
         return
     end
-    local fired = xmonster.try_monster_jump(mob, rec.contact_pos, rec.leap_basis, LAUNCH_INSTANT)
+    local fired = xmonster.try_monster_jump(mob, rec.contact_pos, rec.leap_basis, _build_launch(rec, LAUNCH_INSTANT))
     if not fired then return end
     _add_cooldown(rec, COOLDOWN_ANY, now)
-    _add_start(rec.contact_actor)
     rec.tick_now = now
     if at_debug.is_on() then
         _start_strike(rec, MOVE_CLAW, now, rec.leap_basis, xmonster.compute_jump_time(mob, rec.contact_pos, rec.leap_basis) or 0)
@@ -903,11 +914,10 @@ local function _try_gravity(mob, rec, _move, now)
     local memo = rec.memo
     local block = _check_gravity_block(mob, rec)
     if block then return _log_block(rec, MOVE_GRAVITY, block) end
-    if not _check_start(memo.is_actor) then return _log_block(rec, MOVE_GRAVITY, "caps") end
+    if not _check_start(memo.is_actor, now) then return _log_block(rec, MOVE_GRAVITY, "caps") end
     if not xmonster.set_burer_gravi_force(mob, true) then return _log_block(rec, MOVE_GRAVITY, "refused") end
     rec.gravity_release = now + _tun_num.gravity_release
     _add_fired(rec, MOVE_GRAVITY, now)
-    _add_start(memo.is_actor)
     _log_fire(rec, MOVE_GRAVITY, memo.dist)
     return true
 end
@@ -939,7 +949,7 @@ end
 local function _try_backstrike(mob, rec, _move, now)
     local memo = rec.memo
     if memo.dist > _tun_num.backstrike_near_m then return _log_block(rec, MOVE_BACKSTRIKE, "far") end
-    if not _check_start(memo.is_actor) then return _log_block(rec, MOVE_BACKSTRIKE, "caps") end
+    if not _check_start(memo.is_actor, now) then return _log_block(rec, MOVE_BACKSTRIKE, "caps") end
     local motions = _backstrike_motions[rec.species]
     if not motions then return _log_block(rec, MOVE_BACKSTRIKE, "no_motions") end
     if not xmonster.set_monster_melee_strike(mob, motions[1], motions[2], _tun_num.backstrike_arc) then
@@ -947,7 +957,6 @@ local function _try_backstrike(mob, rec, _move, now)
     end
     rec.armed_backstrike = true
     rec.backstrike_until = now + _tun_num.backstrike_window_ms
-    _add_start(memo.is_actor)
     _add_fired(rec, MOVE_BACKSTRIKE, now)
     _log_fire(rec, MOVE_BACKSTRIKE, memo.dist, " arm")
     return true
@@ -1094,13 +1103,18 @@ local function _update_mutant(mob, rec, now)
     _select_move(mob, rec, now, count)
 end
 
--- The per-update lane ahead of the beat throttle: the leap outcome, the steering restore and the claw contact check.
--- monster_on_update is a scheduler-cadence carrier (100ms near to 625ms far), never a render frame.
+-- The per-update lane ahead of the beat throttle: the leap outcome, the landing stamp, the steering restore and the claw contact check.
+-- monster_on_update is a scheduler-cadence carrier (100ms near to 625ms far), never a render frame; a jump shorter than one update can pass unseen.
 local function _update_contact(mob, rec, now)
     if rec.strike then _update_strike(mob, rec, now) end
-    if rec.aim_restore and not xmonster.is_monster_jumping(mob) then
-        _set_jump_flags(mob, rec, { auto_aim_factor = rec.aim_basis })
-        rec.aim_restore = nil
+    if rec.leaper then
+        local jumping = xmonster.is_monster_jumping(mob)
+        if rec.airborne and not jumping then rec.landed_at = now end
+        rec.airborne = jumping
+        if rec.aim_restore and not jumping then
+            _set_jump_flags(mob, rec, { auto_aim_factor = rec.aim_basis })
+            rec.aim_restore = nil
+        end
     end
     if rec.claw then _try_claw(mob, rec, now) end
 end
@@ -1175,7 +1189,7 @@ local function _on_combat_action(monster, _enemy, _dist, _enemy_strength, _can_j
     end
 end
 
--- Scale what an adopted mutant deals; shared by the three victim seams. A 1.0 track skips the engine write.
+-- Scale what an adopted mutant deals; shared by the three victim seams, returning its record. A 1.0 track skips the engine write.
 local function _apply_dealt(shit)
     if next(_states) == nil or not shit then return end
     local attacker = shit.draftsman
@@ -1196,6 +1210,18 @@ local function _apply_dealt(shit)
         at_debug.debug("[MUT] dealt id=%d mult=%.2f power=%.3f move=%s [%.3fms]", rec.id, dealt, shit.power,
             strike and strike.move or "-", tmr:get_ms())
     end
+    return rec
+end
+
+-- The player's before-hit seam: scale the hit, then start the after-hit hold when it is our offensive move landing.
+-- An engine-only fire (fired_kind engine) and a hit past HIT_MATCH_MS from the fire start nothing; a bite inside it counts as the landing.
+local function _on_actor_before_hit(shit)
+    local rec = _apply_dealt(shit)
+    if not (rec and rec.fired_at and OFFENSIVE_MOVES[rec.fired_move or ""] and rec.fired_kind ~= FIRED_ENGINE) then return end
+    local now = time_global()
+    if shit.power <= 0 or now - rec.fired_at > HIT_MATCH_MS then return end
+    _hold_until = now + _tun_num.after_hit_ms
+    if at_debug.is_on() then at_debug.debug("[MUT] after_hit id=%d move=%s hold=%dms", rec.id, rec.fired_move, _tun_num.after_hit_ms) end
 end
 
 local function _on_npc_before_hit(_npc, shit, _bone_id)
@@ -1255,13 +1281,13 @@ _apply_enabled = function()
     _active = wanted
     if _active then
         RegisterScriptCallback("monster_on_update", _on_mob_update)
-        RegisterScriptCallback("actor_on_before_hit", _apply_dealt)
+        RegisterScriptCallback("actor_on_before_hit", _on_actor_before_hit)
         RegisterScriptCallback("npc_on_before_hit", _on_npc_before_hit)
         RegisterScriptCallback("monster_on_before_hit", _on_monster_before_hit)
         _combat_action_bound = xmonster.on_monster_combat_action(_on_combat_action)
     else
         UnregisterScriptCallback("monster_on_update", _on_mob_update)
-        UnregisterScriptCallback("actor_on_before_hit", _apply_dealt)
+        UnregisterScriptCallback("actor_on_before_hit", _on_actor_before_hit)
         UnregisterScriptCallback("npc_on_before_hit", _on_npc_before_hit)
         UnregisterScriptCallback("monster_on_before_hit", _on_monster_before_hit)
         if _combat_action_bound then
@@ -1336,8 +1362,9 @@ local function _load_tunables()
         backstrike_window_ms = _read_num("backstrike", "window_ms"),
         backstrike_near_m = _read_num("backstrike", "near_m"),
         ability_pct = _read_num("wild", "ability_pct"),
+        after_hit_ms = _read_num("caps", "after_hit_ms") or 5000,
     }
-    _player_throttle = xttltable.create_token_bucket({ capacity = 1, rate = 1000 / (_read_num("caps", "player_gap_ms") or 2000) })
+    _hold_until = 0
     _cooldown_ms = { [COOLDOWN_ANY] = _read_num("cooldown", COOLDOWN_ANY) }
     for i = 1, #MOVE_KEYS do _cooldown_ms[MOVE_KEYS[i]] = _read_num("cooldown", MOVE_KEYS[i]) end
     _move_species = {}
@@ -1369,6 +1396,8 @@ local function _load_tunables()
         local pair = xltx.read_list(_tun, "backstrike", species)
         if #pair >= 2 then _backstrike_motions[species] = pair end
     end
+    _jump_delay = {}
+    for species in pairs(xltx.read_section(_tun, "jump_delay")) do _jump_delay[species] = _read_num("jump_delay", species) end
 end
 
 local function _on_option_change()
