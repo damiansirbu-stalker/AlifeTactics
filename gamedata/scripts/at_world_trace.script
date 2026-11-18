@@ -65,13 +65,13 @@ local MOB_MOVING_EPS      = 0.1
 local MOB_HIST_DEPTH      = 2
 local MOB_STUCK_MS        = 1200
 local MOB_STUCK_RELOG_MS  = 5000
-local LEAP_WINDOW_MS      = 1500
-local LEAP_MIN_DISP_M     = 2.0
-
--- The commanded leap-family drivers (at_mutants _log_fire upper-cases the move name); a fire that never displaces is a strand.
-local LEAP_DRIVERS = {
-    ["HIGH LEAP"] = true, ["PUNISHING LEAP"] = true, ["HUNTING LEAP"] = true, ["FERAL LEAP"] = true,
-    ["CATCHING LEAP"] = true, ["CUTOFF LEAP"] = true, ["CLOSING LEAP"] = true,
+-- The jump log: a takeoff within match_ms of our jump fire is ours; moves are the rec.fired_move keys that launch a jump.
+local JUMP = {
+    match_ms = 1500,
+    moves = {
+        high_leap = true, punishing_leap = true, hunting_leap = true, feral_leap = true,
+        catching_leap = true, cutoff_leap = true, closing_leap = true, claw = true,
+    },
 }
 
 local TIERS = xcreature.RANK_TIERS
@@ -1036,27 +1036,43 @@ local function _check_mob_stuck(mob, mi, id, state_name, jumping, tg)
         mob.d, mi.velocity_current, mi.velocity_target, mi.real_velocity, jumping and "y" or "n", tg - mob.stuck_ms)
 end
 
--- The leap-strand probe: on a fresh commanded leap fire, watch the mob's displacement for LEAP_WINDOW_MS.
--- A fire that never clears LEAP_MIN_DISP_M left the ground on paper only - the can_jump bypass firing an infeasible jump.
-local function _check_leap_strand(mob, obj, id, tg)
-    local pos = obj:position()
+-- Note a fresh jump fire of ours from the mutant record; a fire already older than match_ms when first seen is never pending.
+local function _read_jump_fire(mob, id, tg)
     local rec = at_mutants.get_mutant_record(id)
-    if rec and rec.fired_at and rec.fired_at ~= mob.leap_seen_at and LEAP_DRIVERS[rec.driver or ""] then
-        mob.leap_seen_at = rec.fired_at
-        mob.leap_watch = { px = pos.x, pz = pos.z, deadline = tg + LEAP_WINDOW_MS, maxd = 0, variant = rec.driver, d0 = mob.d or -1 }
+    if not (rec and rec.fired_at and rec.fired_at ~= mob.jump_fired_at and JUMP.moves[rec.fired_move or ""]) then return end
+    mob.jump_fired_at = rec.fired_at
+    mob.jump_pending = tg - rec.fired_at <= JUMP.match_ms and rec.fired_move or nil
+end
+
+-- Open a flight at takeoff: ours while our jump fire is pending inside match_ms, else the engine's.
+local function _start_mob_jump(mob, obj, tg, ap)
+    local pos = obj:position()
+    local move = mob.jump_pending
+    if move and tg - mob.jump_fired_at > JUMP.match_ms then move = nil end
+    mob.air = { t0 = tg, seen = tg, x = pos.x, z = pos.z, dp = math_sqrt((pos.x - ap.x) ^ 2 + (pos.z - ap.z) ^ 2), move = move }
+    mob.jump_pending = nil
+end
+
+-- The jump log for every species near the player, read each monster update because the 500ms sample misses a 0.3s flight.
+-- A flight unseen past match_ms (the mob left the radius) is dropped; our fire with no airborne update by then logs as unseen.
+local function _log_mob_jump(mob, obj, id, tg, ap)
+    _read_jump_fire(mob, id, tg)
+    local jumping = obj:is_monster_jumping()
+    local air = mob.air
+    if air and tg - air.seen > JUMP.match_ms then
+        mob.air, air = nil, nil
     end
-    local watch = mob.leap_watch
-    if not watch then return end
-    local disp = math_sqrt((pos.x - watch.px) ^ 2 + (pos.z - watch.pz) ^ 2)
-    if disp > watch.maxd then watch.maxd = disp end
-    if tg < watch.deadline then return end
-    if watch.maxd < LEAP_MIN_DISP_M then
-        log.info("[WORLD] mob id=%d %s LEAP STRAND variant=%s disp=%.1fm d0=%.0f (fired, never left the ground)",
-            id, mob.name or "?", watch.variant, watch.maxd, watch.d0)
-    else
-        log.info("[WORLD] mob id=%d %s LEAP ok variant=%s disp=%.1fm", id, mob.name or "?", watch.variant, watch.maxd)
+    if jumping then
+        if air then air.seen = tg else _start_mob_jump(mob, obj, tg, ap) end
+    elseif air then
+        local pos = obj:position()
+        log.info("[WORLD] mob id=%d %s JUMP by=%s move=%s dp=%.1f span=%.1fm air=%dms", id, mob.name or "?",
+            air.move and "ours" or "engine", air.move or "-", air.dp, math_sqrt((pos.x - air.x) ^ 2 + (pos.z - air.z) ^ 2), tg - air.t0)
+        mob.air = nil
+    elseif mob.jump_pending and tg - mob.jump_fired_at > JUMP.match_ms then
+        log.info("[WORLD] mob id=%d %s JUMP unseen move=%s (fired, no airborne update inside match_ms)", id, mob.name or "?", mob.jump_pending)
+        mob.jump_pending = nil
     end
-    mob.leap_watch = nil
 end
 
 -- Keep the last MOB_HIST_DEPTH beat snapshots so the stuck onset can print what led into the freeze.
@@ -1106,6 +1122,7 @@ local function _update_mob(obj, id, tg, ap)
         mob = { next_ms = 0, contacts = 0, contact_hits = 0, overshoots = 0, orbit_s = 0 }
         _mob[id] = mob
     end
+    _log_mob_jump(mob, obj, id, tg, ap)
     if tg < mob.next_ms then return end
     local dist, vr, vt, had_prev = _read_mob_motion(mob, obj:position(), ap, tg)
     local jumping = _log_mob_edge(mob, obj, id, dist, tg)
@@ -1118,7 +1135,6 @@ local function _update_mob(obj, id, tg, ap)
             _push_mob_hist(mob, mi, id, state_name, jumping)
         end
     end
-    _check_leap_strand(mob, obj, id, tg)
     if mob.contact then
         _log_mob_contact(mob, id, tg, jumping)
     elseif dist <= MOB_CONTACT_ENTER_M and had_prev then
