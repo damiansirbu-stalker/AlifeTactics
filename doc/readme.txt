@@ -272,33 +272,32 @@ MCM
 Compatibility:
 Depends only on xlibs. Install and uninstall mid-save work. Tested: Anomaly 1.5.3, GAMMA, EFP, Zona, Forgotten Zone.
 Drop:
-- NPC self-heal replacements - run in place of the Healing system.
-- G.A.M.M.A. No NPC Friendly Fire, and community friendly-fire blockers - re-filter the friendly hits Crossfire already handles and rewrite NPC relations on hit.
-- G.A.M.M.A. NPCs Faster Reactions - raises sight range and detection. NPCs see across open ground and swamp the Vision curve. No toggle.
-- NPC Limping and Healing (Vodoxleb) - stacks the limp and heal animation and breaks the heal cue.
-- NPC Weapon Jamming, and any NPC-jam mod - re-adds the jams the Jamming system removes, looping reloads with no end.
-- RE:DONE Combat AI - a full combat-AI takeover: full-file overrides of the combat schemes, danger, visual memory, GOAP state and aim, replacing the whole layer Alife Tactics works at.
-- Worse NPC Vision and Accuracy, and any mod with its own NPC vision config - override the Vision and Accuracy systems. No toggle.
-- Companion Spotters - replaces vanilla NPC movement game-wide so one bug breaks every NPC, does per-frame work plus a full world scan,
-  and misroutes companions on large maps with a broken vertex check.
-- G.A.M.M.A. No logs, Log spam remover - full-file _g.script overrides that drop the modded-exes weapon-accuracy hook the Accuracy system reads.
-  Accuracy goes dead, and No logs (a stale 1.5.1 copy) reverts newer engine callbacks the whole game needs.
+- G.A.M.M.A. AI Rework - it replaces the combat AI AlifeTactics works through with old scripts.
+  Much of it is copied or dead code, its far stalkers fire without line of sight or stand idle, and its development builds overwrite stalker movement every update.
+- RE:DONE Combat AI - it overwrites 17 vanilla scripts whole, moves stalkers onto scripted combat, and sets every stalker's aim from the rank of one stalker.
+  Its danger and healing schemes clash with AlifeTactics, and both mods make stalkers flee.
+- G.A.M.M.A. No logs, Log spam remover - their _g.script copies drop the hook stalker aim runs on.
+  Accuracy, Target Lead and thermal artefacts stop working. No logs also drops the knife hook Attempted murder needs, and functions other scripts call as they load.
 Avoid:
-- G.A.M.M.A. AI Rework - hands combat to broken scripted subschemes in place of the engine brain. Past 173m a normal NPC gets a camper that fires through cover or a "cover" scheme that freezes it.
-  Monolith, Sin and ISG run an assault-rush at any range that can crash. It also reseeds the global RNG at load and is half dead code.
+- NPC self-heal replacements, such as NPC Limping and Healing (Vodoxleb) - they switch off the medkit scheme Healing runs on and heal stalkers in its place.
+  Their limp fights the Healing limp on the same stalker.
+- NPC Weapon Jamming, and any mod that adds NPC jams - it jams a gun on a roll, not from wear, which undoes the Jamming system, and a rookie jams every few shots.
+- G.A.M.M.A. No NPC Friendly Fire - Crossfire does its job already, and on every hit it turns two feuding stalkers of friendly or neutral factions back to peace.
+- G.A.M.M.A. NPCs Faster Reactions - it lengthens stalker sight, and the Vision range and binoculars stretch it further until stalkers spot you across open ground.
 Interferes:
-- Useful Idiots - a well-liked companion UI, fine to keep. Two combat caveats: companions keep its combat modes when the takeover skips them, and it replaces 1 of Crossfire's 3 friendly-fire fixes.
-  Combat runs cleanest with it off, but it works.
-- Oleh's Weapons Sounds Tweaks and Fixes (GAMMA) - NPCs hear a shot through every layer of its sound, each as far as that file's AI range.
-  Its unsilenced shot carries about 5 m and its echo tail about 50 m, while its silenced shot carries 75-110 m. Vanilla runs the other way, about 200 m against 7-20 m.
-  NPCs react to each other's normal gunfire only inside about 50 m, and a mounted silencer makes a stalker easier to hear.
+- Oleh's Weapons Sounds Tweaks and Fixes (GAMMA) - most of its rifle, SMG and sniper shots carry 5m to other NPCs, while its silenced rifle shots carry 75-120m.
+  Stalkers barely hear each other's gunfire, and a mounted silencer makes a stalker louder.
+Coexists:
+- Ballistics Overhaul (GBOOBS) - it applies your hit damage itself, and AlifeTactics restores the artefact and plate resistance a stalker carries against your shots.
+- Useful Idiots - your companions follow its orders, since AlifeTactics leaves companions alone by default, and the friendly-fire fixes of both mods run together.
+- Vision and accuracy configs, such as Worse NPC Vision and Accuracy - they set the baseline sight and spread, and Vision and Accuracy scale that baseline by rank.
 Everything else coexists, as long as it extends X-Ray and Anomaly and never overrides them.
 
 Not AlifeTactics (base game or your setup):
-- Stalkers gliding or staggering when shot - the engine moves the body while a hit animation plays, present in unmodded Anomaly.
-- Stalkers ignoring darkness - your visibility script applies its darkness curve only from 21:00 to 04:00. Dusk and dawn read as full daylight.
-- Stalkers seeing across open ground - sight range comes from your creature config, not from acquisition speed.
-- Stalkers reacting to danger across the map - vanilla's danger table uses duration values. A shot counts as danger past 300m.
+- Stalkers sliding when shot on the move - the hit animation plays while he keeps walking or running, as in unmodded Anomaly. Hit reaction hold covers a standing or staggered stalker.
+- Stalkers ignoring darkness at dusk and dawn - Stealth Overhaul's visibility script uses its night light curve only from 21:00 to 04:00, and its day curve the rest of the time.
+- Stalkers seeing you from far off - sight range comes from your creature config, and AlifeTactics adds up to 15 percent by rank and 50 percent with binoculars by day.
+- Stalkers reacting to danger from far off - vanilla's danger distance table holds its duration values. A shot or a ricochet then counts as danger out to 300m.
 
 How It's Built:
 
