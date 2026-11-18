@@ -1,19 +1,14 @@
 # Manifesto
 
-AlifeTactics makes the Zone's enemies fight for real.
+AlifeTactics makes the Zone's enemies fight to stay alive.
 
-X-Ray is strong mechanically, but its enemies fight stereotypically, their actions shuffled and settled by a die roll.
-AlifeTactics adds the intelligence to choose the action, and a Personality, per faction and per mutant species, for which action its kind takes at all.
+In vanilla Anomaly a rookie fires with a legend's spread. Most mutants run straight at you.
+AlifeTactics gives every stalker and every mutant a read of the fight, and a reason to act on what it sees.
+If you reload in a stalker's sights, he runs for cover. A burer waits for you to look away before it throws.
+The chimeras of one pack come at you in turns, each with the leaps it rolled for itself.
 
-Everyone in the Zone wants to live.
-A stalker caught reloading runs for cover.
-A hurt bandit breaks contact while a Duty trooper holds the line.
-The dog that cannot reach you gives ground and comes again from another angle.
-Every combatant reads the fight it is in and acts in its own favour, and no one stages it for the player.
-
-GSC built this intelligence first and cut it later.
-Its AI grew so sharp that stalkers won the firefights and finished the quests before the player could. The studio reined it in to leave the player room to win [9].
-AlifeTactics rebuilds the combat mind GSC designed and shelved.
+GSC built a mind like this first and cut it later.
+Its stalkers outplayed the player so often that the studio held them back, to leave him room to win [9].
 
 > "The paradigm of Stalker at the time was that we don't really care about the player. We have this living world."
 > Andrii Verpakhovskyi, original game designer [9]
@@ -24,239 +19,229 @@ AlifeTactics rebuilds the combat mind GSC designed and shelved.
 
 ### Everyone wants to live
 
-Self-preservation is the spine of every decision.
-A stalker presses an enemy who cannot answer and falls back when he is the one caught weak.
-A mutant punishes your opening and breaks off a fight it cannot win.
-Both sides fight on even terms, no edge given and none taken.
-The Zone is dangerous because the things in it are trying to survive.
+I don't tune these fighters to beat you. I give them reasons to stay alive, and the fight follows from that.
+Every decision starts from self-preservation.
+Stalkers press an enemy who cannot fire back. If they are the ones reloading or hurt while the enemy is strong, they fall back to cover instead.
+Mutants near death may break off when you are far enough away, but a cornered mutant keeps fighting.
+Each side reads the same fight and plays it for itself.
 
-### Intelligent decisions
+GSC's AI brief for its testers lists these states as ready [10]:
 
-X-Ray picks its combat actions stereotypically. A die roll shuffles and settles them. AlifeTactics adds the decision itself.
-One formula runs it, stalker or mutant.
-A premise opens it, the read of the actual fight.
-Intelligence and Personality then gate it. Intelligence is competence, rising with rank, how sharply he reads the fight. Personality is character, whether his kind takes this action at all.
-It fires only when both pass, a sharp read and a willing character. A passed decision commits to its window, and a missed one lets the opening go.
-Rank only improves the odds of a good decision, never grants a new one.
-A novice and a legend both act, and the legend is right more of the time.
+> "Advance on the enemy through cover: when the opponent is [cut] weaker or equal.
+> Fall back from the enemy through cover: when the opponent is stronger.
+> Panic: when the opponent is much stronger. [cut]
+> Reload: characters try to get into cover to reload."
+> GSC AI brief for testers [10]
+
+### One mind for stalkers and mutants
+
+I wanted one mind for both sides of the Zone, so a stalker and a chimera decide the same way.
+A decision starts from an opening, a real read of the fight such as your reload, your turned back or your aim on him.
+Personality and Intelligence decide it. GSC's brief gives characters and monsters the same list of traits, and one entry reads "Intelligence affects the tactical tricks applied" [10].
+Personality is character, the moves an individual carries at all, rolled once from the chances of the faction or species.
+Intelligence is the read, whether a fighter takes this moment right, and it rises with a stalker's rank and with the danger of a mutant's map.
+A legend reads more moments right than a rookie, but even a legend misreads some.
+
+Not every behaviour needs both traits.
+The moves AlifeTactics fires, such as maneuvers, presses and leaps, need both: the fighter has to carry them and read the moment.
+When the read fails, hurt stalkers and mutants may flee instead, because flee is the other face of the same roll.
+The habits the engine fires itself, such as cover posture, roll once and hold for the fighter's life.
+Wild spreads a mutant's raw numbers with no roll at all.
+A repair to vanilla never rolls, because it applies to everyone. Skill grows with rank on every stalker, whatever drives him at the moment.
+
+### Every faction and every species fights its own way
+
+Each faction carries a chance for every move, which is why one opening draws a different answer from each of them.
+Monolith fighters are ready to press a helpless enemy, they almost never give ground, and Monolith has no rout at all.
+Duty takes cover to reload, gives ground in order, and likes to plant for deliberate shots.
+Freedom backs out of close range and keeps its distance.
+Mercenaries plant to pick off an enemy they outrange, finish a man who cannot answer, and pull back when they are the weaker side.
+Bandits fire through a helpless man's reload, but they are likely to run when the fight turns.
+Ecologists never press, and they run as soon as the fight turns against them.
+
+A species carries its moves the same way.
+Chimeras claw at point blank, leap without a warning crouch and punish your reload or your turned back. Chimeras have no flee move.
+Most snorks steer in the air after you, while dogs seldom leap and seldom run.
+A flesh is the likeliest creature to run when it is hurt. Every burer carries its gravity throw, and every bloodsucker its cloak.
+
+This is GSC's design. Its soldiers fight as a squad under a leader who signals each man by gesture and sends them around the flank [12].
+Its stalkers follow strategies of their own, and a zombied soldier is a separate type [12].
+Every NPC sizes up an enemy by his character type before choosing to attack, defend or run, and GSC sorts character from principled through independent to unprincipled [12].
+Its tables score every creature and every kind of human for courage in attack and in defence [8].
 
 ### Engine first
 
-Every behaviour comes from the engine's own parts.
-The GOAP planner, the scheme system, the state machine, and the gulag jobs do the work, and AlifeTactics decides when.
-Where the engine had no seam to decide at, the seam went in upstream, as per-NPC hooks written for this mod and merged into the official modded exes.
-It never replaces a vanilla script file.
-A takeover borrows one NPC for a few seconds of one committed move, then hands him back to the engine's combat brain with cover, flanking, and retreat intact.
+AlifeTactics drives X-Ray's combat brain and never replaces a vanilla script file.
+I would rather fix the engine than work around it in Lua. Where Lua could not reach a decision, we put the hook into the engine first.
+The per-NPC controls for aim, bursts, cover and action switches were written for AlifeTactics and merged into the X-Ray Monolith modded exes.
+A maneuver borrows one stalker from the engine's planner for one move. Then it hands him back with the rest of his combat intact.
 
-### Broken engine mechanics
+### GSC's unbuilt list
 
-The engine shipped behaviour that never ran.
-Stalker rank should scale accuracy and gun handling, but the engine clamps the rank value until every NPC collapses to one setting.
-Other behaviour shipped broken and passed for a feature, a weapon in full condition that jams every few rounds and loops a tactical reload.
-AlifeTactics turns the clamp back into a real curve and strips the fake behaviour out.
-
-### GSC's unbuilt design
-
-GSC wrote the combat mind out as a list of improvements and never built most of it.
-The list names an accuracy parameter, an intelligence parameter, realistic vision, a rear turn, and combat tuned against every monster type.
-It rated every creature for how it fights, an attack and defence profile and a courage score, and left the ratings out of play.
-AlifeTactics builds each item on the list.
-A stalker's accuracy follows his rank, and a mutant fights with the body GSC wrote for it.
+GSC's AI design documents list the combat work that remained to finish [8].
 
 > "Improvements to character combat behaviour: introduce an accuracy parameter.
 > Introduce an intelligence parameter.
 > Make vision more realistic.
 > Adjust combat tactics.
 > Adjust turning around to the rear.
-> Tune combat functions against every monster type.
-> Fix the bugs: the grenade's fall point.
-> Fix pistol bursts."
+> Tune combat functions against every monster type. [cut]"
 > GSC AI design documents [8]
 
-### Faction and species Personality
+We built the stalker side of that list:
+- The accuracy and intelligence parameters are Accuracy and Intelligence.
+- Realistic vision is Vision.
+- The combat tactics are Maneuvers and Commitment.
+- The turn to the rear is Counterflank.
 
-Every faction fights its own way, across every choice it makes, not only when it is hurt.
-Monolith presses and holds its ground to the end. Duty holds the line and gives ground in order. Bandits finish a downed man and rout when the fight turns. Ecologists fight poorly and pull back early.
-Each faction carries its own chance on every one of its actions, the rout, the give-ground, the press, the finish, the hold. One opening draws a different answer from a merc than from a renegade.
-This is GSC's own design, its documents rate every character by type and every creature for courage, the attack and defence profile left out of the shipped game.
-Every mutant fights to its body, and carries each of its moves at its own chance.
-A chimera circles to the flank, leaps and claws without pause, and never routs.
-A burer hurls debris with its mind, a bloodsucker turns invisible and strikes from cover, a flesh bolts the moment it is hurt.
-Each carries the moves its frame allows and the character to spend them, the mutant twin of a faction's doctrine.
-A stalker or a mutant rolls its character once, when it enters your fight, not at every opening.
-The chimeras of one pack fight differently. Each carries its own set of the moves its kind favours and keeps it for the whole fight.
-A species prefers its leaps without owning them all. The chimera rarely telegraphs, the dog jumps straight and open, the snork steers, the cat strikes from your blind side.
+The tuning against monster types is still open. A stalker fighting a mutant runs on vanilla tactics.
+
+### Vanilla, repaired
+
+Some of vanilla's combat never worked.
+The engine clamps rank below the values Anomaly uses, which leaves every stalker with one shared spread.
+The danger scheme crashed on mutant corpses and torn-down stalkers. It froze a stalker who held fire for a friend, and it played the corpse search only on the first body.
+We repair each of these, and the Fixes tab lists every repair by name.
 
 ---
 
 ## Systems
 
-Every system has its own MCM page, in this order. Each reads the live fight and answers it with what the combatant already is, his rank, his weapon, his faction, his body.
+Each MCM tab is a system, in the MCM's order.
 
 ### Combat
 
+Combat is how a stalker chooses what to do in a fight.
+
+#### General
+
+Intelligence lives here, the chance that stalkers read a moment right, set by their rank.
+The page also stops the hit slide. In vanilla a stalker hit mid-step slides across the ground with his feet still.
+With AlifeTactics, hit stalkers stay planted until the hit animation ends, then walk on.
+
 #### Maneuvers
 
-A maneuver borrows one stalker for a single committed move and hands him back to the engine.
-Counterflank snaps him onto a hostile player who reached contact range while he fought someone far off.
-Reload Cover sends a stalker caught reloading in a watcher's line to cover that hides him, his weapon loading on the way.
-Kite walks a stalker out of an enemy who closed inside his weapon's reach, still firing.
-Pickoff plants a stalker who outranges his enemy and takes him with single shots.
-Retreat pulls a hurt stalker back to cover under pressure.
-Flee routs a skittish faction to a distant friendly base.
-The decisions read as human. Nobody turns his back on a shooter, and no one crowds onto cover another man holds.
-GSC named this work in one line of the design, adjust combat tactics.
-It never built the tactics themselves.
-AlifeTactics runs them on the engine's own GOAP planner, borrowing one NPC through hooks added to the modded exes.
-The named moves are our design, the fight-read behind them is GSC's.
+A maneuver takes one stalker from the engine's planner for a single committed move, then gives him back.
+Each move answers one real problem, and it ends when the problem does.
+- Counterflank: when you reach contact range during a fight with someone far off, the stalker turns on you.
+- Reload Cover: a stalker who reloads in a watcher's sight runs to the nearest cover that hides him and reloads on the way.
+- Kite: when an enemy gets inside the minimum range of the weapon, the stalker backs out down a clear lane, still firing.
+- Retreat: a hurt stalker on an exposed spot gives ground to the best cover behind him.
+- Pickoff: a stalker who outranges his enemy in a standoff plants and takes aimed single shots.
+- Flee: the last man of a broken squad routs to a friendly base, as long as his faction routs at all.
+
+Maneuvers run in every stalker fight near you, yours and theirs.
+A shared budget keeps a mass battle from turning into a flood of moves.
 
 #### Commitment
 
-Vanilla stalkers re-plan every moment. A flicker of lost sight makes one drop a good decision and pick again.
-Commitment holds a stalker to a decision while it still works and lets him switch the moment it stops.
-When his enemy is caught reloading or hurt, he keeps firing through the window and holds his spot.
-The engine re-plans the fight every moment, and Commitment damps the wasted re-planning.
-It holds through the combat-action-switch and the cover-repick, decision points opened in the modded exes so a working plan survives.
+In vanilla a stalker drops a working shot whenever the engine offers him another cover, and he strafes between covers under fire.
+Commitment refuses that switch while his fire works, he sees his enemy and his line is clear. It lets him go the moment one of those fails.
+At the end of the hold, Liquidate keeps him firing while his enemy is reloading, out of ammo, staggered, disarmed or turned away.
+It runs on two engine hooks written for AlifeTactics, the action switch and the cover re-pick.
 
 #### Conduct
 
-Conduct sharpens the choices the engine already makes, with no takeover.
-A rifleman crouches to steady a clear shot and stands to fire over cover a crouch would hide behind.
-A submachine gunner takes closer cover to keep his fire in range, and a sniper holds extra distance.
-The cover map and the posture states are the engine's own, and Conduct only chooses better among them.
-One discipline holds both the posture and the spacing, Intelligence then Personality rolled once in a fighter's life. Militarized factions keep that discipline and scavengers slouch.
+Conduct improves two choices the engine keeps making for itself, with no takeover.
+- Cover posture: a trained rifleman crouches only where the shot from the crouch is clear. Where a crouch would put his rounds into the wall, he stands.
+- Weapon spacing: a submachine gunner takes closer cover to keep his fire in reach, while a sniper keeps his distance.
 
-#### Push and Pull
+A stalker rolls this discipline once for his life. Duty, the army and the ISG almost always have it. A renegade almost never does.
 
-Push presses a stalker whose enemy cannot answer, thickening his fire and moving him to closer cover.
-Pull sends a stalker back when he is the one caught reloading or hurt, his next cover farther out until he recovers.
-Both read an advantage the engine tracks and never acts on.
-One presses a beaten enemy, the other yields when beaten.
+#### Behaviors
+
+Behaviors reads who has the upper hand.
+- Push: if a target cannot answer, because he is reloading, out of ammo or badly hurt, his attackers press him with heavier fire from closer cover until he can fire back.
+- Pull: if a stalker is the weaker side, reloading or hurt while his enemy is strong, his next cover moves farther back until he recovers.
+
+Pull outranks Push, because self-preservation comes first.
 
 ### Effectiveness
 
-#### Accuracy
+Effectiveness is how well a stalker fights, and his rank decides it.
+- Accuracy: a rookie fires with the vanilla spread, and each rank above groups tighter. A second curve keeps a veteran steadier when he fires on the move.
+- Crossfire: allies and neutrals in one line of fire stop gunning each other down. Hostile pairs and your own bullets still do full damage.
+- Reaction: with rank, his barrel follows you faster and holds a strafe better.
+  Target Lead aims ahead of a runner by the round's real flight time. A legend hits you on the run, but a rookie leads too far and misses in front of you.
+- Discipline: a veteran fires shorter, tighter bursts, while every rank keeps at least vanilla's rounds per minute.
 
-Accuracy gives each rank a real dispersion curve, because the engine clamps every NPC to one setting on Anomaly's rank values.
-A second curve covers fire on the move, and rank buys down the movement penalty.
-GSC's design opens with introduce an accuracy parameter, and the engine clamped the rank value until the curve it built collapsed to one setting.
-
-#### Crossfire
-
-Crossfire stops allies cutting each other down in a shared line of fire, keyed on their real relation.
-A soured pair still trades fire, and your own shots never count against you.
-Crossfire has no design-doc line behind it.
-It repairs the engine's friendly-fire handling, keyed on the real relation so hostile pairs still trade fire.
-
-#### Reaction
-
-Reaction sets how fast a stalker swings onto a target and how tightly he holds a strafing one.
-It leads a moving target by the round's real flight time, true at high rank and over-led at low.
-A player-bias dial tunes how hard NPCs favour you over other combatants, down to treating you like anyone else.
-GSC's design calls for an intelligence parameter and realistic vision.
-Reaction sets the aim swing and the target lead through per-NPC aim controls added to the modded exes.
-
-#### Discipline
-
-Discipline scales burst length and cadence by rank, inside the engine's own per-weapon bands.
-GSC's design lists fix pistol bursts among the combat bugs, and Discipline scales the burst through the engine's own fire-queue control.
+The aim curves start at vanilla for a rookie and stay short of the game's hardcore aim.
 
 ### Perception
 
-#### Sound
-
-A hostile stalker reacts to gunfire he hears but cannot see, facing the shots and moving to cover once he sees the shooter.
-He hears you move, each footstep carrying by stance, surface, and weather, and a crouch stays silent.
-A sound is never a confirmed enemy. He investigates at a walk.
-Stealth is untouched, because Sound never reads vision.
-GSC's monster design gives the dogs sharp hearing, and Sound answers the engine hear callback the vanilla AI ignores.
-The carry model is ours, each footstep scaled by how a stalker moves and what he crosses.
-
-#### Vision
-
-Vision gives each rank an acquisition speed and a view range, every tier at or above the engine baseline.
-GSC's design asks to make vision more realistic.
-Vision scales the acquisition rate and the view range per rank on the engine's own visual memory, never below the baseline.
-
-#### Danger
-
-A stalker sniped from across the map now ducks and seeks cover where vanilla left him standing.
-A hit victim turns on the man who shot him, over any distant enemy he can see.
-GSC's design lists the grenade fall point among the combat bugs to fix.
-Danger repairs that read and the rest of the xr_danger scheme, and routes a hit back to its shooter through the engine's danger-in-direction evaluator.
+Perception is what a stalker notices.
+On the multi-thread exes a vanilla stalker keeps a heard sound only from an enemy he already remembers. Before first contact he is close to deaf.
+- Sound: he hears you before he has seen you. Your footsteps carry by stance, surface and weather, and so does a jump, a reload racked nearby or an empty click.
+  If a sound is loud enough, he walks over to check the spot with his weapon ready. A crouch makes no sound at all.
+  A shot he hears runs the engine's full plan of cover, look-out, detour and search. He also glances toward a creature he hears.
+  GSC's stalker strategies find an enemy by the same sounds: "shot, reload, clicking" and "stomping, jumps" [11].
+- Neutral gunfire alert: a neutral or friendly stalker turns weapon-ready toward the shots you fire near him.
+- Vision: rank sets how fast he turns a glimpse into a confirmed threat, and how far out he starts to notice one. Every rank sees at least as well as vanilla.
+- Danger: AlifeTactics layers its repairs onto whichever danger script your modpack ships.
+  A stalker hit from far away turns and takes cover. A hit stalker turns on the man who shot him.
+  If you swing a knife at a stalker and miss, he is alerted, and a hostile who sees you fights.
 
 ### Mechanics
 
-#### Healing
-
-A wounded NPC heals with the medkits and bandages he carries, pausing under fire, with limp and heal animations.
-GSC's offline loop has the hurt stalker use a medkit when his health runs low.
-The eat-medkit state is the engine's own, driven off the items the NPC actually carries.
-
-#### Jamming
-
-A weapon in full condition no longer chokes on a fake misfire.
-This fix has no design-doc line behind it.
-It strips a script-injected misfire the modded exes roll onto full-condition weapons, which passed for a feature.
-
-#### Ammo
-
-A veteran fires armour-piercing rounds from his own inventory and spends them.
-A stalker is as dangerous as the ammunition he scavenged.
-GSC's trader design has stalkers buy ammo and equipment and carry it.
-Ammo spends what a stalker holds, and the armour-piercing decay is our extension of that supply.
-
-#### Attachments
-
-A stalker fits the scope, silencer or grenade launcher that suits his own gun once the fight is over, and a looted scope shows on his rifle.
-GSC's trader design has stalkers buy equipment and carry it.
-Attachments puts what he carries on the gun he fights with, through the game's own addon and scoped-gun paths.
-
-#### Gear
-
-An artefact feeds one effect channel by its class, capped so it tilts a fight and never decides it.
-The carrier warps the air around him, a real and huntable drop.
-Binoculars and night vision widen what he sees.
-GSC's combat tables rate equipment for effectiveness, and the monster design gives artefacts their field effects.
-Gear reads each item's own data for one capped effect channel, and the channels are our design on that base.
+Mechanics is the gear a stalker carries, and what it does for him in a fight.
+- Healing: a hurt stalker heals with the medkits and bandages he carries. Vanilla ships the healing item lists empty, so its stalkers never used them.
+  He pauses while he fights, and he limps with his weapon in hand.
+  GSC wrote the wounded stalker's drill around that medkit: "find cover [cut] draw a medkit and heal" [11].
+- Jamming: a worn NPC weapon misfires by its condition, the same way yours does. The jam the modded exes inject for NPCs is gone.
+- Ammo: a veteran loads the armor-piercing rounds he carries, and he spends them fight by fight.
+- Attachments: out of a fight, a stalker fits the scope, silencer or launcher he looted. A scoped stalker aims tighter from a stop, while a silenced one is heard closer in.
+- Gear: an artefact gives its carrier one combat edge by its class, less damage taken, tighter fire or more damage dealt. Binoculars and night vision extend his sight.
+  Carriers have a shimmer of warped air around them, and you can hunt them for what they carry.
 
 ### Mutants
 
-AlifeTactics gives every mutant the decision model the stalkers run, reading your reload, your aim, your perch, and your strafe, then answering the opening each one invites.
-Perch on high ground and the jumpers come up after you.
-Reload or turn your back near a burer and its gravity throw answers.
-The engine still drives every mutant.
-AlifeTactics scales its stats and commands the moves. The engine runs them itself.
-This is the strongest-grounded system in the mod.
-Every move traces to a line of GSC's monster design.
-The burer's gravity field, the dog's leaping bite, the boar's charge, the fracture's strike at a turned back, the bloodsucker's night hunt, the chimera's flank.
+Mutants run the same mind as stalkers, with no takeover. We keep X-Ray's mutant AI. The engine still moves every mutant, and we pick the moment and the move.
 
-#### Power
+#### General
 
-Power grows with the map's danger. A dog in Cordon barely changes while a chimera deep in the Zone is far deadlier.
-
-#### Wild
-
-Wild varies each ability value inside the species' own envelope. No two spawns read alike.
+A mutant's Intelligence rises with the danger of its map, and its Personality comes from its species.
+With Wild on, two mutants of a kind seldom fight alike.
+Mutants space their moves apart, and after one of their moves hits you, the pack gives you a moment before the next.
 
 #### Moves
 
-The leap family reads your perch, your aim, and your movement.
-Climb to high ground and it leaps up after you.
-Against a raised weapon it drops the wind-up and lunges before the shot. Against a reload or a turned back it strikes inside that opening.
-Keep moving and it steers in the air to follow you, or leaps at where you will be.
-Some leaps crouch first and warn you, others come with no warning at all, and the species decides which it favours. Two of its leaps never come within ten seconds of each other.
-A bloodsucker closes the gap with a leap of its own, then claws.
-A burer answers a reloading or turned-away player with its Gravity throw.
-Charge, Backstrike, Claw, Cloak, and Flee round out the set, each the creature's own.
+Every species page splits its moves into three kinds.
+- New moves are attacks vanilla never fires for the creature, built on parts X-Ray already carries: its jump, an unused rear strike, its run-away state.
+- Managed moves are attacks it already has, which AlifeTactics fires at the moment the fight calls for them.
+- Influenced moves are abilities whose numbers Wild spreads between individuals of one kind.
+
+The leap family is the largest new move. It reads your perch, your aim, your reload and your movement.
+- High leap springs up at you on a rock or a ledge.
+- Punishing leap strikes when you aim at it, reload, sprint or turn your back.
+- Hunting and Feral leap steer in the air after you. Feral leap gives no warning.
+- Catching and Cutoff leap jump to where you will be. Cutoff leap gives no warning.
+- Closing leap carries a bloodsucker to you before its claws strike.
+
+The other new moves answer a single opening.
+- Claw: a chimera or a lurker pounces at point blank. Both rest after each jump, where vanilla let them jump again at once.
+- Backstrike: a chimera, lurker, burer or controller spins on you when you get behind it.
+- Flee: a mutant near death runs when you are far enough away.
+
+The managed moves are the burer's gravity throw and the bloodsucker's cloak.
+The burer throws when you look away from it or cannot answer. The bloodsucker vanishes when you aim at it or hit it as it closes in.
+The influenced moves are the burer's gravity numbers and telekinesis, the controller's psi tube, stamina and aura, and the poltergeist's detection.
+
+GSC's monster design gives the burer its telekinetic strike and gravity field, and the bloodsucker its invisibility.
+It has the fracture strike at a man who turns his back, the opening Punishing leap reads.
+It calls the flesh a coward, and in AlifeTactics the flesh is the creature most likely to run [8].
 
 ---
 
 ## Sources
 
 - [8] GSC Game World internal AI design documents, pre-release, circa 2002-2006.
-  Ai.doc has the combat-improvements list, monstry.doc the creatures and their moves, Killing_NPC.doc the offline heal loop, traders.doc the trade economy.
-  The EFC tables hold the combat ratings and probability data: creature_courage and WeaponSuccessProbability.
+  Ai.doc has the combat-improvements list, and monstry.doc the creatures and their moves.
+  The EFC table creature_courage scores every creature and kind of human for attack and defence courage.
   Leaked in the "Koan's Gift" package, published on the Gameru.net forum, and catalogued on the STALKER wiki.
 - [9] Andrii Verpakhovskyi (original S.T.A.L.K.E.R. game designer), Eurogamer, reported by VideoGamer
   https://www.videogamer.com/news/original-stalker-a-life-so-advanced-that-players-were-constantly-outsmarted-by-ai/
+- [10] GSC Game World, AI technical brief for testers (Technical Brief_ai), from the same archive as [8].
+  Section 3 lists the attack and defence states, marked ready. Section 8 lists the characteristics of characters and monsters.
+- [11] GSC Game World, Stalker Strategies (ai/monsters), from the same archive as [8]: the sound types an enemy is found by, and the wounded stalker's drill.
+- [12] GSC Game World, from the same archive as [8]: FSM Strategies and Soldier rules hold the soldier squad's doctrine.
+  The offline AI holds the danger estimate by character type, and Ai.doc the character types.
