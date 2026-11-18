@@ -86,6 +86,7 @@
 
   Combat
     - Added Faction flavor. Each faction fights its own way, and whether a stalker routs, falls back, presses or plants is a chance set per faction.
+    - Fixed vanilla bug "monolith combat stance". Fighters on the vanilla Monolith combat scheme flip between crouch and idle far less often.
     Maneuvers
       - Changed maneuvers to run in every stalker fight near you, where they used to run only in yours. Each maneuver keys on the enemy who makes it real, and fights with mutants stay vanilla.
       - Added one shared budget for everything the mod starts near you, split between actions against you and actions against NPCs. A mass battle cannot flood either side.

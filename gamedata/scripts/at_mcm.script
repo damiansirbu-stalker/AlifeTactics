@@ -101,6 +101,7 @@ local defaults = {
     fix_heal_freeze        = true,
     fix_distant_hits       = true,
     fix_low_cover          = true,
+    fix_monolith_stance    = true,
     fix_heal_lists         = true,
     jam_enabled  = true,
     ammo_enabled = true,
@@ -275,6 +276,7 @@ local _key_to_tab = {
     fix_heal_freeze        = "vanilla_fixes",
     fix_distant_hits       = "vanilla_fixes",
     fix_low_cover          = "vanilla_fixes",
+    fix_monolith_stance    = "vanilla_fixes",
     fix_heal_lists         = "vanilla_fixes",
     jam_enabled         = "mechanics/jam",
     ammo_enabled        = "mechanics/ammo",
@@ -1054,6 +1056,7 @@ function on_mcm_load()
                     { id = "hdr_vf_combat", type = "desc", text = "ui_mcm_at_vf_hdr_combat", clr = {255, 200, 200, 200} },
                     { id = "fix_cover_posture", type = "check", val = 1, def = true, hint = "at_vf_cover_posture", ui_hook_functor = { at_mcm.render_locked_check } },
                     { id = "fix_low_cover", type = "check", val = 1, def = true, hint = "at_vf_low_cover", ui_hook_functor = { at_mcm.render_locked_check } },
+                    { id = "fix_monolith_stance", type = "check", val = 1, def = true, hint = "at_vf_monolith_stance", ui_hook_functor = { at_mcm.render_locked_check } },
 
                     { id = "hdr_vf_movement", type = "desc", text = "ui_mcm_at_vf_hdr_movement", clr = {255, 200, 200, 200} },
                     { id = "fix_hit_hold", type = "check", val = 1, def = true, hint = "at_vf_hit_hold", ui_hook_functor = { at_mcm.render_locked_check } },

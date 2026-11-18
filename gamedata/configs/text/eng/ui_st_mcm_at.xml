@@ -1041,6 +1041,12 @@
   <string id="ui_mcm_at_vf_low_cover_desc">
     <text>A stalker fires over low cover he can shoot across. The shot check reads eye height, not chest height. Runs with Maneuvers.</text>
   </string>
+  <string id="ui_mcm_at_vf_monolith_stance">
+    <text>Monolith combat stance</text>
+  </string>
+  <string id="ui_mcm_at_vf_monolith_stance_desc">
+    <text>Fighters on the vanilla Monolith combat scheme flip between crouch and idle far less often in a fight. Its four actions now count as combat actions for the state manager. Always on.</text>
+  </string>
   <string id="ui_mcm_at_vf_heal_lists">
     <text>Dropped heal lists</text>
   </string>
@@ -1079,7 +1085,7 @@
   </string>
   <!-- ==================== GEAR PAGE ==================== -->
   <string id="ui_mcm_at_gear_desc">
-    <text>Items a stalker carries become live combat edges, read from each item's own game data, so any artefact from any mod works. Gravity, chemical, and armour-plate artefacts cut the damage he takes, thermal artefacts tighten his fire, and electric and quest artefacts raise the damage he deals. Any single artefact tops out at 10 percent and never stacks, the strongest source wins, so gear tilts a fight and never decides one. Binoculars extend his sight range by day and night-vision by night, on engine builds with the per-stalker view-distance bind. A stalker with the air warping around him is carrying a real artefact, and killing him is how you get it.</text>
+    <text>Each item a stalker carries feeds one effect channel, read from the item's own game data, so any artefact from any mod works. Gravity, chemical, and armour-plate artefacts cut the damage he takes, thermal artefacts tighten his fire, and electric and quest artefacts raise the damage he deals. Any single artefact tops out at 10 percent and never stacks, the strongest artefact on a channel wins, so gear tilts a fight and never decides one. Binoculars extend his sight range by day and night-vision by night, on engine builds with the per-stalker view-distance bind. A stalker with the air warping around him is carrying a real artefact, and killing him is how you get it.</text>
   </string>
   <string id="ui_mcm_at_gear_gear_enabled">
     <text>Carried items empower stalkers</text>
@@ -1097,13 +1103,13 @@
     <text>Outgoing damage</text>
   </string>
   <string id="ui_mcm_at_gear_gear_dealt_enabled_desc">
-    <text>On: charged and special artefacts raise the damage their carrier's shots deal. Off: no gear damage bonus.</text>
+    <text>On: charged and special artefacts raise the damage their carrier's shots deal. Off: the outgoing damage channel is off.</text>
   </string>
   <string id="ui_mcm_at_gear_gear_disp_enabled">
     <text>Aim steadiness</text>
   </string>
   <string id="ui_mcm_at_gear_gear_disp_enabled_desc">
-    <text>On: thermal artefacts tighten their carrier's shot grouping. Off: no gear accuracy bonus.</text>
+    <text>On: thermal artefacts tighten their carrier's shot grouping. Off: the aim steadiness channel is off.</text>
   </string>
   <string id="ui_mcm_at_gear_gear_regen_enabled">
     <text>Health regeneration</text>
