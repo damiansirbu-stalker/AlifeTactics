@@ -955,7 +955,7 @@
     <text>Grenade dodge radius</text>
   </string>
   <string id="ui_mcm_at_danger_fix_grenade_far_desc">
-    <text>The distance deciding whether a stalker dodges a grenade or only turns to face it was read on the wrong scale in the base game. The dodge now covers its intended radius around the stalker.</text>
+    <text>A stalker dodges a grenade that lands near him and turns to face one that lands farther off. AlifeTactics now sets the distance that splits the two.</text>
   </string>
   <string id="ui_mcm_at_vf_hdr_corpse">
     <text>Corpse investigation</text>
