@@ -42,7 +42,12 @@ function is_participant(npc)
     return xcreature.get_community(npc) ~= ZOMBIED
 end
 
---- The one Intelligence roll of a decision - the chance of the good answer at this opening; the caller spends the opening either way.
+--- The Intelligence chance of a stalker, for a caller that checks it and its inverse in the same decision.
+function get_intelligence(npc)
+    return _compute_intelligence(npc)
+end
+
+--- The Intelligence check of a decision - the chance of the good answer at this opening; the caller spends the opening either way.
 function check_intelligence(npc)
     return math_random() < _compute_intelligence(npc)
 end

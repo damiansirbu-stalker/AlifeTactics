@@ -19,7 +19,7 @@ local POLTERGEIST     = "poltergeist"
 local AURA_NAMES      = { "psy", "radiation", "fire" }
 local GATE            = "int, pers"
 local GATE_WILD       = "int, pers, wild"
--- The inverse gate: a move taken on an Intelligence MISS (panic). inv_ is the AlifePlus trait prefix for 1 - value (ap_ext_const.script INV_).
+-- The inverse gate: a panic move checks 1 - Intelligence on its own. inv_ is the AlifePlus trait prefix for 1 - value (ap_ext_const.script INV_).
 local GATE_PANIC      = "inv_int, pers, wild"
 local MOVE_HIGH_LEAP      = "high_leap"
 local MOVE_PUNISHING_LEAP = "punishing_leap"
@@ -57,14 +57,14 @@ local MOVE_KEYS = {
     "cloak", "gravity_attack", "claw", "backstrike",
 }
 
--- The per-beat decision chain the selection shuffles and walks on an Intelligence PASS; claw checks on contact, not here.
+-- The per-beat decision chain the selection shuffles and walks; claw checks on contact, not here.
 local DECISION_MOVES = {
     "high_leap", "punishing_leap", "hunting_leap", "feral_leap", "catching_leap", "cutoff_leap", "closing_leap",
-    "gravity_attack", "cloak", "backstrike",
+    "gravity_attack", "cloak", "backstrike", "flee",
 }
 
--- The moves checked on an Intelligence MISS instead: panic is the failure to read the fight (user 2026-11-15), so a smart mutant never flees.
-local PANIC_MOVES = { "flee" }
+-- The panic moves: each checks 1 - Intelligence on its own, so a dull mutant flees more (user 2026-11-15); the others need the Intelligence check passed.
+local PANIC_MOVES = { flee = true }
 
 -- The leaps a species may carry; any one of them makes the mutant a leaper that rolls its leap numbers at adoption.
 local LEAP_MOVES = { "high_leap", "punishing_leap", "hunting_leap", "feral_leap", "catching_leap", "cutoff_leap", "closing_leap" }
@@ -975,9 +975,9 @@ local function _log_cooldown(rec, move, key)
     if at_debug.is_on() then at_debug.debug("[MUT] BLOCK id=%d move=%s cause=cooldown key=%s", rec.id, move, key) end
 end
 
--- The filter before the walk: the move is in this mutant's repertoire, its page row is on, and its cooldown keys are free.
--- Three table reads, so a filtered move spends no candidate slot.
-local function _filter_moves(rec, now)
+-- The filter before the walk: the move is in this mutant's repertoire, its page row is on, its cooldown keys are free, then the Intelligence side.
+-- A panic move draws its inverse check last, so a filtered move draws nothing; a filtered move spends no candidate slot.
+local function _filter_moves(rec, now, int_chance, int_pass)
     local buf = rec.move_buf
     local count = 0
     for i = 1, #DECISION_MOVES do
@@ -986,7 +986,7 @@ local function _filter_moves(rec, now)
         local key = wanted and _check_ready(rec, move, now)
         if key then
             _log_cooldown(rec, move, key)
-        elseif wanted then
+        elseif wanted and (PANIC_MOVES[move] and math_random() >= int_chance or not PANIC_MOVES[move] and int_pass) then
             count = count + 1
             buf[count] = move
         end
@@ -994,25 +994,7 @@ local function _filter_moves(rec, now)
     return count
 end
 
--- One panic move on an Intelligence MISS: repertoire, toggle and cooldown as table reads, then its own premise. True when it fired.
-local function _try_panic_move(mob, rec, move, now)
-    if not (rec.repertoire[move] and _check_toggle(rec, move)) then return false end
-    local key = _check_ready(rec, move, now)
-    if key then
-        _log_cooldown(rec, move, key)
-        return false
-    end
-    return TRY[move](mob, rec, move, now)
-end
-
--- The panic walk on an Intelligence MISS over PANIC_MOVES; the first that fires ends the beat.
-local function _select_panic(mob, rec, now)
-    for i = 1, #PANIC_MOVES do
-        if _try_panic_move(mob, rec, PANIC_MOVES[i], now) then return end
-    end
-end
-
--- The PASS selection over the count survivors of _filter_moves: shuffle them in place (xmath.shuffle_back), then check up to [select] candidates.
+-- The selection over the count survivors of _filter_moves: shuffle them in place (xmath.shuffle_back), then check up to [select] candidates.
 -- The FIRST that fires consumes the beat and breaks; the cap counts condition checks only.
 local function _select_move(mob, rec, now, count)
     local buf = rec.move_buf
@@ -1044,8 +1026,8 @@ end
 
 local _gate_probe = {}
 
--- The one 600ms lane runs upkeep and samples every beat, then (if no committed window holds) rolls Intelligence once.
--- A pass builds the full memo and runs the move selection; a miss runs only the panic walk (flee), the inverse gate.
+-- The one 600ms lane runs upkeep and samples every beat, then (if no committed window holds) checks Intelligence once.
+-- A pass admits the offensive moves and builds the memo they read; flee checks its inverse on its own, pass or miss.
 local function _update_mutant(mob, rec, now)
     rec.tick_now = now
     rec.seen_ms = now
@@ -1087,18 +1069,18 @@ local function _update_mutant(mob, rec, now)
     memo.dist = dist
     memo.dist_sqr = dist_sqr
     memo.is_actor = is_actor
-    if not _check_intelligence(rec) then
-        if at_debug.is_on() then at_debug.debug("[MUT] PASS id=%d int", rec.id) end
-        _select_panic(mob, rec, now)
-        return
-    end
-    local count = _filter_moves(rec, now)
+    local int_chance = _compute_intelligence(rec)
+    local int_pass = math_random() < int_chance
+    if not int_pass and at_debug.is_on() then at_debug.debug("[MUT] PASS id=%d int", rec.id) end
+    local count = _filter_moves(rec, now, int_chance, int_pass)
     if count == 0 then return end
-    memo.aiming = xcombat.is_enemy_watching(enemy, mob, _tun_num.aim_cone)
-    memo.vulnerable = _check_enemy_vulnerable(mob, enemy, is_actor, now)
-    if rec.leaper then
-        memo.vel_x, memo.vel_z = _get_enemy_velocity(rec, enemy, is_actor)
-        memo.moving = rec.moved
+    if int_pass then
+        memo.aiming = xcombat.is_enemy_watching(enemy, mob, _tun_num.aim_cone)
+        memo.vulnerable = _check_enemy_vulnerable(mob, enemy, is_actor, now)
+        if rec.leaper then
+            memo.vel_x, memo.vel_z = _get_enemy_velocity(rec, enemy, is_actor)
+            memo.moving = rec.moved
+        end
     end
     _select_move(mob, rec, now, count)
 end
@@ -1417,16 +1399,12 @@ function get_mutant_record(id)
     return _states[id]
 end
 
---- The species' per-beat decided moves as a set (the DECISION_MOVES and PANIC_MOVES the species carries), for the manifestation coverage harness.
+--- The species' per-beat decided moves as a set (the DECISION_MOVES the species carries), for the manifestation coverage harness.
 function get_species_moves(species)
     local set = {}
     if not species then return set end
     for i = 1, #DECISION_MOVES do
         local move = DECISION_MOVES[i]
-        if _move_species[move] and _move_species[move][species] then set[move] = true end
-    end
-    for i = 1, #PANIC_MOVES do
-        local move = PANIC_MOVES[i]
         if _move_species[move] and _move_species[move][species] then set[move] = true end
     end
     return set

@@ -468,16 +468,20 @@ local function _add_window_start(state, row)
     state.window_starts:add(row.name)
 end
 
--- The filter before the walk, the at_mutants _filter_moves twin: the die side (a panic row walks only on a miss), scope, toggle, repertoire, palette, window.
+-- The Intelligence side of a row: a fighting row needs the check passed, a panic row (flee) draws 1 - Intelligence.
+local function _check_int_block(row, int_chance, int_pass)
+    if row.panic then return not at_core.check_chance(1 - int_chance) and "inv_int" or nil end
+    return not int_pass and "int" or nil
+end
+
+-- The filter before the walk, the at_mutants _filter_moves twin: scope, toggle, repertoire, palette, window, then the Intelligence side drawn last.
 -- All table or memo reads, so a filtered row spends no candidate slot; each filtered row names its stage in the rows trace.
-local function _filter_rows(npc, state, memo, rows_trace, panic)
+local function _filter_rows(npc, state, memo, rows_trace, int_chance, int_pass)
     local wanted = 0
     for i = 1, #CATALOG do
         local row = CATALOG[i]
         local stage
-        if (row.panic == true) ~= panic then
-            stage = panic and "int" or "panic"
-        elseif row.vs_actor then
+        if row.vs_actor then
             if memo.actor_fight then stage = "scope" end
         elseif not memo.in_gate then
             stage = "scope"
@@ -486,6 +490,7 @@ local function _filter_rows(npc, state, memo, rows_trace, panic)
         if not stage and not state.repertoire[row.name] then stage = "repertoire" end
         if not stage and not _check_palette(row, npc, memo) then stage = "palette" end
         if not stage and _check_window_limit(state, row) then stage = "window" end
+        if not stage then stage = _check_int_block(row, int_chance, int_pass) end
         if not stage then
             wanted = wanted + 1
             _order[wanted] = i
@@ -496,18 +501,19 @@ local function _filter_rows(npc, state, memo, rows_trace, panic)
     return wanted
 end
 
--- The move selection, the mutant side's twin: Intelligence rolls ONCE at the top; a pass walks the fighting rows, a miss the panic rows (flee).
+-- The move selection, the mutant side's twin: the Intelligence chance is read once; the fighting rows need its check passed, flee its own inverse check.
 -- Then filter, shuffle the survivors (xmath.shuffle_back) and check the conditions of up to [at_maneuvers] candidates rows, the first that picks winning.
 local function _select_maneuver(npc, enemy, state, tg)
     if not at_faction.is_participant(npc) then return nil end
     if #CATALOG == 0 then return nil end
     local memo = _reset_memo(state, npc, enemy)
     local tracing = at_debug.is_on()
-    local panic = not at_faction.check_intelligence(npc)
+    local int_chance = at_faction.get_intelligence(npc)
+    local int_pass = at_core.check_chance(int_chance)
     local walk_timer = xprofiler.new_if(tracing)
     walk_timer:start()
     local rows_trace = tracing and {} or nil
-    local wanted = _filter_rows(npc, state, memo, rows_trace, panic)
+    local wanted = _filter_rows(npc, state, memo, rows_trace, int_chance, int_pass)
     xmath.shuffle_back(_order, wanted)
     local limit = CANDIDATES
     if limit > wanted then limit = wanted end
