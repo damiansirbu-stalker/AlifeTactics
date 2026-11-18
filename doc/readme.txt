@@ -61,7 +61,7 @@ Combat makes stalkers reload behind cover, fall back to cover when hurt, turn on
 Effectiveness makes rank show in every shot. A veteran groups tighter, holds a strafer and leads a runner, and allies stop killing each other in a crossfire.
 Perception lets stalkers hear your steps and your reload before they see you, take cover when sniped from far off, turn on the man who shot them and notice a missed knife swing.
 Mechanics lets stalkers heal with the medkits they carry, fire the armour-piercing rounds they scavenged, mount the scopes they loot and jam only from real wear.
-An artefact gives its carrier one combat edge, and the air warps around him.
+An artefact feeds its carrier one effect channel, and the air warps around him.
 Mutants decide on Intelligence by map danger and Personality by species, and Wild varies each one.
 They exploit your vulnerabilities and your bad decisions with new leaps, claws and rear strikes.
 Fixes to Vanilla make the unfinished danger reactions, corpse search, targeting and healing work.
@@ -75,6 +75,7 @@ In vanilla he re-plans every moment, and a fight turns into strafing and cover-h
 General:
 Each decision takes one Intelligence roll, and a veteran reads the moment right more often.
 A hurt Duty trooper falls back firing, a hurt bandit runs for home, and a Monolith fighter holds.
+  Hit reaction hold: a stalker hit while standing no longer slides across the ground.
 
 Maneuvers:
 A maneuver takes a stalker over from X-Ray's planner for one move the engine can't make or never decides on, and it hands him back once the move is done.
@@ -124,7 +125,7 @@ Hostile pairs and your own bullets still do full damage.
 Reaction:
 Reaction is how fast a stalker's gun can follow you.
 It closes the strafe and sprint tricks that beat vanilla aim.
-  Tracking Speed: a veteran's barrel follows you faster. If you strafe, it stays on you.
+  Tracking Speed: a veteran's barrel follows you faster, and when you strafe it stays on you.
   Target Lead: he aims ahead of a runner by his bullet's real flight time. A legend will hit you on the run, while a rookie leads too far and misses in front of you.
 
 Discipline:
@@ -137,65 +138,71 @@ This page will let a long-range stalker answer and open fire as far as his weapo
 
 Perception
 
-Perception is what a stalker hears and sees, and how he reacts to it.
-Every sound you make now counts. A careful crouch keeps you hidden, a careless sprint gives you away, and in a firefight your noise tells him where to look.
-AlifeTactics patches these reactions into whichever danger script your modpack ships.
+Perception is what a stalker notices around him and how he reacts to it.
+In vanilla a stalker who has not seen you lately drops most of what he hears from you.
+AlifeTactics makes the whole soundscape matter, your gunfire, your reloads and the calls of mutants nearby, and it adds new sound events for your footsteps and landings.
+The system stays fair, because a sound is never a confirmed enemy, a stalker who hears you only walks over to check the spot, and a careful crouch keeps you silent.
+His eyes follow his rank, and darkness and cover still hide you.
+It all runs on X-Ray's own senses and on the danger scheme your modpack ships.
 
 Sound:
-In vanilla, a stalker who hasn't seen you lately drops your sounds, even a reload behind his back.
-AlifeTactics lets a hostile stalker hear you, and he answers with the engine's cover and search.
-  Neutral Gunfire Alert: a stray bullet of yours alerts a neutral or friend, who won't turn hostile.
-  Movement Noise: a hostile hears your steps by stance, surface and weather, and a crouch is silent. A walk turns a standing hostile toward you, and a sprint or a jump landing sends him over to check.
-  Handling Noise: your reload or empty click brings him over, and using an item turns him toward you.
+A hostile stalker may hear you before he ever sees you.
+Hearing and sight are separate senses, and a sound only sends him to check the spot.
+The engine runs its own cover and search on what he heard.
+  Neutral Gunfire Alert: a stray bullet of yours that hits near a neutral or a friend puts him on alert, and he moves to cover facing the impact without turning hostile.
+  Movement Noise: your steps carry by stance, surface and weather. A walk turns a standing hostile toward you, and a sprint or a hard landing sends him over to check.
+  Handling Noise: a reload or an empty click brings him over, and using an item turns him toward you.
   Creature Awareness: a standing stalker glances at a mutant he hears nearby and keeps his post.
 
 Vision:
-Vision is how fast a stalker turns a glimpse into a confirmed threat, and how far out he starts to notice one. Both scale with rank on the engine's own visual memory.
-  Vision Speed: a veteran confirms you sooner, and a rookie matches your setup's baseline.
-  Vision Range: a veteran starts noticing you from farther out, while light, darkness and cover still hide you from him exactly as your own setup decides.
+Vision is how fast a stalker spots a target, and how far out he starts to notice one.
+  Vision Speed: a veteran spots you sooner and from farther out, while a rookie sees as in vanilla, and darkness, light and cover still hide you as your setup decides.
 
 Danger:
-Danger is the vanilla scheme that makes a stalker react to a hit, a corpse or a grenade. AlifeTactics repairs its bugs, listed under Fixes, and adds the reactions below.
-  Distant Hits: a stalker sniped from far off turns and seeks cover, where vanilla left him standing.
-  Attempted Murder: if your knife swing misses the stalker in front of you, he gets up, raises his weapon and faces you, and a hostile who then sees you fights.
-  Player Target Pull: vanilla stalkers turn on you before any other enemy. AlifeTactics removes that player bias, and you count like any other fighter in the fight.
+Danger is how a stalker reacts to a hit, a body or a grenade.
+AlifeTactics fixes its broken reactions and adds new ones.
+  Distant Hits: a stalker sniped from far off turns and seeks cover.
+  Attempted Murder: if your knife swing misses the stalker in front of you, he gets up and faces you with his weapon raised, and a hostile who then sees you fights.
 
 Mechanics
 
-AlifePlus fills the Zone with a living economy of trade and loot, and AlifeTactics makes everything a stalker has gathered count once the shooting begins.
-Mechanics are the game rules behind a stalker's kit, from his medkits and the jams in his gun to the ammunition he loads and the artefacts in his pockets.
-In vanilla many of these rules don't run for NPCs, and AlifeTactics makes them work.
+Mechanics are the game rules behind a stalker's kit.
+In vanilla many of these rules never run for NPCs, and AlifeTactics makes them work.
+AlifePlus fills the Zone with a living economy of trade and loot, and with AlifeTactics everything a stalker has gathered counts once the shooting starts.
+Every item in his kit is real and can run out.
+A well-stocked veteran is more dangerous than a scavenger with empty pockets.
 
 Healing:
-A hurt stalker heals with the medkits and bandages he carries, and pauses while an enemy is on him.
-In vanilla the healing script reads empty item lists, and a bleeding man died with full pockets.
-  Heal Rate: how fast a medkit brings him back.
-  Healing Charge: with empty pockets, some stalkers of every rank still carry one spare heal.
-  Animations: out of combat a hurt man limps, and a healing one plays the medkit or bandage gesture.
+A hurt stalker heals with the medkits and bandages he carries.
+He stops healing while an enemy is on him.
+Some stalkers of every rank still carry one spare heal when their pockets are empty.
+  Limping animation: a badly hurt stalker near you limps out of combat and stops in a fight.
+  Healing animation: a stalker who starts a heal standing still plays the medkit or bandage gesture.
 
 Jamming:
-In X-Ray every NPC rolls a fake jam from the ammo he spends, and that per-rank roll has nothing to do with the real condition of the weapon in his hands.
-Even a full-condition rifle chokes every few rounds and he reloads a half-full magazine. AlifeTactics removes the fake jam, and a stalker reloads only when his magazine is spent.
+On the modded exes an NPC's gun jams from a fake roll, whatever its condition.
+  Suppress NPC jams: his gun jams only from real wear, and your own jams stay as they are.
 
 Ammo:
-A veteran loads the armour-piercing rounds he carries, with their real ballistics, and the ammunition he has scavenged decides how dangerous he is to you.
-Once his own supply runs out, he goes back to the standard rounds every stalker fires.
+A veteran fights with the rounds he really carries.
+  NPC armor-piercing ammo: a veteran loads the armour-piercing rounds he carries, and after each fight he may use up a box of them. Once his supply runs out, he goes back to standard rounds.
 
 Attachments:
-A stalker fits the scopes, silencers and grenade launchers he carries onto his own guns once the fight is over and his hands are free, at the next quiet moment.
-With a scope mounted he shoots tighter once he stops to aim.
-Your companion mounts what he loots, and whatever you hand him stays exactly as you gave it.
+A stalker fits the scopes, silencers and grenade launchers he carries onto his own pistol or rifle.
+He waits for a quiet moment out of the fight.
+  NPC attachment mounting: a looted scope shows on his rifle, and he shoots tighter with it once he stops to aim. Whatever you hand your companion stays as you gave it.
 
 Gear:
-An NPC has no use for most artefact properties, like carry weight or stamina. AlifeTactics translates every artefact the same way, by its class and tier.
-The anomaly class picks one combat edge and the tier sets its strength. Only the strongest counts, and a cap keeps any one artefact from deciding a fight.
-  Damage Resistance: gravity artefacts and armour plates cut the damage he takes.
-  Outgoing Damage: electric and quest artefacts make his shots hit harder.
-  Aim Steadiness: thermal artefacts tighten his grouping.
-  Health Regeneration: chemical artefacts heal him slowly over time.
-  Artefact Distortion: the air warps around a carrier, and killing him gets you the artefact.
-  Binocular Spotters: binoculars let him see farther by day.
-  Night-vision at Night: a night-vision lamp lets him see farther after dark.
+In vanilla an artefact works only on the player's belt, and an NPC gets nothing from it.
+AlifeTactics translates each artefact into one effect channel an NPC can use, chosen by its anomaly class, and the artefact's tier sets how strong it gets.
+The system stays fair, because only the strongest artefact counts on a channel, a cap keeps it from deciding a fight, and every carrier gives himself away.
+  Damage resistance: gravity artefacts and armour plates cut the damage he takes.
+  Outgoing damage: electric and quest artefacts make his shots hit harder.
+  Aim steadiness: thermal artefacts tighten his grouping.
+  Health regeneration: chemical artefacts heal him slowly over time.
+  Artefact distortion: the air warps around a carrier, and killing him gets you the artefact.
+  Binocular spotters: binoculars let him see farther by day.
+  Night-vision at night: a night-vision lamp lets him see farther after dark.
 
 Mutants
 
