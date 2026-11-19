@@ -1228,7 +1228,7 @@
     <text>Restores every AlifeTactics setting to its default. Use it after an update that changed the menu.</text>
   </string>
   <string id="ui_mcm_at_development_reset_warning">
-    <text>Warning: save or discard pending MCM changes first, otherwise they override the reset on the next Accept.</text>
+    <text>Warning: save or discard pending MCM changes first, otherwise they override the reset on the next Apply.</text>
   </string>
   <string id="st_at_reset_all_done">
     <text>AlifeTactics: all settings restored to defaults.</text>
