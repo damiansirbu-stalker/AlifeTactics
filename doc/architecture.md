@@ -283,6 +283,8 @@ Does: seizes one stalker through the GOAP graft for one committed, time-boxed mo
 The catalog rows are Strategies: each supplies `check_need`, `find_destination`, `update` and `check_end` (`at_maneuvers_config.script`).
 Changes: destination, fire intent, posture and movement, set once and re-applied on the update check.
 Stops: one open maneuver per stalker, bounded by the impose budget, ended on arrival, the cap or a broken premise, cleared on a wound, death and despawn.
+In an emission or a psi storm (`xlevel.is_surge()`) with Emission override on (`combat_emission_override`), no maneuver starts and the open one ends with reason `surge`.
+Maneuvers is the only AT system that writes a destination (`xcombat.set_destination`). The hit hold keeps running, because `_update_hold()` runs before the begin and end checks.
 
 ```
 begin (try_maneuver -> _try_begin_maneuver):
@@ -506,6 +508,9 @@ Stamp grades, weakest first:
 - `_is_squad_engaged` skips it while a squadmate holds a live enemy.
 - The install adds the monolith sub-scheme's four actions to `state_mgr.combat_action_ids`, and patches three rx_ff members: the friendly-fire freeze, the over-hold and the blocked-shot lane test.
 - Distant hits (`danger_hit_bypass`) answers a hit danger past the ignore distance, after the relation, alive and combat-ignore checks.
+- Emission override (`danger_emission_override`): in an emission or a psi storm, `_has_admitted_stamp` returns false and Distant hits is off.
+  A stamp then counts only beside a real danger, as vanilla reads it (`xr_danger.script:262-315,693-701`), and no stamp walks a sheltered stalker out.
+  Vanilla's hit and impact stamps feed it (`:96-133`).
 - Attempted murder (`danger_knife_miss`) is the Sound knife stamp, without a relation check. A neutral or friend takes the Neutral gunfire admission.
 
 The DLTX `mod_xr_danger_at.ltx` deletes the dead perceive keys of the `EDangerPerceiveType` name collision (`danger_object.h`). Detection distances come from the winning xr_danger.ltx.

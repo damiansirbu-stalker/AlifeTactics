@@ -86,6 +86,7 @@ However many stalkers fight you, only a few of them make a move on you at once.
   Retreat: hurt and exposed, he falls back to cover still firing.
   Kite: an enemy inside his gun's minimum range makes him back off down a clear lane, still firing.
   Pickoff: outranging an enemy who isn't pressing him, he plants and picks him off with single shots, and he breaks off the moment you aim at him or close in.
+  Emission Override: during an emission or a psi storm no maneuver starts and the one in progress ends, so stalkers stay in shelter.
 
 Commitment:
 Commitment holds a stalker to a plan that works, where vanilla drops it at the smallest change, a teammate crossing his line or a better cover spot a step away.
@@ -164,6 +165,7 @@ Danger is how a stalker reacts to a hit, a body or a grenade.
 AlifeTactics fixes its broken reactions and adds new ones.
   Distant Hits: a stalker sniped from far off turns and seeks cover.
   Attempted Murder: if your knife swing misses the stalker in front of you, he gets up and faces you with his weapon raised, and a hostile who then sees you fights.
+  Emission Override: during an emission or a psi storm a stalker who is not fighting stays put after a noise, a hit or a nearby bullet, and Distant Hits is off.
 
 Mechanics
 

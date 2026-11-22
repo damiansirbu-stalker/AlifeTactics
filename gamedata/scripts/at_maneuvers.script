@@ -715,6 +715,10 @@ local function _try_begin_maneuver(npc, state, tg)
     if enemy:id() ~= AC_ID and not IsStalker(enemy) then return end
     state.enemy_id = enemy:id()
 
+    if cfg.combat_emission_override and xlevel.is_surge() then
+        state.stall_set = false state.repeat_situation = nil
+        return
+    end
     if _check_seize_block(npc) then return end
 
     local maneuver, dest = _select_maneuver(npc, enemy, state, tg)
@@ -790,6 +794,7 @@ end
 
 local function _try_end_maneuver(npc, state, tg)
     if not _is_managed(npc) then _stop_maneuver(state, tg, "disabled") return end
+    if cfg.combat_emission_override and xlevel.is_surge() then _stop_maneuver(state, tg, "surge") return end
     local enemy
     if state.maneuver and state.maneuver_at then
         enemy = xcombat.resolve_enemy(state.enemy_id)

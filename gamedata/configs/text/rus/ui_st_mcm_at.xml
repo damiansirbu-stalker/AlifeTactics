@@ -1233,4 +1233,4 @@
   <string id="st_at_reset_all_done">
     <text>AlifeTactics: все настройки сброшены к значениям по умолчанию.</text>
   </string>
-</string_table>
+<string id="ui_mcm_at_combat_combat_emission_override"><text>Режим выброса</text></string><string id="ui_mcm_at_combat_combat_emission_override_desc"><text>Во время выброса или пси-шторма AlifeTactics не начинает манёвров и прерывает текущий. Это касается только AlifeTactics, а игра по-прежнему уводит сталкеров в укрытие.</text></string><string id="ui_mcm_at_danger_danger_emission_override"><text>Режим выброса</text></string><string id="ui_mcm_at_danger_danger_emission_override_desc"><text>Во время выброса или пси-шторма сталкер вне боя остаётся на месте после шума, попадания или пули рядом, если не чует настоящей угрозы. Дальние попадания до конца выброса отключены. Это касается только AlifeTactics.</text></string></string_table>

@@ -708,6 +708,12 @@
   <string id="ui_mcm_at_combat_combat_ignore_companions_desc">
     <text>No maneuver takes a companion over, and a companion mutant is left alone too.</text>
   </string>
+  <string id="ui_mcm_at_combat_combat_emission_override">
+    <text>Emission override</text>
+  </string>
+  <string id="ui_mcm_at_combat_combat_emission_override_desc">
+    <text>During an emission or a psi storm, AlifeTactics starts no maneuver and ends the one in progress. This covers only AlifeTactics, and the game still sends stalkers to shelter.</text>
+  </string>
   <string id="ui_mcm_at_combat_combat_hit_hold">
     <text>Hit reaction hold</text>
   </string>
@@ -796,6 +802,12 @@
   </string>
   <string id="ui_mcm_at_danger_danger_knife_miss_desc">
     <text>A stalker in front of you notices a knife swing that misses him within 3 m. He gets up, raises his weapon and faces you, and a hostile who then sees you fights. A neutral or friend reacts only while Neutral gunfire alert is on.</text>
+  </string>
+  <string id="ui_mcm_at_danger_danger_emission_override">
+    <text>Emission override</text>
+  </string>
+  <string id="ui_mcm_at_danger_danger_emission_override_desc">
+    <text>During an emission or a psi storm, a stalker who is not fighting stays put after a noise, a hit or a bullet that lands near him, unless he senses a real threat. Distant hits is off until it ends. This covers only AlifeTactics.</text>
   </string>
   <string id="ui_mcm_at_danger_danger_neutral_gunfire">
     <text>Neutral gunfire alert</text>

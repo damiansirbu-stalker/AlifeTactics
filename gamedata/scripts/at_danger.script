@@ -7,7 +7,7 @@ local math_random, tonumber = math.random, tonumber
 local time_global = time_global
 local IsStalker, IsMonster, IsWounded = IsStalker, IsMonster, IsWounded
 
-local _enabled = { hit_bypass = true, neutral_gunfire = true }
+local _enabled = { hit_bypass = true, neutral_gunfire = true, emission_override = true }
 
 local danger_ini = ini_file("ai_tweaks\\xr_danger.ltx")
 DangerInertion = utils_data.collect_section(danger_ini,"danger_inertion",true)
@@ -214,7 +214,8 @@ local function is_danger(npc,best_danger,script)
 	end
 
 	-- A hit that struck home is proof of range: an enemy's hit counts past the ignore distance, and only past that.
-	if _enabled.hit_bypass and best_danger:perceive_type() == danger_object.hit then
+	if _enabled.hit_bypass and best_danger:perceive_type() == danger_object.hit
+		and not (_enabled.emission_override and xlevel.is_surge()) then
 		if dbg then at_debug.debug("hit-type bypass npc=%s src=%s", npc:name(), best_danger_object:name()) end
 		return true
 	end
@@ -250,6 +251,8 @@ end
 local function _has_admitted_stamp(npc)
 	local id = npc:id()
 	if not check_script_danger(id) then return false end
+	-- In an emission a stamp counts only beside a real danger, as vanilla reads it (xr_danger.script:262-315,693-701).
+	if _enabled.emission_override and xlevel.is_surge() then return false end
 	if _enabled.neutral_gunfire then return true end
 	local stamp = script_danger[id]
 	if stamp.id ~= AC_ID or not db.actor then return true end
@@ -994,6 +997,7 @@ local function _refresh_log()
 	if at_mcm then
 		_enabled.hit_bypass      = at_mcm.get_config("danger_hit_bypass")      ~= false
 		_enabled.neutral_gunfire = at_mcm.get_config("danger_neutral_gunfire") ~= false
+		_enabled.emission_override = at_mcm.get_config("danger_emission_override") ~= false
 	end
 end
 

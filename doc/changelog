@@ -1,4 +1,13 @@
 1.3.1-snapshot
+  Emission override for maneuvers and danger reactions
+    Emission override keeps AlifeTactics from pulling stalkers out of shelter in an emission or a psi storm, with a switch on Maneuvers and on Danger.
+
+  Combat
+    Maneuvers
+      - Added Emission override. During an emission or a psi storm no maneuver starts and the one in progress ends. A separate toggle, default on.
+  Perception
+    Danger
+      - Added Emission override. During an emission or a psi storm a calm stalker stays put after a noise, a hit or a nearby bullet, and Distant hits is off. A separate toggle, default on.
 
 1.3.0
   Mutant combat, a shared decision model, and sharper stalker senses
