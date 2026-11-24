@@ -963,12 +963,6 @@
   <string id="ui_mcm_at_danger_fix_stale_memory_desc">
     <text>A stalker attacked a second time turned to where the first attacker had stood, and only the first corpse he searched played the search animation. The memory of each danger now clears at its end.</text>
   </string>
-  <string id="ui_mcm_at_danger_fix_grenade_far">
-    <text>Grenade dodge radius</text>
-  </string>
-  <string id="ui_mcm_at_danger_fix_grenade_far_desc">
-    <text>A stalker dodges a grenade that lands near him and turns to face one that lands farther off. AlifeTactics now sets the distance that splits the two.</text>
-  </string>
   <string id="ui_mcm_at_vf_hdr_corpse">
     <text>Corpse investigation</text>
   </string>

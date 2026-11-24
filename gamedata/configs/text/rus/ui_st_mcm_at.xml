@@ -951,12 +951,6 @@
   <string id="ui_mcm_at_danger_fix_stale_memory_desc">
     <text>—талкер, атакованный второй раз, поворачивалс€ туда, где сто€л первый нападавший, и только первый осмотренный труп получал анимацию осмотра. “еперь пам€ть о каждой опасности очищаетс€ в еЄ конце.</text>
   </string>
-  <string id="ui_mcm_at_danger_fix_grenade_far">
-    <text>–адиус уклонени€ от гранаты</text>
-  </string>
-  <string id="ui_mcm_at_danger_fix_grenade_far_desc">
-    <text>—талкер уклон€етс€ от гранаты, котора€ падает р€дом с ним, и поворачиваетс€ к той, что падает дальше. “еперь AlifeTactics задаЄт дистанцию, котора€ раздел€ет эти два случа€.</text>
-  </string>
   <string id="ui_mcm_at_vf_hdr_corpse">
     <text>ќсмотр трупов</text>
   </string>

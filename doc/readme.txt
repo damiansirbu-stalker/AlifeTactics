@@ -256,7 +256,7 @@ Fixes
 
 Vanilla leaves many combat behaviours broken, and AlifeTactics carries more than 30 fixes for them.
 Each fix is listed on the Fixes tab, and these are the ones you notice.
-  Danger scheme: a sniped stalker takes cover, knows his shooter, answers his newest attacker, dodges grenades at full radius, holds fire only for a friend in his line and relaxes after the fight.
+  Danger scheme: a sniped stalker takes cover, knows his shooter, answers his newest attacker, holds fire only for a friend in his line and relaxes after the fight.
   Corpse investigation: stalkers search every corpse they find, every time.
   Target selection: a hit stalker turns on his shooter, and NPCs weigh you like any other enemy.
   Accuracy: rank sets each stalker's spread, where vanilla gave all of them one.

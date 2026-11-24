@@ -11,6 +11,9 @@
     Danger
       - Added Emission override. During an emission or a psi storm a calm stalker stays put after a noise, a hit or a nearby bullet, and Distant hits is off. A separate toggle, default on.
 
+  Fixes
+    - Removed the Grenade dodge radius row, because vanilla already dodges a grenade across the same radius.
+
 1.3.0
   Mutant combat, a shared decision model, and sharper stalker senses
     Mutants now fight with new and revived moves, leaps, a claw, a rear strike, a gravity throw and a cloak, each taken when you give an opening.
