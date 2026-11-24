@@ -12,7 +12,7 @@ local _levels = xlog.get_levels()
 function at_debug.update_config()
     log.set_level(at_mcm.get_config("log_level") or "WARN")
     _lvl = log.get_level() or 0
-    log._logger.flush_on_level = at_mcm.get_config("log_flush") and _levels.TRACE or _levels.ERROR
+    log.set_flush_level(at_mcm.get_config("log_flush") and _levels.TRACE or _levels.ERROR)
 end
 
 --- True when DEBUG tracing is live - the guard in front of an expensive trace site.
