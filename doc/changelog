@@ -6,6 +6,8 @@
     Maneuvers
       - Added Emission override. During an emission or a psi storm no maneuver starts and the one in progress ends. A separate toggle, default on.
   Perception
+    Sound
+      - Fixed Movement noise and Handling noise alerting a stalker who is set to leave you alone, as in a peace zone or after a bribe.
     Danger
       - Added Emission override. During an emission or a psi storm a calm stalker stays put after a noise, a hit or a nearby bullet, and Distant hits is off. A separate toggle, default on.
 

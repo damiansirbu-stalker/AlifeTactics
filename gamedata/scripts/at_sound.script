@@ -159,7 +159,8 @@ local function _iterate_movement(tg)
         local id = db.OnlineStalkers[i]
         local st = db.storage[id]
         local npc = st and st.object
-        if npc and IsStalker(npc) and xcreature.is_actor_enemy(npc) and actor_pos:distance_to_sqr(npc:position()) <= radius_sqr then
+        if npc and IsStalker(npc) and xcreature.is_actor_enemy(npc) and actor_pos:distance_to_sqr(npc:position()) <= radius_sqr
+            and xr_combat_ignore.is_enemy(npc, db.actor, true) then
             _try_alert(npc, AC_ID, actor_pos, "step", strength, REALERT_MS)
         end
     end
@@ -232,6 +233,7 @@ local function _on_hear(npc, who_id, s_type, dist_sqr, power, pos)
     if who_id == AC_ID then
         if not (_enabled.move or _enabled.actions) then return end
         if not (npc and IsStalker(npc) and xcreature.is_actor_enemy(npc)) then return end
+        if not xr_combat_ignore.is_enemy(npc, db.actor, true) then return end
         _set_store_window(npc, s_type, power)
         if not _enabled.actions then return end
         local row = ACTIONS[s_type]

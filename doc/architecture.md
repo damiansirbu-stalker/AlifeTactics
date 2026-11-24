@@ -445,7 +445,9 @@ Sound and Vision detect. Danger owns the reaction scheme they stamp into.
 Does: opens a stalker's sound memory to the player before contact, and stamps the danger scheme for player noise the memory drops.
 It also turns a standing stalker toward a creature he hears, and stamps the target of a missed knife swing.
 Changes: the `on_enemy_eval` answer, the `xr_danger.set_script_danger` stamps, a look target.
-Stops: crouched movement is silent. A neutral hearer gets neither the answer nor a stamp from player noise. A creature sound stays out of the danger scheme. A heard shot stays with the engine.
+Stops: crouched movement is silent. A neutral hearer gets neither the answer nor a stamp from player noise.
+The same holds for movement and handling noise at a hostile hearer that `xr_combat_ignore.is_enemy` excuses, in a peace zone or under a bribe.
+A creature sound stays out of the danger scheme. A heard shot stays with the engine.
 
 ```
 npc_on_hear_callback -> _on_hear (at_sound.script), a hostile hearer, a player source:
