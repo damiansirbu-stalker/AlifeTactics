@@ -4,4 +4,5 @@ MANIFEST = {
     name    = "AlifeTactics",
     version = "1.3.1-snapshot",
     xlibs   = "1.10.0",
+    moddb   = "alifetactics",
 }

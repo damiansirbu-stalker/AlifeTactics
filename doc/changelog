@@ -14,6 +14,11 @@
   Fixes
     - Removed the Grenade dodge radius row, because vanilla already dodges a grenade across the same radius.
 
+  Update check
+    - Added an update check. On the first save load of each launch the mod asks GitHub for its latest release, during the loading screen.
+      A newer version shows at the foot of the MCM page, and in a PDA message once a day. It needs xlibs 1.10.1.
+    - Added Check for update to the Development page, which runs the same check right away.
+
 1.3.0
   Mutant combat, a shared decision model, and sharper stalker senses
     Mutants now fight with new and revived moves, leaps, a claw, a rear strike, a gravity throw and a cloak, each taken when you give an opening.

@@ -273,6 +273,11 @@ Modded exes: themrdemonized 20250908 or newer, or AOEngine v0.5.2 or newer. The 
 xlibs (https://www.moddb.com/mods/stalker-anomaly/addons/xlibs-1001)
 MCM
 
+Update check:
+On the first save load of each game launch, the mod asks GitHub during the loading screen whether a newer release is out. It needs xlibs 1.10.1 or newer.
+A newer version shows at the foot of its MCM page, and in a PDA message once a day. Check for update in the Development tab asks right away, whenever you want.
+GitHub sees your IP address and the names of the mods it checks. Each request carries only the mod's name and the word xlibs, with no save data, settings or player name.
+
 Compatibility:
 Depends only on xlibs. Install and uninstall mid-save work. Tested: Anomaly 1.5.3, GAMMA, EFP, Zona, Forgotten Zone.
 Drop:
