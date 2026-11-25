@@ -3,7 +3,7 @@
 at_debug = at_debug or {}
 
 local xlog, tostring, RegisterScriptCallback = xlog, tostring, RegisterScriptCallback
-local log = xlog.get_logger("AT", { outfile = "alifetactics.log" })
+local log = xlog.get_logger("AlifeTactics", { outfile = "alifetactics.log" })
 local DEBUG_LEVEL = 5
 local _lvl = 0
 local _levels = xlog.get_levels()
