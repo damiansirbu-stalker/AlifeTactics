@@ -70,9 +70,9 @@ skill scaling      none, gated by is_participant        the accuracy, aim, visio
 - Engine first. Where Lua cannot reach a C++ decision point, the hook goes into the demonized build first and the mod consumes it second.
   A hook is probed at load, and its feature goes inert with an INACTIVE line when the hook is absent. Hooks below lists each one.
 - One decision model for stalkers and mutants.
-- Policy here, mechanism in xlibs. An engine call that needs a guard, carries a hidden meaning or needs a probe goes through xcombat or xmonster (`stalker-code.md`, xlibs wrapper criteria).
+- Policy here, mechanism in xlibs. An engine call that needs a guard, carries a hidden meaning or needs a probe goes through xcombat or xmonster (`stalker-code.md`, Engine use).
   Where a guarded wrapper exists, the raw call is a defect.
-- Performance first. Only correctness and base gameplay outrank it. The budget is `stalker-code.md`, Performance budget.
+- Performance first. Only correctness and base gameplay outrank it. The budget is `stalker-code.md`, Performance.
 - Event-driven. Work runs on a scheduled time event or a discrete engine event. A throttle placed after the dispatch of a per-frame carrier is per-frame work.
 - Feed the engine. AT writes engine memory and state, and the engine runs its own combat on what was written.
 
