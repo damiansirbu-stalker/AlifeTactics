@@ -74,7 +74,7 @@ local function _load_var(id, name, key)
 end
 
 local function _get_rank_tier(npc)
-    return _RANK_TO_TIER[ranks.get_obj_rank_name(npc)] or "novice"
+    return _RANK_TO_TIER[at_faction.get_rank(npc).tier] or "novice"
 end
 
 local function _is_calm(npc)

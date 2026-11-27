@@ -4,16 +4,16 @@
 ; end of each engagement there is a chance to consume one whole AP box; when the NPC runs out it reverts to vanilla magic FMJ. No death hook is needed: vanilla decide_items_to_keep already
 ; releases every ammo box > 5 on death (death_manager.script:457), so the 15-round AP boxes never drop as loot.
 ;
-; Per-fight delete chance = ap_decay_base * (weapon rpm / rpm_ref) * rank_weight, where rank_weight falls from 1.0 at min_ap_rank to rank_weight_floor at rank_ceiling. Fast weapons burn AP
-; quickly; high rank conserves it.
+; Per-fight delete chance = ap_decay_base * (weapon rpm / rpm_ref) * rank_weight, where rank_weight falls from 1.0 at the min_ap_tier floor to rank_weight_floor at the
+; ceiling_tier floor. Fast weapons burn AP quickly; high rank conserves it.
 
 [at_ammo]
-; NPC character_rank floor for AP. 12000 = veteran (professional caps at 11999
-; in creatures/game_relations.ltx [game_relations] rating). Below = vanilla FMJ.
-min_ap_rank       = 12000
+; The rank tier that starts firing AP. Its floor comes from the loaded rank table (creatures/game_relations.ltx [game_relations] rating),
+; so a modpack that moves the table moves this cut. Below = vanilla FMJ.
+min_ap_tier       = veteran
 
-; Rank at which rank_weight reaches rank_weight_floor. 27000 = legend.
-rank_ceiling      = 27000
+; The rank tier whose floor brings rank_weight to rank_weight_floor.
+ceiling_tier      = legend
 
 ; Base per-fight chance to consume one AP box (before rpm and rank weighting).
 ap_decay_base     = 0.5
@@ -22,7 +22,7 @@ ap_decay_base     = 0.5
 ; decay sooner, slower (snipers, bolt-actions) much later.
 rpm_ref           = 600
 
-; rank_weight at rank_ceiling. Lower = more permanent elite AP (0 = legends
+; rank_weight at the ceiling_tier floor. Lower = more permanent elite AP (0 = legends
 ; never decay past the ceiling).
 rank_weight_floor = 0.1
 

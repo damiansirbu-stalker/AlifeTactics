@@ -41,11 +41,8 @@ local _next_lead = {}
 local _bspeed    = {}
 local _wpn_ammo  = {}
 local _ammok     = {}
-local _tier_cache = {}
 local _bind_logged = false
 local _lead_logged = false
-
-local _get_obj_rank_name = ranks.get_obj_rank_name
 
 -- Project one pair onto the 8 rank tiers: value = base * (1 + pct% * tier index), floored against extreme pairs.
 local function _build_curve(tbl, base, pct)
@@ -134,10 +131,7 @@ local function _get_bullet_speed(obj, wpn)
 end
 
 local function _on_entity_unregister(se_obj)
-    if se_obj then
-        _tier_cache[se_obj.id] = nil
-        _next_lead[se_obj.id] = nil
-    end
+    if se_obj then _next_lead[se_obj.id] = nil end
 end
 
 local function _apply_discipline(npc, tier)
@@ -167,7 +161,7 @@ local function _on_shot_lead(obj, wpn, body_state, move_type, temp_disp)
 
     local enemy = xcombat.get_best_enemy(obj)
     if not enemy then return end
-    local tier = _get_obj_rank_name(obj)
+    local tier = at_faction.get_rank(obj).tier
     if not tier or tier == "" then return end
     local err = _lead[tier]
     if not err then return end
@@ -200,7 +194,7 @@ local function _on_enemy_selected(npc, new_enemy)
     end
     if new_enemy:id() ~= AC_ID then return end
 
-    local tier = _get_obj_rank_name(npc) or "?"
+    local tier = at_faction.get_rank(npc).tier or "?"
     local dist = npc:position():distance_to(new_enemy:position())
     local seen = xcombat.can_see(npc, new_enemy)
     local unseen_ms = xcombat.get_unseen_ms(npc, new_enemy, time_global())
@@ -211,7 +205,7 @@ end
 local function _compute_vision_range(npc)
     if not cfg.vision_enabled then return nil end
     if not at_faction.is_participant(npc) then return nil end
-    local tier = _get_obj_rank_name(npc)
+    local tier = at_faction.get_rank(npc).tier
     if not tier or tier == "" then return nil end
     return _vrange[tier]
 end
@@ -237,7 +231,7 @@ local function _update_config()
 end
 
 local function _on_first_update()
-    _tier_cache, _next_lead = {}, {}
+    _next_lead = {}
     _update_config()
     at_debug.info("Reaction hook initialized (aim=%s vision=%s lead=%s discipline=%s)",
         cfg.aim_enabled and "on" or "off", cfg.vision_enabled and "on" or "off",
@@ -247,12 +241,7 @@ end
 --- Fire-discipline scales for one NPC ((1,1) when off or tierless, so callers multiply blindly).
 function get_queue_scales(npc)
     if not cfg.discipline_enabled then return 1, 1 end
-    local id = npc:id()
-    local tier = _tier_cache[id]
-    if tier == nil then
-        tier = _get_obj_rank_name(npc) or false
-        _tier_cache[id] = tier
-    end
+    local tier = at_faction.get_rank(npc).tier
     if not tier then return 1, 1 end
     local sk = _qsize[tier] or 1
     local ik = _qinterval[tier] or 1
@@ -271,7 +260,7 @@ function apply(npc)
 
     if not (cfg.aim_enabled or cfg.vision_enabled or cfg.discipline_enabled) then return end
 
-    local tier = _get_obj_rank_name(npc)
+    local tier = at_faction.get_rank(npc).tier
     if not tier or tier == "" then return end
 
     local ok_aim, ok_vision

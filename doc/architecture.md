@@ -187,7 +187,7 @@ push_*, pull*                   at_behaviors              the open press and pul
 
 ### Faction gates
 
-Does: rolls a stalker's repertoire from his faction's chances, and owns the stalker Intelligence roll (`at_faction.script`).
+Does: rolls a stalker's repertoire from his faction's chances, owns the stalker Intelligence roll, and owns the rank cache every AlifeTactics rank read goes through (`at_faction.script`).
 Changes: nothing in the world.
 Stops: a zombied stalker takes part in nothing. `is_participant` is the universal filter.
 
@@ -197,7 +197,12 @@ build_repertoire(npc)            one roll per action (counterflank, reload_cover
                                  against [<action>] for his faction, else default, else 1.0
 check_personality(npc, action)   the per-call roll, for the Conduct trait only
 check_intelligence(npc)          one roll against min((int_base + int_rank_pct * rank index) / 100, [caps] intelligence)
+get_rank(npc)                    { rank, tier, index } from the loaded rank table, index the tier's 0-based place in xcreature.RANK_TIERS
+clear_rank(id)                   drops one record
 ```
+
+The rank cache is an xttltable keyed by id with a 10-minute real-time lifetime, and `server_entity_on_unregister` drops a record.
+A rank change shows within about 11 minutes, since rows leave only in the sweep a `set` runs. A stale rank is accepted. `at_test` clears the record after it writes a rank.
 
 ### Effects resolver
 
@@ -549,7 +554,7 @@ Changes: `wpn:set_ammo_type`, and an inventory box delete.
 Stops: inert while `g_ai_unlimited_ammo` is 0, because the engine then spends real rounds.
 
 ```
-_run_monitor (5s) -> update_npc (at_ammo.script): rank >= min_ap_rank, a live weapon, an AP class it takes
+_run_monitor (5s) -> update_npc (at_ammo.script): rank >= the min_ap_tier floor of the loaded rank table, a live weapon, an AP class it takes
   in combat: hold m_ammoType on the AP index while AP is carried
   at peace (no best enemy for peace_debounce_ms): roll the decay, release one AP box, type 0 when empty
 ```

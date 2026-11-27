@@ -7,15 +7,13 @@ local cfg = at_mcm.cfg
 local MT_RUN = 1
 local TIERS = xcreature.RANK_TIERS
 
-local _get_obj_rank_name = ranks.get_obj_rank_name
-
 local _disp = {}
 local _move = {}
 
 local function _compute_disp(obj)
     if not cfg.disp_enabled then return nil end
     if not at_faction.is_participant(obj) then return nil end
-    local tier = _get_obj_rank_name(obj)
+    local tier = at_faction.get_rank(obj).tier
     if not tier or tier == "" then return nil end
     return _disp[tier]
 end
@@ -26,7 +24,7 @@ local function _on_move_penalty(obj, wpn, body_state, move_type, temp_disp)
     if not at_faction.is_participant(obj) then return end
     if not (move_type and move_type <= MT_RUN) then return end
 
-    local tier = _get_obj_rank_name(obj)
+    local tier = at_faction.get_rank(obj).tier
     if not tier or tier == "" then return end
     local move = _move[tier]
     if not move or move == 1.0 then return end

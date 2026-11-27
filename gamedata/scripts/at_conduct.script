@@ -120,7 +120,7 @@ local function _add_crpop_elig(npc, npc_id, elig)
         _add_crpop("int", npc_id)
         return
     end
-    if POSTURE_TIERS[ranks.get_obj_rank_name(npc) or ""] == true then _add_crpop("tier", npc_id) end
+    if POSTURE_TIERS[at_faction.get_rank(npc).tier or ""] == true then _add_crpop("tier", npc_id) end
 end
 
 --- The conduct discipline roll, Intelligence then Personality, cached once per NPC life.
@@ -144,7 +144,7 @@ local function _check_admission(npc, id, crpop_id)
     local kind = xcombat.get_weapon_kind(npc)
     if not (kind and LONG_KINDS[kind]) then return false end
     if crpop_id then _add_crpop("kind", crpop_id) end
-    local elig = POSTURE_TIERS[ranks.get_obj_rank_name(npc) or ""] == true and _is_disciplined(npc, id)
+    local elig = POSTURE_TIERS[at_faction.get_rank(npc).tier or ""] == true and _is_disciplined(npc, id)
     if crpop_id then _add_crpop_elig(npc, crpop_id, elig) end
     return elig
 end
@@ -205,7 +205,7 @@ local function _get_spacing_row(npc, id, tg)
         row = { at = tg, skip = true }
     else
         local min_k = kind == W_SNIPER
-            and SPACING_SNIPER_MIN_K[ranks.get_obj_rank_name(npc) or ""] or nil
+            and SPACING_SNIPER_MIN_K[at_faction.get_rank(npc).tier or ""] or nil
         if min_k == 1.0 then min_k = nil end
         row = { at = tg, min_k = min_k, max_k = SPACING_MAX_K[kind] }
         if at_debug.is_on() and (row.min_k or row.max_k) then

@@ -43,8 +43,12 @@ local function _load_tunables()
         local value = ini:r_float_ex(LTX_SECTION, key)
         return value or default
     end
-    MIN_AP_RANK       = read("min_ap_rank",       12000)
-    RANK_CEILING      = read("rank_ceiling",      27000)
+    local function read_tier_floor(key, default_tier, default_rank)
+        local interval = ranks.get_rank_interval(ini:r_string_ex(LTX_SECTION, key) or default_tier)
+        return interval and interval[1] or default_rank
+    end
+    MIN_AP_RANK       = read_tier_floor("min_ap_tier",  "veteran", 11999)
+    RANK_CEILING      = read_tier_floor("ceiling_tier", "legend",  26999)
     AP_DECAY_BASE     = read("ap_decay_base",     0.5)
     RPM_REF           = read("rpm_ref",           600)
     RANK_WEIGHT_FLOOR = read("rank_weight_floor", 0.1)
@@ -87,7 +91,7 @@ end
 
 local function _compute_decay_chance(npc, wpn_sec)
     local span = RANK_CEILING - MIN_AP_RANK
-    local progress = (span > 0) and math_max(0, math_min(1, (npc:character_rank() - MIN_AP_RANK) / span)) or 0
+    local progress = (span > 0) and math_max(0, math_min(1, (at_faction.get_rank(npc).rank - MIN_AP_RANK) / span)) or 0
     local rank_weight = 1.0 - progress * (1.0 - RANK_WEIGHT_FLOOR)
     local chance = AP_DECAY_BASE * (_get_rpm(wpn_sec) / RPM_REF) * rank_weight
     return math_max(0, math_min(1, chance))
@@ -200,7 +204,7 @@ function update_npc(npc, now)
         return
     end
     if not (npc and npc:alive() and IsStalker(npc)) then return end
-    if npc:character_rank() < MIN_AP_RANK then return end
+    if at_faction.get_rank(npc).rank < MIN_AP_RANK then return end
     local wpn = npc:active_item()
     if not (wpn and IsWeapon(wpn)) then return end
     local wpn_sec = wpn:section()

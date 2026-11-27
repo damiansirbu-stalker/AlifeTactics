@@ -17,7 +17,7 @@ local KIND_CALLED      = "called"
 
 local EFFECT_GEAR = { "af_gravi", "af_soul", "af_fireball", "af_electra_sparkler", "af_compass", "af_kevlar", "wpn_binoc", "device_torch_nv_1" }
 
-local AP_RANK    = 14000
+local AP_RANK_FALLBACK = 11999
 local AP_BOXES   = 3
 local AP_PER_BOX = 15
 local AP_RADIUS  = 120
@@ -191,13 +191,20 @@ local function _find_ap_section(wpn_sec)
     return nil
 end
 
+-- The veteran floor of the loaded rank table, the rank at_ammo arms AP from.
+local function _get_ap_rank()
+    local interval = ranks.get_rank_interval("veteran")
+    return interval and interval[1] or AP_RANK_FALLBACK
+end
+
 local function _add_ap(npc)
     local wpn = npc:active_item()
     if not (wpn and IsWeapon(wpn)) then return false end
     local sec = _find_ap_section(wpn:section())
     if not sec then return false end
     if npc:object(sec) ~= nil then return false end
-    npc:set_character_rank(AP_RANK)
+    npc:set_character_rank(_get_ap_rank())
+    at_faction.clear_rank(npc:id())
     for _ = 1, AP_BOXES do xinventory.create_item(sec, npc:id(), { ammo = AP_PER_BOX }) end
     return true
 end
@@ -541,9 +548,9 @@ function add_ap_ammo()
             armed = armed + (_add_ap(npc) and 1 or 0)
         end
     end
-    at_debug.info("[AMMO] arm_ap armed=%d seen=%d boxes=%d rank=%d", armed, seen, AP_BOXES, AP_RANK)
+    at_debug.info("[AMMO] arm_ap armed=%d seen=%d boxes=%d rank=%d", armed, seen, AP_BOXES, _get_ap_rank())
     _show_tip(string_format("AT.AMMO: armed %d/%d stalkers with AP (rank %d). Fight them, watch [AP] log.",
-        armed, seen, AP_RANK))
+        armed, seen, _get_ap_rank()))
 end
 
 --- One harness pass: stock every nearby stalker (meds, AP + rank, squad weapons).

@@ -744,7 +744,7 @@ local function _on_shot(obj, wpn, body_state, move_type, temp_disp)
 
     local id = obj:id()
     _shot_at[id] = time_global()
-    local tier = ranks.get_obj_rank_name(obj)
+    local tier = at_faction.get_rank(obj).tier
     if not tier or tier == "" then return end
 
     local timer = xprofiler.new_if(_enabled):start()
@@ -903,7 +903,7 @@ local function _on_actor_hit(obj, amount, local_direction, who, bone_index)
             mob.d, mob.stuck_ms and "y" or "n")
     end
     if not IsStalker(who) then return end
-    local tier = ranks.get_obj_rank_name(who)
+    local tier = at_faction.get_rank(who).tier
     if not tier or tier == "" then return end
     _get_tier_row(tier).dmg = _get_tier_row(tier).dmg + amount
 end
