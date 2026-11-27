@@ -559,7 +559,7 @@ _run_monitor (5s) -> update_npc (at_ammo.script): rank >= the min_ap_tier floor 
   at peace (no best enemy for peace_debounce_ms): roll the decay, release one AP box, type 0 when empty
 ```
 
-The inventory is the budget. A deleted box is permanent, because `try_advance_ammo` (`object_actions.cpp`) refills surviving boxes only. Decay is per fight because no NPC fire callback exists.
+The inventory is the budget. A deleted box is permanent, because `try_advance_ammo` (`object_actions.cpp`) refills surviving boxes only. Decay rolls once per fight, when the stalker is at peace.
 
 ### Attachments
 
