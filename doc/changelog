@@ -12,7 +12,7 @@
       - Added Emission override. During an emission or a psi storm a calm stalker stays put after a noise, a hit or a nearby bullet, and Distant hits is off. A separate toggle, default on.
   Mechanics
     Ammo
-      - Changed AP ammo to follow the modpack's rank table, so on GAMMA and EFP only veterans and up fire it, as in vanilla.
+      - Changed AP ammo to follow the modpack's rank table. On GAMMA and EFP only veterans and up fire it, as in vanilla.
 
   Fixes
     - Removed the Grenade dodge radius row, because vanilla already dodges a grenade across the same radius.
