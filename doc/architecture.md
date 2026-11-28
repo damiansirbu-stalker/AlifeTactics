@@ -498,8 +498,10 @@ add_to_binder -> at_evaluator_danger + at_action_danger on the motivation manage
 plan solve -> eval_danger -> eval_danger_raw, then npc_on_eval_danger on a would-be-true verdict (a veto clears the inertion latch)
   a live admitted script_danger stamp -> true
   else the best danger -> the inertion and ignore tables of the winner's xr_danger.ltx -> danger_flag
-at_evaluator_check_danger: attacked, corpse, grenade to the script; sound dangers stay with the engine planner
-at_action_danger:execute -> the stamp first, else grenade, corpse or attacked; requires property_enemy == false
+at_evaluator_check_danger: an admitted stamp, or a live stamp beside the best danger, to the script;
+  else attacked, corpse, grenade to the script; sound dangers stay with the engine planner
+at_action_danger:execute -> an admitted stamp, else beside the best danger a live stamp, else grenade, corpse or attacked;
+  requires property_enemy == false
 ```
 
 Stamp grades, weakest first:
@@ -508,16 +510,21 @@ Stamp grades, weakest first:
 - watch: the knife grade, `threat_na` looking at the source. It ranks with solid.
 - rush: he runs. Companions only.
 
-- An unexpired stronger stamp survives a weaker one.
+- A foreign stamp has no grade and no player source: vanilla's hear stamp of a mutant attack or an enemy impact within 30 m,
+  its hit stamp and quest stamps (`xr_danger.script:97-132`, `xr_effects.script:5608`). It is never admitted alone, and shapes
+  the reaction only beside the best danger, as vanilla reads a stamp (`xr_danger.script:271,299,695,772`).
+  Admitted alone, it held `has_danger` true on a calm stalker until 7 s after the last such sound, and his scheme reacted, the camper with `threat_na` (`xr_camper.script:275-303`).
+  GAMMA's AI Rework skips the stamp while `has_danger` holds, so there it came back every 7 s.
+- An unexpired stronger stamp survives a weaker one, and a non-foreign one also survives a foreign one of its own grade.
+- A stamp arriving mid-reaction restarts at stage 1, since the corpse and attacked reactions share the stage counter.
 - The grades above faint aim with a look direction (`_get_look_target`), not a position.
   The state manager counts a position as reached while the sight carries an animpoint direction (`state_mgr_direction.script`).
 - The active reaction runs one stage-2 give-up band, then a standing watch until the config inertion decays.
 - `_is_squad_engaged` skips it while a squadmate holds a live enemy.
 - The install adds the monolith sub-scheme's four actions to `state_mgr.combat_action_ids`, and patches three rx_ff members: the friendly-fire freeze, the over-hold and the blocked-shot lane test.
 - Distant hits (`danger_hit_bypass`) answers a hit danger past the ignore distance, after the relation, alive and combat-ignore checks.
-- Emission override (`danger_emission_override`): in an emission or a psi storm, `_has_admitted_stamp` returns false and Distant hits is off.
-  A stamp then counts only beside a real danger, as vanilla reads it (`xr_danger.script:262-315,693-701`), and no stamp walks a sheltered stalker out.
-  Vanilla's hit and impact stamps feed it (`:96-133`).
+- Emission override (`danger_emission_override`): in an emission or a psi storm no stamp counts (`_has_live_stamp`) and Distant hits is off,
+  so no stamp walks a sheltered stalker out.
 - Attempted murder (`danger_knife_miss`) is the Sound knife stamp, without a relation check. A neutral or friend takes the Neutral gunfire admission.
 
 The DLTX `mod_xr_danger_at.ltx` deletes the dead perceive keys of the `EDangerPerceiveType` name collision (`danger_object.h`). Detection distances come from the winning xr_danger.ltx.

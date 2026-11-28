@@ -10,6 +10,8 @@
       - Fixed Movement noise and Handling noise alerting a stalker who is set to leave you alone, as in a peace zone or after a bribe.
     Danger
       - Added Emission override. During an emission or a psi storm a calm stalker stays put after a noise, a hit or a nearby bullet, and Distant hits is off. A separate toggle, default on.
+      - Fixed calm stalkers leaving their post with their weapon drawn at every mutant attack or enemy bullet heard within 30 m. On GAMMA they put it away 7 s later and drew it again at the next sound, over and over. Such a sound now counts only beside a danger they perceive, as in vanilla. Your own noise and gunfire work as before.
+      - Fixed a stalker standing frozen for several seconds when a noise reached him in the middle of a corpse check.
   Mechanics
     Ammo
       - Changed AP ammo to follow the modpack's rank table. On GAMMA and EFP only veterans and up fire it, as in vanilla.
