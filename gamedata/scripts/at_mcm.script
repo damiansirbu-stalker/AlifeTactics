@@ -1,9 +1,5 @@
 --- at_mcm: MCM configuration for AlifeTactics
 
---- The mutant Power page (damage, resistance) stays out of the release: false drops the page and at_mutants reads both sliders as 0; the keys stay in defaults.
-MUT_POWER_ENABLED = false
-
-local table_insert = table.insert
 local MUTANTS_ID = "mutants"
 
 local defaults = {
@@ -121,8 +117,6 @@ local defaults = {
     mut_wild             = 50,
     mut_int_base         = 40,
     mut_int_rank_pct     = 6,
-    mut_damage_pct       = 2,
-    mut_resist_pct       = 2,
     mut_chimera_high_leap      = true,
     mut_chimera_punishing_leap = true,
     mut_chimera_hunting_leap   = true,
@@ -295,8 +289,6 @@ local _key_to_tab = {
     gear_aura_enabled      = "mechanics/gear",
     gear_binoc_enabled     = "mechanics/gear",
     gear_nvg_enabled       = "mechanics/gear",
-    mut_damage_pct      = "mutants/power",
-    mut_resist_pct      = "mutants/power",
     mut_int_base        = "mutants/general",
     mut_int_rank_pct    = "mutants/general",
     mut_wild            = "mutants/general",
@@ -424,17 +416,6 @@ end
 
 --- Build the option tree (the canonical six-category structure; paths and hints per the architecture).
 function on_mcm_load()
-    local power_page = {
-        id = "power",
-        sh = true,
-        gr = {
-            { id = "title", type = "slide", link = "at_mcm_banner",
-                text = "ui_mcm_at_title", size = {512, 50}, spacing = 20 },
-            { id = "desc", type = "desc", text = "ui_mcm_at_mutants_power_desc" },
-            { id = "mut_damage_pct", type = "track", val = 2, min = 0, max = 25, step = 1, def = 2, hint = "at_mutants_mut_damage_pct" },
-            { id = "mut_resist_pct", type = "track", val = 2, min = 0, max = 15, step = 1, def = 2, hint = "at_mutants_mut_resist_pct" },
-        },
-    }
     local rct_fb = {
         aim_base = 0.24, aim_rank_pct = 63,
         track_base = 0.196, track_rank_pct = 12,
@@ -1129,11 +1110,6 @@ function on_mcm_load()
             },
         },
     }
-    if MUT_POWER_ENABLED then
-        for i = 1, #tree.gr do
-            if tree.gr[i].id == MUTANTS_ID then table_insert(tree.gr[i].gr, 2, power_page) end
-        end
-    end
     return tree
 end
 

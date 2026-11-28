@@ -118,7 +118,6 @@ Mechanics        Healing           at_healing              the xr_eat_medkit pat
                  Gear              at_gear                 resolver providers, the item callbacks
 Effects          none              none                    planned
 Mutants          General           at_mutants              monster_on_update, the 600ms beat
-                 Power             at_mutants              off in the release (MUT_POWER_ENABLED)
                  one per species   at_mutants              the same beat
 Fixes                              the owning systems      locked toggles
 Development                        at_debug, at_world_trace, at_hud, at_test

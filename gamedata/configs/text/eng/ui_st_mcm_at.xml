@@ -159,9 +159,6 @@
   <string id="ui_mcm_menu_general">
     <text>General</text>
   </string>
-  <string id="ui_mcm_menu_power">
-    <text>Power</text>
-  </string>
   <string id="ui_mcm_menu_chimera">
     <text>Chimera</text>
   </string>
@@ -209,9 +206,6 @@
   </string>
   <string id="ui_mcm_at_mutants_general_desc">
     <text>Intelligence is the chance that a mutant makes the right move in a fight. It grows with the Map level, from Cordon up to Jupiter and Pripyat, but even there a mutant sometimes makes the wrong move. Personality is the set of moves a mutant carries, after the species GSC designed. Two chimeras of a pack can still fight differently. Wild is how far the numbers of a species vary between individuals, like the force of a leap. A mutant waits between its moves. If one of those moves hits you, no mutant starts another on you for a moment. This is why a pack comes at you in turns.</text>
-  </string>
-  <string id="ui_mcm_at_mutants_power_desc">
-    <text>A mutant's toughness, scaled by the map rank (rookie maps rank 0 up to endgame maps rank 5): damage resistance grows by the slider's percent per rank. Multiplies the installed balance, so other mutant overhauls keep their numbers.</text>
   </string>
   <string id="ui_mcm_at_mutants_chimera_desc">
     <text>Chimera and lurker.</text>
@@ -293,18 +287,6 @@
   </string>
   <string id="ui_mcm_at_mutants_mut_wild_desc">
     <text>A higher value spreads the numbers of a species wider between individuals, like the force of a leap and the reach of a gravity throw. At 0 all mutants of a species have the same numbers.</text>
-  </string>
-  <string id="ui_mcm_at_mutants_mut_damage_pct">
-    <text>Damage per rank (%)</text>
-  </string>
-  <string id="ui_mcm_at_mutants_mut_damage_pct_desc">
-    <text>Hit power grows by this percent for each map rank: rank 0 stays vanilla, rank 5 gets 5 times this bonus.</text>
-  </string>
-  <string id="ui_mcm_at_mutants_mut_resist_pct">
-    <text>Resistance per rank (%)</text>
-  </string>
-  <string id="ui_mcm_at_mutants_mut_resist_pct_desc">
-    <text>Damage a mutant receives shrinks by this percent for each map rank, so a deep-Zone mutant shrugs off fire a Cordon one would feel.</text>
   </string>
   <string id="ui_mcm_at_mutants_high_leap">
     <text>High leap</text>

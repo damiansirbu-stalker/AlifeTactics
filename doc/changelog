@@ -19,6 +19,9 @@
   Fixes
     - Removed the Grenade dodge radius row, because vanilla already dodges a grenade across the same radius.
 
+  MCM
+    - Fixed the 2 "MCM given bad path" warnings in the console on load, for `mut_damage_pct` and `mut_resist_pct`. Both settings belonged to an unreleased mutant damage scaling, which is removed.
+
   Update check
     - Added an update check. The mod asks GitHub for a newer release and shows it at the foot of the MCM page and in a daily PDA message.
       Check for update on the Development page asks right away.
