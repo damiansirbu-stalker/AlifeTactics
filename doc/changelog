@@ -1,6 +1,7 @@
 1.3.1-snapshot
   Emission override for maneuvers and danger reactions
     Emission override keeps AlifeTactics from pulling stalkers out of shelter in an emission or a psi storm, with a switch on Maneuvers and on Danger.
+    Calm stalkers hold their post through fights they only hear.
 
   Combat
     Maneuvers
@@ -10,8 +11,8 @@
       - Fixed Movement noise and Handling noise alerting a stalker who is set to leave you alone, as in a peace zone or after a bribe.
     Danger
       - Added Emission override. During an emission or a psi storm a calm stalker stays put after a noise, a hit or a nearby bullet, and Distant hits is off. A separate toggle, default on.
-      - Fixed calm stalkers leaving their post with their weapon drawn at every mutant attack or enemy bullet heard within 30 m. On GAMMA they put it away 7 s later and drew it again at the next sound, over and over. Such a sound now counts only beside a danger they perceive, as in vanilla. Your own noise and gunfire work as before.
-      - Fixed a stalker standing frozen for several seconds when a noise reached him in the middle of a corpse check.
+      - Calm stalkers now hold their post through a fight they only hear and react once they perceive the danger, as in vanilla. Your noise and gunfire alert them as before.
+      - A noise that reaches a stalker during a corpse check now gets its reaction at once.
   Mechanics
     Ammo
       - Changed AP ammo to follow the modpack's rank table. On GAMMA and EFP only veterans and up fire it, as in vanilla.
@@ -20,7 +21,7 @@
     - Removed the Grenade dodge radius row, because vanilla already dodges a grenade across the same radius.
 
   MCM
-    - Fixed the 2 "MCM given bad path" warnings in the console on load, for `mut_damage_pct` and `mut_resist_pct`. Both settings belonged to an unreleased mutant damage scaling, which is removed.
+    - Removed the 2 "MCM given bad path" warnings from the console on load.
 
   Update check
     - Added an update check. The mod asks GitHub for a newer release and shows it at the foot of the MCM page and in a daily PDA message.
